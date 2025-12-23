@@ -8,6 +8,7 @@ const prisma = new PrismaClient()
 export const authOptions: NextAuthOptions = {
     secret: process.env.NEXTAUTH_SECRET,
     debug: true, // Always debug for now to fix prod
+    // @ts-ignore
     trustHost: true,
     session: {
         strategy: "jwt",
