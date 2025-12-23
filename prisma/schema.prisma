@@ -1,0 +1,82 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+
+
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Prompt {
+  id            Int      @id @default(autoincrement())
+  name          String
+  system_prompt String
+  model         String   @default("venice-uncensored")
+  temperature   Decimal  @default(0.7)
+  max_tokens    Int      @default(500)
+  createdAt     DateTime @default(now())
+  conversations Conversation[]
+
+  @@map("prompts")
+}
+
+model Contact {
+  id             Int      @id @default(autoincrement())
+  name           String
+  phone_whatsapp String   @unique
+  source         String?
+  notes          String?
+  status         String   @default("new") // new, contacted, qualified, closed
+  createdAt      DateTime @default(now())
+  conversations  Conversation[]
+
+  @@map("contacts")
+}
+
+model Conversation {
+  id              Int       @id @default(autoincrement())
+  contactId       Int
+  promptId        Int
+  waha_session_id String?
+  status          String    @default("active") // active, paused, closed
+  ai_enabled      Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  closedAt        DateTime?
+  
+  contact         Contact   @relation(fields: [contactId], references: [id])
+  prompt          Prompt    @relation(fields: [promptId], references: [id])
+  messages        Message[]
+
+  @@map("conversations")
+}
+
+model Message {
+  id              Int      @id @default(autoincrement())
+  conversationId  Int
+  sender          String   // 'ai', 'contact', 'admin'
+  message_text    String
+  waha_message_id String?
+  timestamp       DateTime @default(now())
+
+  conversation    Conversation @relation(fields: [conversationId], references: [id])
+
+  @@map("messages")
+}
+
+model Setting {
+  id    Int    @id @default(autoincrement())
+  key   String @unique
+  value String
+
+  @@map("settings")
+}

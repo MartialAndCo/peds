@@ -1,0 +1,13 @@
+[2025-12-23T20:14:01.020Z] Webhook: Voice Message Detected {
+  "id": "false_33695472237@c.us_2AF1D01FFBF52587BE5A",
+  "mimetype": "audio/ogg; codecs=opus"
+}
+[2025-12-23T20:14:51.644Z] Webhook: Voice Message Detected {
+  "id": "msg_1766520891487",
+  "type": "ptt",
+  "mimetype": "audio/ogg; codecs=opus"
+}
+[2025-12-23T20:15:21.934Z] Webhook: Voice Message Detected {
+  "id": "false_33695472237@c.us_2A86622C6163A2C9D72E",
+  "mimetype": "audio/ogg; codecs=opus"
+}

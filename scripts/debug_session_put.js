@@ -1,0 +1,58 @@
+const axios = require('axios');
+
+async function debugPut() {
+    const session = 'default';
+    const baseUrl = 'http://localhost:3001';
+    const apiKey = 'secret';
+    const headers = { 'X-Api-Key': apiKey, 'Content-Type': 'application/json' };
+
+    console.log(`[DEBUG] Testing PUT for session: ${session}`);
+
+    const webhookUrl = 'http://localhost:3005/api/webhooks/waha';
+    const sessionConfig = {
+        proxy: null,
+        debug: false,
+        webhooks: [
+            {
+                url: webhookUrl,
+                events: ['message', 'message.any', 'state.change']
+            }
+        ]
+    };
+
+    // 1. Send PUT
+    try {
+        console.log(`[ACTION] Sending PUT to update/restart session...`);
+        // Matches app/api/session/start/route.ts logic
+        const updateRes = await axios.put(`${baseUrl}/api/sessions/${session}`, {
+            config: sessionConfig
+        }, { headers });
+        console.log(`[PUT] Response: ${updateRes.status}`);
+    } catch (e) {
+        console.log(`[PUT] Failed: ${e.message}`);
+        if (e.response) console.log(`[PUT] Data:`, e.response.data);
+    }
+
+    // 2. Poll Status
+    let count = 0;
+    const interval = setInterval(async () => {
+        count++;
+        if (count > 20) {
+            clearInterval(interval);
+            console.log("[DONE] Monitoring finished.");
+            return;
+        }
+
+        try {
+            const res = await axios.get(`${baseUrl}/api/sessions/${session}`, { headers });
+            console.log(`[POLL #${count}] Status: ${res.data.status}`);
+            if (res.data.status === 'STOPPED' || res.data.status === 'FAILED') {
+                console.log(`[CRASH DETECTED] Details:`, JSON.stringify(res.data, null, 2));
+            }
+        } catch (e) {
+            console.log(`[POLL #${count}] Error: ${e.message}`);
+        }
+    }, 500);
+}
+
+debugPut();

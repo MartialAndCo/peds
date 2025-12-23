@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+
+# waha-server
+waha-server/node_modules
+waha-server/.env
+waha-server/.media
+waha-server/.sessions
+waha-server/dist
+
