@@ -219,7 +219,13 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: true })
 
     } catch (error: any) {
-        console.error('Webhook Error:', error)
+        console.error('Webhook Error Full Stack:', error)
+        console.error('Webhook Error Message:', error.message)
+        // If Prisma Error
+        if (error.code) {
+            console.error('Prisma Error Code:', error.code)
+            console.error('Prisma Meta:', error.meta)
+        }
         return NextResponse.json({ error: error.message }, { status: 500 })
     }
 }
