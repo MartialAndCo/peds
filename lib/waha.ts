@@ -181,27 +181,23 @@ export const waha = {
                 return null
             }
 
-            // FIX: If WAHA returns a localhost URL (internal container IP), 
-            // rewrite it to use the configured endpoint so this app can reach it.
+            // FIX: Always rewrite the media URL to use the configured endpoint.
+            // This ensures that whether WAHA returns localhost, internal IP, or anything else,
+            // we try to access it via the known-working endpoint URL.
             let finalUrl = mediaUrl
-            if (mediaUrl.includes('localhost') || mediaUrl.includes('127.0.0.1')) {
-                try {
-                    const mediaUrlObj = new URL(mediaUrl)
-                    const endpointObj = new URL(endpoint)
+            try {
+                const mediaUrlObj = new URL(mediaUrl)
+                const endpointObj = new URL(endpoint)
 
-                    // Keep the path (e.g. /api/files/...) but replace protocol/host/port with endpoint's
-                    mediaUrlObj.protocol = endpointObj.protocol
-                    mediaUrlObj.host = endpointObj.host
-                    mediaUrlObj.port = endpointObj.port
+                // Keep the path (e.g. /api/files/...) but replace protocol/host/port with endpoint's
+                mediaUrlObj.protocol = endpointObj.protocol
+                mediaUrlObj.host = endpointObj.host
+                mediaUrlObj.port = endpointObj.port
 
-                    finalUrl = mediaUrlObj.toString()
-                    console.log(`[WAHA] Rewrote local media URL to: ${finalUrl}`)
-                } catch (e) {
-                    console.warn('[WAHA] Failed to rewrite media URL, using original:', e)
-                }
-            } else if (mediaUrl.startsWith('/')) {
-                // Handle relative URLs
-                finalUrl = `${endpoint}${mediaUrl}`
+                finalUrl = mediaUrlObj.toString()
+                console.log(`[WAHA] Rewrote media URL from '${mediaUrl}' to '${finalUrl}'`)
+            } catch (e) {
+                console.warn('[WAHA] Failed to rewrite media URL, using original:', e)
             }
 
             console.log(`[WAHA] Downloading media from: ${finalUrl}`)
