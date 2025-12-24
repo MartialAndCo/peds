@@ -14,12 +14,15 @@ export async function POST(req: Request) {
         const apiKey = settings.waha_api_key || process.env.WAHA_API_KEY || 'secret'
 
         // Fix recursive call issue
-        if (endpoint.includes(':3000')) {
-            console.log('[Session Start] Detected potential recursive endpoint (3000), switching to 3001')
-            endpoint = 'http://localhost:3001'
-        }
+        // Fix recursive call issue - REMOVED for production support
+        // if (endpoint.includes(':3000')) {
+        //     console.log('[Session Start] Detected potential recursive endpoint (3000), switching to 3001')
+        //     endpoint = 'http://localhost:3001'
+        // }
 
-        const webhookUrl = 'http://localhost:3005/api/webhooks/waha'
+        // Use production URL for webhook if available, otherwise fallback to localhost
+        const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3005'
+        const webhookUrl = `${baseUrl}/api/webhooks/waha`
         const sessionConfig = {
             proxy: null,
             debug: false,
