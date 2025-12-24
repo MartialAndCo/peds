@@ -1,34 +1,27 @@
 import { NextResponse } from 'next/server'
-import { getConfig } from '@/lib/waha'
+import { whatsapp } from '@/lib/whatsapp'
+import QRCode from 'qrcode'
 
 export async function GET() {
     try {
-        const { endpoint, session: sessionName, apiKey } = await getConfig()
+        const result = await whatsapp.getStatus()
 
-        const imageUrl = `${endpoint}/api/${sessionName}/auth/qr?format=image`
+        if (result && result.qr) {
+            // Generate QR Image Buffer
+            const qrBuffer = await QRCode.toBuffer(result.qr)
 
-        const res = await fetch(imageUrl, {
-            headers: {
-                'X-Api-Key': apiKey
-            }
-        })
-
-        if (!res.ok) {
-            return new NextResponse('Failed to fetch QR', { status: 404 })
+            return new NextResponse(qrBuffer, {
+                headers: {
+                    'Content-Type': 'image/png',
+                    'Content-Length': qrBuffer.length.toString()
+                }
+            })
         }
 
-        // Use arrayBuffer directly as blob() can sometimes be problematic in Node envs depending on version
-        const buffer = await res.arrayBuffer()
-
-        return new NextResponse(buffer, {
-            headers: {
-                'Content-Type': 'image/png',
-                'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-            }
-        })
+        return new NextResponse('No QR Code available', { status: 404 })
 
     } catch (error: any) {
-        console.error("QR Proxy Error:", error)
-        return new NextResponse(error.message, { status: 500 })
+        console.error('QR Gen Error', error)
+        return new NextResponse('Error generating QR', { status: 500 })
     }
 }

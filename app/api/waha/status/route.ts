@@ -1,35 +1,29 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { getConfig } from '@/lib/waha'
+import { whatsapp } from '@/lib/whatsapp'
 
 export async function GET() {
     try {
-        const { endpoint, session: sessionName, apiKey } = await getConfig()
+        const result = await whatsapp.getStatus()
 
-        // Check if WAHA is up
-        try {
-            // We can use the list sessions endpoint to check our specific session
-            const res = await fetch(`${endpoint}/api/sessions/${sessionName}`, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Api-Key': apiKey
-                }
-            })
+        // Map whatsapp-web.js status to WAHA-like status for frontend compatibility
+        // WAHA: 'WORKING', 'SCAN_QR_CODE', 'STOPPED', 'STARTING'
+        // My Service: 'INITIALIZING', 'SCAN_QR_CODE', 'CONNECTED', 'AUTHENTICATED', 'DISCONNECTED'
 
-            if (!res.ok) {
-                // Maybe session doesn't exist?
-                return NextResponse.json({ status: 'STOPPED', error: 'Session not found or WAHA down' })
-            }
+        let status = result.status || 'STOPPED'
+        let qr = result.qr
 
-            const data = await res.json()
-            // data.status could be 'WORKING', 'SCAN_QR', 'STARTING', 'failed'
-            return NextResponse.json({ ...data, _debug: 'modified_by_agent' })
-
-        } catch (fetchError) {
-            console.error('WAHA Status Check Error', fetchError)
-            return NextResponse.json({ status: 'UNREACHABLE', error: 'Could not connect to WAHA' })
+        if (status === 'CONNECTED' || status === 'AUTHENTICATED') {
+            status = 'WORKING'
+        } else if (status === 'SCAN_QR_CODE') {
+            status = 'SCAN_QR'
         }
+
+        // Return structure: { status, me: { ... } } (for now me is missing but okay)
+        return NextResponse.json({
+            status,
+            me: { id: 'unknown', pushName: 'WhatsApp User' }, // TODO: Fetch 'me' from service
+            qrRaw: qr
+        })
 
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 })
