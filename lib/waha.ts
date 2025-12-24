@@ -136,13 +136,42 @@ export const waha = {
         }
     },
 
-    async sendVoice(chatId: string, audioDataUrl: string) {
+    async sendFile(chatId: string, fileDataUrl: string, filename: string, caption?: string) {
         const { endpoint, session, apiKey } = await getConfig()
 
         try {
             const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
-            const base64Data = audioDataUrl.split(',')[1] || audioDataUrl
+            const base64Data = fileDataUrl.split(',')[1] || fileDataUrl
 
+            await axios.post(`${endpoint}/api/sendFile`, {
+                session,
+                chatId: formattedChatId,
+                file: {
+                    mimetype: 'audio/mpeg',
+                    data: base64Data,
+                    filename: filename
+                },
+                caption: caption
+            }, {
+                headers: { 'X-Api-Key': apiKey }
+            })
+        } catch (error: any) {
+            const errorDetails = JSON.stringify(error.response?.data || error.message)
+            console.error('WAHA SendFile Error:', errorDetails)
+            throw new Error(`Failed to send File: ${errorDetails}`)
+        }
+    },
+
+    async sendVoice(chatId: string, audioDataUrl: string) {
+        // NOTE: WAHA 'sendVoice' (PTT) is often restricted to Plus version.
+        // We will try to use 'sendFile' as a fallback which works on Free version usually.
+        // Ideally we try sendVoice, catch 422, then sendFile.
+        const { endpoint, session, apiKey } = await getConfig()
+        const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
+        const base64Data = audioDataUrl.split(',')[1] || audioDataUrl
+
+        try {
+            // Try native Voice Note (PTT)
             await axios.post(`${endpoint}/api/sendVoice`, {
                 session,
                 chatId: formattedChatId,
@@ -155,9 +184,17 @@ export const waha = {
                 headers: { 'X-Api-Key': apiKey }
             })
         } catch (error: any) {
-            const errorDetails = JSON.stringify(error.response?.data || error.message)
-            console.error('WAHA SendVoice Error:', errorDetails)
-            throw new Error(`Failed to send Voice message: ${errorDetails}`)
+            console.warn('WAHA SendVoice failed (likely Plus-only feature). Falling back to SendFile...', error.response?.status)
+            
+            // Fallback to sending as Audio File
+            try {
+                await this.sendFile(chatId, audioDataUrl, 'voice.mp3', '')
+                console.log('Fallback to SendFile successful')
+            } catch (fallbackError: any) {
+                const errorDetails = JSON.stringify(fallbackError.response?.data || fallbackError.message)
+                console.error('WAHA SendFile Fallback Error:', errorDetails)
+                throw new Error(`Failed to send Voice message (and fallback failed): ${errorDetails}`)
+            }
         }
     },
 
