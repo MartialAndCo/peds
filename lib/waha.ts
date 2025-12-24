@@ -35,9 +35,7 @@ export const waha = {
     },
 
     async sendSeen(chatId: string) {
-        let endpoint = process.env.WAHA_ENDPOINT || 'http://localhost:3001'
-        if (endpoint.includes('3000')) endpoint = 'http://localhost:3001'
-
+        const endpoint = process.env.WAHA_ENDPOINT || 'http://localhost:3001'
         const session = process.env.WAHA_SESSION || 'default'
         const apiKey = process.env.WAHA_API_KEY || 'secret'
 
@@ -56,9 +54,7 @@ export const waha = {
     },
 
     async startTyping(chatId: string) {
-        let endpoint = process.env.WAHA_ENDPOINT || 'http://localhost:3001'
-        if (endpoint.includes('3000')) endpoint = 'http://localhost:3001'
-
+        const endpoint = process.env.WAHA_ENDPOINT || 'http://localhost:3001'
         const session = process.env.WAHA_SESSION || 'default'
         const apiKey = process.env.WAHA_API_KEY || 'secret'
 
@@ -76,9 +72,7 @@ export const waha = {
     },
 
     async stopTyping(chatId: string) {
-        let endpoint = process.env.WAHA_ENDPOINT || 'http://localhost:3001'
-        if (endpoint.includes('3000')) endpoint = 'http://localhost:3001'
-
+        const endpoint = process.env.WAHA_ENDPOINT || 'http://localhost:3001'
         const session = process.env.WAHA_SESSION || 'default'
         const apiKey = process.env.WAHA_API_KEY || 'secret'
 
@@ -118,8 +112,7 @@ export const waha = {
     },
 
     async getSessionStatus() {
-        let endpoint = process.env.WAHA_ENDPOINT || 'http://localhost:3001'
-        if (endpoint.includes('3000')) endpoint = 'http://localhost:3001'
+        const endpoint = process.env.WAHA_ENDPOINT || 'http://localhost:3001'
         const apiKey = process.env.WAHA_API_KEY || 'secret'
 
         try {
@@ -133,9 +126,7 @@ export const waha = {
     },
 
     async sendVoice(chatId: string, audioDataUrl: string) {
-        let endpoint = process.env.WAHA_ENDPOINT || 'http://localhost:3001'
-        if (endpoint.includes('3000')) endpoint = 'http://localhost:3001'
-
+        const endpoint = process.env.WAHA_ENDPOINT || 'http://localhost:3001'
         const session = process.env.WAHA_SESSION || 'default'
         const apiKey = process.env.WAHA_API_KEY || 'secret'
 
@@ -169,8 +160,7 @@ export const waha = {
     },
 
     async downloadMedia(messageId: string, chatId: string) {
-        let endpoint = process.env.WAHA_ENDPOINT || 'http://localhost:3001'
-        if (endpoint.includes('3000')) endpoint = 'http://localhost:3001'
+        const endpoint = process.env.WAHA_ENDPOINT || 'http://localhost:3001'
         const session = process.env.WAHA_SESSION || 'default'
         const apiKey = process.env.WAHA_API_KEY || 'secret'
 
