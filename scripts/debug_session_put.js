@@ -2,8 +2,8 @@ const axios = require('axios');
 
 async function debugPut() {
     const session = 'default';
-    const baseUrl = 'http://localhost:3001';
-    const apiKey = 'secret';
+    const baseUrl = 'http://13.60.16.81:3000';
+    const apiKey = 'azerty1234567890azerty1234567890';
     const headers = { 'X-Api-Key': apiKey, 'Content-Type': 'application/json' };
 
     console.log(`[DEBUG] Testing PUT for session: ${session}`);
