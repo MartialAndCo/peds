@@ -13,7 +13,7 @@ export async function POST(req: Request) {
         // }
 
         // Use production URL for webhook if available, otherwise fallback to localhost
-        const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3005'
+        const baseUrl = process.env.WEBHOOK_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000'
         const webhookUrl = `${baseUrl}/api/webhooks/waha`
         const sessionConfig = {
             proxy: null,
