@@ -1,25 +1,15 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { getConfig } from '@/lib/waha'
 
 export async function GET() {
     try {
-        const settingsList = await prisma.setting.findMany()
-        const settings = settingsList.reduce((acc: any, curr: any) => {
-            acc[curr.key] = curr.value
-            return acc
-        }, {})
-
-        let endpoint = settings.waha_endpoint || process.env.WAHA_ENDPOINT || 'http://localhost:3001'
-        // FIX: Removed localhost override for port 3000
-        // if (endpoint.includes(':3000')) endpoint = 'http://localhost:3001'
-
-        const sessionName = settings.waha_session || process.env.WAHA_SESSION || 'default'
+        const { endpoint, session: sessionName, apiKey } = await getConfig()
 
         const imageUrl = `${endpoint}/api/${sessionName}/auth/qr?format=image`
 
         const res = await fetch(imageUrl, {
             headers: {
-                'X-Api-Key': settings.waha_api_key || process.env.WAHA_API_KEY || 'secret'
+                'X-Api-Key': apiKey
             }
         })
 

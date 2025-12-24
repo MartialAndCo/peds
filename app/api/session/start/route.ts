@@ -1,17 +1,9 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { getConfig } from '@/lib/waha'
 
 export async function POST(req: Request) {
     try {
-        const settingsList = await prisma.setting.findMany()
-        const settings = settingsList.reduce((acc: any, curr: any) => {
-            acc[curr.key] = curr.value
-            return acc
-        }, {})
-
-        let endpoint = settings.waha_endpoint || process.env.WAHA_ENDPOINT || 'http://localhost:3001'
-        const sessionName = settings.waha_session || process.env.WAHA_SESSION || 'default'
-        const apiKey = settings.waha_api_key || process.env.WAHA_API_KEY || 'secret'
+        const { endpoint, session: sessionName, apiKey } = await getConfig()
 
         // Fix recursive call issue
         // Fix recursive call issue - REMOVED for production support
