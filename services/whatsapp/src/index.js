@@ -105,6 +105,9 @@ client.on('message', async msg => {
         await axios.post(WEBHOOK_URL, payload);
     } catch (e) {
         console.error('Webhook failed', e.message);
+        if (e.response && e.response.data) {
+            console.error('Webhook Error Details:', JSON.stringify(e.response.data, null, 2));
+        }
     }
 });
 
