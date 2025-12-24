@@ -2,8 +2,7 @@ import axios from 'axios'
 
 export const waha = {
     async sendText(chatId: string, text: string) {
-        let endpoint = process.env.WAHA_ENDPOINT || 'http://localhost:3001'
-        if (endpoint.includes('3000')) endpoint = 'http://localhost:3001'
+        const endpoint = process.env.WAHA_ENDPOINT || 'http://localhost:3001'
 
         const session = process.env.WAHA_SESSION || 'default'
         const apiKey = process.env.WAHA_API_KEY || 'secret' // TODO: Get from settings dynamically if possible, or assume env match
