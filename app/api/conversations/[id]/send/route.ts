@@ -7,7 +7,7 @@ import { waha } from '@/lib/waha'
 
 export async function POST(
     req: Request,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const session = await getServerSession(authOptions)
@@ -16,8 +16,9 @@ export async function POST(
         }
 
         const { text } = await req.json()
+        const { id: idStr } = await params
         const conversation = await prisma.conversation.findUnique({
-            where: { id: params.id },
+            where: { id: parseInt(idStr) },
             include: { contact: true }
         })
 
