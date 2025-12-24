@@ -21,10 +21,6 @@ export async function GET() {
         let endpoint = settings.waha_endpoint || process.env.WAHA_ENDPOINT || 'http://localhost:3001'
         const sessionName = settings.waha_session || process.env.WAHA_SESSION || 'default'
 
-        if (endpoint.includes(':3000')) {
-            endpoint = 'http://localhost:3001'
-        }
-
         // Check if WAHA is up
         try {
             // We can use the list sessions endpoint to check our specific session
