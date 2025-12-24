@@ -10,7 +10,7 @@ export async function GET() {
             // Generate QR Image Buffer
             const qrBuffer = await QRCode.toBuffer(result.qr)
 
-            return new NextResponse(qrBuffer, {
+            return new NextResponse(qrBuffer as any, {
                 headers: {
                     'Content-Type': 'image/png',
                     'Content-Length': qrBuffer.length.toString()
