@@ -28,6 +28,7 @@ export async function POST(req: Request) {
         }
 
         // Standardize phone number
+        const phone_whatsapp = from.split('@')[0]
         const normalizedPhone = `+${phone_whatsapp}`
 
         // Find/Create Contact using Upsert
