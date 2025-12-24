@@ -10,7 +10,8 @@ export async function GET() {
         }, {})
 
         let endpoint = settings.waha_endpoint || process.env.WAHA_ENDPOINT || 'http://localhost:3001'
-        if (endpoint.includes(':3000')) endpoint = 'http://localhost:3001'
+        // FIX: Removed localhost override for port 3000
+        // if (endpoint.includes(':3000')) endpoint = 'http://localhost:3001'
 
         const sessionName = settings.waha_session || process.env.WAHA_SESSION || 'default'
 
