@@ -8,10 +8,14 @@ const globalForPrisma = global as unknown as { prisma: PrismaClient }
 // We'll trust process.env.DATABASE_URL is loaded by Next.js automatically.
 // But if constructor requires options...
 // Let's try passing the log option to satisfy "non-empty" check if that's really the issue.
+const url = process.env.DATABASE_URL;
+
 export const prisma = globalForPrisma.prisma || new PrismaClient({
     datasources: {
         db: {
-            url: process.env.DATABASE_URL,
+            url: url && !url.includes("pgbouncer=true")
+                ? url + (url.includes("?") ? "&" : "?") + "pgbouncer=true"
+                : url,
         },
     },
 })
