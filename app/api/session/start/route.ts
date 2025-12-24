@@ -72,7 +72,19 @@ export async function POST(req: Request) {
             })
 
             if (updateRes.ok) {
-                console.log('[Session Start] Session updated and restarted')
+                console.log('[Session Start] Session updated. Now forcing START...')
+                // Force START
+                const startUrl = `${endpoint}/api/sessions/${sessionName}/start`
+                await fetch(startUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Api-Key': apiKey
+                    },
+                    body: '{}'
+                })
+
+                console.log('[Session Start] Start signal sent')
                 return NextResponse.json({ success: true, message: 'Session updated and restarted' })
             } else {
                 const errorText = await updateRes.text()
