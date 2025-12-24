@@ -38,6 +38,23 @@ export default function PromptsPage() {
         }
     }
 
+    const handleActivate = async (id: number) => {
+        try {
+            // Optimistic update
+            setPrompts(prompts.map(p => ({
+                ...p,
+                isActive: p.id === id
+            })))
+
+            await axios.put(`/api/prompts/${id}`, { isActive: true })
+            fetchPrompts() // Refresh to be sure
+        } catch (error) {
+            console.error(error)
+            alert('Failed to activate prompt')
+            fetchPrompts() // Revert on error
+        }
+    }
+
     return (
         <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -56,6 +73,7 @@ export default function PromptsPage() {
                         <TableRow>
                             <TableHead>Name</TableHead>
                             <TableHead>Model</TableHead>
+                            <TableHead>Status</TableHead>
                             <TableHead>Temp</TableHead>
                             <TableHead>Created</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
@@ -64,17 +82,28 @@ export default function PromptsPage() {
                     <TableBody>
                         {loading ? (
                             <TableRow>
-                                <TableCell colSpan={5} className="text-center py-4">Loading...</TableCell>
+                                <TableCell colSpan={6} className="text-center py-4">Loading...</TableCell>
                             </TableRow>
                         ) : prompts.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={5} className="text-center py-4">No prompts found</TableCell>
+                                <TableCell colSpan={6} className="text-center py-4">No prompts found</TableCell>
                             </TableRow>
                         ) : (
                             prompts.map((prompt) => (
                                 <TableRow key={prompt.id}>
                                     <TableCell className="font-medium">{prompt.name}</TableCell>
                                     <TableCell>{prompt.model}</TableCell>
+                                    <TableCell>
+                                        <div
+                                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium cursor-pointer ${prompt.isActive
+                                                    ? 'bg-green-100 text-green-800 border border-green-200'
+                                                    : 'bg-gray-100 text-gray-800 border border-gray-200 hover:bg-gray-200'
+                                                }`}
+                                            onClick={() => !prompt.isActive && handleActivate(prompt.id)}
+                                        >
+                                            {prompt.isActive ? 'Active' : 'Set Active'}
+                                        </div>
+                                    </TableCell>
                                     <TableCell>{prompt.temperature}</TableCell>
                                     <TableCell>{new Date(prompt.createdAt).toLocaleDateString()}</TableCell>
                                     <TableCell className="text-right space-x-2">
