@@ -1,8 +1,9 @@
 import axios from 'axios'
 import { prisma } from '@/lib/prisma'
 
+
 // Helper to get config from DB or Env
-async function getConfig() {
+export async function getConfig() {
     try {
         const settingsList = await prisma.setting.findMany()
         const settings = settingsList.reduce((acc: any, curr: any) => {
