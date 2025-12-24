@@ -256,12 +256,22 @@ export async function POST(req: Request) {
             const isVoiceResponse = settings.voice_response_enabled === 'true' || settings.voice_response_enabled === true
             const isIncomingVoice = payload._data?.mimetype?.startsWith('audio') || payload.type === 'ptt' || payload.type === 'audio'
 
+            console.log(`[Webhook Logic] Voice Response Decision: Enabled=${isVoiceResponse} (Val:${settings.voice_response_enabled}), IncomingVoice=${isIncomingVoice}`)
+
             if (isVoiceResponse && isIncomingVoice) {
                 try {
                     // 1. Generate Audio from AI text
                     // Note: We need ElevenLabs API Key from settings
                     const elevenLabsApiKey = settings.elevenlabs_api_key
                     const elevenLabsVoiceId = settings.elevenlabs_voice_id
+
+                    if (!elevenLabsApiKey) {
+                        console.warn('[Webhook Logic] ElevenLabs API Key missing in settings, skipping voice generation')
+                        throw new Error('ElevenLabs API Key missing')
+                    }
+
+                    console.log(`[Webhook Logic] Generating Audio with VoiceID: ${elevenLabsVoiceId || 'Default'}`)
+
 
                     // Dynamically import to avoid circular dep if any, or just use imported
                     const { elevenlabs } = require('@/lib/elevenlabs')
