@@ -27,28 +27,24 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: true, ignored: true })
         }
 
-        const phone_whatsapp = from.split('@')[0] // 33612345678
+        // Standardize phone number
+        const normalizedPhone = `+${phone_whatsapp}`
 
-        // Find/Create Contact
-        let contact = await prisma.contact.findFirst({
-            where: {
-                phone_whatsapp: { in: [phone_whatsapp, `+${phone_whatsapp}`] }
+        // Find/Create Contact using Upsert
+        const contact = await prisma.contact.upsert({
+            where: { phone_whatsapp: normalizedPhone },
+            update: {}, // No updates if exists
+            create: {
+                phone_whatsapp: normalizedPhone,
+                name: payload._data?.notifyName || "Inconnu",
+                source: 'WhatsApp Incoming',
+                status: 'new'
             }
         })
 
-        if (!contact) {
-            const name = payload._data?.notifyName || "Inconnu"
-            contact = await prisma.contact.create({
-                data: {
-                    phone_whatsapp: `+${phone_whatsapp}`,
-                    name: name,
-                    source: 'WhatsApp Incoming',
-                    status: 'new'
-                }
-            })
-        }
-
         // Find/Create Conversation
+        // We can't easily upsert conversation because logic depends on status='active'
+        // But we can optimize finding it.
         let conversation = await prisma.conversation.findFirst({
             where: {
                 contactId: contact.id,
@@ -58,7 +54,10 @@ export async function POST(req: Request) {
         })
 
         if (!conversation) {
-            const defaultPrompt = await prisma.prompt.findFirst()
+            const defaultPrompt = await prisma.prompt.findFirst({
+                where: { isActive: true } // Prefer active prompt!
+            }) || await prisma.prompt.findFirst() // Fallback to any
+
             if (defaultPrompt) {
                 conversation = await prisma.conversation.create({
                     data: {
@@ -70,8 +69,9 @@ export async function POST(req: Request) {
                     include: { prompt: true }
                 })
             } else {
-                console.log('No prompt found, cannot start conversation')
-                return NextResponse.json({ success: true, error: 'No prompt' })
+                console.error('No prompt found, cannot start conversation')
+                // Return 2000 to avoid retries from WhatsApp service if it's a permanent config error
+                return NextResponse.json({ success: false, error: 'No prompt configured' })
             }
         }
 
