@@ -93,13 +93,41 @@ export default function SettingsPage() {
                                     alt="WhatsApp QR Code"
                                     className="w-64 h-64 border rounded-md"
                                 />
+                                <div className="pt-4">
+                                    <Button variant="destructive" onClick={async () => {
+                                        setWahaStatus('STOPPING')
+                                        try {
+                                            await axios.post('/api/session/stop')
+                                            setWahaStatus('STOPPED')
+                                        } catch (e: any) {
+                                            alert('Failed to stop session')
+                                            setWahaStatus('UNKNOWN')
+                                        }
+                                    }}>
+                                        Stop Session
+                                    </Button>
+                                </div>
                             </div>
                         )}
                         {wahaStatus === 'WORKING' && wahaMe && (
-                            <div className="text-center text-green-600">
-                                <p className="text-xl font-bold">Connected!</p>
-                                <p>{wahaMe.pushName || 'WhatsApp User'}</p>
-                                <p className="text-sm opacity-70">{wahaMe.id}</p>
+                            <div className="text-center text-green-600 space-y-4">
+                                <div>
+                                    <p className="text-xl font-bold">Connected!</p>
+                                    <p>{wahaMe.pushName || 'WhatsApp User'}</p>
+                                    <p className="text-sm opacity-70">{wahaMe.id}</p>
+                                </div>
+                                <Button variant="destructive" onClick={async () => {
+                                    setWahaStatus('STOPPING')
+                                    try {
+                                        await axios.post('/api/session/stop')
+                                        setWahaStatus('STOPPED')
+                                    } catch (e: any) {
+                                        alert('Failed to stop session')
+                                        setWahaStatus('UNKNOWN')
+                                    }
+                                }}>
+                                    Stop Session
+                                </Button>
                             </div>
                         )}
                         {wahaStatus === 'UNREACHABLE' && (
