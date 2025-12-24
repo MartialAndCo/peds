@@ -10,6 +10,7 @@ const promptSchema = z.object({
     model: z.string().default('venice-uncensored'),
     temperature: z.number().min(0).max(1), // input as number, Prisma converts to Decimal
     max_tokens: z.number().min(50).max(2000).default(500),
+    isActive: z.boolean().default(false),
 })
 
 export async function GET() {
@@ -30,11 +31,19 @@ export async function POST(req: Request) {
         const json = await req.json()
         const body = promptSchema.parse(json)
 
-        const prompt = await prisma.prompt.create({
-            data: body
-        })
-
-        return NextResponse.json(prompt, { status: 201 })
+        if (body.isActive) {
+            // If setting to active, deactivate all others first
+            const [_, prompt] = await prisma.$transaction([
+                prisma.prompt.updateMany({ data: { isActive: false } }),
+                prisma.prompt.create({ data: body })
+            ])
+            return NextResponse.json(prompt, { status: 201 })
+        } else {
+            const prompt = await prisma.prompt.create({
+                data: body
+            })
+            return NextResponse.json(prompt, { status: 201 })
+        }
     } catch (error: any) {
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: error.issues }, { status: 400 })

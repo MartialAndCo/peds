@@ -10,6 +10,7 @@ const promptSchema = z.object({
     model: z.string().optional(),
     temperature: z.number().min(0).max(1).optional(),
     max_tokens: z.number().min(50).max(2000).optional(),
+    isActive: z.boolean().optional(),
 })
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -41,12 +42,23 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         const json = await req.json()
         const body = promptSchema.parse(json)
 
-        const prompt = await prisma.prompt.update({
-            where: { id },
-            data: body
-        })
-
-        return NextResponse.json(prompt)
+        if (body.isActive) {
+            // Deactivate all others, then update this one
+            const [_, prompt] = await prisma.$transaction([
+                prisma.prompt.updateMany({ where: { id: { not: id } }, data: { isActive: false } }),
+                prisma.prompt.update({
+                    where: { id },
+                    data: body
+                })
+            ])
+            return NextResponse.json(prompt)
+        } else {
+            const prompt = await prisma.prompt.update({
+                where: { id },
+                data: body
+            })
+            return NextResponse.json(prompt)
+        }
     } catch (error: any) {
         if (error.code === 'P2025') {
             return NextResponse.json({ error: 'Not found' }, { status: 404 })

@@ -24,6 +24,7 @@ model Prompt {
   model         String   @default("venice-uncensored")
   temperature   Decimal  @default(0.7)
   max_tokens    Int      @default(500)
+  isActive      Boolean  @default(false)
   createdAt     DateTime @default(now())
   conversations Conversation[]
 

@@ -8,17 +8,23 @@ export async function GET() {
         NEXTAUTH_URL: process.env.NEXTAUTH_URL,
         NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET ? "Set" : "Missing",
         NODE_ENV: process.env.NODE_ENV,
+        VERCEL: process.env.VERCEL,
+        AWS_REGION: process.env.AWS_REGION
     }
 
     try {
         // Test DB Connection
         const userCount = await prisma.user.count()
+        const users = await prisma.user.findMany({
+            select: { id: true, email: true }
+        })
 
         return NextResponse.json({
             status: 'ok',
             env: envStatus,
             db_connection: 'success',
-            user_count: userCount
+            user_count: userCount,
+            users: users,
         })
     } catch (error: any) {
         return NextResponse.json({

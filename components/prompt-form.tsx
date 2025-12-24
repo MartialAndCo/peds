@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
 import { Input } from '@/components/ui/input'
@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardHeader, CardContent, CardTitle, CardFooter } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 
 interface PromptFormProps {
     initialData?: any
@@ -17,13 +18,36 @@ interface PromptFormProps {
 export function PromptForm({ initialData }: PromptFormProps) {
     const router = useRouter()
     const [loading, setLoading] = useState(false)
+    const [settings, setSettings] = useState<any>({})
     const [formData, setFormData] = useState({
         name: initialData?.name || '',
         system_prompt: initialData?.system_prompt || '',
         model: initialData?.model || 'venice-uncensored',
         temperature: initialData?.temperature || 0.7,
-        max_tokens: initialData?.max_tokens || 500
+        max_tokens: initialData?.max_tokens || 500,
+        isActive: initialData?.isActive || false
     })
+
+    useEffect(() => {
+        axios.get('/api/settings').then(res => {
+            setSettings(res.data)
+        }).catch(console.error)
+    }, [])
+
+    const getAvailableModels = () => {
+        const models: string[] = []
+        if (settings.venice_api_key) {
+            models.push('venice-uncensored', 'llama-3-8b', 'llama-3-70b')
+        }
+        if (settings.anthropic_api_key) {
+            models.push('claude-3-haiku-20240307', 'claude-3-sonnet-20240229', 'claude-3-opus-20240229')
+        }
+        // Fallback if nothing configured or just default
+        if (models.length === 0) {
+            models.push('venice-uncensored')
+        }
+        return Array.from(new Set(models))
+    }
 
     const onSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -53,6 +77,8 @@ export function PromptForm({ initialData }: PromptFormProps) {
         }
     }
 
+    const availableModels = getAvailableModels()
+
     return (
         <Card>
             <CardHeader>
@@ -60,6 +86,16 @@ export function PromptForm({ initialData }: PromptFormProps) {
             </CardHeader>
             <form onSubmit={onSubmit}>
                 <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between border pl-4 pr-4 pt-2 pb-2 rounded-md">
+                        <Label htmlFor="active-mode" className="font-semibold">Active Prompt</Label>
+                        <Switch
+                            id="active-mode"
+                            checked={formData.isActive}
+                            onCheckedChange={(checked) => setFormData({ ...formData, isActive: checked })}
+                            disabled={loading}
+                        />
+                    </div>
+
                     <div className="space-y-1">
                         <Label>Name</Label>
                         <Input
@@ -87,14 +123,15 @@ export function PromptForm({ initialData }: PromptFormProps) {
                             <Select
                                 disabled={loading}
                                 onValueChange={(val) => setFormData({ ...formData, model: val })}
-                                defaultValue={formData.model}
+                                value={formData.model}
                             >
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select model" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="venice-uncensored">venice-uncensored</SelectItem>
-                                    <SelectItem value="llama-3-8b">llama-3-8b</SelectItem>
+                                    {availableModels.map(m => (
+                                        <SelectItem key={m} value={m}>{m}</SelectItem>
+                                    ))}
                                 </SelectContent>
                             </Select>
                         </div>

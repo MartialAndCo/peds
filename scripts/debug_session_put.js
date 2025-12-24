@@ -28,9 +28,13 @@ async function debugPut() {
             config: sessionConfig
         }, { headers });
         console.log(`[PUT] Response: ${updateRes.status}`);
+
+        console.log(`[ACTION] Sending POST start...`);
+        await axios.post(`${baseUrl}/api/sessions/${session}/start`, {}, { headers });
+        console.log(`[START] Signal sent.`);
     } catch (e) {
-        console.log(`[PUT] Failed: ${e.message}`);
-        if (e.response) console.log(`[PUT] Data:`, e.response.data);
+        console.log(`[PUT/START] Failed: ${e.message}`);
+        if (e.response) console.log(`[ERROR] Data:`, e.response.data);
     }
 
     // 2. Poll Status
