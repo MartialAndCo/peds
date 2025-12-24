@@ -1,11 +1,33 @@
 import axios from 'axios'
+import { prisma } from '@/lib/prisma'
+
+// Helper to get config from DB or Env
+async function getConfig() {
+    try {
+        const settingsList = await prisma.setting.findMany()
+        const settings = settingsList.reduce((acc: any, curr: any) => {
+            acc[curr.key] = curr.value
+            return acc
+        }, {})
+
+        return {
+            endpoint: settings.waha_endpoint || process.env.WAHA_ENDPOINT || 'http://localhost:3001',
+            session: settings.waha_session || process.env.WAHA_SESSION || 'default',
+            apiKey: settings.waha_api_key || process.env.WAHA_API_KEY || 'secret'
+        }
+    } catch (e) {
+        console.warn('Failed to fetch WAHA settings from DB, falling back to env/defaults')
+        return {
+            endpoint: process.env.WAHA_ENDPOINT || 'http://localhost:3001',
+            session: process.env.WAHA_SESSION || 'default',
+            apiKey: process.env.WAHA_API_KEY || 'secret'
+        }
+    }
+}
 
 export const waha = {
     async sendText(chatId: string, text: string) {
-        const endpoint = process.env.WAHA_ENDPOINT || 'http://localhost:3001'
-
-        const session = process.env.WAHA_SESSION || 'default'
-        const apiKey = process.env.WAHA_API_KEY || 'secret' // TODO: Get from settings dynamically if possible, or assume env match
+        const { endpoint, session, apiKey } = await getConfig()
 
         if (!endpoint) {
             console.warn('WAHA_ENDPOINT not configured')
@@ -13,10 +35,6 @@ export const waha = {
         }
 
         try {
-            // chatId expected format: 33612345678@c.us
-            // If passing just number, might need formatting.
-            // Spec says "Conversion backend nécessaire : enlever + et ajouter @c.us"
-
             const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
 
             const response = await axios.post(`${endpoint}/api/sendText`, {
@@ -35,9 +53,7 @@ export const waha = {
     },
 
     async sendSeen(chatId: string) {
-        const endpoint = process.env.WAHA_ENDPOINT || 'http://localhost:3001'
-        const session = process.env.WAHA_SESSION || 'default'
-        const apiKey = process.env.WAHA_API_KEY || 'secret'
+        const { endpoint, session, apiKey } = await getConfig()
 
         try {
             const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
@@ -49,14 +65,11 @@ export const waha = {
             })
         } catch (error: any) {
             console.error('WAHA SendSeen Error:', error.response?.data || error.message)
-            // Don't throw, just log. It's not critical.
         }
     },
 
     async startTyping(chatId: string) {
-        const endpoint = process.env.WAHA_ENDPOINT || 'http://localhost:3001'
-        const session = process.env.WAHA_SESSION || 'default'
-        const apiKey = process.env.WAHA_API_KEY || 'secret'
+        const { endpoint, session, apiKey } = await getConfig()
 
         try {
             const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
@@ -72,9 +85,7 @@ export const waha = {
     },
 
     async stopTyping(chatId: string) {
-        const endpoint = process.env.WAHA_ENDPOINT || 'http://localhost:3001'
-        const session = process.env.WAHA_SESSION || 'default'
-        const apiKey = process.env.WAHA_API_KEY || 'secret'
+        const { endpoint, session, apiKey } = await getConfig()
 
         try {
             const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
@@ -112,8 +123,7 @@ export const waha = {
     },
 
     async getSessionStatus() {
-        const endpoint = process.env.WAHA_ENDPOINT || 'http://localhost:3001'
-        const apiKey = process.env.WAHA_API_KEY || 'secret'
+        const { endpoint, apiKey } = await getConfig()
 
         try {
             const response = await axios.get(`${endpoint}/api/sessions?all=true`, {
@@ -126,19 +136,10 @@ export const waha = {
     },
 
     async sendVoice(chatId: string, audioDataUrl: string) {
-        const endpoint = process.env.WAHA_ENDPOINT || 'http://localhost:3001'
-        const session = process.env.WAHA_SESSION || 'default'
-        const apiKey = process.env.WAHA_API_KEY || 'secret'
+        const { endpoint, session, apiKey } = await getConfig()
 
         try {
             const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
-
-            // WAHA 'sendVoice' endpoint usually expects { file: { mimetype, data } } or similar
-            // Checking WAHA docs (devlikeapro/waha): supports POST /api/sendVoice where 'file' arg passed
-            // Implementation: POST /api/sendVoice
-            // Body: { chatId, file: { mimetype: 'audio/mpeg', data: 'base64...' } }
-
-            // Extract base64 if data url passed
             const base64Data = audioDataUrl.split(',')[1] || audioDataUrl
 
             await axios.post(`${endpoint}/api/sendVoice`, {
@@ -160,13 +161,9 @@ export const waha = {
     },
 
     async downloadMedia(messageId: string, chatId: string) {
-        const endpoint = process.env.WAHA_ENDPOINT || 'http://localhost:3001'
-        const session = process.env.WAHA_SESSION || 'default'
-        const apiKey = process.env.WAHA_API_KEY || 'secret'
+        const { endpoint, session, apiKey } = await getConfig()
 
         try {
-            // New Robust Logic: Fetch Message Details First
-            // Route: GET /api/{session}/chats/{chatId}/messages/{messageId}
             const encodedChatId = encodeURIComponent(chatId)
             const encodedMsgId = encodeURIComponent(messageId)
 
@@ -204,3 +201,4 @@ export const waha = {
         }
     }
 }
+
