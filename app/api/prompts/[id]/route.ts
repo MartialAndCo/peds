@@ -6,7 +6,7 @@ import { z } from 'zod'
 
 const promptSchema = z.object({
     name: z.string().min(3).max(255).optional(),
-    system_prompt: z.string().min(10).max(5000).optional(),
+    system_prompt: z.string().min(10).max(100000).optional(),
     model: z.string().optional(),
     temperature: z.number().min(0).max(1).optional(),
     max_tokens: z.number().min(50).max(2000).optional(),
