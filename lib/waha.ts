@@ -181,8 +181,31 @@ export const waha = {
                 return null
             }
 
-            console.log(`[WAHA] Downloading media from: ${mediaUrl}`)
-            const response = await axios.get(mediaUrl, {
+            // FIX: If WAHA returns a localhost URL (internal container IP), 
+            // rewrite it to use the configured endpoint so this app can reach it.
+            let finalUrl = mediaUrl
+            if (mediaUrl.includes('localhost') || mediaUrl.includes('127.0.0.1')) {
+                try {
+                    const mediaUrlObj = new URL(mediaUrl)
+                    const endpointObj = new URL(endpoint)
+
+                    // Keep the path (e.g. /api/files/...) but replace protocol/host/port with endpoint's
+                    mediaUrlObj.protocol = endpointObj.protocol
+                    mediaUrlObj.host = endpointObj.host
+                    mediaUrlObj.port = endpointObj.port
+
+                    finalUrl = mediaUrlObj.toString()
+                    console.log(`[WAHA] Rewrote local media URL to: ${finalUrl}`)
+                } catch (e) {
+                    console.warn('[WAHA] Failed to rewrite media URL, using original:', e)
+                }
+            } else if (mediaUrl.startsWith('/')) {
+                // Handle relative URLs
+                finalUrl = `${endpoint}${mediaUrl}`
+            }
+
+            console.log(`[WAHA] Downloading media from: ${finalUrl}`)
+            const response = await axios.get(finalUrl, {
                 headers: { 'X-Api-Key': apiKey },
                 responseType: 'arraybuffer'
             })
