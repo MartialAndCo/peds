@@ -13,14 +13,17 @@ export async function getConfig() {
         }, {})
 
         // Endpoint: URL of our new whatsapp-server container (e.g. http://localhost:3001)
+        // Using 127.0.0.1 to avoid IPv6 issues with 'localhost'
+        const defaultEndpoint = 'http://127.0.0.1:3001'
+
         return {
-            endpoint: settings.waha_endpoint || process.env.WAHA_ENDPOINT || 'http://localhost:3001',
+            endpoint: settings.waha_endpoint || process.env.WAHA_ENDPOINT || defaultEndpoint,
             apiKey: settings.waha_api_key || process.env.WAHA_API_KEY || 'secret'
         }
     } catch (e) {
         console.warn('Failed to fetch WhatsApp settings from DB, falling back to env/defaults')
         return {
-            endpoint: process.env.WAHA_ENDPOINT || 'http://localhost:3001',
+            endpoint: process.env.WAHA_ENDPOINT || 'http://127.0.0.1:3001',
             apiKey: process.env.WAHA_API_KEY || 'secret'
         }
     }

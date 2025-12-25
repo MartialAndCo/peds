@@ -26,6 +26,7 @@ export async function GET() {
         })
 
     } catch (error: any) {
+        console.error('[API Status] Error fetching status:', error.message);
         return NextResponse.json({ error: error.message }, { status: 500 })
     }
 }
