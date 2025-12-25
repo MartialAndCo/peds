@@ -14,7 +14,7 @@ export async function POST(req: Request) {
 
         // Use production URL for webhook if available, otherwise fallback to localhost
         const baseUrl = process.env.WEBHOOK_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000'
-        const webhookUrl = `${baseUrl}/api/webhooks/waha`
+        const webhookUrl = `${baseUrl}/api/webhooks/whatsapp`
         const sessionConfig = {
             proxy: null,
             debug: false,

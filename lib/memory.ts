@@ -22,7 +22,7 @@ export const memoryService = {
 
             // Mem0 'add' takes messages or text.
             // Using userId as the unique identifier for the memory scope.
-            await client.add(text, { user_id: userId });
+            await client.add([{ role: "user", content: text }], { user_id: userId });
             console.log(`[Mem0] Memory added for user ${userId}`);
         } catch (error) {
             console.error('[Mem0] Failed to add memory:', error);
