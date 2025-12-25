@@ -115,21 +115,53 @@ export async function POST(req: Request) {
                             data: { sentTo: { push: contact.phone_whatsapp } }
                         })
 
-                        // Mem0 Log
+                        // Mem0 Log + DB Save (System Action)
                         const { memoryService } = require('@/lib/memory')
                         await memoryService.add(contact.phone_whatsapp, messageText)
                         await memoryService.add(contact.phone_whatsapp, `[System]: Sent media ${analysis.intentCategory}`)
+
+                        // We don't save the image itself in messages table usually, but we could save a text placeholder
+                        await prisma.message.create({
+                            data: {
+                                conversationId: contact.conversations?.[0]?.id || 0, // Fallback safe, but ideally we find conv first
+                                sender: 'ai',
+                                message_text: `[Sent Media: ${analysis.intentCategory}]`,
+                                timestamp: new Date()
+                            }
+                        }).catch(e => console.error("Failed to save system media msg", e))
 
                         return NextResponse.json({ success: true, handler: 'media_sent' })
 
                     } else if (result.action === 'REQUEST_SOURCE') {
                         console.log('No media in bank. Requesting from Source...')
-                        const sent = await mediaService.requestFromSource(contact.phone_whatsapp, analysis.intentCategory)
-                        if (sent) {
-                            await whatsapp.sendText(contact.phone_whatsapp, "Je regarde si j'ai ça... une seconde 📸")
+                        const status = await mediaService.requestFromSource(contact.phone_whatsapp, analysis.intentCategory)
+
+                        let responseText = ""
+                        if (status === 'REQUEST_NEW') {
+                            responseText = "Je regarde si j'ai ça... une seconde 📸"
+                        } else if (status === 'REQUEST_PENDING') {
+                            responseText = "J'ai déjà demandé, je te dis dès que je l'ai ! ⏳"
                         } else {
-                            await whatsapp.sendText(contact.phone_whatsapp, "Pas de photo dispo pour le moment, désolée !")
+                            responseText = "Pas de photo dispo pour le moment, désolé !"
                         }
+
+                        await whatsapp.sendText(contact.phone_whatsapp, responseText)
+
+                        // SAVE TO DB so AI Context knows we replied
+                        // We need the conversation ID. We haven't fetched it yet in this flow.
+                        // Quick fix: fetch or find
+                        const conv = await prisma.conversation.findFirst({ where: { contactId: contact.id, status: 'active' } })
+                        if (conv) {
+                            await prisma.message.create({
+                                data: {
+                                    conversationId: conv.id,
+                                    sender: 'ai',
+                                    message_text: responseText,
+                                    timestamp: new Date()
+                                }
+                            })
+                        }
+
                         return NextResponse.json({ success: true, handler: 'media_request_pending' })
                     }
                 }

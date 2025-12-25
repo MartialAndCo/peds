@@ -108,25 +108,29 @@ export const mediaService = {
         return { action: 'REQUEST_SOURCE' };
     },
 
-    // 3. Request from Source (unchanged logic but modularized)
+    // 3. Request from Source
     async requestFromSource(contactPhone: string, typeId: string) {
         const settings = await prisma.setting.findUnique({ where: { key: 'source_phone_number' } });
         const sourcePhone = settings?.value;
 
-        if (!sourcePhone) return false;
+        if (!sourcePhone) return 'NO_SOURCE';
 
         const existing = await prisma.pendingRequest.findFirst({
             where: { typeId, requesterPhone: contactPhone, status: 'pending' }
         });
 
-        if (!existing) {
-            await prisma.pendingRequest.create({
-                data: { typeId, requesterPhone: contactPhone, status: 'pending' }
-            });
-            const msg = `📸 *Media Request*\n\nUser ${contactPhone} wants: *${typeId}*\n\nReply with a photo/video (or just chat) to fulfill it.`;
-            await whatsapp.sendText(sourcePhone, msg);
+        if (existing) {
+            return 'REQUEST_PENDING';
         }
-        return true;
+
+        await prisma.pendingRequest.create({
+            data: { typeId, requesterPhone: contactPhone, status: 'pending' }
+        });
+
+        const msg = `📸 *Media Request*\n\nUser ${contactPhone} wants: *${typeId}*\n\nReply with a photo/video (or just chat) to fulfill it.`;
+        await whatsapp.sendText(sourcePhone, msg);
+
+        return 'REQUEST_NEW';
     },
 
     // 4. Ingest Media
