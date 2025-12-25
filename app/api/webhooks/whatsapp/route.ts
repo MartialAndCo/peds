@@ -133,12 +133,34 @@ export async function POST(req: Request) {
                 take: 20
             })
 
-            const messagesForAI = history.map((m: any) => ({
+            // Clean History for AI Context
+            // 1. Remove "Download Failed" system messages
+            const cleanHistory = history.filter((m: any) =>
+                !m.message_text.includes('[Voice Message - Download Failed]') &&
+                !m.message_text.includes('[Voice Message - Transcription Empty]')
+            )
+
+            // 2. Deduplicate consecutive identical messages from the same role
+            // This prevents the "Loop" effect where the AI sees its own previous repetitive answer and repeats it.
+            const uniqueHistory: any[] = []
+            cleanHistory.forEach((m: any, index: number) => {
+                const prev = uniqueHistory[uniqueHistory.length - 1]
+                if (prev && prev.sender === m.sender && prev.message_text === m.message_text) {
+                    return // Skip duplicate
+                }
+                uniqueHistory.push(m)
+            })
+
+            const messagesForAI = uniqueHistory.map((m: any) => ({
                 role: m.sender === 'contact' ? 'user' : 'ai',
                 content: m.message_text
             }))
 
-            // Prepare Context (excluding last message which is the trigger)
+            // Prepare Context (excluding last message if it's the current one we are processing)
+            // Wait, "history" query only fetches *saved* messages.
+            // In line 118 we saved the CURRENT message.
+            // So messagesForAI includes the current message at the end.
+
             const contextMessages = messagesForAI.slice(0, -1)
             const lastMessage = messagesForAI[messagesForAI.length - 1].content
 
