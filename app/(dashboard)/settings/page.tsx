@@ -359,12 +359,95 @@ export default function SettingsPage() {
                     </CardContent>
                 </Card>
 
+                {/* Blacklist Configuration */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Blacklist Management (Forbidden Content)</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        <BlacklistManager />
+                    </CardContent>
+                </Card>
+
                 <div className="flex justify-end pb-10">
                     <Button type="submit" disabled={saving || loading}>
                         {saving ? 'Saving...' : 'Save Settings'}
                     </Button>
                 </div>
             </form>
+        </div>
+    )
+}
+
+function BlacklistManager() {
+    const [rules, setRules] = useState<any[]>([])
+    const [newItem, setNewItem] = useState('')
+    const [loading, setLoading] = useState(true)
+
+    const fetchRules = useCallback(() => {
+        axios.get('/api/blacklist').then(res => {
+            setRules(res.data)
+            setLoading(false)
+        })
+    }, [])
+
+    useEffect(() => {
+        fetchRules()
+    }, [fetchRules])
+
+    const addRule = async (type: 'image' | 'video') => {
+        if (!newItem.trim()) return
+        await axios.post('/api/blacklist', { term: newItem, mediaType: type })
+        setNewItem('')
+        fetchRules()
+    }
+
+    const deleteRule = async (id: number) => {
+        await axios.delete(`/api/blacklist/${id}`)
+        fetchRules()
+    }
+
+    const photoRules = rules.filter(r => r.mediaType === 'image' || r.mediaType === 'all')
+    const videoRules = rules.filter(r => r.mediaType === 'video' || r.mediaType === 'all')
+
+    return (
+        <div className="space-y-4">
+            <div className="flex space-x-2">
+                <Input
+                    placeholder="Forbidden term (e.g. nudity, face, street)"
+                    value={newItem}
+                    onChange={(e) => setNewItem(e.target.value)}
+                />
+                <Button type="button" variant="destructive" onClick={() => addRule('image')}>Block Photo</Button>
+                <Button type="button" variant="destructive" onClick={() => addRule('video')}>Block Video</Button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+                <div className="border rounded p-4 bg-red-50">
+                    <h4 className="font-bold text-red-800 mb-2">Forbidden in Photos 🚫📸</h4>
+                    <ul className="space-y-1">
+                        {photoRules.map(rule => (
+                            <li key={rule.id} className="flex justify-between items-center text-sm bg-white p-2 rounded shadow-sm">
+                                <span>{rule.term}</span>
+                                <button type="button" onClick={() => deleteRule(rule.id)} className="text-red-500 hover:text-red-700">×</button>
+                            </li>
+                        ))}
+                        {photoRules.length === 0 && <li className="text-gray-400 text-xs italic">No rules</li>}
+                    </ul>
+                </div>
+                <div className="border rounded p-4 bg-red-50">
+                    <h4 className="font-bold text-red-800 mb-2">Forbidden in Videos 🚫🎥</h4>
+                    <ul className="space-y-1">
+                        {videoRules.map(rule => (
+                            <li key={rule.id} className="flex justify-between items-center text-sm bg-white p-2 rounded shadow-sm">
+                                <span>{rule.term}</span>
+                                <button type="button" onClick={() => deleteRule(rule.id)} className="text-red-500 hover:text-red-700">×</button>
+                            </li>
+                        ))}
+                        {videoRules.length === 0 && <li className="text-gray-400 text-xs italic">No rules</li>}
+                    </ul>
+                </div>
+            </div>
         </div>
     )
 }
