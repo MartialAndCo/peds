@@ -226,18 +226,30 @@ export async function POST(req: Request) {
 
             if (isVoiceResponse && isIncomingVoice) {
                 try {
-                    const elevenLabsApiKey = settings.elevenlabs_api_key
-                    const elevenLabsVoiceId = settings.elevenlabs_voice_id
+                    const voiceProvider = settings.voice_provider || 'elevenlabs'
+                    let audioDataUrl: string
 
-                    const { elevenlabs } = require('@/lib/elevenlabs')
-                    const audioDataUrl = await elevenlabs.generateAudio(responseText, {
-                        apiKey: elevenLabsApiKey,
-                        voiceId: elevenLabsVoiceId
-                    })
+                    if (voiceProvider === 'cartesia' && settings.cartesia_api_key) {
+                        const { cartesia } = require('@/lib/cartesia')
+                        audioDataUrl = await cartesia.generateAudio(responseText, {
+                            apiKey: settings.cartesia_api_key,
+                            voiceId: settings.cartesia_voice_id,
+                            modelId: settings.cartesia_model_id
+                        })
+                    } else if (settings.elevenlabs_api_key) {
+                        const { elevenlabs } = require('@/lib/elevenlabs')
+                        // fallback to ElevenLabs
+                        audioDataUrl = await elevenlabs.generateAudio(responseText, {
+                            apiKey: settings.elevenlabs_api_key,
+                            voiceId: settings.elevenlabs_voice_id
+                        })
+                    } else {
+                        throw new Error('No Voice Provider configured (Cartesia or ElevenLabs)')
+                    }
 
                     // Send Voice via new client
                     await whatsapp.sendVoice(contact.phone_whatsapp, audioDataUrl)
-                } catch (voiceError) {
+                } catch (voiceError: any) {
                     console.error('Voice Generation/Send Failed, fallback to text:', voiceError)
                     await whatsapp.sendText(contact.phone_whatsapp, responseText)
                 }
