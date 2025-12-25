@@ -54,5 +54,18 @@ export const memoryService = {
             console.error('[Mem0] Failed to get all memories:', error);
             return [];
         }
+    },
+
+    async deleteAll(userId: string) {
+        try {
+            const client = await this.getClient();
+            if (!client) return;
+
+            // Delete all memories for this user
+            await client.deleteAll({ user_id: userId });
+            console.log(`[Mem0] All memories deleted for user ${userId}`);
+        } catch (error) {
+            console.error('[Mem0] Failed to delete all memories:', error);
+        }
     }
 };

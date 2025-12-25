@@ -85,8 +85,15 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
             where: { contactId: id }
         })
 
-        // 4. Delete contact
+        // 4. Delete Mem0 memories (Using phone_whatsapp as userId)
+        const contact = await prisma.contact.findUnique({ where: { id } });
+        if (contact && contact.phone_whatsapp) {
+            const { memoryService } = require('@/lib/memory');
+            // Fire and forget or await? Await to ensure cleanup.
+            await memoryService.deleteAll(contact.phone_whatsapp);
+        }
 
+        // 5. Delete contact
         await prisma.contact.delete({
             where: { id }
         })
