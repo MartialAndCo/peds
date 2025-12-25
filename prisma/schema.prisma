@@ -116,3 +116,12 @@ model PendingRequest {
 
   @@map("pending_requests")
 }
+
+model BlacklistRule {
+  id        Int      @id @default(autoincrement())
+  term      String   // The forbidden concept or keyword
+  mediaType String   @default("all") // 'image', 'video', 'all'
+  createdAt DateTime @default(now())
+
+  @@map("blacklist_rules")
+}

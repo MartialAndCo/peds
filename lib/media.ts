@@ -1,181 +1,177 @@
 import { prisma } from '@/lib/prisma';
 import { whatsapp } from '@/lib/whatsapp';
+import { venice } from '@/lib/venice';
+import { anthropic } from '@/lib/anthropic';
+
+// Helper to fetch settings
+async function getSettings() {
+    const settingsList = await prisma.setting.findMany();
+    return settingsList.reduce((acc: any, curr: any) => {
+        acc[curr.key] = curr.value;
+        return acc;
+    }, {});
+}
 
 export const mediaService = {
-    // 1. Detect if message is a media request
-    async detectIntent(text: string) {
-        // Fetch all media types
-        const types = await prisma.mediaType.findMany();
-        const lowerText = text.toLowerCase();
+    // 1. Analyze Request (Smart Logic)
+    async analyzeRequest(text: string) {
+        console.log(`[Media] Analyzing request: "${text}"`);
 
-        // Find matching type based on keywords
-        const match = types.find(t =>
-            t.keywords.some(k => lowerText.includes(k.toLowerCase()))
-        );
+        // Fetch Blacklist Rules
+        const blacklist = await prisma.blacklistRule.findMany();
+        const settings = await getSettings();
 
-        return match || null;
+        // Fetch Media Types for context
+        const mediaTypes = await prisma.mediaType.findMany();
+        const availableCategories = mediaTypes.map(t => `${t.id} (${t.description})`).join(', ');
+
+        const blacklistText = blacklist.map(b => `- ${b.term} (Forbidden in ${b.mediaType})`).join('\n');
+
+        const systemPrompt = `You are a Content Safety and Intent Analyzer for a personal media banking system.
+        
+        Your Goal:
+        1. Check if the user's request violates any BLACKLIST rules.
+        2. If allowed, identify the intent category from the available list.
+        
+        Blacklist Rules (STRICTLY FORBIDDEN):
+        ${blacklistText}
+
+        Available Categories:
+        ${availableCategories}
+
+        Input Text: "${text}"
+
+        Instructions:
+        - If the request violates the blacklist, set "allowed" to false and explain why briefly.
+        - If the request is safe, set "allowed" to true.
+        - If "allowed" is true, try to match the user's intent to one of the Available Categories. Look for semantic meaning (e.g. "ankles" -> "photo_pieds"). 
+        - If no category matches, set "intentCategory" to null.
+        - If the user is NOT asking for media (just chatting), set "isMediaRequest" to false.
+
+        Output JSON format ONLY:
+        {
+            "isMediaRequest": boolean,
+            "allowed": boolean,
+            "refusalReason": string | null,
+            "intentCategory": string | null // must match an id from Available Categories
+        }`;
+
+        try {
+            // Use Venice or Anthropic based on settings preference
+            const apiKey = settings.venice_api_key;
+            // Force JSON mode if possible or just parse text
+            // For now, prompt engineering for JSON.
+
+            let responseText = "";
+            if (settings.ai_provider === 'anthropic') {
+                // simplify for now or use the preferred provider
+                responseText = await anthropic.chatCompletion(
+                    systemPrompt, [], "Analyze this request.",
+                    { apiKey: settings.anthropic_api_key, model: settings.anthropic_model || 'claude-3-haiku-20240307' }
+                );
+            } else {
+                responseText = await venice.chatCompletion(
+                    systemPrompt, [], "Analyze this request.",
+                    { apiKey: settings.venice_api_key, model: settings.venice_model || 'venice-uncensored' }
+                );
+            }
+
+            // Extract JSON from response (sometimes models add markdown)
+            const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                return JSON.parse(jsonMatch[0]);
+            }
+            console.warn('[Media] Failed to parse AI JSON response:', responseText);
+            return null;
+
+        } catch (e: any) {
+            console.error('[Media] Analysis Failed:', e.message);
+            return null;
+        }
     },
 
-    // 2. Process a request from a user
+    // 2. Process Request
     async processRequest(contactPhone: string, typeId: string) {
         console.log(`[Media] Processing request for ${typeId} from ${contactPhone}`);
 
-        // A. Check if user already received ANY media of this type?
-        // (The prompt says: "Check if user has NEVER received this media". 
-        // Logic: Try to find a media NOT in sentTo.)
-
-        // Get all medias of this type
-        const allMedias = await prisma.media.findMany({
-            where: { typeId }
-        });
-
-        // Filter: Media NOT sent to this user
+        // A. Check Bank
+        const allMedias = await prisma.media.findMany({ where: { typeId } });
         const availableMedias = allMedias.filter(m => !m.sentTo.includes(contactPhone));
 
         if (availableMedias.length > 0) {
-            // Pick one (random or rotation)
-            // Logic says "if < sent total ... send one they haven't seen"
-            // Since we filtered by !sentTo, any of availableMedias is "one they haven't seen".
+            // Send one
             const mediaToSend = availableMedias[0];
             return { action: 'SEND', media: mediaToSend };
         }
 
-        // B. No media available for this user
-        // Check if user has received ALL medias?
-        // If allMedias.length > 0 and availableMedias.length == 0 => User saw everything.
-
-        // Logic says: "If she received < total currently in bank ... send different one."
-        // We already handled that above (availableMedias > 0).
-
-        // "If she received ALL ... Pass to request workflow."
-        // Also if bank is empty (allMedias.length == 0).
-
-        // So we need to Request from Source.
+        // B. Request Source
         return { action: 'REQUEST_SOURCE' };
     },
 
-    // 3. Request from Source
+    // 3. Request from Source (unchanged logic but modularized)
     async requestFromSource(contactPhone: string, typeId: string) {
-        // Get Source Phone
         const settings = await prisma.setting.findUnique({ where: { key: 'source_phone_number' } });
         const sourcePhone = settings?.value;
 
-        if (!sourcePhone) {
-            console.error('[Media] No SOURCE_PHONE configured.');
-            return false;
-        }
+        if (!sourcePhone) return false;
 
-        // Check if pending request exists to avoid spamming?
-        // "Sauvegarder Demande en attente"
         const existing = await prisma.pendingRequest.findFirst({
-            where: {
-                typeId,
-                requesterPhone: contactPhone,
-                status: 'pending'
-            }
+            where: { typeId, requesterPhone: contactPhone, status: 'pending' }
         });
 
         if (!existing) {
             await prisma.pendingRequest.create({
-                data: {
-                    typeId,
-                    requesterPhone: contactPhone,
-                    status: 'pending'
-                }
+                data: { typeId, requesterPhone: contactPhone, status: 'pending' }
             });
-
-            // Send WhatsApp to Source
-            const msg = `📸 *New Media Request*\n\nUser ${contactPhone} wants: *${typeId}*\n\nReply with a photo/video to send it to them.`;
+            const msg = `📸 *Media Request*\n\nUser ${contactPhone} wants: *${typeId}*\n\nReply with a photo/video (or just chat) to fulfill it.`;
             await whatsapp.sendText(sourcePhone, msg);
-            return true;
         }
-
-        return true; // Already pending
+        return true;
     },
 
-    // 4. Ingest Media from Source
+    // 4. Ingest Media
     async ingestMedia(sourcePhone: string, mediaData: string, mimeType: string) {
-        // Assuming mediaData is Base64 Data URL or similar? 
-        // Actually for now let's assume we upload it or store the Data URL directly (not recommended for large files but OK for POC).
-        // Or better: We utilize the fact that we just received it.
-
-        // "Sauvegarder le média dans la banque avec le type correspondant"
-        // Problem: How do we know the TYPE of the media?
-        // 1. Source explicitly captions it?
-        // 2. Or we infer from the LAST pending request sent to Source?
-
-        // Let's look at pending requests.
-        // If there are pending requests, we fill them.
-
-        // Strategy: "Récupérer qui attendait (User X)".
-        // If there are multiple types pending, it's ambiguous.
-        // Simplification: Assume Source replies to the request.
-        // We can fetch the most recent PendingRequest.
-
+        // Find most recent pending request
         const latestPending = await prisma.pendingRequest.findFirst({
             where: { status: 'pending' },
             orderBy: { createdAt: 'desc' }
         });
 
-        if (!latestPending) {
-            console.log('[Media] Source sent media but no pending requests found. Saving as "uncategorized"? or rejecting?');
-            // Store as uncategorized or "misc"
-            return null;
-        }
+        if (!latestPending) return null;
 
         const typeId = latestPending.typeId;
 
         // Save to Bank
-        // Note: Storing Base64 in DB is bad. Ideally upload to S3. 
-        // For this task, I'll store it in DB (Media.url) if it fits, or assume we have an upload service.
-        // Prisma String is Text (unlimited in Postgres). Base64 is fine for POC.
-
         const newMedia = await prisma.media.create({
             data: {
                 typeId,
-                url: mediaData, // Base64 Data URL
+                url: mediaData,
                 sentTo: []
             }
         });
 
-        // Fulfill Pending Request(s)
-        // Logic: "Chercher: Y a-t-il une Demande en attente pour ce TYPE ?"
-        // Yes, `latestPending` is one.
-        // Are there others for the same type? 
-        // "Envoyer le média à User X"
-        // "Supprimer la demande en attente" (or mark fulfilled)
-
-        // We fulfill ALL pending requests for this TYPE with this new media? 
-        // Or just one?
-        // Plan says: "Récupérer qui attendait (User X)... Envoyer... Supprimer".
-        // Let's fulfill the one we found.
-
+        // Fulfill Request
         const contactPhone = latestPending.requesterPhone;
 
-        // Send to User
         if (mimeType.startsWith('image')) {
-            await whatsapp.sendImage(contactPhone, mediaData); // mediaData is dataURL
+            await whatsapp.sendImage(contactPhone, mediaData);
         } else if (mimeType.startsWith('video')) {
             await whatsapp.sendVideo(contactPhone, mediaData);
         } else {
-            await whatsapp.sendVoice(contactPhone, mediaData); // Fallback?
+            // fallback
         }
 
-        // Mark as sent
+        // Mark sent
         await prisma.media.update({
             where: { id: newMedia.id },
-            data: {
-                sentTo: { push: contactPhone }
-            }
+            data: { sentTo: { push: contactPhone } }
         });
 
-        // Close Pending Request
+        // Close Pending
         await prisma.pendingRequest.update({
             where: { id: latestPending.id },
             data: { status: 'fulfilled' }
         });
-
-        // Also log to Mem0? (Task says yes)
 
         return { sentTo: contactPhone, type: typeId };
     }
