@@ -1,4 +1,4 @@
-import { Memory } from 'mem0ai';
+import { MemoryClient } from 'mem0ai';
 import { prisma } from '@/lib/prisma';
 
 export const memoryService = {
@@ -12,7 +12,7 @@ export const memoryService = {
             return null;
         }
 
-        return new Memory({ apiKey });
+        return new MemoryClient({ apiKey });
     },
 
     async add(userId: string, text: string) {
