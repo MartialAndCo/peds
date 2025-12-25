@@ -318,6 +318,27 @@ export default function SettingsPage() {
                     </CardContent>
                 </Card>
 
+                <Card>
+                    <CardHeader>
+                        <CardTitle>AI Memory (Mem0)</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="space-y-1">
+                            <Label htmlFor="mem0_api_key">Mem0 API Key</Label>
+                            <Input
+                                id="mem0_api_key"
+                                type="password"
+                                placeholder="m0-..."
+                                value={settings.mem0_api_key || ''}
+                                onChange={(e) => setSettings({ ...settings, mem0_api_key: e.target.value })}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Required for long-term memory. Get it from <a href="https://app.mem0.ai" className="underline" target="_blank">Mem0 Platform</a>.
+                            </p>
+                        </div>
+                    </CardContent>
+                </Card>
+
                 <div className="flex justify-end pb-10">
                     <Button type="submit" disabled={saving || loading}>
                         {saving ? 'Saving...' : 'Save Settings'}
