@@ -102,6 +102,16 @@ export const whatsapp = {
         }
     },
 
+    async sendImage(chatId: string, dataUrl: string, caption?: string) {
+        // Wrapper for sendFile but simpler
+        return this.sendFile(chatId, dataUrl, 'image.jpg', caption)
+    },
+
+    async sendVideo(chatId: string, dataUrl: string, caption?: string) {
+        // Wrapper for sendFile
+        return this.sendFile(chatId, dataUrl, 'video.mp4', caption)
+    },
+
     // Get Status (replaces getSessionStatus)
     async getStatus() {
         const { endpoint } = await getConfig()
