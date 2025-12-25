@@ -23,7 +23,7 @@ export function PromptForm({ initialData }: PromptFormProps) {
         name: initialData?.name || '',
         system_prompt: initialData?.system_prompt || '',
         model: initialData?.model || 'venice-uncensored',
-        temperature: initialData?.temperature || 0.7,
+        temperature: initialData?.temperature?.toString() || '0.7',
         max_tokens: initialData?.max_tokens || 500,
         isActive: initialData?.isActive || false
     })
@@ -53,10 +53,15 @@ export function PromptForm({ initialData }: PromptFormProps) {
         e.preventDefault()
         setLoading(true)
         try {
+            const payload = {
+                ...formData,
+                temperature: parseFloat(formData.temperature.replace(',', '.')),
+                max_tokens: Number(formData.max_tokens)
+            }
             if (initialData) {
-                await axios.put(`/api/prompts/${initialData.id}`, formData)
+                await axios.put(`/api/prompts/${initialData.id}`, payload)
             } else {
-                await axios.post('/api/prompts', formData)
+                await axios.post('/api/prompts', payload)
             }
             router.push('/prompts')
             router.refresh()
@@ -138,13 +143,11 @@ export function PromptForm({ initialData }: PromptFormProps) {
                         <div className="space-y-1">
                             <Label>Temperature ({formData.temperature})</Label>
                             <Input
-                                type="number"
-                                step="0.1"
-                                min="0"
-                                max="1"
+                                type="text"
+                                inputMode="decimal"
                                 disabled={loading}
                                 value={formData.temperature}
-                                onChange={(e) => setFormData({ ...formData, temperature: parseFloat(e.target.value) })}
+                                onChange={(e) => setFormData({ ...formData, temperature: e.target.value })}
                             />
                         </div>
                         <div className="space-y-1">

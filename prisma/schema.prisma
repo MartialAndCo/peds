@@ -54,7 +54,7 @@ model Conversation {
   createdAt       DateTime  @default(now())
   closedAt        DateTime?
   
-  contact         Contact   @relation(fields: [contactId], references: [id])
+  contact         Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
   prompt          Prompt    @relation(fields: [promptId], references: [id])
   messages        Message[]
 
@@ -69,7 +69,7 @@ model Message {
   waha_message_id String?
   timestamp       DateTime @default(now())
 
-  conversation    Conversation @relation(fields: [conversationId], references: [id])
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@map("messages")
 }

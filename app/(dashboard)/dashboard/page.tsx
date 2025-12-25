@@ -2,9 +2,23 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Users, MessageSquare, Bot } from "lucide-react"
+import { useState, useEffect } from "react"
+import axios from "axios"
 
 export default function DashboardPage() {
-    // In a real app, we would fetch stats here using SWR or useEffect
+    const [stats, setStats] = useState({
+        contactsCount: 0,
+        activeConversationsCount: 0,
+        promptsCount: 0
+    })
+    const [loading, setLoading] = useState(true)
+
+    useEffect(() => {
+        axios.get('/api/stats')
+            .then(res => setStats(res.data))
+            .catch(err => console.error(err))
+            .finally(() => setLoading(false))
+    }, [])
 
     return (
         <div className="flex flex-col gap-6">
@@ -19,9 +33,9 @@ export default function DashboardPage() {
                         <Users className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">--</div>
+                        <div className="text-2xl font-bold">{loading ? '...' : stats.contactsCount}</div>
                         <p className="text-xs text-muted-foreground">
-                            loading...
+                            {loading ? 'loading...' : 'Recorded contacts'}
                         </p>
                     </CardContent>
                 </Card>
@@ -34,9 +48,9 @@ export default function DashboardPage() {
                         <MessageSquare className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">--</div>
+                        <div className="text-2xl font-bold">{loading ? '...' : stats.activeConversationsCount}</div>
                         <p className="text-xs text-muted-foreground">
-                            loading...
+                            {loading ? 'loading...' : 'Currently active sessions'}
                         </p>
                     </CardContent>
                 </Card>
@@ -49,9 +63,9 @@ export default function DashboardPage() {
                         <Bot className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">--</div>
+                        <div className="text-2xl font-bold">{loading ? '...' : stats.promptsCount}</div>
                         <p className="text-xs text-muted-foreground">
-                            loading...
+                            {loading ? 'loading...' : 'Available prompts'}
                         </p>
                     </CardContent>
                 </Card>
