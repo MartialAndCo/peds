@@ -121,14 +121,22 @@ export async function POST(req: Request) {
                         await memoryService.add(contact.phone_whatsapp, `[System]: Sent media ${analysis.intentCategory}`)
 
                         // We don't save the image itself in messages table usually, but we could save a text placeholder
-                        await prisma.message.create({
-                            data: {
-                                conversationId: contact.conversations?.[0]?.id || 0, // Fallback safe, but ideally we find conv first
-                                sender: 'ai',
-                                message_text: `[Sent Media: ${analysis.intentCategory}]`,
-                                timestamp: new Date()
-                            }
-                        }).catch(e => console.error("Failed to save system media msg", e))
+                        // Find active conv to attach message
+                        const activeConv = await prisma.conversation.findFirst({
+                            where: { contactId: contact.id, status: 'active' },
+                            select: { id: true }
+                        })
+
+                        if (activeConv) {
+                            await prisma.message.create({
+                                data: {
+                                    conversationId: activeConv.id,
+                                    sender: 'ai',
+                                    message_text: `[Sent Media: ${analysis.intentCategory}]`,
+                                    timestamp: new Date()
+                                }
+                            }).catch(e => console.error("Failed to save system media msg", e))
+                        }
 
                         return NextResponse.json({ success: true, handler: 'media_sent' })
 
