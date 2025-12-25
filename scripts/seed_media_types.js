@@ -2,7 +2,7 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function main() {
-    console.log('Seeding Media Types...');
+    console.log('Seeding Media Types (Raw SQL)...');
 
     const types = [
         { id: 'photo_pieds', keywords: ['pieds', 'pied', 'feet', 'toes', 'orteils'], description: 'Photos de pieds' },
@@ -13,11 +13,13 @@ async function main() {
     ];
 
     for (const t of types) {
-        await prisma.mediaType.upsert({
-            where: { id: t.id },
-            update: { keywords: t.keywords, description: t.description },
-            create: { id: t.id, keywords: t.keywords, description: t.description }
-        });
+        // Postgres ON CONFLICT Upsert
+        await prisma.$executeRawUnsafe(`
+            INSERT INTO "media_types" ("id", "keywords", "description", "createdAt")
+            VALUES ($1, $2, $3, NOW())
+            ON CONFLICT ("id") DO UPDATE 
+            SET "keywords" = $2, "description" = $3;
+        `, t.id, t.keywords, t.description);
         console.log(`Upserted ${t.id}`);
     }
 

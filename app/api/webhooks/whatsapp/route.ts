@@ -392,15 +392,51 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
                 console.error('Mem0 Search Failed:', memError)
             }
 
-            // Mem0: Prepare System Prompt with Context
-            let systemPromptWithMemory = conversation.prompt.system_prompt
+            // --- STATE-AWARE AGENT LOGIC ---
+            const { director } = require('@/lib/director')
+
+            // 1. Update Trust (Fire & Forget)
+            director.updateTrustScore(contact.phone_whatsapp, lastMessage).catch((e: any) => console.error("Trust Update Failed:", e))
+
+            // 2. Get Phase & Context
+            const { phase, details } = await director.determinePhase(contact.phone_whatsapp)
+            const dynamicGoalBlock = director.getDynamicGoalBlock(phase)
+
+            // 3. Construct Modular Prompt (User Template)
+            const todayDate = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+
+            let systemPromptWithMemory = `
+### SYSTEM INSTRUCTIONS
+
+**1. IDENTITY & PERSONA**
+(Inherited from Settings/DB)
+Role: ${conversation.prompt.system_prompt}
+
+**2. CURRENT CONTEXT (Dynamic)**
+- **User Name:** ${contact.name || "friend"}
+- **Current Day:** ${todayDate}
+- **Time Connected:** ${details.daysActive} days.
+- **Trust Level:** ${details.trustScore} (${phase}).
+
+**3. YOUR STRICT MISSION FOR THIS MESSAGE**
+*Your behavior is strictly limited by the following phase instruction. Do not deviate.*
+
+>>> CURRENT PHASE INSTRUCTION:
+${dynamicGoalBlock}
+<<<
+
+**4. BEHAVIORAL GUARDRAILS**
+- **Anti-Rush:** Never push the intimacy faster than the user.
+- **Defense Mechanism:** If the user is aggressive, rude, or overly sexual immediately, do NOT be submissive. Act cold, surprised, or set a boundary.
+- **Length:** Keep responses short (1-3 sentences max).
+`
+            // Mem0 Context Injection
             if (fetchedMemories.length > 0) {
                 const memoriesText = fetchedMemories.map((m: any) => `- ${m.memory}`).join('\n')
                 systemPromptWithMemory += `\n\n[USER MEMORY / CONTEXT]:\n${memoriesText}\n\n[INSTRUCTION]: Use the above memory to personalize the response.`
-                console.log('Injected Memories:', memoriesText)
             }
 
-            // INJECT GLOBAL RULES (Language & Persona)
+            // Global Rules (Language & Persona)
             systemPromptWithMemory += `
             
 [CRITICAL INSTRUCTIONS]:
@@ -408,8 +444,6 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
 2. **MATCH LANGUAGE**: Detect the language of the user's last message. You MUST reply in the SAME language. If they speak English, reply in English. If French, French.
 3. **SPLIT MESSAGES**: If you want to break your text into natural bubbles (e.g. to pause), use "|||" as a separator. Example: "Sure! ||| Let me check."
 `
-
-            // Settings already fetched
 
             const provider = settings.ai_provider || 'venice'
             let responseText = ""
@@ -420,7 +454,7 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
                     model = settings.anthropic_model || 'claude-3-haiku-20240307'
                 }
                 responseText = await anthropic.chatCompletion(
-                    systemPromptWithMemory, // Use augmented prompt
+                    systemPromptWithMemory,
                     contextMessages,
                     lastMessage,
                     {
@@ -432,7 +466,7 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
                 )
             } else {
                 responseText = await venice.chatCompletion(
-                    systemPromptWithMemory, // Use augmented prompt
+                    systemPromptWithMemory,
                     contextMessages,
                     lastMessage,
                     {

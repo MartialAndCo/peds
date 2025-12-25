@@ -32,14 +32,23 @@ model Prompt {
 }
 
 model Contact {
-  id             Int      @id @default(autoincrement())
-  name           String
-  phone_whatsapp String   @unique
-  source         String?
-  notes          String?
-  status         String   @default("new") // new, contacted, qualified, closed
-  createdAt      DateTime @default(now())
-  conversations  Conversation[]
+  id              String         @id @default(cuid())
+  phone_whatsapp  String         @unique
+  name            String?
+  email           String?
+  source          String?        @default("manual")
+  notes           String?
+  status          String         @default("new") // active, archive, blacklisted
+  
+  // State-Aware Agent Fields
+  agentPhase      String         @default("CONNECTION") // CONNECTION, VULNERABILITY, CRISIS
+  trustScore      Int            @default(0)
+  lastPhaseUpdate DateTime       @default(now())
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  conversations   Conversation[]
 
   @@map("contacts")
 }
