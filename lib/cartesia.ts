@@ -58,7 +58,7 @@ export const cartesia = {
             // Append file. Blob is required by fetch/axios compliant FormData usually. 
             // In Node, we might need a Blob or just the buffer with filename.
             // Native FormData in Node 18+ accepts Blob.
-            const blob = new Blob([audioBuffer], { type: 'audio/ogg' }); // WhatsApp usually sends OGG/Opus
+            const blob = new Blob([audioBuffer as any], { type: 'audio/ogg' }); // WhatsApp usually sends OGG/Opus
             formData.append('file', blob, 'audio.ogg');
             formData.append('model', 'ink-whisper'); // Cartesia model
             formData.append('language', 'fr'); // Default to French as per context
