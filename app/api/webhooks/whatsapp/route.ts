@@ -82,53 +82,59 @@ export async function POST(req: Request) {
 
         const { mediaService } = require('@/lib/media')
 
-        // Detect Intent
+        // Detect Intent (Smart Logic)
         let messageText = payload.body
-        // If it's voice, we transcribe later. If it's text:
+
+        // If it's text, analyze it
         if (payload.type === 'chat') {
-            const detectedIntent = await mediaService.detectIntent(messageText)
+            const analysis = await mediaService.analyzeRequest(messageText)
 
-            if (detectedIntent) {
-                console.log(`Media Intent Detected: ${detectedIntent.id}`)
-                const result = await mediaService.processRequest(contact.phone_whatsapp, detectedIntent.id)
+            if (analysis && analysis.isMediaRequest) {
+                if (!analysis.allowed) {
+                    console.log(`Media Request Blocked: ${analysis.refusalReason}`)
+                    await whatsapp.sendText(contact.phone_whatsapp, analysis.refusalReason || "Je ne peux pas envoyer ce type de contenu.")
+                    return NextResponse.json({ success: true, handler: 'media_blocked' })
+                }
 
-                if (result.action === 'SEND') {
-                    console.log('Media found in bank. Sending...')
-                    // Assuming result.media.url is Data URL
-                    const dataUrl = result.media.url
-                    if (dataUrl.startsWith('data:image')) {
-                        await whatsapp.sendImage(contact.phone_whatsapp, dataUrl)
-                    } else {
-                        await whatsapp.sendVideo(contact.phone_whatsapp, dataUrl)
+                if (analysis.intentCategory) {
+                    console.log(`Media Intent Verified: ${analysis.intentCategory}`)
+                    const result = await mediaService.processRequest(contact.phone_whatsapp, analysis.intentCategory)
+
+                    if (result.action === 'SEND') {
+                        console.log('Media found in bank. Sending...')
+                        const dataUrl = result.media.url
+                        if (dataUrl.startsWith('data:image')) {
+                            await whatsapp.sendImage(contact.phone_whatsapp, dataUrl)
+                        } else {
+                            await whatsapp.sendVideo(contact.phone_whatsapp, dataUrl)
+                        }
+
+                        // Mark sent
+                        await prisma.media.update({
+                            where: { id: result.media.id },
+                            data: { sentTo: { push: contact.phone_whatsapp } }
+                        })
+
+                        // Mem0 Log
+                        const { memoryService } = require('@/lib/memory')
+                        await memoryService.add(contact.phone_whatsapp, messageText)
+                        await memoryService.add(contact.phone_whatsapp, `[System]: Sent media ${analysis.intentCategory}`)
+
+                        return NextResponse.json({ success: true, handler: 'media_sent' })
+
+                    } else if (result.action === 'REQUEST_SOURCE') {
+                        console.log('No media in bank. Requesting from Source...')
+                        const sent = await mediaService.requestFromSource(contact.phone_whatsapp, analysis.intentCategory)
+                        if (sent) {
+                            await whatsapp.sendText(contact.phone_whatsapp, "Je regarde si j'ai ça... une seconde 📸")
+                        } else {
+                            await whatsapp.sendText(contact.phone_whatsapp, "Pas de photo dispo pour le moment, désolée !")
+                        }
+                        return NextResponse.json({ success: true, handler: 'media_request_pending' })
                     }
-
-                    // Mark sent
-                    await prisma.media.update({
-                        where: { id: result.media.id },
-                        data: { sentTo: { push: contact.phone_whatsapp } }
-                    })
-
-                    // Mem0 Log
-                    const { memoryService } = require('@/lib/memory')
-                    await memoryService.add(contact.phone_whatsapp, messageText) // User Request
-                    await memoryService.add(contact.phone_whatsapp, `[System]: Sent media ${detectedIntent.id}`)
-
-                    return NextResponse.json({ success: true, handler: 'media_sent' })
-
-                } else if (result.action === 'REQUEST_SOURCE') {
-                    console.log('No media in bank. Requesting from Source...')
-                    const sentToSource = await mediaService.requestFromSource(contact.phone_whatsapp, detectedIntent.id)
-
-                    if (sentToSource) {
-                        await whatsapp.sendText(contact.phone_whatsapp, "Laisse-moi une seconde... 😊") // "Let me check..."
-                    } else {
-                        // Fallback if no source configured
-                        await whatsapp.sendText(contact.phone_whatsapp, "Désolé, je ne peux pas faire ça pour le moment.")
-                    }
-
-                    return NextResponse.json({ success: true, handler: 'media_request_pending' })
                 }
             }
+            // If not isMediaRequest, fall through to conversational AI
         }
 
 
