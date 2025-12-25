@@ -73,88 +73,97 @@ export default function SandboxPage() {
     }
 
     return (
-        <div className="h-[calc(100vh-8rem)] flex flex-col gap-4">
-            <div className="flex items-center justify-between">
+        <div className="h-[calc(100vh-6rem)] flex flex-col bg-background">
+            {/* Header */}
+            <div className="flex items-center justify-between py-4 border-b px-6 bg-background/95 backdrop-blur z-10">
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight">Sandbox / Playground 🧪</h2>
-                    <p className="text-muted-foreground">Simulate client interactions safely (No WhatsApp required)</p>
+                    <h2 className="text-xl font-semibold tracking-tight">iMessage Sandbox</h2>
+                    <p className="text-xs text-muted-foreground">Simulation Client • Instantané</p>
                 </div>
-                <Button variant="destructive" onClick={handleReset}>
+                <Button
+                    variant="ghost"
+                    onClick={handleReset}
+                    className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                >
                     <Trash2 className="mr-2 h-4 w-4" />
-                    Reset Session
+                    Reset
                 </Button>
             </div>
 
-            <Card className="flex-1 flex flex-col overflow-hidden border-2 border-dashed border-zinc-700 bg-black/20">
-                <CardContent className="flex-1 p-0 flex flex-col h-full">
-                    <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-                        <div className="space-y-4">
-                            {messages.map((m, i) => (
-                                <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                    <div className={`flex gap-2 max-w-[80%] ${m.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-
-                                        {/* Avatar */}
-                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${m.role === 'user' ? 'bg-blue-600' :
-                                                m.role === 'system' ? 'bg-yellow-600' : 'bg-purple-600'
-                                            }`}>
-                                            {m.role === 'user' ? <User size={16} /> : m.role === 'system' ? '!' : <Bot size={16} />}
-                                        </div>
-
-                                        {/* Bubble */}
-                                        <div className={`p-3 rounded-lg ${m.role === 'user' ? 'bg-blue-600/20 text-blue-100' :
-                                                m.role === 'system' ? 'bg-yellow-600/10 text-yellow-500 text-sm italic' :
-                                                    'bg-zinc-800 text-zinc-100'
-                                            }`}>
-                                            {m.type === 'media' && (
-                                                <div className="mb-2 rounded overflow-hidden">
-                                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                    {m.url.startsWith('data:video') ? (
-                                                        <video src={m.url} controls className="max-w-full h-auto rounded" />
-                                                    ) : (
-                                                        <img src={m.url} alt="Media" className="max-w-full h-auto rounded" />
-                                                    )}
-                                                </div>
-                                            )}
-
-                                            <p className="whitespace-pre-wrap">{m.content}</p>
-
-                                            {m.meta && (
-                                                <div className="mt-1 text-xs text-zinc-500 uppercase font-bold">
-                                                    {m.meta}
-                                                </div>
-                                            )}
-                                        </div>
+            {/* Chat Area */}
+            <ScrollArea className="flex-1 px-4 py-6" ref={scrollRef}>
+                <div className="space-y-4 max-w-3xl mx-auto">
+                    {messages.map((m, i) => (
+                        <div key={i} className={`flex w-full ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`
+                                max-w-[80%] px-4 py-2 text-[15px] leading-relaxed relative
+                                ${m.role === 'user'
+                                    ? 'bg-[#007AFF] text-white rounded-[20px] rounded-tr-[4px]'
+                                    : m.role === 'system'
+                                        ? 'bg-yellow-100 text-yellow-800 text-xs text-center mx-auto rounded-lg py-1'
+                                        : 'bg-[#E9E9EB] dark:bg-[#262628] text-black dark:text-white rounded-[20px] rounded-tl-[4px]'
+                                }
+                                ${m.isError ? 'bg-red-100 text-red-600' : ''}
+                            `}>
+                                {/* Media Handling */}
+                                {m.type === 'media' && (
+                                    <div className="mb-2 rounded-lg overflow-hidden">
+                                        {m.url.startsWith('data:video') ? (
+                                            <video src={m.url} controls className="max-w-full h-auto rounded-lg" />
+                                        ) : (
+                                            /* eslint-disable-next-line @next/next/no-img-element */
+                                            <img src={m.url} alt="Media" className="max-w-full h-auto rounded-lg" />
+                                        )}
                                     </div>
-                                </div>
-                            ))}
-                            {loading && (
-                                <div className="flex gap-2">
-                                    <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center shrink-0">
-                                        <Bot size={16} />
+                                )}
+
+                                {m.content}
+
+                                {m.meta && (
+                                    <div className="mt-1 text-[10px] opacity-50 uppercase font-bold tracking-wider pt-1 border-t border-black/10 dark:border-white/10">
+                                        {m.meta}
                                     </div>
-                                    <div className="bg-zinc-800 p-3 rounded-lg animate-pulse">
-                                        Thinking...
-                                    </div>
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
-                    </ScrollArea>
+                    ))}
 
-                    {/* Input Area */}
-                    <div className="p-4 border-t bg-black/40 flex gap-2">
+                    {/* Typing Indicator */}
+                    {loading && (
+                        <div className="flex justify-start">
+                            <div className="bg-[#E9E9EB] dark:bg-[#262628] rounded-[20px] rounded-tl-[4px] px-4 py-3 flex items-center space-x-1 w-16 h-10">
+                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </ScrollArea>
+
+            {/* Input Area */}
+            <div className="p-4 bg-background border-t">
+                <div className="max-w-3xl mx-auto flex items-center gap-3">
+                    <div className="relative flex-1">
                         <Input
-                            placeholder="Type a message as a client..."
+                            placeholder="iMessage"
                             value={input}
                             onChange={e => setInput(e.target.value)}
                             onKeyDown={e => e.key === 'Enter' && handleSend()}
-                            className="bg-zinc-900 border-zinc-700"
+                            className="rounded-full border-[#C6C6C6] dark:border-[#3A3A3C] bg-transparent pl-4 pr-10 py-5 focus-visible:ring-0 focus-visible:border-[#007AFF]"
                         />
-                        <Button onClick={handleSend} disabled={loading}>
-                            <Send className="h-4 w-4" />
+                        <Button
+                            size="icon"
+                            onClick={handleSend}
+                            disabled={!input.trim() || loading}
+                            className={`absolute right-1 top-1 bottom-1 rounded-full w-8 h-8 transition-all ${input.trim() ? 'bg-[#007AFF] hover:bg-[#007AFF]/90' : 'bg-transparent text-gray-400 hover:bg-transparent'
+                                }`}
+                        >
+                            <Send size={14} className={input.trim() ? 'text-white' : ''} />
                         </Button>
                     </div>
-                </CardContent>
-            </Card>
+                </div>
+            </div>
         </div>
     )
 }
