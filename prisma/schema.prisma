@@ -55,7 +55,7 @@ model Contact {
 
 model Conversation {
   id              Int       @id @default(autoincrement())
-  contactId       Int
+  contactId       String
   promptId        Int
   waha_session_id String?
   status          String    @default("active") // active, paused, closed
