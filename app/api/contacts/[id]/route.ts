@@ -16,9 +16,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const session = await getServerSession(authOptions)
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { id: idStr } = await params
-    const id = parseInt(idStr)
-    if (isNaN(id)) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 })
+    const { id } = await params
 
     const contact = await prisma.contact.findUnique({
         where: { id },
@@ -34,9 +32,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const session = await getServerSession(authOptions)
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { id: idStr } = await params
-    const id = parseInt(idStr)
-    if (isNaN(id)) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 })
+    const { id } = await params
 
     try {
         const json = await req.json()
@@ -60,9 +56,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const session = await getServerSession(authOptions)
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { id: idStr } = await params
-    const id = parseInt(idStr)
-    if (isNaN(id)) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 })
+    const { id } = await params
 
     try {
         // Manual cascade delete fallback (Deep Clean)
