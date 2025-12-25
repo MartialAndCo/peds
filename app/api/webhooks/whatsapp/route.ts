@@ -81,37 +81,9 @@ export async function POST(req: Request) {
         const isVoiceMessage = payload.type === 'ptt' || payload.type === 'audio' || payload._data?.mimetype?.startsWith('audio')
 
         if (isVoiceMessage) {
-            console.log('Voice Message Detected. Attempting Transcription...')
-            try {
-                const settingsList = await prisma.setting.findMany()
-                const settings = settingsList.reduce((acc: any, curr: any) => {
-                    acc[curr.key] = curr.value
-                    return acc
-                }, {})
-
-                const apiKey = settings.elevenlabs_api_key
-                if (apiKey) {
-                    // Use new whatsapp client download
-                    const media = await whatsapp.downloadMedia(payload.id)
-                    if (media && media.data) {
-                        const { elevenlabs } = require('@/lib/elevenlabs')
-                        const transcript = await elevenlabs.transcribeAudio(media.data, { apiKey })
-                        if (transcript) {
-                            console.log('Transcription Success:', transcript)
-                            messageText = `[Voice Message Transcribed]: ${transcript}`
-                        } else {
-                            messageText = "[Voice Message - Transcription Empty]"
-                        }
-                    } else {
-                        messageText = "[Voice Message - Download Failed]"
-                    }
-                } else {
-                    messageText = "[Voice Message - Transcription Disabled]"
-                }
-            } catch (err: any) {
-                console.error('Transcription Failed:', err)
-                messageText = `[Voice Message - Transcription Error: ${err.message}]`
-            }
+            console.log('Voice Message Detected. Transcription currently disabled (ElevenLabs removed).')
+            // Placeholder for future transcription service (e.g. OpenAI Whisper)
+            messageText = "[Voice Message - Transcription Disabled]"
         }
 
         // Save User Message
@@ -128,7 +100,7 @@ export async function POST(req: Request) {
         // Safety: If voice failed, do NOT trigger AI (prevents loops)
         if (messageText.startsWith('[Voice Message -')) {
             console.log("Voice processing failed or disabled, skipping AI.")
-            await whatsapp.sendText(contact.phone_whatsapp, "Désolé, je n'ai pas réussi à écouter votre message audio.")
+            await whatsapp.sendText(contact.phone_whatsapp, "Désolé, je ne peux pas écouter les messages vocaux pour le moment.")
             return NextResponse.json({ success: true })
         }
 
@@ -143,8 +115,7 @@ export async function POST(req: Request) {
             // Clean History for AI Context
             // 1. Remove "Download Failed" system messages
             const cleanHistory = history.filter((m: any) =>
-                !m.message_text.includes('[Voice Message - Download Failed]') &&
-                !m.message_text.includes('[Voice Message - Transcription Empty]')
+                !m.message_text.includes('[Voice Message -')
             )
 
             // 2. Deduplicate consecutive identical messages from the same role
@@ -226,29 +197,22 @@ export async function POST(req: Request) {
 
             if (isVoiceResponse && isIncomingVoice) {
                 try {
-                    const voiceProvider = settings.voice_provider || 'elevenlabs'
                     let audioDataUrl: string
 
-                    if (voiceProvider === 'cartesia' && settings.cartesia_api_key) {
+                    if (settings.cartesia_api_key) {
                         const { cartesia } = require('@/lib/cartesia')
                         audioDataUrl = await cartesia.generateAudio(responseText, {
                             apiKey: settings.cartesia_api_key,
                             voiceId: settings.cartesia_voice_id,
                             modelId: settings.cartesia_model_id
                         })
-                    } else if (settings.elevenlabs_api_key) {
-                        const { elevenlabs } = require('@/lib/elevenlabs')
-                        // fallback to ElevenLabs
-                        audioDataUrl = await elevenlabs.generateAudio(responseText, {
-                            apiKey: settings.elevenlabs_api_key,
-                            voiceId: settings.elevenlabs_voice_id
-                        })
+
+                        // Send Voice via new client
+                        await whatsapp.sendVoice(contact.phone_whatsapp, audioDataUrl)
                     } else {
-                        throw new Error('No Voice Provider configured (Cartesia or ElevenLabs)')
+                        throw new Error('No Voice Provider configured (Cartesia Key missing)')
                     }
 
-                    // Send Voice via new client
-                    await whatsapp.sendVoice(contact.phone_whatsapp, audioDataUrl)
                 } catch (voiceError: any) {
                     console.error('Voice Generation/Send Failed, fallback to text:', voiceError)
                     await whatsapp.sendText(contact.phone_whatsapp, responseText)
