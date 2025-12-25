@@ -125,6 +125,13 @@ export async function POST(req: Request) {
             }
         })
 
+        // Safety: If voice failed, do NOT trigger AI (prevents loops)
+        if (messageText.startsWith('[Voice Message -')) {
+            console.log("Voice processing failed or disabled, skipping AI.")
+            await whatsapp.sendText(contact.phone_whatsapp, "Désolé, je n'ai pas réussi à écouter votre message audio.")
+            return NextResponse.json({ success: true })
+        }
+
         // Logic AI
         if (conversation.ai_enabled) {
             const history = await prisma.message.findMany({
