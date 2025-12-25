@@ -43,47 +43,46 @@ export const cartesia = {
         } catch (error: any) {
             console.error('Cartesia Generation Error:', error);
             throw new Error(`Cartesia Error: ${error.message}`);
-        },
+        }
+    },
 
     async transcribeAudio(audioBuffer: Buffer, config: { apiKey?: string, model?: string } = {}) {
-            const apiKey = config.apiKey || process.env.CARTESIA_API_KEY;
-            if (!apiKey) throw new Error('CARTESIA_API_KEY not configured');
+        const apiKey = config.apiKey || process.env.CARTESIA_API_KEY;
+        if (!apiKey) throw new Error('CARTESIA_API_KEY not configured');
 
-            try {
-                // OpenAI Compatible Endpoint
-                const url = 'https://api.cartesia.ai/audio/transcriptions';
+        try {
+            // OpenAI Compatible Endpoint
+            const url = 'https://api.cartesia.ai/audio/transcriptions';
 
-                const formData = new FormData();
-                // Append file. Blob is required by fetch/axios compliant FormData usually. 
-                // In Node, we might need a Blob or just the buffer with filename.
-                // Native FormData in Node 18+ accepts Blob.
-                const blob = new Blob([audioBuffer], { type: 'audio/ogg' }); // WhatsApp usually sends OGG/Opus
-                formData.append('file', blob, 'audio.ogg');
-                formData.append('model', 'ink-whisper'); // Cartesia model
-                formData.append('language', 'fr'); // Default to French as per context
+            const formData = new FormData();
+            // Append file. Blob is required by fetch/axios compliant FormData usually. 
+            // In Node, we might need a Blob or just the buffer with filename.
+            // Native FormData in Node 18+ accepts Blob.
+            const blob = new Blob([audioBuffer], { type: 'audio/ogg' }); // WhatsApp usually sends OGG/Opus
+            formData.append('file', blob, 'audio.ogg');
+            formData.append('model', 'ink-whisper'); // Cartesia model
+            formData.append('language', 'fr'); // Default to French as per context
 
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${apiKey}`,
-                        // 'Content-Type': 'multipart/form-data' // Fetch sets this boundary automatically
-                    },
-                    body: formData
-                });
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    // 'Content-Type': 'multipart/form-data' // Fetch sets this boundary automatically
+                },
+                body: formData
+            });
 
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Cartesia Transcription Error: ${response.status} ${errorText}`);
-                }
-
-                const data = await response.json();
-                return data.text;
-
-            } catch (error: any) {
-                console.error('Cartesia Transcription Error:', error);
-                throw error;
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Cartesia Transcription Error: ${response.status} ${errorText}`);
             }
+
+            const data = await response.json();
+            return data.text;
+
+        } catch (error: any) {
+            console.error('Cartesia Transcription Error:', error);
+            throw error;
         }
     }
-}
 }
