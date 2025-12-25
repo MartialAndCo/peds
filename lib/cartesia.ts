@@ -117,7 +117,7 @@ export const cartesia = {
             const blob = new Blob([audioBuffer as any], { type: 'audio/ogg' }); // WhatsApp usually sends OGG/Opus
             formData.append('file', blob, 'audio.ogg');
             formData.append('model', 'ink-whisper'); // Cartesia model
-            formData.append('language', 'fr'); // Default to French as per context
+            // formData.append('language', 'fr'); // Removed to allow auto-detection (en/fr)
 
             const response = await fetch(url, {
                 method: 'POST',
