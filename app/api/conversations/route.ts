@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { waha } from '@/lib/waha'
 
 const createConversationSchema = z.object({
-    contact_id: z.number(),
+    contact_id: z.string(),
     prompt_id: z.number(),
     initial_message: z.string().min(1).optional(),
 })
@@ -21,7 +21,7 @@ export async function GET(req: Request) {
 
     const where: any = {}
     if (status) where.status = status
-    if (contactId) where.contactId = parseInt(contactId)
+    if (contactId) where.contactId = contactId
 
     const conversations = await prisma.conversation.findMany({
         where,
