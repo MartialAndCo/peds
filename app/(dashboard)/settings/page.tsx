@@ -367,13 +367,91 @@ export default function SettingsPage() {
                     <CardContent className="space-y-6">
                         <BlacklistManager />
                     </CardContent>
-                </Card>
+                    {/* Dynamic Prompts Configuration */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Agent Persona & Architecture (Professional)</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <div className="grid grid-cols-1 gap-4">
+                                <div className="space-y-2">
+                                    <Label>1. Identity Template</Label>
+                                    <textarea
+                                        className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 min-h-[100px]"
+                                        value={settings.prompt_identity_template || ''}
+                                        onChange={(e) => setSettings({ ...settings, prompt_identity_template: e.target.value })}
+                                    />
+                                    <p className="text-xs text-muted-foreground">Variables: {'{{ROLE}}'}</p>
+                                </div>
 
-                <div className="flex justify-end pb-10">
-                    <Button type="submit" disabled={saving || loading}>
-                        {saving ? 'Saving...' : 'Save Settings'}
-                    </Button>
-                </div>
+                                <div className="space-y-2">
+                                    <Label>2. Context Template</Label>
+                                    <textarea
+                                        className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 min-h-[100px]"
+                                        value={settings.prompt_context_template || ''}
+                                        onChange={(e) => setSettings({ ...settings, prompt_context_template: e.target.value })}
+                                    />
+                                    <p className="text-xs text-muted-foreground">Variables: {'{{USER_NAME}}, {{CURRENT_DATE}}, {{DAYS_ACTIVE}}, {{TRUST_SCORE}}, {{PHASE}}'}</p>
+                                </div>
+
+                                <div className="border-t pt-4">
+                                    <Label className="text-lg font-semibold">Phase Goals (The "Mission")</Label>
+                                    <p className="text-sm text-gray-500 mb-4">The AI will use ONE of these based on the active phase.</p>
+
+                                    <div className="space-y-4 pl-4 border-l-2 border-slate-200">
+                                        <div className="space-y-2">
+                                            <Label>Phase A: Connection (Start)</Label>
+                                            <textarea
+                                                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 min-h-[80px]"
+                                                value={settings.phase_prompt_connection || ''}
+                                                onChange={(e) => setSettings({ ...settings, phase_prompt_connection: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Phase B: Vulnerability (Mid)</Label>
+                                            <textarea
+                                                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 min-h-[80px]"
+                                                value={settings.phase_prompt_vulnerability || ''}
+                                                onChange={(e) => setSettings({ ...settings, phase_prompt_vulnerability: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Phase C: Crisis (High Trust)</Label>
+                                            <textarea
+                                                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 min-h-[80px]"
+                                                value={settings.phase_prompt_crisis || ''}
+                                                onChange={(e) => setSettings({ ...settings, phase_prompt_crisis: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label>4. Guardrails (Safety & Style)</Label>
+                                    <textarea
+                                        className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 min-h-[100px]"
+                                        value={settings.prompt_guardrails || ''}
+                                        onChange={(e) => setSettings({ ...settings, prompt_guardrails: e.target.value })}
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label>5. Global Critical Rules (Language, Realism)</Label>
+                                    <textarea
+                                        className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 min-h-[100px]"
+                                        value={settings.prompt_global_rules || ''}
+                                        onChange={(e) => setSettings({ ...settings, prompt_global_rules: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <div className="flex justify-end pb-10">
+                        <Button type="submit" disabled={saving || loading}>
+                            {saving ? 'Saving...' : 'Save Settings'}
+                        </Button>
+                    </div>
             </form>
         </div>
     )

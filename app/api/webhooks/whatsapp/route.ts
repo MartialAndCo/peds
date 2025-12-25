@@ -57,13 +57,42 @@ export async function POST(req: Request) {
                 return NextResponse.json({ success: true, handler: 'source_problem' })
             }
             if (text.toUpperCase().includes('[CANCEL]') || text.toUpperCase().includes('[ANNULER]')) {
-                // Cancel logic would go here (need to find pending request)
+                const reason = text.replace(/\[CANCEL\]|\[ANNULER\]/i, '').trim()
+
                 const pending = await prisma.pendingRequest.findFirst({ where: { status: 'pending' } })
                 if (pending) {
-                    // Update DB
                     await prisma.pendingRequest.update({ where: { id: pending.id }, data: { status: 'cancelled' } })
-                    await whatsapp.sendText(sourcePhone, "✅ Demande annulée.")
-                    // Optionally notify contact via AI?
+                    await whatsapp.sendText(sourcePhone, `✅ Demande annulée.${reason ? ' Contact informé.' : ''}`)
+
+                    // Notify Contact via AI if reason provided
+                    if (reason) {
+                        const contactPhone = pending.requesterPhone
+                        // Context loading...
+                        let currentConversation = await prisma.conversation.findFirst({
+                            where: { contactId: (await prisma.contact.findUnique({ where: { phone_whatsapp: contactPhone } }))?.id, status: 'active' },
+                            include: { prompt: true }
+                        })
+
+                        const systemMsg = `(SYSTEM: You previously promised a photo/video, but you realize you cannot send it. Reason provided by your life context: "${reason}". 
+INSTRUCTION: Apologize to the user naturally and explain why you can't right now (using the reason as inspiration, but keep it casual/human). Do NOT say 'Admin cancelled'. Say 'I realized...', 'I forgot...', etc.)`
+
+                        // We use the same AI flow but with this specific prompt
+                        // Short-circuit: just call AI here
+                        const provider = settings.ai_provider || 'venice'
+                        let aiReply = ""
+                        if (provider === 'anthropic') {
+                            aiReply = await anthropic.chatCompletion(currentConversation?.prompt?.system_prompt || "You are a friend.", [], systemMsg, { apiKey: settings.anthropic_api_key, model: settings.anthropic_model })
+                        } else {
+                            aiReply = await venice.chatCompletion(currentConversation?.prompt?.system_prompt || "You are a friend.", [], systemMsg, { apiKey: settings.venice_api_key, model: settings.venice_model })
+                        }
+
+                        await whatsapp.sendText(contactPhone, aiReply)
+                        // Store in DB
+                        if (currentConversation) {
+                            await prisma.message.create({ data: { conversationId: currentConversation.id, sender: 'ai', message_text: aiReply, timestamp: new Date() } })
+                        }
+                    }
+
                 } else {
                     await whatsapp.sendText(sourcePhone, "⚠️ Aucune demande en attente à annuler.")
                 }
