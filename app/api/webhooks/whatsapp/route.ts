@@ -38,11 +38,14 @@ export async function POST(req: Request) {
             return acc
         }, {})
 
+        // Detect Intent (Smart Logic)
+        let messageText = payload.body || ""
+
         // --- 1. Source (Admin) Logic ---
         const sourcePhone = settings.source_phone_number
         if (sourcePhone && normalizedPhone === sourcePhone) {
             console.log('Message from Source (Admin).')
-            const text = messageText || ""
+            const text = messageText
 
             // B. Check for Commands
             if (text.toUpperCase().includes('[PROBLEM]')) {
@@ -177,8 +180,11 @@ export async function POST(req: Request) {
                         }
 
                         const instruction = status === 'REQUEST_NEW'
-                            ? `(SYSTEM: The user wants a photo of ${analysis.intentCategory}. You don't have it right now. Tell them naturally you'll check if you have one later/soon. Do not promise immediately. Stay in character. If you want to break your response into two messages (e.g. one acknowledgment, then another thought), separate them with |||)`
-                            : `(SYSTEM: The user is asking AGAIN for ${analysis.intentCategory}. You already said you'd check. Tell them to be patient/relax naturally. Use ||| to split messages if needed.)`;
+                            ? `(SYSTEM: The user wants a photo of ${analysis.intentCategory}. You don't have it right now. Tell them naturally you'll check later. 
+IMPORTANT: You are a REAL PERSON. NEVER say you are an AI. NEVER say you don't have a body. If you can't send it, say you are busy, shy, or the lighting is bad.
+If you want to break your response into two messages, use "|||")`
+                            : `(SYSTEM: The user is asking AGAIN for ${analysis.intentCategory}. You already said you'd check. Tell them to be patient naturally. 
+IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split messages if needed.)`;
 
                         // Generate Response
                         // We use the same provider as settings
@@ -394,8 +400,14 @@ export async function POST(req: Request) {
                 console.log('Injected Memories:', memoriesText)
             }
 
-            // INJECT SPLIT INSTRUCTION
-            systemPromptWithMemory += `\n\n[IMPORTANT]: If you want to break your response into multiple separate messages (e.g. to pause for effect, or change subject), use the separator "|||". Example: "No problem. ||| By the way, how are you?". Do NOT use it if a single message is sufficient.`
+            // INJECT GLOBAL RULES (Language & Persona)
+            systemPromptWithMemory += `
+            
+[CRITICAL INSTRUCTIONS]:
+1. **REAL PERSON**: You are a real human being. NEVER say you are an AI, a language model, or that you don't have a body. If asked for something you can't provide immediately (like a photo), say you'll do it later, or you're shy, or busy. Make up a human excuse.
+2. **MATCH LANGUAGE**: Detect the language of the user's last message. You MUST reply in the SAME language. If they speak English, reply in English. If French, French.
+3. **SPLIT MESSAGES**: If you want to break your text into natural bubbles (e.g. to pause), use "|||" as a separator. Example: "Sure! ||| Let me check."
+`
 
             // Settings already fetched
 
