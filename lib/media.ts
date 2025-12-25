@@ -39,8 +39,6 @@ export const mediaService = {
         Available Categories:
         ${availableCategories}
 
-        Input Text: "${text}"
-
         Instructions:
         - If the request violates the blacklist, set "allowed" to false and explain why briefly.
         - If the request is safe, set "allowed" to true.
@@ -62,16 +60,18 @@ export const mediaService = {
             // Force JSON mode if possible or just parse text
             // For now, prompt engineering for JSON.
 
+            const userMessage = `Analyze this request: "${text}"`;
+
             let responseText = "";
             if (settings.ai_provider === 'anthropic') {
                 // simplify for now or use the preferred provider
                 responseText = await anthropic.chatCompletion(
-                    systemPrompt, [], "Analyze this request.",
+                    systemPrompt, [], userMessage,
                     { apiKey: settings.anthropic_api_key, model: settings.anthropic_model || 'claude-3-haiku-20240307' }
                 );
             } else {
                 responseText = await venice.chatCompletion(
-                    systemPrompt, [], "Analyze this request.",
+                    systemPrompt, [], userMessage,
                     { apiKey: settings.venice_api_key, model: settings.venice_model || 'venice-uncensored' }
                 );
             }
