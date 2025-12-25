@@ -136,33 +136,83 @@ export async function POST(req: Request) {
                         console.log('No media in bank. Requesting from Source...')
                         const status = await mediaService.requestFromSource(contact.phone_whatsapp, analysis.intentCategory)
 
-                        let responseText = ""
-                        if (status === 'REQUEST_NEW') {
-                            responseText = "Je regarde si j'ai ça... une seconde 📸"
-                        } else if (status === 'REQUEST_PENDING') {
-                            responseText = "J'ai déjà demandé, je te dis dès que je l'ai ! ⏳"
-                        } else {
-                            responseText = "Pas de photo dispo pour le moment, désolé !"
+                        // Dynamic AI Response Generation (No Hardcoded)
+                        // We need the conversation to access the correct prompt/model
+                        // But we might need to fetch it if we haven't yet (we do it later usually)
+
+                        let currentConversation = await prisma.conversation.findFirst({
+                            where: { contactId: contact.id, status: 'active' },
+                            include: { prompt: true }
+                        })
+
+                        // If no conversation, we can't really "chat". creating one properly or fallback.
+                        // For simplicity, we assume one exists or we create a temp context if needed, 
+                        // but usually if we are here, we can reuse the logic below or just fetch the prompt.
+
+                        // We'll reuse the Settings & Prompt logic quickly here to ensure fast response
+                        // Fetch active prompt if no conversation
+                        let activePrompt: any = currentConversation?.prompt
+                        if (!activePrompt) {
+                            activePrompt = await prisma.prompt.findFirst({ where: { isActive: true } })
                         }
 
+                        const contextMessages = [] // We could fetch history, but for this specific reaction "current msg + instruction" is enough usually, 
+                        // OR we should ideally fall through to the main AI logic with a "flag".
+                        // BUT falling through is complex because the main logic logic is lower.
+                        // Let's generate it here for simplicity.
+
+                        const instruction = status === 'REQUEST_NEW'
+                            ? `(SYSTEM: The user wants a photo of ${analysis.intentCategory}. You don't have it right now. Tell them naturally you'll check if you have one later/soon. Do not promise immediately. Stay in character.)`
+                            : `(SYSTEM: The user is asking AGAIN for ${analysis.intentCategory}. You already said you'd check. Tell them to be patient/relax naturally.)`;
+
+                        // Generate Response
+                        // We use the same provider as settings
+                        const provider = settings.ai_provider || 'venice'
+                        let responseText = ""
+
+                        // We need the last user message to make sense of language
+                        const userMessageForAI = messageText + "\n\n" + instruction;
+
+                        if (provider === 'anthropic') {
+                            responseText = await anthropic.chatCompletion(
+                                activePrompt?.system_prompt || "You are a helpful assistant.",
+                                [],
+                                userMessageForAI,
+                                { apiKey: settings.anthropic_api_key, model: settings.anthropic_model || 'claude-3-haiku-20240307' }
+                            );
+                        } else {
+                            responseText = await venice.chatCompletion(
+                                activePrompt?.system_prompt || "You are a helpful assistant.",
+                                [],
+                                userMessageForAI,
+                                { apiKey: settings.venice_api_key, model: settings.venice_model || 'venice-uncensored' }
+                            );
+                        }
+
+                        // Send & Save
                         await whatsapp.sendText(contact.phone_whatsapp, responseText)
 
-                        // SAVE TO DB so AI Context knows we replied
-                        // We need the conversation ID. We haven't fetched it yet in this flow.
-                        // Quick fix: fetch or find
-                        const conv = await prisma.conversation.findFirst({ where: { contactId: contact.id, status: 'active' } })
-                        if (conv) {
+                        if (currentConversation) {
                             await prisma.message.create({
                                 data: {
-                                    conversationId: conv.id,
+                                    conversationId: currentConversation.id,
                                     sender: 'ai',
                                     message_text: responseText,
                                     timestamp: new Date()
                                 }
                             })
+                            // Save request too to prompt context?
+                            await prisma.message.create({
+                                data: {
+                                    conversationId: currentConversation.id,
+                                    sender: 'contact',
+                                    message_text: messageText,
+                                    timestamp: new Date()
+                                }
+                            })
                         }
 
-                        return NextResponse.json({ success: true, handler: 'media_request_pending' })
+                        return NextResponse.json({ success: true, handler: 'media_request_pending_dynamic' })
                     }
                 }
             }
