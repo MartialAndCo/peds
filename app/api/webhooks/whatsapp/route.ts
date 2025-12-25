@@ -81,9 +81,39 @@ export async function POST(req: Request) {
         const isVoiceMessage = payload.type === 'ptt' || payload.type === 'audio' || payload._data?.mimetype?.startsWith('audio')
 
         if (isVoiceMessage) {
-            console.log('Voice Message Detected. Transcription currently disabled (ElevenLabs removed).')
-            // Placeholder for future transcription service (e.g. OpenAI Whisper)
-            messageText = "[Voice Message - Transcription Disabled]"
+            console.log('Voice Message Detected. Attempting Transcription via Cartesia...')
+            try {
+                const settingsList = await prisma.setting.findMany()
+                const settings = settingsList.reduce((acc: any, curr: any) => {
+                    acc[curr.key] = curr.value
+                    return acc
+                }, {})
+
+                const apiKey = settings.cartesia_api_key
+                if (apiKey) {
+                    // Use whatsapp client download
+                    const media = await whatsapp.downloadMedia(payload.id)
+                    if (media && media.data) {
+                        const { cartesia } = require('@/lib/cartesia')
+                        const buffer = Buffer.from(media.data, 'base64')
+                        const transcript = await cartesia.transcribeAudio(buffer, { apiKey })
+
+                        if (transcript) {
+                            console.log('Transcription Success:', transcript)
+                            messageText = `[Voice Message Transcribed]: ${transcript}`
+                        } else {
+                            messageText = "[Voice Message - Transcription Empty]"
+                        }
+                    } else {
+                        messageText = "[Voice Message - Download Failed]"
+                    }
+                } else {
+                    messageText = "[Voice Message - Transcription Disabled (No API Key)]"
+                }
+            } catch (err: any) {
+                console.error('Transcription Failed:', err)
+                messageText = `[Voice Message - Transcription Error: ${err.message}]`
+            }
         }
 
         // Save User Message
