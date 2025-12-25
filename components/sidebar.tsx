@@ -11,7 +11,8 @@ import {
     Users,
     Settings,
     Bot,
-    LogOut
+    LogOut,
+    Beaker
 } from 'lucide-react'
 
 const routes = [
@@ -43,6 +44,12 @@ const routes = [
         label: 'Settings',
         icon: Settings,
         href: '/settings',
+    },
+    {
+        label: 'Sandbox',
+        icon: Beaker, // You'll need to import Beaker from lucide-react
+        href: '/sandbox',
+        color: 'text-orange-500',
     },
 ]
 
