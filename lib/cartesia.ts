@@ -27,9 +27,9 @@ export const cartesia = {
                     mode: 'id',
                     id: voiceId,
                 },
-                output_format: {
+                outputFormat: {
                     container: 'mp3', // WhatsApp prefers MP3 or OGG
-                    sample_rate: 44100,
+                    sampleRate: 44100,
                     encoding: 'mp3',
                 },
             });
