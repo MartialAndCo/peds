@@ -21,7 +21,7 @@ export const cartesia = {
         try {
             // Using the 'bytes' endpoint as per user CURL example (but via library)
             const buffer = await client.tts.bytes({
-                model_id: modelId,
+                modelId: modelId,
                 transcript: text,
                 voice: {
                     mode: 'id',
