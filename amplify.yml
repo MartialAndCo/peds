@@ -3,7 +3,7 @@ frontend:
   phases:
     preBuild:
       commands:
-        - npm ci
+        - npm ci --legacy-peer-deps
     build:
       commands:
         - env | grep -e DB_ -e NEXT_ -e WAHA_ -e AI_ -e ANTHROPIC_ -e VENICE_ -e ELEVENLABS_ >> .env.production
