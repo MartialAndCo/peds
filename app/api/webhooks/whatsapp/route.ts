@@ -454,6 +454,25 @@ export async function POST(req: Request) {
                     await whatsapp.sendText(contact.phone_whatsapp, responseText)
                 }
             } else {
+                // Human-like Text Sending Logic
+                // 1. Calculate reading/thinking delay (random 2-5s)
+                const preTypingDelay = Math.floor(Math.random() * 3000) + 2000
+                await new Promise(r => setTimeout(r, preTypingDelay))
+
+                // 2. Mark as read
+                await whatsapp.markAsRead(contact.phone_whatsapp)
+
+                // 3. Start Typing
+                await whatsapp.sendTypingState(contact.phone_whatsapp, true)
+
+                // 4. Calculate typing duration (50-80ms per char)
+                const charDelay = 50 + Math.random() * 30
+                const typingDuration = Math.min(responseText.length * charDelay, 15000) // Cap at 15s
+
+                await new Promise(r => setTimeout(r, typingDuration))
+
+                // 5. Send (automatically stops typing usually, but we can stop explicitly if needed)
+                // await whatsapp.sendTypingState(contact.phone_whatsapp, false) // Not strictly needed
                 await whatsapp.sendText(contact.phone_whatsapp, responseText)
             }
         }

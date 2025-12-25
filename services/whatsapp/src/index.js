@@ -159,6 +159,36 @@ app.post('/api/sendFile', authenticate, async (req, res) => {
     }
 });
 
+// Mark as Seen
+app.post('/api/markSeen', authenticate, async (req, res) => {
+    const { chatId } = req.body;
+    try {
+        const chat = await client.getChatById(chatId);
+        await chat.sendSeen();
+        res.json({ success: true });
+    } catch (e) {
+        console.error('Mark Seen Error', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Typing State (true = typing, false = stop)
+app.post('/api/sendStateTyping', authenticate, async (req, res) => {
+    const { chatId, isTyping } = req.body;
+    try {
+        const chat = await client.getChatById(chatId);
+        if (isTyping) {
+            await chat.sendStateTyping();
+        } else {
+            await chat.clearState();
+        }
+        res.json({ success: true });
+    } catch (e) {
+        console.error('Typing State Error', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // Get Media (to mimic WAHA for voice download)
 // /api/:session/chats/:chatId/messages/:messageId
 // Simplified to /api/messages/:msgId/media

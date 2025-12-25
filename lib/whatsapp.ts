@@ -145,5 +145,32 @@ export const whatsapp = {
             console.error('WhatsApp Service Download Media Error:', error.message)
             return null
         }
+    },
+
+    async markAsRead(chatId: string) {
+        const { endpoint, apiKey } = await getConfig()
+        try {
+            const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
+            await axios.post(`${endpoint}/api/markSeen`, { chatId: formattedChatId }, {
+                headers: { 'X-Api-Key': apiKey }
+            })
+        } catch (error: any) {
+            console.error('WhatsApp Service MarkRead Error:', error.message)
+        }
+    },
+
+    async sendTypingState(chatId: string, isTyping: boolean) {
+        const { endpoint, apiKey } = await getConfig()
+        try {
+            const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
+            await axios.post(`${endpoint}/api/sendStateTyping`, {
+                chatId: formattedChatId,
+                isTyping
+            }, {
+                headers: { 'X-Api-Key': apiKey }
+            })
+        } catch (error: any) {
+            console.error('WhatsApp Service TypingStatus Error:', error.message)
+        }
     }
 }
