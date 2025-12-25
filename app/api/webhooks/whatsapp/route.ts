@@ -31,6 +31,43 @@ export async function POST(req: Request) {
         const phone_whatsapp = from.split('@')[0]
         const normalizedPhone = `+${phone_whatsapp}`
 
+        // Fetch Settings Early
+        const settingsList = await prisma.setting.findMany()
+        const settings = settingsList.reduce((acc: any, curr: any) => {
+            acc[curr.key] = curr.value
+            return acc
+        }, {})
+
+        // --- 1. Source (Admin) Logic ---
+        const sourcePhone = settings.source_phone_number
+        if (sourcePhone && normalizedPhone === sourcePhone) {
+            console.log('Message from Source (Admin).')
+
+            // If Media -> Ingest
+            const isMedia = payload.type === 'image' || payload.type === 'video'
+            if (isMedia) {
+                console.log('Source sent media. Ingesting...')
+                const media = await whatsapp.downloadMedia(payload.id)
+                if (media && media.data) {
+                    const { mediaService } = require('@/lib/media')
+                    const mimeType = payload._data?.mimetype || (payload.type === 'image' ? 'image/jpeg' : 'video/mp4')
+                    // media.data is base64 string (from whatsapp-web.js MessageMedia.data)
+                    const ingestionResult = await mediaService.ingestMedia(sourcePhone, `data:${mimeType};base64,${media.data}`, mimeType)
+
+                    if (ingestionResult) {
+                        await whatsapp.sendText(sourcePhone, `✅ Media ingested for ${ingestionResult.type}. Sent to ${ingestionResult.sentTo}.`)
+                    } else {
+                        await whatsapp.sendText(sourcePhone, `✅ Media stored (Uncategorized or no pending request).`)
+                    }
+                    return NextResponse.json({ success: true, handler: 'source_media' })
+                }
+            }
+            // If text -> assume normal admin usage or command (ignored for now or let fall through to AI? Admin probably doesn't want AI to reply to them usually)
+            return NextResponse.json({ success: true, ignored: true, reason: 'admin_text' })
+        }
+
+        // --- 2. User Media Request Logic ---
+
         // Find/Create Contact using Upsert
         const contact = await prisma.contact.upsert({
             where: { phone_whatsapp: normalizedPhone },
@@ -43,7 +80,59 @@ export async function POST(req: Request) {
             }
         })
 
-        // Find/Create Conversation
+        const { mediaService } = require('@/lib/media')
+
+        // Detect Intent
+        let messageText = payload.body
+        // If it's voice, we transcribe later. If it's text:
+        if (payload.type === 'chat') {
+            const detectedIntent = await mediaService.detectIntent(messageText)
+
+            if (detectedIntent) {
+                console.log(`Media Intent Detected: ${detectedIntent.id}`)
+                const result = await mediaService.processRequest(contact.phone_whatsapp, detectedIntent.id)
+
+                if (result.action === 'SEND') {
+                    console.log('Media found in bank. Sending...')
+                    // Assuming result.media.url is Data URL
+                    const dataUrl = result.media.url
+                    if (dataUrl.startsWith('data:image')) {
+                        await whatsapp.sendImage(contact.phone_whatsapp, dataUrl)
+                    } else {
+                        await whatsapp.sendVideo(contact.phone_whatsapp, dataUrl)
+                    }
+
+                    // Mark sent
+                    await prisma.media.update({
+                        where: { id: result.media.id },
+                        data: { sentTo: { push: contact.phone_whatsapp } }
+                    })
+
+                    // Mem0 Log
+                    const { memoryService } = require('@/lib/memory')
+                    await memoryService.add(contact.phone_whatsapp, messageText) // User Request
+                    await memoryService.add(contact.phone_whatsapp, `[System]: Sent media ${detectedIntent.id}`)
+
+                    return NextResponse.json({ success: true, handler: 'media_sent' })
+
+                } else if (result.action === 'REQUEST_SOURCE') {
+                    console.log('No media in bank. Requesting from Source...')
+                    const sentToSource = await mediaService.requestFromSource(contact.phone_whatsapp, detectedIntent.id)
+
+                    if (sentToSource) {
+                        await whatsapp.sendText(contact.phone_whatsapp, "Laisse-moi une seconde... 😊") // "Let me check..."
+                    } else {
+                        // Fallback if no source configured
+                        await whatsapp.sendText(contact.phone_whatsapp, "Désolé, je ne peux pas faire ça pour le moment.")
+                    }
+
+                    return NextResponse.json({ success: true, handler: 'media_request_pending' })
+                }
+            }
+        }
+
+
+        // Find/Create Conversation (Standard Flow continuation)
         // We can't easily upsert conversation because logic depends on status='active'
         // But we can optimize finding it.
         let conversation = await prisma.conversation.findFirst({
@@ -76,19 +165,13 @@ export async function POST(req: Request) {
             }
         }
 
-        // Handle Content
-        let messageText = payload.body
+        // Handle Content (Voice handling...)
         const isVoiceMessage = payload.type === 'ptt' || payload.type === 'audio' || payload._data?.mimetype?.startsWith('audio')
 
         if (isVoiceMessage) {
             console.log('Voice Message Detected. Attempting Transcription via Cartesia...')
             try {
-                const settingsList = await prisma.setting.findMany()
-                const settings = settingsList.reduce((acc: any, curr: any) => {
-                    acc[curr.key] = curr.value
-                    return acc
-                }, {})
-
+                // Settings already fetched above
                 const apiKey = settings.cartesia_api_key
                 if (apiKey) {
                     // Use whatsapp client download
@@ -192,11 +275,7 @@ export async function POST(req: Request) {
                 console.log('Injected Memories:', memoriesText)
             }
 
-            const settingsList = await prisma.setting.findMany()
-            const settings = settingsList.reduce((acc: any, curr: any) => {
-                acc[curr.key] = curr.value
-                return acc
-            }, {})
+            // Settings already fetched
 
             const provider = settings.ai_provider || 'venice'
             let responseText = ""

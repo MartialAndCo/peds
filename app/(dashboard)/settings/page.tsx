@@ -339,6 +339,26 @@ export default function SettingsPage() {
                     </CardContent>
                 </Card>
 
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Media Content Configuration</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="space-y-1">
+                            <Label htmlFor="source_phone_number">Source Phone Number (Admin)</Label>
+                            <Input
+                                id="source_phone_number"
+                                placeholder="+336..."
+                                value={settings.source_phone_number || ''}
+                                onChange={(e) => setSettings({ ...settings, source_phone_number: e.target.value })}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                The WhatsApp number that will receive media requests (e.g. "Send me a photo of...").
+                            </p>
+                        </div>
+                    </CardContent>
+                </Card>
+
                 <div className="flex justify-end pb-10">
                     <Button type="submit" disabled={saving || loading}>
                         {saving ? 'Saving...' : 'Save Settings'}

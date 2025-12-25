@@ -81,3 +81,38 @@ model Setting {
 
   @@map("settings")
 }
+
+model MediaType {
+  id          String   @id // e.g. "photo_pieds"
+  description String?
+  keywords    String[] // ["pieds", "feet", "orteils"]
+  createdAt   DateTime @default(now())
+  medias      Media[]
+  requests    PendingRequest[]
+
+  @@map("media_types")
+}
+
+model Media {
+  id          Int       @id @default(autoincrement())
+  typeId      String
+  url         String
+  sentTo      String[]  @default([]) // Array of phone numbers
+  createdAt   DateTime  @default(now())
+  
+  type        MediaType @relation(fields: [typeId], references: [id])
+
+  @@map("medias")
+}
+
+model PendingRequest {
+  id             Int       @id @default(autoincrement())
+  typeId         String
+  requesterPhone String
+  status         String    @default("pending") // pending, fulfilled
+  createdAt      DateTime  @default(now())
+
+  type           MediaType @relation(fields: [typeId], references: [id])
+
+  @@map("pending_requests")
+}
