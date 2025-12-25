@@ -95,8 +95,8 @@ export async function POST(req: Request) {
                     const media = await whatsapp.downloadMedia(payload.id)
                     if (media && media.data) {
                         const { cartesia } = require('@/lib/cartesia')
-                        const buffer = Buffer.from(media.data, 'base64')
-                        const transcript = await cartesia.transcribeAudio(buffer, { apiKey })
+                        // media.data is already a Buffer from lib/whatsapp.ts
+                        const transcript = await cartesia.transcribeAudio(media.data, { apiKey })
 
                         if (transcript) {
                             console.log('Transcription Success:', transcript)
