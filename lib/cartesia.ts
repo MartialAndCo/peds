@@ -30,12 +30,14 @@ export const cartesia = {
                 outputFormat: {
                     container: 'mp3', // WhatsApp prefers MP3 or OGG
                     sampleRate: 44100,
-                    encoding: 'mp3',
+                    // encoding: 'mp3' // Invalid property for container: 'mp3'
                 },
             });
 
-            // Convert ArrayBuffer to Base64 Data URL
-            const base64 = Buffer.from(buffer).toString('base64');
+            // Handle if response is a Buffer (Node) or ArrayBuffer
+            // The library might return a Buffer directly or a stream depending on version/env.
+            // If it is a buffer, this works.
+            const base64 = Buffer.from(buffer as any).toString('base64');
             return `data:audio/mp3;base64,${base64}`;
 
         } catch (error: any) {
