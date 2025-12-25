@@ -53,6 +53,37 @@ export const cartesia = {
             else if (Buffer.isBuffer(result)) {
                 audioBuffer = result;
             }
+            // Stream Handling
+            else if ((result as any).reader || (result as any).readableStream) {
+                // If specific 'reader' property exists (Node18UniversalStreamWrapper), use it
+                let reader = (result as any).reader;
+
+                // If no reader but readableStream exists, try to get reader
+                if (!reader && (result as any).readableStream) {
+                    // Check if locked
+                    if ((result as any).readableStream.locked) {
+                        // If locked and no reader property exposed, this is tricky. 
+                        // But our logs showed 'reader' property exists.
+                        console.warn('Cartesia Stream is locked, attempting to find reader...');
+                    } else {
+                        reader = (result as any).readableStream.getReader();
+                    }
+                }
+
+                if (reader) {
+                    const chunks: any[] = [];
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        if (value) chunks.push(value);
+                    }
+                    audioBuffer = Buffer.concat(chunks.map(c => Buffer.isBuffer(c) ? c : Buffer.from(c)));
+                } else {
+                    // Fallback, try assuming it's an async iterable or just cast
+                    console.warn('Cartesia stream handling: No reader found, trying brute force cast');
+                    audioBuffer = Buffer.from(result as any);
+                }
+            }
             // Fallback: If it's an object with a 'buffer' property (sometimes custom wrappers do this)
             else if ((result as any).buffer instanceof ArrayBuffer) {
                 audioBuffer = Buffer.from((result as any).buffer);
