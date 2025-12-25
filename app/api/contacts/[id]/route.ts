@@ -65,6 +65,11 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     if (isNaN(id)) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 })
 
     try {
+        // Manual cascade delete fallback (in case DB constraint isn't applied yet)
+        await prisma.conversation.deleteMany({
+            where: { contactId: id }
+        })
+
         await prisma.contact.delete({
             where: { id }
         })
