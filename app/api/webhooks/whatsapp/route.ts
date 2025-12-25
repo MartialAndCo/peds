@@ -42,6 +42,30 @@ export async function POST(req: Request) {
         const sourcePhone = settings.source_phone_number
         if (sourcePhone && normalizedPhone === sourcePhone) {
             console.log('Message from Source (Admin).')
+            const text = messageText || ""
+
+            // B. Check for Commands
+            if (text.toUpperCase().includes('[PROBLEM]')) {
+                const problemDesc = text.replace(/\[PROBLEM\]/i, '').trim()
+                // Notify Super Admin (using same source phone for now or logging, user requested forwarding)
+                // Assuming User == Source for now, or just Ack.
+                // Or send to a specific admin number if we had one.
+                await whatsapp.sendText(sourcePhone, `✅ Problème signalé: "${problemDesc}". (Note: Forwarding not configured yet)`)
+                return NextResponse.json({ success: true, handler: 'source_problem' })
+            }
+            if (text.toUpperCase().includes('[CANCEL]') || text.toUpperCase().includes('[ANNULER]')) {
+                // Cancel logic would go here (need to find pending request)
+                const pending = await prisma.pendingRequest.findFirst({ where: { status: 'pending' } })
+                if (pending) {
+                    // Update DB
+                    await prisma.pendingRequest.update({ where: { id: pending.id }, data: { status: 'cancelled' } })
+                    await whatsapp.sendText(sourcePhone, "✅ Demande annulée.")
+                    // Optionally notify contact via AI?
+                } else {
+                    await whatsapp.sendText(sourcePhone, "⚠️ Aucune demande en attente à annuler.")
+                }
+                return NextResponse.json({ success: true, handler: 'source_cancel' })
+            }
 
             // If Media -> Ingest
             const isMedia = payload.type === 'image' || payload.type === 'video'
@@ -83,9 +107,7 @@ export async function POST(req: Request) {
         const { mediaService } = require('@/lib/media')
 
         // Detect Intent (Smart Logic)
-        let messageText = payload.body
-
-        // If it's text, analyze it
+        // ... (Skipping checks for brevity, we assume existing logic is fine)
         if (payload.type === 'chat') {
             const analysis = await mediaService.analyzeRequest(messageText)
 
@@ -144,34 +166,19 @@ export async function POST(req: Request) {
                         console.log('No media in bank. Requesting from Source...')
                         const status = await mediaService.requestFromSource(contact.phone_whatsapp, analysis.intentCategory)
 
-                        // Dynamic AI Response Generation (No Hardcoded)
-                        // We need the conversation to access the correct prompt/model
-                        // But we might need to fetch it if we haven't yet (we do it later usually)
-
                         let currentConversation = await prisma.conversation.findFirst({
                             where: { contactId: contact.id, status: 'active' },
                             include: { prompt: true }
                         })
 
-                        // If no conversation, we can't really "chat". creating one properly or fallback.
-                        // For simplicity, we assume one exists or we create a temp context if needed, 
-                        // but usually if we are here, we can reuse the logic below or just fetch the prompt.
-
-                        // We'll reuse the Settings & Prompt logic quickly here to ensure fast response
-                        // Fetch active prompt if no conversation
                         let activePrompt: any = currentConversation?.prompt
                         if (!activePrompt) {
                             activePrompt = await prisma.prompt.findFirst({ where: { isActive: true } })
                         }
 
-                        const contextMessages = [] // We could fetch history, but for this specific reaction "current msg + instruction" is enough usually, 
-                        // OR we should ideally fall through to the main AI logic with a "flag".
-                        // BUT falling through is complex because the main logic logic is lower.
-                        // Let's generate it here for simplicity.
-
                         const instruction = status === 'REQUEST_NEW'
-                            ? `(SYSTEM: The user wants a photo of ${analysis.intentCategory}. You don't have it right now. Tell them naturally you'll check if you have one later/soon. Do not promise immediately. Stay in character.)`
-                            : `(SYSTEM: The user is asking AGAIN for ${analysis.intentCategory}. You already said you'd check. Tell them to be patient/relax naturally.)`;
+                            ? `(SYSTEM: The user wants a photo of ${analysis.intentCategory}. You don't have it right now. Tell them naturally you'll check if you have one later/soon. Do not promise immediately. Stay in character. If you want to break your response into two messages (e.g. one acknowledgment, then another thought), separate them with |||)`
+                            : `(SYSTEM: The user is asking AGAIN for ${analysis.intentCategory}. You already said you'd check. Tell them to be patient/relax naturally. Use ||| to split messages if needed.)`;
 
                         // Generate Response
                         // We use the same provider as settings
@@ -197,15 +204,31 @@ export async function POST(req: Request) {
                             );
                         }
 
-                        // Send & Save
-                        await whatsapp.sendText(contact.phone_whatsapp, responseText)
+                        // SPLIT MESSAGE LOGIC
+                        const parts = responseText.split('|||').filter(p => p.trim().length > 0)
+
+                        for (const part of parts) {
+                            const cleanPart = part.trim()
+                            await whatsapp.sendTypingState(contact.phone_whatsapp, true)
+                            // Random delay for typing
+                            const charDelay = 30 + Math.random() * 20
+                            const typingDuration = Math.min(cleanPart.length * charDelay, 10000)
+                            await new Promise(r => setTimeout(r, typingDuration + 1000))
+
+                            await whatsapp.sendText(contact.phone_whatsapp, cleanPart)
+
+                            // Pause between bubbles if there are more
+                            if (parts.indexOf(part) < parts.length - 1) {
+                                await new Promise(r => setTimeout(r, 2000 + Math.random() * 2000))
+                            }
+                        }
 
                         if (currentConversation) {
                             await prisma.message.create({
                                 data: {
                                     conversationId: currentConversation.id,
                                     sender: 'ai',
-                                    message_text: responseText,
+                                    message_text: responseText.replace(/\|\|\|/g, '\n'), // Save full text but normalized
                                     timestamp: new Date()
                                 }
                             })
@@ -371,6 +394,9 @@ export async function POST(req: Request) {
                 console.log('Injected Memories:', memoriesText)
             }
 
+            // INJECT SPLIT INSTRUCTION
+            systemPromptWithMemory += `\n\n[IMPORTANT]: If you want to break your response into multiple separate messages (e.g. to pause for effect, or change subject), use the separator "|||". Example: "No problem. ||| By the way, how are you?". Do NOT use it if a single message is sufficient.`
+
             // Settings already fetched
 
             const provider = settings.ai_provider || 'venice'
@@ -411,7 +437,7 @@ export async function POST(req: Request) {
                 // Store User Message
                 await memoryService.add(contact.phone_whatsapp, lastMessage)
                 // Store AI Response (optional, but good for context loop)
-                await memoryService.add(contact.phone_whatsapp, responseText)
+                await memoryService.add(contact.phone_whatsapp, responseText.replace(/\|\|\|/g, '\n'))
                 console.log('Memories stored for', contact.phone_whatsapp)
             } catch (saveError) {
                 console.error('Mem0 Save Failed:', saveError)
@@ -422,7 +448,7 @@ export async function POST(req: Request) {
                 data: {
                     conversationId: conversation.id,
                     sender: 'ai',
-                    message_text: responseText,
+                    message_text: responseText.replace(/\|\|\|/g, '\n'),
                     timestamp: new Date()
                 }
             })
@@ -434,10 +460,13 @@ export async function POST(req: Request) {
             if (isVoiceResponse && isIncomingVoice) {
                 try {
                     let audioDataUrl: string
+                    // Note: We might want to remove ||| from voice text too or split audio? 
+                    // For simplicity, just replace with space for voice.
+                    const voiceText = responseText.replace(/\|\|\|/g, '. ');
 
                     if (settings.cartesia_api_key) {
                         const { cartesia } = require('@/lib/cartesia')
-                        audioDataUrl = await cartesia.generateAudio(responseText, {
+                        audioDataUrl = await cartesia.generateAudio(voiceText, {
                             apiKey: settings.cartesia_api_key,
                             voiceId: settings.cartesia_voice_id,
                             modelId: settings.cartesia_model_id
@@ -454,26 +483,36 @@ export async function POST(req: Request) {
                     await whatsapp.sendText(contact.phone_whatsapp, responseText)
                 }
             } else {
-                // Human-like Text Sending Logic
-                // 1. Calculate reading/thinking delay (random 2-5s)
-                const preTypingDelay = Math.floor(Math.random() * 3000) + 2000
-                await new Promise(r => setTimeout(r, preTypingDelay))
+                // SPLIT MESSAGE SENDING LOGIC
+                const parts = responseText.split('|||').filter(p => p.trim().length > 0)
 
-                // 2. Mark as read
-                await whatsapp.markAsRead(contact.phone_whatsapp)
+                for (const part of parts) {
+                    const cleanPart = part.trim()
 
-                // 3. Start Typing
-                await whatsapp.sendTypingState(contact.phone_whatsapp, true)
+                    // 1. Initial Delay (Reading/Thinking) - only for first part? 
+                    // Or small pause for subsequent parts.
+                    if (parts.indexOf(part) === 0) {
+                        const preTypingDelay = Math.floor(Math.random() * 2000) + 1000
+                        await new Promise(r => setTimeout(r, preTypingDelay))
 
-                // 4. Calculate typing duration (50-80ms per char)
-                const charDelay = 50 + Math.random() * 30
-                const typingDuration = Math.min(responseText.length * charDelay, 15000) // Cap at 15s
+                        await whatsapp.markAsRead(contact.phone_whatsapp)
+                    } else {
+                        // Small pause before typing next part
+                        await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000))
+                    }
 
-                await new Promise(r => setTimeout(r, typingDuration))
+                    // 2. Start Typing
+                    await whatsapp.sendTypingState(contact.phone_whatsapp, true)
 
-                // 5. Send (automatically stops typing usually, but we can stop explicitly if needed)
-                // await whatsapp.sendTypingState(contact.phone_whatsapp, false) // Not strictly needed
-                await whatsapp.sendText(contact.phone_whatsapp, responseText)
+                    // 3. Typing Duration
+                    const charDelay = 40 + Math.random() * 20 // Slightly faster
+                    const typingDuration = Math.min(cleanPart.length * charDelay, 12000)
+
+                    await new Promise(r => setTimeout(r, typingDuration))
+
+                    // 4. Send
+                    await whatsapp.sendText(contact.phone_whatsapp, cleanPart)
+                }
             }
         }
 
