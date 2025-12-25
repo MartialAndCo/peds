@@ -30,7 +30,7 @@ export const cartesia = {
                 outputFormat: {
                     container: 'mp3', // WhatsApp prefers MP3 or OGG
                     sampleRate: 44100,
-                    // encoding: 'mp3' // Invalid property for container: 'mp3'
+                    bitRate: 128000,
                 },
             });
 
