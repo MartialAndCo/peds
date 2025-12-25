@@ -20,7 +20,8 @@ export const cartesia = {
 
         try {
             // Using the 'bytes' endpoint as per user CURL example (but via library)
-            const buffer = await client.tts.bytes({
+            // Using the 'bytes' endpoint as per user CURL example (but via library)
+            const result = await client.tts.bytes({
                 modelId: modelId,
                 transcript: text,
                 voice: {
@@ -34,10 +35,34 @@ export const cartesia = {
                 },
             });
 
-            // Handle if response is a Buffer (Node) or ArrayBuffer
-            // The library might return a Buffer directly or a stream depending on version/env.
-            // If it is a buffer, this works.
-            const base64 = Buffer.from(buffer as any).toString('base64');
+            console.log('Cartesia generateAudio Result Type:', typeof result);
+            console.log('Cartesia generateAudio Result Constructor:', result?.constructor?.name);
+
+            // If result is an ArrayBuffer (expected), convert to Buffer
+            let audioBuffer: Buffer;
+
+            // Check if it's an ArrayBuffer
+            if (result instanceof ArrayBuffer) {
+                audioBuffer = Buffer.from(result);
+            }
+            // Check if it's a TypedArray (Uint8Array, etc.)
+            else if (ArrayBuffer.isView(result)) {
+                audioBuffer = Buffer.from(result.buffer, result.byteOffset, result.byteLength);
+            }
+            // Check if it's a Node Buffer (unlikely from this lib in browser-compatible mode, but possible)
+            else if (Buffer.isBuffer(result)) {
+                audioBuffer = result;
+            }
+            // Fallback: If it's an object with a 'buffer' property (sometimes custom wrappers do this)
+            else if ((result as any).buffer instanceof ArrayBuffer) {
+                audioBuffer = Buffer.from((result as any).buffer);
+            }
+            else {
+                // Try straight conversion if all else fails
+                audioBuffer = Buffer.from(result as any);
+            }
+
+            const base64 = audioBuffer.toString('base64');
             return `data:audio/mp3;base64,${base64}`;
 
         } catch (error: any) {
