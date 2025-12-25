@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 export default function SettingsPage() {
     const [settings, setSettings] = useState<any>({
@@ -239,27 +240,81 @@ export default function SettingsPage() {
 
                 <Card>
                     <CardHeader>
-                        <CardTitle>ElevenLabs Voice Configuration</CardTitle>
+                        <CardTitle>Voice Generation Configuration</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="space-y-1">
-                            <Label>API Key</Label>
-                            <Input
-                                type="password"
-                                value={settings.elevenlabs_api_key || ''}
-                                onChange={(e) => setSettings({ ...settings, elevenlabs_api_key: e.target.value })}
-                                placeholder="xi-..."
-                            />
+                        <div className="space-y-2">
+                            <Label>Voice Provider</Label>
+                            <Select
+                                value={settings.voice_provider || 'elevenlabs'}
+                                onValueChange={(val) => setSettings({ ...settings, voice_provider: val })}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select Provider" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="elevenlabs">ElevenLabs</SelectItem>
+                                    <SelectItem value="cartesia">Cartesia AI (Faster)</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
-                        <div className="space-y-1">
-                            <Label>Voice ID</Label>
-                            <Input
-                                value={settings.elevenlabs_voice_id || ''}
-                                onChange={(e) => setSettings({ ...settings, elevenlabs_voice_id: e.target.value })}
-                                placeholder="21m00Tcm4TlvDq8ikWAM"
-                            />
-                            <p className="text-xs text-muted-foreground">Default: Rachel</p>
-                        </div>
+
+                        {settings.voice_provider === 'cartesia' ? (
+                            <>
+                                <div className="space-y-2">
+                                    <Label htmlFor="cartesia_api_key">Cartesia API Key</Label>
+                                    <Input
+                                        id="cartesia_api_key"
+                                        type="password"
+                                        value={settings.cartesia_api_key || ''}
+                                        onChange={(e) => setSettings({ ...settings, cartesia_api_key: e.target.value })}
+                                        placeholder="sk_cartesia_..."
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="cartesia_voice_id">Cartesia Voice ID</Label>
+                                    <Input
+                                        id="cartesia_voice_id"
+                                        value={settings.cartesia_voice_id || ''}
+                                        onChange={(e) => setSettings({ ...settings, cartesia_voice_id: e.target.value })}
+                                        placeholder="e.g. e8e5fffb-..."
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="cartesia_model_id">Cartesia Model ID</Label>
+                                    <Input
+                                        id="cartesia_model_id"
+                                        value={settings.cartesia_model_id || 'sonic-english'}
+                                        onChange={(e) => setSettings({ ...settings, cartesia_model_id: e.target.value })}
+                                        placeholder="sonic-english or sonic-multilingual"
+                                    />
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="space-y-1">
+                                    <Label htmlFor="elevenlabs_api_key">ElevenLabs API Key</Label>
+                                    <Input
+                                        id="elevenlabs_api_key"
+                                        type="password"
+                                        value={settings.elevenlabs_api_key || ''}
+                                        onChange={(e) => setSettings({ ...settings, elevenlabs_api_key: e.target.value })}
+                                        placeholder="xi-..."
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="elevenlabs_voice_id">ElevenLabs Voice ID</Label>
+                                    <Input
+                                        id="elevenlabs_voice_id"
+                                        value={settings.elevenlabs_voice_id || ''}
+                                        onChange={(e) => setSettings({ ...settings, elevenlabs_voice_id: e.target.value })}
+                                        placeholder="21m00Tcm4TlvDq8ikWAM"
+                                    />
+                                    <p className="text-xs text-muted-foreground">Default: Rachel</p>
+                                </div>
+                            </>
+                        )}
+
                         <div className="flex items-center space-x-2 pt-2">
                             <input
                                 type="checkbox"
