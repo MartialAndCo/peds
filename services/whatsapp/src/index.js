@@ -84,7 +84,7 @@ client.on('message', async msg => {
         const payload = {
             event: 'message',
             payload: {
-                id: msg.id.id,
+                id: msg.id._serialized, // Use full serialized ID for getMessageById to work later
                 from: msg.from,
                 body: msg.body,
                 fromMe: msg.fromMe,
