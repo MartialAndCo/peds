@@ -172,6 +172,26 @@ export async function POST(req: Request) {
             const contextMessages = messagesForAI.slice(0, -1)
             const lastMessage = messagesForAI[messagesForAI.length - 1].content
 
+            // Mem0: Retrieve Context
+            const { memoryService } = require('@/lib/memory')
+            let fetchedMemories = []
+            try {
+                // Search for relevant memories based on the last user message
+                const searchResults = await memoryService.search(contact.phone_whatsapp, lastMessage)
+                // searchResults structure depends on Mem0, typically .results or direct array. Assuming direct array or .results.
+                fetchedMemories = Array.isArray(searchResults) ? searchResults : (searchResults?.results || [])
+            } catch (memError) {
+                console.error('Mem0 Search Failed:', memError)
+            }
+
+            // Mem0: Prepare System Prompt with Context
+            let systemPromptWithMemory = conversation.prompt.system_prompt
+            if (fetchedMemories.length > 0) {
+                const memoriesText = fetchedMemories.map((m: any) => `- ${m.memory}`).join('\n')
+                systemPromptWithMemory += `\n\n[USER MEMORY / CONTEXT]:\n${memoriesText}\n\n[INSTRUCTION]: Use the above memory to personalize the response.`
+                console.log('Injected Memories:', memoriesText)
+            }
+
             const settingsList = await prisma.setting.findMany()
             const settings = settingsList.reduce((acc: any, curr: any) => {
                 acc[curr.key] = curr.value
@@ -187,7 +207,7 @@ export async function POST(req: Request) {
                     model = settings.anthropic_model || 'claude-3-haiku-20240307'
                 }
                 responseText = await anthropic.chatCompletion(
-                    conversation.prompt.system_prompt,
+                    systemPromptWithMemory, // Use augmented prompt
                     contextMessages,
                     lastMessage,
                     {
@@ -199,7 +219,7 @@ export async function POST(req: Request) {
                 )
             } else {
                 responseText = await venice.chatCompletion(
-                    conversation.prompt.system_prompt,
+                    systemPromptWithMemory, // Use augmented prompt
                     contextMessages,
                     lastMessage,
                     {
@@ -211,7 +231,18 @@ export async function POST(req: Request) {
                 )
             }
 
-            // Save AI Response
+            // Mem0: Store Interaction Async
+            try {
+                // Store User Message
+                await memoryService.add(contact.phone_whatsapp, lastMessage)
+                // Store AI Response (optional, but good for context loop)
+                await memoryService.add(contact.phone_whatsapp, responseText)
+                console.log('Memories stored for', contact.phone_whatsapp)
+            } catch (saveError) {
+                console.error('Mem0 Save Failed:', saveError)
+            }
+
+            // Save AI Response to DB
             await prisma.message.create({
                 data: {
                     conversationId: conversation.id,
