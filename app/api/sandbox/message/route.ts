@@ -177,15 +177,36 @@ export async function POST(req: Request) {
                 console.error('Mem0 error', e)
             }
 
-            let systemPrompt = conversation.prompt.system_prompt
+            // --- STATE-AWARE AGENT LOGIC (Sandbox Version) ---
+            const { director } = require('@/lib/director')
+
+            // 1. Update Trust (Fire & Forget)
+            director.updateTrustScore(contact.phone_whatsapp, lastMessage).catch((e: any) => console.error("Trust Update Failed:", e))
+
+            // 2. Get Phase & Context
+            const { phase, details } = await director.determinePhase(contact.phone_whatsapp)
+
+            // 3. Construct Modular Prompt
+            // We use the same 'buildSystemPrompt' as the webhook
+            let systemPrompt = director.buildSystemPrompt(
+                settings,
+                contact,
+                phase,
+                details,
+                conversation.prompt.system_prompt // base role
+            )
+
+            // Mem0 Context Injection
             if (fetchedMemories.length > 0) {
                 const memoriesText = fetchedMemories.map((m: any) => `- ${m.memory}`).join('\n')
-                systemPrompt += `\n\n[USER MEMORY]:\n${memoriesText}`
+                systemPrompt += `\n\n[USER MEMORY / CONTEXT]:\n${memoriesText}\n\n[INSTRUCTION]: Use the above memory to personalize the response.`
             }
 
-            // Generate
+            // Generate using dynamically built prompt
             const provider = settings.ai_provider || 'venice'
             let aiText = ""
+
+            console.log('[Sandbox] Using Phase:', phase)
 
             if (provider === 'anthropic') {
                 aiText = await anthropic.chatCompletion(
