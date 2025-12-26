@@ -5,9 +5,10 @@ import { anthropic } from '@/lib/anthropic'
 import axios from 'axios'
 const { director } = require('@/lib/director')
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
     try {
-        const conversationId = parseInt(params.id)
+        const { id } = await params
+        const conversationId = parseInt(id)
         const { context, ai_provider } = await req.json() // Context from Dashboard
 
         // 1. Activate Conversation & Update Notes
