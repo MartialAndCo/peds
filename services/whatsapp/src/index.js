@@ -98,17 +98,26 @@ client.on('message', async msg => {
                     realName = chat.name || realName;
                     console.log(`[Resolution] LID ${msg.from} -> Chat ID ${realFrom}`);
                 } else {
-                    // Chat is also LID? Or null?
-                    console.log('[Debug] LID Resolution Failed via Chat. Inspecting fallback...');
+                    console.log('[Debug] LID Resolution Failed via Chat. DUMPING DATA to find Phone Number...');
 
-                    // Fallback heuristics
-                    if (msg.author && msg.author.endsWith('@c.us')) {
-                        realFrom = msg.author;
-                        console.log(`[Resolution] Found msg.author: ${realFrom}`);
+                    // DEEP DEBUGGING
+                    console.log(`[Debug] MSG ID: ${JSON.stringify(msg.id)}`);
+                    console.log(`[Debug] MSG AUTHOR: ${msg.author}`);
+                    if (chat) {
+                        try {
+                            console.log(`[Debug] CHAT OBJ: ${JSON.stringify({ isGroup: chat.isGroup, name: chat.name, id: chat.id })}`);
+                        } catch (e) {
+                            console.log('[Debug] Could not stringify chat obj');
+                        }
                     }
-
-                    // DO NOT CALL msg.getContact() - IT CRASHES WWEBJS
-                    // const contact = await msg.getContact();
+                    if (msg._data) {
+                        // Safely stringify _data
+                        try {
+                            console.log(`[Debug] MSG _DATA: ${JSON.stringify(msg._data)}`);
+                        } catch (jsonErr) {
+                            console.log(`[Debug] Could not stringify _data`);
+                        }
+                    }
                 }
             } catch (err) {
                 console.error('Failed to resolve ID via Chat inspection', err.message);
