@@ -330,38 +330,9 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
         if (conversation.status === 'paused') {
             console.log(`[Webhook] Conversation ${conversation.id} is PAUSED. Skipping AI.`)
 
-            // Check if this is the FIRST message (to avoid spamming admin on every paused message)
-            const count = await prisma.message.count({ where: { conversationId: conversation.id, sender: 'contact' } })
-
-            if (count === 1 && settings.source_phone_number) {
-                // Send Notification to Admin
-                const wahaClient = require('@/lib/whatsapp') // Lazy load
-                // We don't have a wahaClient global instance cleanly exposed here, let's use the helper if available or axios directly?
-                // The 'waha' lib isn't fully set up for direct calls inside route without init? 
-                // Let's use the 'sendText' helper from previous tasks if it exists, or just axios.
-                // Actually the 'whatsapp' service we built is in 'services/whatsapp', not 'lib/whatsapp'.
-                // Wait, we have 'lib/whatsapp.ts' client? Task 46 said we created it.
-                // Let's assume we can use a simple fetch to WAHA here.
-                const adminMsg = `⚠️ *NEW SUSPECT DETECTED*\n\nName: ${contact.name || 'Unknown'}\nPhone: ${contact.phone_whatsapp}\n\nMessage: "${messageText}"\n\nStatus: PAUSED 🛑\nGo to Dashboard to add context & activate.`
-
-                try {
-                    const axios = require('axios')
-                    const endpoint = settings.waha_endpoint
-                    const session = settings.waha_session || 'default'
-                    const apiKey = settings.waha_api_key
-                    await axios.post(`${endpoint}/api/sendText`, {
-                        session: session,
-                        chatId: `${settings.source_phone_number}@c.us`,
-                        text: adminMsg,
-                        reply_to: null
-                    }, {
-                        headers: { 'X-Api-Key': apiKey }
-                    })
-                    console.log('[Webhook] Admin Notification Sent')
-                } catch (e: any) {
-                    console.error('[Webhook] Failed to notify admin', e.message)
-                }
-            }
+            // count check removed as we no longer notify admin via WhatsApp
+            // Just rely on Dashboard UI to show 'PAUSED' badge.
+            console.log(`[Webhook] Conversation ${conversation.id} is PAUSED. Waiting for admin activation.`)
             return NextResponse.json({ status: 'paused', message: 'Message saved. AI is paused.' })
         }
 
