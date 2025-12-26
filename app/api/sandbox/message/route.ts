@@ -224,6 +224,9 @@ export async function POST(req: Request) {
                 )
             }
 
+            // --- GUARDRAIL: STRIP ASTERISKS ---
+            aiText = aiText.replace(/\*[^*]+\*/g, '').trim()
+
             // Store Memory
             try {
                 await memoryService.add(contact.phone_whatsapp, lastMessage)

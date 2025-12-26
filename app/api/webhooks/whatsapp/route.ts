@@ -479,6 +479,10 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
                 )
             }
 
+            // --- GUARDRAIL: STRIP ASTERISKS ---
+            // Remove *sighs*, *laughs*, etc.
+            responseText = responseText.replace(/\*[^*]+\*/g, '').trim()
+
             // Mem0: Store Interaction Async
             try {
                 // Store User Message
