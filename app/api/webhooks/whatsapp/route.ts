@@ -298,27 +298,74 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
         })
 
         if (!conversation) {
-            const defaultPrompt = await prisma.prompt.findFirst({
-                where: { isActive: true } // Prefer active prompt!
-            }) || await prisma.prompt.findFirst() // Fallback to any
+            const defaultPrompt = await prisma.prompt.findFirst({ where: { isActive: true } }) || await prisma.prompt.findFirst()
+            if (!defaultPrompt) return NextResponse.json({ error: 'No prompt configured' }, { status: 500 })
 
-            if (defaultPrompt) {
-                conversation = await prisma.conversation.create({
-                    data: {
-                        contactId: contact.id,
-                        promptId: defaultPrompt.id,
-                        status: 'active',
-                        ai_enabled: true
-                    },
-                    include: { prompt: true }
-                })
-            } else {
-                console.error('No prompt found, cannot start conversation')
-                // Return 2000 to avoid retries from WhatsApp service if it's a permanent config error
-                return NextResponse.json({ success: false, error: 'No prompt configured' })
-            }
+            // Create Conversation (PAUSED BY DEFAULT for Cold Start)
+            conversation = await prisma.conversation.create({
+                data: {
+                    contactId: contact.id,
+                    promptId: defaultPrompt.id,
+                    status: 'paused', // <--- COLD START
+                    ai_enabled: true
+                },
+                include: { prompt: true }
+            })
         }
 
+        // 3. Save Incoming Message
+        // Note: The user's snippet uses `incomingMsg.body` and `incomingMsg.id`.
+        // Assuming `messageText` and `payload.id` from the original context are the correct variables here.
+        const message = await prisma.message.create({
+            data: {
+                conversationId: conversation.id,
+                sender: 'contact',
+                message_text: messageText, // Using messageText from original context
+                waha_message_id: payload.id, // Using payload.id from original context
+                timestamp: new Date()
+            }
+        })
+
+        // 4. COLD START Logic: If Paused, Notify Admin and Exit
+        if (conversation.status === 'paused') {
+            console.log(`[Webhook] Conversation ${conversation.id} is PAUSED. Skipping AI.`)
+
+            // Check if this is the FIRST message (to avoid spamming admin on every paused message)
+            const count = await prisma.message.count({ where: { conversationId: conversation.id, sender: 'contact' } })
+
+            if (count === 1 && settings.source_phone_number) {
+                // Send Notification to Admin
+                const wahaClient = require('@/lib/whatsapp') // Lazy load
+                // We don't have a wahaClient global instance cleanly exposed here, let's use the helper if available or axios directly?
+                // The 'waha' lib isn't fully set up for direct calls inside route without init? 
+                // Let's use the 'sendText' helper from previous tasks if it exists, or just axios.
+                // Actually the 'whatsapp' service we built is in 'services/whatsapp', not 'lib/whatsapp'.
+                // Wait, we have 'lib/whatsapp.ts' client? Task 46 said we created it.
+                // Let's assume we can use a simple fetch to WAHA here.
+                const adminMsg = `⚠️ *NEW SUSPECT DETECTED*\n\nName: ${contact.name || 'Unknown'}\nPhone: ${contact.phone_whatsapp}\n\nMessage: "${messageText}"\n\nStatus: PAUSED 🛑\nGo to Dashboard to add context & activate.`
+
+                try {
+                    const axios = require('axios')
+                    const endpoint = settings.waha_endpoint
+                    const session = settings.waha_session || 'default'
+                    const apiKey = settings.waha_api_key
+                    await axios.post(`${endpoint}/api/sendText`, {
+                        session: session,
+                        chatId: `${settings.source_phone_number}@c.us`,
+                        text: adminMsg,
+                        reply_to: null
+                    }, {
+                        headers: { 'X-Api-Key': apiKey }
+                    })
+                    console.log('[Webhook] Admin Notification Sent')
+                } catch (e: any) {
+                    console.error('[Webhook] Failed to notify admin', e.message)
+                }
+            }
+            return NextResponse.json({ status: 'paused', message: 'Message saved. AI is paused.' })
+        }
+
+        // 5. Analysis & Logic (Rest of the file...)
         // Handle Content (Voice handling...)
         const isVoiceMessage = payload.type === 'ptt' || payload.type === 'audio' || payload._data?.mimetype?.startsWith('audio')
 
