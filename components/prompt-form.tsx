@@ -111,14 +111,35 @@ export function PromptForm({ initialData }: PromptFormProps) {
                             required
                         />
                     </div>
+                    {/* Dynamic Prompt Info Banner */}
+                    <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
+                        <div className="flex">
+                            <div className="ml-3">
+                                <p className="text-sm text-blue-700">
+                                    <span className="font-bold">Dynamic Prompting Enabled 🧠</span>
+                                    <br />
+                                    This prompt is now part of the <strong>State-Aware Director</strong>.
+                                    <br />
+                                    The text below is used strictly as the <strong>Base Identity (&#123;&#123;ROLE&#125;&#125;)</strong>.
+                                    The Context, Mission, and Global Rules are injected dynamically based on the relationship phase.
+                                    <br />
+                                    <a href="/settings" className="underline font-bold hover:text-blue-900">Configure Templates in Settings &rarr;</a>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="space-y-1">
-                        <Label>System Prompt</Label>
+                        <Label>Base Role / Identity</Label>
+                        <p className="text-xs text-muted-foreground pb-1">
+                            Defines the core personality (e.g. "You are Julien, 30yo..."). This replaces the &#123;&#123;ROLE&#125;&#125; placeholder.
+                        </p>
                         <Textarea
                             disabled={loading}
                             placeholder="You are a helpful assistant..."
                             value={formData.system_prompt}
                             onChange={(e) => setFormData({ ...formData, system_prompt: e.target.value })}
-                            className="h-40"
+                            className="h-40 font-mono text-sm"
                             required
                         />
                     </div>
