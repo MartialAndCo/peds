@@ -78,43 +78,48 @@ client.on('disconnected', (reason) => {
 // Incoming Messages
 client.on('message', async msg => {
     console.log('MESSAGE RECEIVED', msg.from);
-    try {
-        // Resolve Real Contact (Handle LIDs)
-        const contact = await msg.getContact();
-        const realFrom = contact.id._serialized; // Should be @c.us (phone number)
-        const realName = contact.name || contact.pushname || msg._data.notifyName;
+    // Resolve Real Contact (Handle LIDs)
+    const contact = await msg.getContact();
 
-        console.log(`MESSAGE from ${msg.from} RESOLVED TO ${realFrom} (${realName})`);
-
-        // Forward to Webhook
-        const payload = {
-            event: 'message',
-            payload: {
-                id: msg.id._serialized,
-                from: realFrom, // <--- USE RESOLVED PHONE NUMBER
-                body: msg.body,
-                fromMe: msg.fromMe,
-                _data: {
-                    notifyName: realName,
-                    mimetype: msg._data.mimetype
-                },
-                type: msg.type,
-                timestamp: msg.timestamp
-            }
-        };
-
-        // If message has media, we might want to download it later or send metadata
-        // For now, Next.js calls back to download, but we should probably push it?
-        // WAHA style: Next.js calls GET /api/messages/:id/media
-        // Let's implement that endpoint below.
-
-        await axios.post(WEBHOOK_URL, payload);
-    } catch (e) {
-        console.error('Webhook failed', e.message);
-        if (e.response && e.response.data) {
-            console.error('Webhook Error Details:', JSON.stringify(e.response.data, null, 2));
-        }
+    // Force construction of @c.us ID from the phone number attribute if available
+    let realFrom = contact.id._serialized;
+    if (contact.number) {
+        realFrom = `${contact.number}@c.us`;
     }
+
+    const realName = contact.name || contact.pushname || msg._data.notifyName;
+
+    console.log(`[Incoming] ${msg.from} RESOLVED TO ${realFrom} (${realName})`);
+
+    // Forward to Webhook
+    const payload = {
+        event: 'message',
+        payload: {
+            id: msg.id._serialized,
+            from: realFrom, // <--- GUARANTEED @c.us
+            body: msg.body,
+            fromMe: msg.fromMe,
+            _data: {
+                notifyName: realName,
+                mimetype: msg._data.mimetype
+            },
+            type: msg.type,
+            timestamp: msg.timestamp
+        }
+    };
+
+    // If message has media, we might want to download it later or send metadata
+    // For now, Next.js calls back to download, but we should probably push it?
+    // WAHA style: Next.js calls GET /api/messages/:id/media
+    // Let's implement that endpoint below.
+
+    await axios.post(WEBHOOK_URL, payload);
+} catch (e) {
+    console.error('Webhook failed', e.message);
+    if (e.response && e.response.data) {
+        console.error('Webhook Error Details:', JSON.stringify(e.response.data, null, 2));
+    }
+}
 });
 
 
@@ -139,12 +144,15 @@ const sanitizeId = (id) => {
 app.post('/api/sendText', authenticate, async (req, res) => {
     let { chatId, text } = req.body;
     try {
+        const originalId = chatId;
         chatId = sanitizeId(chatId);
-        console.log(`Sending text to ${chatId}`);
+        console.log(`[SendText] '${text.substring(0, 20)}...' TO: ${chatId} (Original: ${originalId})`);
+
         await client.sendMessage(chatId, text);
+        console.log(`[SendText] SUCCESS`);
         res.json({ success: true });
     } catch (e) {
-        console.error('Send Text Error', e);
+        console.error(`[SendText] FAILED to ${chatId}`, e);
         res.status(500).json({ error: e.message });
     }
 });
