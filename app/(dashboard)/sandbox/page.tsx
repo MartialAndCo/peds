@@ -46,13 +46,20 @@ export default function SandboxPage() {
                     timestamp: new Date()
                 }])
             } else {
-                setMessages(prev => [...prev, {
-                    role: 'ai',
-                    type: 'text',
-                    content: data.content,
-                    meta: data.meta,
-                    timestamp: new Date()
-                }])
+                // Split logic for Sandbox visualization
+                const rawContent = data.content || ""
+                const parts = rawContent.split('|||').filter((p: string) => p.trim().length > 0)
+
+                if (parts.length > 0) {
+                    const newMessages = parts.map((part: string) => ({
+                        role: 'ai',
+                        type: 'text',
+                        content: part.trim(),
+                        meta: data.meta,
+                        timestamp: new Date()
+                    }))
+                    setMessages(prev => [...prev, ...newMessages])
+                }
             }
 
         } catch (error) {
