@@ -82,8 +82,7 @@ client.on('message', async msg => {
         let realFrom = msg.from;
         let realName = msg._data.notifyName;
 
-        let realFrom = msg.from;
-        let realName = msg._data.notifyName;
+
 
         // OPTIMIZATION: If it's already a phone ID (@c.us), skip logic
         if (msg.from.endsWith('@c.us')) {
