@@ -91,19 +91,27 @@ client.on('message', async msg => {
             // It's a LID or Group. Try to resolve via CHAT first (more robust)
             try {
                 const chat = await msg.getChat();
-                if (chat.id && chat.id._serialized && chat.id._serialized.endsWith('@c.us')) {
+                console.log(`[Debug] Chat ID found: ${chat ? chat.id._serialized : 'null'}`);
+
+                if (chat && chat.id && chat.id._serialized && chat.id._serialized.endsWith('@c.us')) {
                     realFrom = chat.id._serialized;
                     realName = chat.name || realName;
                     console.log(`[Resolution] LID ${msg.from} -> Chat ID ${realFrom}`);
                 } else {
-                    // Fallback to Contact Resolution (Legacy/Broken)
-                    const contact = await msg.getContact();
-                    if (contact.number) {
-                        realFrom = `${contact.number}@c.us`;
+                    // Chat is also LID? Or null?
+                    console.log('[Debug] LID Resolution Failed via Chat. Inspecting fallback...');
+
+                    // Fallback heuristics
+                    if (msg.author && msg.author.endsWith('@c.us')) {
+                        realFrom = msg.author;
+                        console.log(`[Resolution] Found msg.author: ${realFrom}`);
                     }
+
+                    // DO NOT CALL msg.getContact() - IT CRASHES WWEBJS
+                    // const contact = await msg.getContact();
                 }
             } catch (err) {
-                console.error('Failed to resolve ID via Chat/Contact', err.message);
+                console.error('Failed to resolve ID via Chat inspection', err.message);
             }
         }
 
