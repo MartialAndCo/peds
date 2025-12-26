@@ -98,25 +98,24 @@ client.on('message', async msg => {
                     realName = chat.name || realName;
                     console.log(`[Resolution] LID ${msg.from} -> Chat ID ${realFrom}`);
                 } else {
-                    console.log('[Debug] LID Resolution Failed via Chat. DUMPING DATA to find Phone Number...');
-
-                    // DEEP DEBUGGING
-                    console.log(`[Debug] MSG ID: ${JSON.stringify(msg.id)}`);
-                    console.log(`[Debug] MSG AUTHOR: ${msg.author}`);
-                    if (chat) {
-                        try {
-                            console.log(`[Debug] CHAT OBJ: ${JSON.stringify({ isGroup: chat.isGroup, name: chat.name, id: chat.id })}`);
-                        } catch (e) {
-                            console.log('[Debug] Could not stringify chat obj');
+                    // HEURISTIC: Check if Chat Name looks like a phone number (common for unsaved contacts)
+                    if (chat && chat.name && /^[+\d\s-]+$/.test(chat.name)) {
+                        const cleanNumber = chat.name.replace(/\D/g, '');
+                        if (cleanNumber.length > 8) { // Basic length check
+                            realFrom = `${cleanNumber}@c.us`;
+                            realName = chat.name;
+                            console.log(`[Resolution] LID Heuristic: Chat Name '${chat.name}' -> ${realFrom}`);
                         }
                     }
-                    if (msg._data) {
-                        // Safely stringify _data
-                        try {
-                            console.log(`[Debug] MSG _DATA: ${JSON.stringify(msg._data)}`);
-                        } catch (jsonErr) {
-                            console.log(`[Debug] Could not stringify _data`);
-                        }
+
+                    // Fallback: Check msg.author
+                    if (realFrom.endsWith('@lid') && msg.author && msg.author.endsWith('@c.us')) {
+                        realFrom = msg.author;
+                        console.log(`[Resolution] Found msg.author: ${realFrom}`);
+                    }
+
+                    if (realFrom.endsWith('@lid')) {
+                        console.log(`[Warning] Could not resolve LID ${msg.from}. Using raw LID. Chat Name: ${chat ? chat.name : 'null'}`);
                     }
                 }
             } catch (err) {
