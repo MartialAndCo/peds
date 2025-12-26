@@ -79,17 +79,23 @@ client.on('disconnected', (reason) => {
 client.on('message', async msg => {
     console.log('MESSAGE RECEIVED', msg.from);
     try {
+        // Resolve Real Contact (Handle LIDs)
+        const contact = await msg.getContact();
+        const realFrom = contact.id._serialized; // Should be @c.us (phone number)
+        const realName = contact.name || contact.pushname || msg._data.notifyName;
+
+        console.log(`MESSAGE from ${msg.from} RESOLVED TO ${realFrom} (${realName})`);
+
         // Forward to Webhook
-        // Mimic minimal structure needed by Next.js app
         const payload = {
             event: 'message',
             payload: {
-                id: msg.id._serialized, // Use full serialized ID for getMessageById to work later
-                from: msg.from,
+                id: msg.id._serialized,
+                from: realFrom, // <--- USE RESOLVED PHONE NUMBER
                 body: msg.body,
                 fromMe: msg.fromMe,
                 _data: {
-                    notifyName: msg._data.notifyName,
+                    notifyName: realName,
                     mimetype: msg._data.mimetype
                 },
                 type: msg.type,
