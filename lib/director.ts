@@ -7,6 +7,9 @@ export const director = {
     /**
      * Calculates the current phase based on days since contact creation and trust score.
      */
+    /**
+     * Calculates the current phase based on days since contact creation and trust score.
+     */
     async determinePhase(contactPhone: string): Promise<{ phase: AgentPhase, details: any }> {
         const contact = await prisma.contact.findUnique({
             where: { phone_whatsapp: contactPhone }
@@ -23,19 +26,19 @@ export const director = {
         const trustScore = contact.trustScore
         let currentPhase = contact.agentPhase as AgentPhase
 
-        // Logic Rule Engine
-        // Phase A: Days 0-3 OR Trust < 20
-        // Phase B: Days 3-6 AND Trust > 20
-        // Phase C: Days 6+ AND Trust > 40
+        // Logic Rule Engine (UPDATED SPEC)
+        // Phase A (CONNECTION): Default
+        // Phase B (VULNERABILITY/CONFIDENCE): Days >= 3 AND Trust >= 50
+        // Phase C (CRISIS): Days >= 6 AND Trust >= 80
 
         let newPhase: AgentPhase = 'CONNECTION'
 
-        if (daysActive >= 6 && trustScore > 40) {
+        if (daysActive >= 6 && trustScore >= 80) {
             newPhase = 'CRISIS'
-        } else if (daysActive >= 3 && trustScore > 20) {
+        } else if (daysActive >= 3 && trustScore >= 50) {
             newPhase = 'VULNERABILITY'
         } else {
-            newPhase = 'CONNECTION'
+            newPhase = 'CONNECTION' // Reste en Phase 1 (Seduction)
         }
 
         // Persist change if needed
@@ -56,21 +59,63 @@ export const director = {
         }
     },
 
+    async classifyMessage(text: string): Promise<'GOOD' | 'BAD' | 'NEUTRAL'> {
+        try {
+            const settingsList = await prisma.setting.findMany()
+            const settings = settingsList.reduce((acc: any, curr: any) => { acc[curr.key] = curr.value; return acc }, {})
+
+            const prompt = `Classify the following user message sent to a teenage girl.
+Categories:
+- GOOD: Caring, curious, nice, validating.
+- BAD: Aggressive, sexual, creepy, rude.
+- NEUTRAL: Boring, simple, info.
+
+Message: "${text}"
+
+Output ONLY the label (GOOD, BAD, or NEUTRAL).`
+
+            let classification = 'NEUTRAL'
+
+            // Use cheap model if possible, or main provider
+            const provider = settings.ai_provider || 'venice'
+            if (provider === 'anthropic') {
+                const { anthropic } = require('@/lib/anthropic')
+                classification = await anthropic.chatCompletion(
+                    "You are a classifier. Output only one word.", [], prompt,
+                    { apiKey: settings.anthropic_api_key, model: 'claude-3-haiku-20240307', max_tokens: 10 }
+                )
+            } else {
+                const { venice } = require('@/lib/venice')
+                classification = await venice.chatCompletion(
+                    "You are a classifier. Output only one word.", [], prompt,
+                    { apiKey: settings.venice_api_key, model: 'venice-uncensored', max_tokens: 10 } // uncensored might be funny for bad inputs
+                )
+            }
+
+            classification = classification.trim().toUpperCase()
+            if (classification.includes('GOOD')) return 'GOOD'
+            if (classification.includes('BAD')) return 'BAD'
+            return 'NEUTRAL'
+
+        } catch (e) {
+            console.error('Classification Failed', e)
+            return 'NEUTRAL'
+        }
+    },
+
     /**
-     * Updates trust score based on user message analysis (simple keyword heuristic for now).
+     * Updates trust score based on AI analysis.
      */
     async updateTrustScore(contactPhone: string, messageText: string) {
-        let scoreDelta = 1 // +1 for just messaging
+        let scoreDelta = 0
 
-        const positiveKeywords = ['haha', 'lol', 'thanks', 'cool', 'love', 'nice', 'sweet', 'funny']
-        const negativeKeywords = ['fake', 'bot', 'scam', 'stop', 'hate', 'lie', 'weird']
+        const sentiment = await this.classifyMessage(messageText)
 
-        const lowerText = messageText.toLowerCase()
+        if (sentiment === 'GOOD') scoreDelta = 2
+        else if (sentiment === 'BAD') scoreDelta = -5
+        else scoreDelta = 0 // Neutral
 
-        if (positiveKeywords.some(w => lowerText.includes(w))) scoreDelta += 5
-        if (negativeKeywords.some(w => lowerText.includes(w))) scoreDelta -= 10
-
-        // Cap change to avoid huge swings? Let's just apply for now.
+        console.log(`[Director] Analysis: ${sentiment} -> Delta: ${scoreDelta}`)
 
         await prisma.contact.update({
             where: { phone_whatsapp: contactPhone },
@@ -79,7 +124,7 @@ export const director = {
             }
         })
 
-        console.log(`[Director] Trust Updated for ${contactPhone}: Delta ${scoreDelta}`)
+        return { sentiment, scoreDelta }
     },
 
     /**

@@ -82,21 +82,29 @@ client.on('message', async msg => {
         let realFrom = msg.from;
         let realName = msg._data.notifyName;
 
-        // OPTIMIZATION: If it's already a phone ID (@c.us), skip risky getContact() call
+        let realFrom = msg.from;
+        let realName = msg._data.notifyName;
+
+        // OPTIMIZATION: If it's already a phone ID (@c.us), skip logic
         if (msg.from.endsWith('@c.us')) {
             realFrom = msg.from;
         } else {
-            // It's a LID or Group, try to resolve
+            // It's a LID or Group. Try to resolve via CHAT first (more robust)
             try {
-                const contact = await msg.getContact();
-                if (contact.number) {
-                    realFrom = `${contact.number}@c.us`;
-                } else if (contact.id._serialized) {
-                    realFrom = contact.id._serialized;
+                const chat = await msg.getChat();
+                if (chat.id && chat.id._serialized && chat.id._serialized.endsWith('@c.us')) {
+                    realFrom = chat.id._serialized;
+                    realName = chat.name || realName;
+                    console.log(`[Resolution] LID ${msg.from} -> Chat ID ${realFrom}`);
+                } else {
+                    // Fallback to Contact Resolution (Legacy/Broken)
+                    const contact = await msg.getContact();
+                    if (contact.number) {
+                        realFrom = `${contact.number}@c.us`;
+                    }
                 }
-                realName = contact.name || contact.pushname || realName;
             } catch (err) {
-                console.error('Failed to resolve contact (using fallback)', err.message);
+                console.error('Failed to resolve ID via Chat/Contact', err.message);
             }
         }
 

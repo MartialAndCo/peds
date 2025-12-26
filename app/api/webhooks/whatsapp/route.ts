@@ -442,8 +442,8 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
             // --- STATE-AWARE AGENT LOGIC ---
             const { director } = require('@/lib/director')
 
-            // 1. Update Trust (Fire & Forget)
-            director.updateTrustScore(contact.phone_whatsapp, lastMessage).catch((e: any) => console.error("Trust Update Failed:", e))
+            // 1. Update Trust & Analyze Sentiment
+            const { sentiment } = await director.updateTrustScore(contact.phone_whatsapp, lastMessage).catch((e: any) => ({ sentiment: 'NEUTRAL' }))
 
             // 2. Get Phase & Context
             const { phase, details } = await director.determinePhase(contact.phone_whatsapp)
@@ -456,6 +456,11 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
                 details,
                 conversation.prompt.system_prompt
             )
+
+            // Sentiment Reaction
+            if (sentiment === 'BAD') {
+                systemPromptWithMemory += `\n\n[SENTIMENT TRIGGER]: The user's last message was classified as BAD (Aggressive/Creepy). \n[INSTRUCTION]: BE COLD. Drop the cheerful tone. Be defensive, short, and dry. Do NOT be nice.`
+            }
 
             // Mem0 Context Injection
             if (fetchedMemories.length > 0) {
