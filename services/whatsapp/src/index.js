@@ -278,7 +278,11 @@ app.get('/api/messages/:msgId/media', authenticate, async (req, res) => {
 
 
 // Start
-client.initialize();
+// Start
+console.log('Initializing WhatsApp Client...');
+client.initialize().catch(err => {
+    console.error('CLIENT INIT ERROR:', err);
+});
 
 app.listen(port, () => {
     console.log(`WhatsApp Service listening on port ${port}`);
