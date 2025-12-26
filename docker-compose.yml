@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  whatsapp-service:
+    build: ./services/whatsapp
+    container_name: whatsapp_custom_service
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - WEBHOOK_URL=${WEBHOOK_URL:-http://host.docker.internal:3000/api/webhooks/whatsapp}
+      - AUTH_TOKEN=${WAHA_API_KEY:-secret}
+      - CHROME_BIN=/usr/bin/google-chrome-stable
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./services/whatsapp/.wwebjs_auth:/app/.wwebjs_auth
