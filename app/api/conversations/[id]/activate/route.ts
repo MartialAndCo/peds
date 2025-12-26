@@ -64,7 +64,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
         // INJECT ADMIN CONTEXT EXPLICITLY
         if (context) {
-            systemPrompt += `\n\n[ADMIN CONTEXT / BACKSTORY]:\n${context}\n\n[INSTRUCTION]: Integrate this context naturally. Do NOT mention "Admin" or "Context". Act as if you already knew this.`
+            systemPrompt += `\n\n[IMMEDIATE CONTEXT (HAPPENED 5 MINS AGO)]:\n${context}\n\n[INSTRUCTION]: CONTINUE the flow. This context is FRESH. Do NOT say "I remember you mentioned" (that sounds fake). Just react naturally as if switching apps (Snapchat -> WhatsApp). Be casual and direct.`
         }
 
         // 5. Generate AI Response
