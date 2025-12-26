@@ -9,7 +9,7 @@ services:
       - "3001:3001"
     environment:
       - PORT=3001
-      - WEBHOOK_URL=${WEBHOOK_URL:-http://host.docker.internal:3000/api/webhooks/whatsapp}
+      - WEBHOOK_URL=https://main.die6qcz48fek8.amplifyapp.com/api/webhooks/whatsapp
       - AUTH_TOKEN=${WAHA_API_KEY:-secret}
       - CHROME_BIN=/usr/bin/google-chrome-stable
     extra_hosts:
