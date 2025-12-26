@@ -118,10 +118,23 @@ app.get('/status', (req, res) => {
     res.json({ status, qr: qrCodeData });
 });
 
+// Helper: Sanitize ID
+const sanitizeId = (id) => {
+    if (!id) return id;
+    // If it has a suffix (@c.us or @g.us), just remove +, spaces, dashes, parens
+    if (id.includes('@')) {
+        return id.replace(/[+\s\-()]/g, '');
+    }
+    // If it's just a number, remove non-digits and append @c.us
+    return id.replace(/\D/g, '') + '@c.us';
+};
+
 // Send Text
 app.post('/api/sendText', authenticate, async (req, res) => {
-    const { chatId, text } = req.body;
+    let { chatId, text } = req.body;
     try {
+        chatId = sanitizeId(chatId);
+        console.log(`Sending text to ${chatId}`);
         await client.sendMessage(chatId, text);
         res.json({ success: true });
     } catch (e) {
@@ -131,9 +144,11 @@ app.post('/api/sendText', authenticate, async (req, res) => {
 });
 
 // Send Voice (Base64)
+// Send Voice (Base64)
 app.post('/api/sendVoice', authenticate, async (req, res) => {
-    const { chatId, file } = req.body; // file: { mimetype, data (base64), filename }
+    let { chatId, file } = req.body; // file: { mimetype, data (base64), filename }
     try {
+        chatId = sanitizeId(chatId);
         const media = new MessageMedia(file.mimetype, file.data, file.filename);
 
         // sendAudioAsVoice: true is the magic flag for PTT
@@ -147,9 +162,11 @@ app.post('/api/sendVoice', authenticate, async (req, res) => {
 });
 
 // Send File/Image
+// Send File/Image
 app.post('/api/sendFile', authenticate, async (req, res) => {
-    const { chatId, file, caption } = req.body;
+    let { chatId, file, caption } = req.body;
     try {
+        chatId = sanitizeId(chatId);
         const media = new MessageMedia(file.mimetype, file.data, file.filename);
         await client.sendMessage(chatId, media, { caption });
         res.json({ success: true });
@@ -160,9 +177,11 @@ app.post('/api/sendFile', authenticate, async (req, res) => {
 });
 
 // Mark as Seen
+// Mark as Seen
 app.post('/api/markSeen', authenticate, async (req, res) => {
-    const { chatId } = req.body;
+    let { chatId } = req.body;
     try {
+        chatId = sanitizeId(chatId);
         const chat = await client.getChatById(chatId);
         await chat.sendSeen();
         res.json({ success: true });
@@ -173,9 +192,11 @@ app.post('/api/markSeen', authenticate, async (req, res) => {
 });
 
 // Typing State (true = typing, false = stop)
+// Typing State (true = typing, false = stop)
 app.post('/api/sendStateTyping', authenticate, async (req, res) => {
-    const { chatId, isTyping } = req.body;
+    let { chatId, isTyping } = req.body;
     try {
+        chatId = sanitizeId(chatId);
         const chat = await client.getChatById(chatId);
         if (isTyping) {
             await chat.sendStateTyping();
