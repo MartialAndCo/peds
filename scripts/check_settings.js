@@ -2,11 +2,13 @@ const { PrismaClient } = require('@prisma/client')
 const prisma = new PrismaClient()
 
 async function main() {
+    console.log('--- CHECKING SETTINGS ---')
     const settings = await prisma.setting.findMany()
-    console.log("Current Settings in DB:")
-    settings.forEach(s => console.log(`${s.key}: '${s.value}'`))
+    settings.forEach(s => {
+        console.log(`${s.key}: ${s.value}`)
+    })
 }
 
 main()
-    .catch(e => console.error(e))
+    .catch(console.error)
     .finally(() => prisma.$disconnect())

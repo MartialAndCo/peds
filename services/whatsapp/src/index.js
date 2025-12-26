@@ -79,16 +79,26 @@ client.on('disconnected', (reason) => {
 client.on('message', async msg => {
     console.log('MESSAGE RECEIVED', msg.from);
     try {
-        // Resolve Real Contact (Handle LIDs)
-        const contact = await msg.getContact();
+        let realFrom = msg.from;
+        let realName = msg._data.notifyName;
 
-        // Force construction of @c.us ID from the phone number attribute if available
-        let realFrom = contact.id._serialized;
-        if (contact.number) {
-            realFrom = `${contact.number}@c.us`;
+        // OPTIMIZATION: If it's already a phone ID (@c.us), skip risky getContact() call
+        if (msg.from.endsWith('@c.us')) {
+            realFrom = msg.from;
+        } else {
+            // It's a LID or Group, try to resolve
+            try {
+                const contact = await msg.getContact();
+                if (contact.number) {
+                    realFrom = `${contact.number}@c.us`;
+                } else if (contact.id._serialized) {
+                    realFrom = contact.id._serialized;
+                }
+                realName = contact.name || contact.pushname || realName;
+            } catch (err) {
+                console.error('Failed to resolve contact (using fallback)', err.message);
+            }
         }
-
-        const realName = contact.name || contact.pushname || msg._data.notifyName;
 
         console.log(`[Incoming] ${msg.from} RESOLVED TO ${realFrom} (${realName})`);
 
