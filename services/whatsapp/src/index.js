@@ -99,7 +99,7 @@ client.on('message', async msg => {
                     console.log(`[Resolution] LID ${msg.from} -> Chat ID ${realFrom}`);
                 } else {
                     // HEURISTIC: Check if Chat Name looks like a phone number (common for unsaved contacts)
-                    if (chat && chat.name && /^[+\d\s-]+$/.test(chat.name)) {
+                    if (chat && chat.name && /^[+\d\s-()]+$/.test(chat.name)) {
                         const cleanNumber = chat.name.replace(/\D/g, '');
                         if (cleanNumber.length > 8) { // Basic length check
                             realFrom = `${cleanNumber}@c.us`;
