@@ -441,6 +441,36 @@ INSTRUCTION: You must REFUSE this request naturally but GENTLY.
             return NextResponse.json({ success: true })
         }
 
+        // --- DEBOUNCE / BUFFERING LOGIC ---
+        // Wait to see if user sends more messages (e.g. "Hi", "How are you")
+        // This prevents the AI from replying to every single line instantly.
+        if (conversation.ai_enabled) {
+            const DEBOUNCE_MS = 6000 // 6 seconds wait
+            console.log(`[Debounce] Waiting ${DEBOUNCE_MS}ms to check for subsequent messages...`)
+            await new Promise(resolve => setTimeout(resolve, DEBOUNCE_MS))
+
+            // Check if a newer message has arrived for this conversation
+            const newerMessage = await prisma.message.findFirst({
+                where: {
+                    conversationId: conversation.id,
+                    sender: 'contact',
+                    timestamp: {
+                        gt: new Date(Date.now() - DEBOUNCE_MS + 500) // Look for msgs created *after* we started waiting (approx)
+                        // Better: id > currentId if auto-increment? Yes.
+                        // But let's use ID comparison to be safe.
+                    },
+                    id: { gt: (await prisma.message.findFirst({ where: { waha_message_id: payload.id } }))?.id || 0 }
+                }
+            })
+
+            if (newerMessage) {
+                console.log(`[Debounce] Found newer message (ID: ${newerMessage.id}). Delegating processing to the latest execution.`)
+                return NextResponse.json({ success: true, handler: 'debounced_delegated' })
+            }
+
+            console.log('[Debounce] No newer messages found. Proceeding to AI generation.')
+        }
+
         // Logic AI
         if (conversation.ai_enabled) {
             const historyDesc = await prisma.message.findMany({
