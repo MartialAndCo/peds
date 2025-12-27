@@ -1,5 +1,5 @@
 
-import { venice } from '../lib/venice.ts'
+import { venice } from '../lib/venice'
 import fs from 'fs'
 import path from 'path'
 
