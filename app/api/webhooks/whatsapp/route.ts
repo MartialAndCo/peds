@@ -147,8 +147,50 @@ INSTRUCTION: Apologize to the user naturally and explain why you can't right now
                 if (analysis && analysis.isMediaRequest) {
                     if (!analysis.allowed) {
                         console.log(`Media Request Blocked: ${analysis.refusalReason}`)
-                        await whatsapp.sendText(contact.phone_whatsapp, analysis.refusalReason || "Je ne peux pas envoyer ce type de contenu.")
-                        return NextResponse.json({ success: true, handler: 'media_blocked' })
+
+                        // Fix: Do NOT send the raw refusal reason.
+                        // Instead, ask the AI to refuse naturally based on the reason.
+                        const refusalReason = analysis.refusalReason || "forbidden content"
+                        const refusalSystemPrompt = `(SYSTEM: The user requested media that is STRICTLY FORBIDDEN. Reason: "${refusalReason}". 
+INSTRUCTION: You must REFUSE this request naturally but GENTLY.
+- Do NOT be mean or firm. Be SHY and HESITANT.
+- Use excuses like: "idk i'm not comfortable yet...", "maybe later...", "im kinda shy lol", "umm i barely know u".
+- Leave the door open for later (don't say "never").
+- Keep it cute and casual, lowercase.)`
+
+                        // Find existing conversation to get the right model/prompt context
+                        let currentConversation = await prisma.conversation.findFirst({
+                            where: { contactId: contact.id, status: { in: ['active', 'paused'] } },
+                            include: { prompt: true }
+                        })
+
+                        const provider = settings.ai_provider || 'venice'
+                        let aiRefusal = ""
+
+                        // Use the main system prompt + our refusal instruction
+                        const mainPrompt = currentConversation?.prompt?.system_prompt || "You are a friend."
+
+                        if (provider === 'anthropic') {
+                            aiRefusal = await anthropic.chatCompletion(mainPrompt, [], refusalSystemPrompt, { apiKey: settings.anthropic_api_key, model: settings.anthropic_model })
+                        } else {
+                            aiRefusal = await venice.chatCompletion(mainPrompt, [], refusalSystemPrompt, { apiKey: settings.venice_api_key, model: settings.venice_model })
+                        }
+
+                        await whatsapp.sendText(contact.phone_whatsapp, aiRefusal)
+
+                        // Save the interaction
+                        if (currentConversation) {
+                            await prisma.message.create({
+                                data: {
+                                    conversationId: currentConversation.id,
+                                    sender: 'ai',
+                                    message_text: aiRefusal,
+                                    timestamp: new Date()
+                                }
+                            })
+                        }
+
+                        return NextResponse.json({ success: true, handler: 'media_request_blocked' })
                     }
 
                     if (analysis.intentCategory) {
@@ -293,14 +335,17 @@ INSTRUCTION: Apologize to the user naturally and explain why you can't right now
 
 
 
-        // Find/Create Conversation (Standard Flow continuation)
-        // We can't easily upsert conversation because logic depends on status='active'
-        // But we can optimize finding it.
+        // Find existing Conversation (Active OR Paused)
+        // Fix: Do not filter by 'active' only, otherwise 'paused' conversations are ignored and duplicated.
         let conversation = await prisma.conversation.findFirst({
             where: {
                 contactId: contact.id,
-                status: 'active'
+                // We want the latest open conversation. 
+                // Assuming 'closed' is the only terminal state we ignore? 
+                // Or maybe just find the last created one.
+                status: { in: ['active', 'paused'] }
             },
+            orderBy: { createdAt: 'desc' }, // Get the latest one
             include: { prompt: true }
         })
 
@@ -331,43 +376,17 @@ INSTRUCTION: Apologize to the user naturally and explain why you can't right now
             return NextResponse.json({ success: true, ignored: true, reason: 'duplicate' })
         }
 
-        // Note: The user's snippet uses `incomingMsg.body` and `incomingMsg.id`.
-        // Assuming `messageText` and `payload.id` from the original context are the correct variables here.
-        const message = await prisma.message.create({
-            data: {
-                conversationId: conversation.id,
-                sender: 'contact',
-                message_text: messageText, // Using messageText from original context
-                waha_message_id: payload.id, // Using payload.id from original context
-                timestamp: new Date()
-            }
-        })
-
-        // 4. COLD START Logic: If Paused, Notify Admin and Exit
-        if (conversation.status === 'paused') {
-            console.log(`[Webhook] Conversation ${conversation.id} is PAUSED. Skipping AI.`)
-
-            // count check removed as we no longer notify admin via WhatsApp
-            // Just rely on Dashboard UI to show 'PAUSED' badge.
-            console.log(`[Webhook] Conversation ${conversation.id} is PAUSED. Waiting for admin activation.`)
-            return NextResponse.json({ status: 'paused', message: 'Message saved. AI is paused.' })
-        }
-
-        // 5. Analysis & Logic (Rest of the file...)
-        // Handle Content (Voice handling...)
+        // Voice Transcription Logic (Moved BEFORE saving message so we save the transcribed text)
         const isVoiceMessage = payload.type === 'ptt' || payload.type === 'audio' || payload._data?.mimetype?.startsWith('audio')
 
         if (isVoiceMessage) {
             console.log('Voice Message Detected. Attempting Transcription via Cartesia...')
             try {
-                // Settings already fetched above
                 const apiKey = settings.cartesia_api_key
                 if (apiKey) {
-                    // Use whatsapp client download
                     const media = await whatsapp.downloadMedia(payload.id)
                     if (media && media.data) {
                         const { cartesia } = require('@/lib/cartesia')
-                        // media.data is already a Buffer from lib/whatsapp.ts
                         const transcript = await cartesia.transcribeAudio(media.data, { apiKey })
 
                         if (transcript) {
@@ -388,16 +407,32 @@ INSTRUCTION: Apologize to the user naturally and explain why you can't right now
             }
         }
 
-        // Save User Message
-        await prisma.message.create({
-            data: {
-                conversationId: conversation.id,
-                sender: 'contact',
-                message_text: messageText,
-                waha_message_id: payload.id, // we might store 'false_...' here
-                timestamp: new Date()
+        // Save User Message (ONCE)
+        try {
+            await prisma.message.create({
+                data: {
+                    conversationId: conversation.id,
+                    sender: 'contact',
+                    message_text: messageText,
+                    waha_message_id: payload.id,
+                    timestamp: new Date()
+                }
+            })
+        } catch (e: any) {
+            // P2002 = Unique constraint violation
+            if (e.code === 'P2002') {
+                console.log(`[Webhook] Duplicate Message ID ${payload.id} detected during INSERT (Race condition caught). Skipping.`)
+                return NextResponse.json({ success: true, ignored: true, reason: 'duplicate_race' })
             }
-        })
+            throw e // Rethrow real errors
+        }
+
+        // 4. COLD START Logic: If Paused, Notify Admin and Exit
+        if (conversation.status === 'paused') {
+            console.log(`[Webhook] Conversation ${conversation.id} is PAUSED. Skipping AI.`)
+            console.log(`[Webhook] Conversation ${conversation.id} is PAUSED. Waiting for admin activation.`)
+            return NextResponse.json({ status: 'paused', message: 'Message saved. AI is paused.' })
+        }
 
         // Safety: If voice failed, do NOT trigger AI (prevents loops)
         if (messageText.startsWith('[Voice Message -')) {

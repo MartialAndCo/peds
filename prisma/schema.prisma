@@ -74,7 +74,7 @@ model Message {
   conversationId  Int
   sender          String   // 'ai', 'contact', 'admin'
   message_text    String
-  waha_message_id String?
+  waha_message_id String?  @unique
   timestamp       DateTime @default(now())
 
   conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)

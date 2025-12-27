@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const envPath = path.join(__dirname, '..', '.env');
-const newDbUrl = 'postgresql://postgres.cfpcmrecikujyjammjck:Bhcmi6pm_@aws-1-eu-west-1.pooler.supabase.com:6543/postgres';
+const newDbUrl = 'postgresql://postgres.cfpcmrecikujyjammjck:Bhcmi6pm_@aws-1-eu-west-1.pooler.supabase.com:6543/postgres?pgbouncer=true';
 
 try {
     let content = '';
