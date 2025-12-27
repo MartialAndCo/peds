@@ -1,78 +1,119 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users, MessageSquare, Bot, ArrowRight } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { Separator } from "@/components/ui/separator"
+import { AnalyticsGrid } from "@/components/dashboard/analytics-grid"
+import { startOfMonth, subDays, format } from "date-fns"
+
+export const dynamic = 'force-dynamic' // Ensure real-time data
 
 export default async function DashboardPage() {
-    const [contactsCount, activeConversationsCount, promptsCount] = await Promise.all([
+    // 1. Fetch Raw Data in Parallel
+    const [
+        totalRevenueAgg,
+        monthlyRevenueAgg,
+        contactsCount,
+        activeConversationsCount,
+        messageCount24h,
+        totalMessages,
+        paymentsCount,
+        trustScoreAgg,
+        contactsByPhase,
+        dailyActivityRaw
+    ] = await Promise.all([
+        // Revenue Total
+        prisma.payment.aggregate({ _sum: { amount: true } }),
+        // MRR (This Month)
+        prisma.payment.aggregate({
+            _sum: { amount: true },
+            where: { createdAt: { gte: startOfMonth(new Date()) } }
+        }),
+        // Counts
         prisma.contact.count(),
         prisma.conversation.count({ where: { status: 'active' } }),
-        prisma.prompt.count()
+        // Messages 24h
+        prisma.message.count({ where: { timestamp: { gte: subDays(new Date(), 1) } } }),
+        prisma.message.count(),
+        // Paying users count (approx by payments, ideal distinct contactId)
+        prisma.payment.groupBy({ by: ['contactId'] }),
+        // Trust Score Avg
+        prisma.contact.aggregate({ _avg: { trustScore: true } }),
+        // Phase Distribution
+        prisma.contact.groupBy({
+            by: ['agentPhase'],
+            _count: { agentPhase: true }
+        }),
+        // Daily Activity (Last 7 days) - Requires raw query or manual mapping
+        // We'll approximate by fetching last N created messages and grouping in JS for speed
+        prisma.message.findMany({
+            where: { timestamp: { gte: subDays(new Date(), 7) } },
+            select: { timestamp: true }
+        })
     ])
+
+    // 2. Process Data
+    const revenue = totalRevenueAgg._sum.amount ? Number(totalRevenueAgg._sum.amount) : 0
+    const mrr = monthlyRevenueAgg._sum.amount ? Number(monthlyRevenueAgg._sum.amount) : 0
+    const payingUsers = paymentsCount.length
+    const conversionRate = contactsCount > 0 ? (payingUsers / contactsCount) * 100 : 0
+    const arpu = payingUsers > 0 ? revenue / payingUsers : 0
+    const trustScoreAvg = trustScoreAgg._avg.trustScore ? Math.round(trustScoreAgg._avg.trustScore) : 0
+    const avgMessagesPerContact = contactsCount > 0 ? totalMessages / contactsCount : 0
+
+    // Format Phase Distribution
+    const phaseMap: Record<string, number> = {}
+    contactsByPhase.forEach(p => {
+        phaseMap[p.agentPhase] = p._count.agentPhase
+    })
+    const phaseDistribution = [
+        { name: 'Connection', value: phaseMap['CONNECTION'] || 0 },
+        { name: 'Vulnerability', value: phaseMap['VULNERABILITY'] || 0 },
+        { name: 'Crisis', value: phaseMap['CRISIS'] || 0 },
+        { name: 'Other', value: (phaseMap['new'] || 0) + (phaseMap['archive'] || 0) }
+    ]
+
+    // Format Daily Activity
+    const activityMap: Record<string, number> = {}
+    for (let i = 0; i < 7; i++) {
+        const dateKey = format(subDays(new Date(), i), 'MMM dd')
+        activityMap[dateKey] = 0
+    }
+    dailyActivityRaw.forEach(m => {
+        const dateKey = format(m.timestamp, 'MMM dd')
+        if (activityMap[dateKey] !== undefined) activityMap[dateKey]++
+    })
+    const dailyActivity = Object.keys(activityMap).reverse().map(key => ({
+        date: key,
+        count: activityMap[key]
+    }))
+
+    // 3. Construct Data Payload
+    const statsData = {
+        revenue,
+        mrr,
+        conversionRate,
+        arpu,
+        totalContacts: contactsCount,
+        activeContacts: activeConversationsCount,
+        trustScoreAvg,
+        messageVolume: messageCount24h,
+        avgMessagesPerContact,
+        phaseDistribution,
+        dailyActivity
+    }
 
     return (
         <div className="flex flex-col gap-8">
             <div className="flex flex-col gap-2">
                 <h2 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent dark:from-white dark:to-gray-400">
-                    Dashboard
+                    Analytics Overview
                 </h2>
                 <p className="text-muted-foreground">
-                    Overview of your WhatsApp automation agent.
+                    Real-time insights from your agent's interactions and financials.
                 </p>
             </div>
             <Separator />
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <Card className="border-l-4 border-l-sky-500 hover:shadow-lg transition-all duration-200 hover:scale-[1.02] cursor-default bg-white/50 backdrop-blur-sm dark:bg-gray-900/50">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">
-                            Contacts Total
-                        </CardTitle>
-                        <div className="p-2 bg-sky-500/10 rounded-full">
-                            <Users className="h-4 w-4 text-sky-500" />
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{contactsCount}</div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                            Recorded contacts
-                        </p>
-                    </CardContent>
-                </Card>
 
-                <Card className="border-l-4 border-l-green-600 hover:shadow-lg transition-all duration-200 hover:scale-[1.02] cursor-default bg-white/50 backdrop-blur-sm dark:bg-gray-900/50">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">
-                            Active Conversations
-                        </CardTitle>
-                        <div className="p-2 bg-green-600/10 rounded-full">
-                            <MessageSquare className="h-4 w-4 text-green-600" />
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{activeConversationsCount}</div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                            Currently active sessions
-                        </p>
-                    </CardContent>
-                </Card>
+            <AnalyticsGrid data={statsData} />
 
-                <Card className="border-l-4 border-l-violet-500 hover:shadow-lg transition-all duration-200 hover:scale-[1.02] cursor-default bg-white/50 backdrop-blur-sm dark:bg-gray-900/50">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">
-                            Prompts Configured
-                        </CardTitle>
-                        <div className="p-2 bg-violet-500/10 rounded-full">
-                            <Bot className="h-4 w-4 text-violet-500" />
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{promptsCount}</div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                            Available prompts
-                        </p>
-                    </CardContent>
-                </Card>
-            </div>
         </div>
     )
 }
