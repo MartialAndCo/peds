@@ -43,6 +43,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         const json = await req.json()
         const body = contactSchema.parse(json)
 
+        // AUTO-UNPAUSE LOGIC
+        // If notes are updated (added/changed) and status isn't explicitly set, 
+        // automatically set status to 'active' so the agent handles the context immediately.
+        if (body.notes && body.notes.trim().length > 0 && !body.status) {
+            body.status = 'active';
+        }
+
         const contact = await prisma.contact.update({
             where: { id },
             data: body
