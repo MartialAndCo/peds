@@ -167,7 +167,7 @@ Output ONLY the label (GOOD, BAD, or NEUTRAL).`
         const pMission = tMission.replace('{{DYNAMIC_GOAL_BLOCK}}', phaseGoal)
 
         // 4. Join
-        return `
+        const fullPrompt = `
 ### SYSTEM INSTRUCTIONS
 
 ${pIdentity}
@@ -196,5 +196,6 @@ ${tGlobal}
 - **Variation:** NEVER repeat the exact same phrase twice in the same conversation (e.g., "haha no way, i barely know u"). varied your denials.
 - **Flow:** Be casual, use lowercase often, but don't force it.
 `
+        return fullPrompt.replace('{paypalUsername}', settings.paypal_username || '@lena9200')
     }
 }
