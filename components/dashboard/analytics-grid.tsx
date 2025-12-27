@@ -74,17 +74,23 @@ export function AnalyticsGrid({ data }: { data: any }) {
                         <CardTitle className="text-sm font-medium">Funnel Distribution (Agent Phases)</CardTitle>
                     </CardHeader>
                     <CardContent className="h-[200px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={phaseDistribution}>
-                                <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                                <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}`} />
-                                <Tooltip
-                                    cursor={{ fill: 'transparent' }}
-                                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                                />
-                                <Bar dataKey="value" fill="currentColor" radius={[4, 4, 0, 0]} className="fill-indigo-500" />
-                            </BarChart>
-                        </ResponsiveContainer>
+                        {phaseDistribution && phaseDistribution.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={phaseDistribution}>
+                                    <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                                    <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}`} />
+                                    <Tooltip
+                                        cursor={{ fill: 'transparent' }}
+                                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                                    />
+                                    <Bar dataKey="value" fill="currentColor" radius={[4, 4, 0, 0]} className="fill-indigo-500" />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                                No funnel data available
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
             </div>
@@ -119,15 +125,21 @@ export function AnalyticsGrid({ data }: { data: any }) {
                 <CardHeader>
                     <CardTitle>Daily Activity (Last 7 Days)</CardTitle>
                 </CardHeader>
-                <CardContent className="pl-2">
-                    <ResponsiveContainer width="100%" height={300}>
-                        <LineChart data={dailyActivity}>
-                            <XAxis dataKey="date" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                            <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}`} />
-                            <Tooltip />
-                            <Line type="monotone" dataKey="count" stroke="#8884d8" strokeWidth={2} activeDot={{ r: 8 }} />
-                        </LineChart>
-                    </ResponsiveContainer>
+                <CardContent className="pl-2 h-[300px]">
+                    {dailyActivity && dailyActivity.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={dailyActivity}>
+                                <XAxis dataKey="date" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                                <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}`} />
+                                <Tooltip />
+                                <Line type="monotone" dataKey="count" stroke="#8884d8" strokeWidth={2} activeDot={{ r: 8 }} />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    ) : (
+                        <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                            No activity data available
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 
