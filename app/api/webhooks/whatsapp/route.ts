@@ -446,7 +446,7 @@ INSTRUCTION: You must REFUSE this request naturally but GENTLY.
             const historyDesc = await prisma.message.findMany({
                 where: { conversationId: conversation.id },
                 orderBy: { timestamp: 'desc' },
-                take: 20
+                take: 50
             })
             // Reverse to get chronological order (Oldest -> Newest) for AI context
             const history = historyDesc.reverse()
