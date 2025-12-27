@@ -48,6 +48,7 @@ model Contact {
   updatedAt       DateTime       @updatedAt
 
   conversations   Conversation[]
+  payments        Payment[]
 
   @@map("contacts")
 }
