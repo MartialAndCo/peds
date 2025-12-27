@@ -59,16 +59,22 @@ export const director = {
         }
     },
 
-    async classifyMessage(text: string): Promise<'GOOD' | 'BAD' | 'NEUTRAL'> {
+    async classifyMessage(text: string, contextMessages: string[] = []): Promise<'GOOD' | 'BAD' | 'NEUTRAL'> {
         try {
             const settingsList = await prisma.setting.findMany()
             const settings = settingsList.reduce((acc: any, curr: any) => { acc[curr.key] = curr.value; return acc }, {})
 
+            // Context window for better classification
+            const contextBlock = contextMessages.length > 0
+                ? `PREVIOUS CONTEXT:\n${contextMessages.map(m => `- ${m}`).join('\n')}\n`
+                : "";
+
             const prompt = `Classify the following user message sent to a teenage girl.
+${contextBlock}
 Categories:
 - GOOD: Caring, curious, nice, validating.
-- BAD: Aggressive, sexual, creepy, rude.
-- NEUTRAL: Boring, simple, info.
+- BAD: Aggressive, sexual, creepy, rude, forceful.
+- NEUTRAL: Boring, simple, info, questions about interests.
 
 Message: "${text}"
 
@@ -88,7 +94,7 @@ Output ONLY the label (GOOD, BAD, or NEUTRAL).`
                 const { venice } = require('@/lib/venice')
                 classification = await venice.chatCompletion(
                     "You are a classifier. Output only one word.", [], prompt,
-                    { apiKey: settings.venice_api_key, model: 'venice-uncensored', max_tokens: 10 } // uncensored might be funny for bad inputs
+                    { apiKey: settings.venice_api_key, model: 'venice-uncensored', max_tokens: 10 }
                 )
             }
 
@@ -105,22 +111,42 @@ Output ONLY the label (GOOD, BAD, or NEUTRAL).`
 
     /**
      * Updates trust score based on AI analysis.
+     * Uses a dampened approach with clamping.
      */
-    async updateTrustScore(contactPhone: string, messageText: string) {
+    async updateTrustScore(contactPhone: string, messageText: string, contextHistory: string[] = []) {
         let scoreDelta = 0
 
-        const sentiment = await this.classifyMessage(messageText)
+        const sentiment = await this.classifyMessage(messageText, contextHistory)
 
-        if (sentiment === 'GOOD') scoreDelta = 2
-        else if (sentiment === 'BAD') scoreDelta = -5
-        else scoreDelta = 0 // Neutral
+        // UPDATED SCORING LOGIC
+        // Neutral interaction implies engagement -> Slight positive (+0.5 rounded to 1 occasionally? No, float support or cumulative)
+        // Let's use Integers:
+        // NEUTRAL: +1 (Interaction builds familiarity)
+        // GOOD:    +3 (Bonus)
+        // BAD:     -5 (Penalty, but not nuclear)
+
+        switch (sentiment) {
+            case 'GOOD': scoreDelta = 3; break;
+            case 'BAD': scoreDelta = -5; break;
+            case 'NEUTRAL': scoreDelta = 1; break; // Changed from 0 to 1. Talking is good!
+        }
 
         console.log(`[Director] Analysis: ${sentiment} -> Delta: ${scoreDelta}`)
+
+        // Get current score to clamp
+        const contact = await prisma.contact.findUnique({ where: { phone_whatsapp: contactPhone }, select: { trustScore: true } })
+        if (!contact) return { sentiment, scoreDelta }
+
+        let newScore = contact.trustScore + scoreDelta
+
+        // Clamp between 0 and 100
+        if (newScore < 0) newScore = 0
+        if (newScore > 100) newScore = 100
 
         await prisma.contact.update({
             where: { phone_whatsapp: contactPhone },
             data: {
-                trustScore: { increment: scoreDelta }
+                trustScore: newScore
             }
         })
 

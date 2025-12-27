@@ -558,7 +558,9 @@ INSTRUCTION: You must REFUSE this request naturally but GENTLY.
 
                 // ... (Director/Prompt Logic) ...
                 const { director } = require('@/lib/director')
-                const { sentiment } = await director.updateTrustScore(contact.phone_whatsapp, lastMessage).catch((e: any) => ({ sentiment: 'NEUTRAL' }))
+                // Extract recent context for the classifier (last 3 messages)
+                const recentHistory = uniqueHistory.slice(0, 3).map((m: any) => `${m.sender}: ${m.message_text}`);
+                const { sentiment } = await director.updateTrustScore(contact.phone_whatsapp, lastMessage, recentHistory).catch((e: any) => ({ sentiment: 'NEUTRAL' }))
                 const { phase, details } = await director.determinePhase(contact.phone_whatsapp)
                 let systemPromptWithMemory = director.buildSystemPrompt(settings, contact, phase, details, conversation.prompt.system_prompt)
 
