@@ -1,4 +1,5 @@
 import { Sidebar } from "@/components/sidebar"
+import Navbar from "@/components/navbar"
 
 export default function DashboardLayout({
     children,
@@ -11,7 +12,8 @@ export default function DashboardLayout({
                 <Sidebar />
             </div>
             <main className="md:pl-72 h-full">
-                <div className="h-full p-8">
+                <Navbar />
+                <div className="h-full p-8 pt-0">
                     {children}
                 </div>
             </main>

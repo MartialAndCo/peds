@@ -63,8 +63,14 @@ export function Sidebar() {
         <div className="space-y-4 py-4 flex flex-col h-full bg-[#111827] text-white">
             <div className="px-3 py-2 flex-1">
                 <Link href="/dashboard" className="flex items-center pl-3 mb-14">
-                    <h1 className="text-2xl font-bold">
-                        AutoWhatsApp
+                    <div className="relative w-8 h-8 mr-4">
+                        <div className="absolute inset-0 bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 rounded-lg blur opacity-75 animate-pulse"></div>
+                        <div className="relative bg-black rounded-lg w-full h-full flex items-center justify-center border border-white/10">
+                            <span className="text-lg font-bold">P</span>
+                        </div>
+                    </div>
+                    <h1 className="text-2xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
+                        PedsAI
                     </h1>
                 </Link>
                 <div className="space-y-1">
