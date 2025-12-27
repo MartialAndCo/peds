@@ -73,8 +73,8 @@ export default function SettingsPage() {
             type="button"
             onClick={() => setActiveTab(id)}
             className={`flex items-center space-x-2 px-4 py-2 rounded-md transition-all ${activeTab === id
-                    ? 'bg-slate-900 text-white font-medium shadow-sm'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                ? 'bg-slate-900 text-white font-medium shadow-sm'
+                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
         >
             {icon}
@@ -280,7 +280,7 @@ export default function SettingsPage() {
 
                             <div className="border-t pt-6">
                                 <Label className="text-lg font-bold text-indigo-900 mb-4 block">3. Phase Goals (The "Mission")</Label>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                                     <div className="space-y-2 p-4 border rounded-lg bg-green-50/50 border-green-100">
                                         <Label className="text-green-800 font-semibold">Phase A: Connection</Label>
                                         <textarea className="w-full h-40 p-2 rounded border text-sm" value={settings.phase_prompt_connection || ''} onChange={(e) => setSettings({ ...settings, phase_prompt_connection: e.target.value })} />
@@ -292,6 +292,10 @@ export default function SettingsPage() {
                                     <div className="space-y-2 p-4 border rounded-lg bg-red-50/50 border-red-100">
                                         <Label className="text-red-800 font-semibold">Phase C: Crisis</Label>
                                         <textarea className="w-full h-40 p-2 rounded border text-sm" value={settings.phase_prompt_crisis || ''} onChange={(e) => setSettings({ ...settings, phase_prompt_crisis: e.target.value })} />
+                                    </div>
+                                    <div className="space-y-2 p-4 border rounded-lg bg-purple-50/50 border-purple-100">
+                                        <Label className="text-purple-800 font-semibold">Phase D: Money Pot 💰</Label>
+                                        <textarea className="w-full h-40 p-2 rounded border text-sm" value={settings.phase_prompt_moneypot || ''} onChange={(e) => setSettings({ ...settings, phase_prompt_moneypot: e.target.value })} placeholder="Prompt for clients who have already paid..." />
                                     </div>
                                 </div>
                             </div>
