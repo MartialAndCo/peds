@@ -443,11 +443,13 @@ INSTRUCTION: You must REFUSE this request naturally but GENTLY.
 
         // Logic AI
         if (conversation.ai_enabled) {
-            const history = await prisma.message.findMany({
+            const historyDesc = await prisma.message.findMany({
                 where: { conversationId: conversation.id },
-                orderBy: { timestamp: 'asc' },
+                orderBy: { timestamp: 'desc' },
                 take: 20
             })
+            // Reverse to get chronological order (Oldest -> Newest) for AI context
+            const history = historyDesc.reverse()
 
             // Clean History for AI Context
             // 1. Remove "Download Failed" system messages and internal system markers
