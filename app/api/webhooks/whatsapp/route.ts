@@ -313,7 +313,7 @@ INSTRUCTION: Apologize to the user naturally and explain why you can't right now
                 data: {
                     contactId: contact.id,
                     promptId: defaultPrompt.id,
-                    status: 'active', // <--- ACTIVE START (Was PAUSED)
+                    status: 'paused', // <--- COLD START (Paused for context)
                     ai_enabled: true
                 },
                 include: { prompt: true }
