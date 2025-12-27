@@ -60,6 +60,7 @@ model Conversation {
   waha_session_id String?
   status          String    @default("active") // active, paused, closed
   ai_enabled      Boolean   @default(true)
+  processingLock  DateTime? // For ensuring sequential processing
   createdAt       DateTime  @default(now())
   closedAt        DateTime?
   

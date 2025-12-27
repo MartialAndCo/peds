@@ -30,7 +30,7 @@ export async function getConfig() {
 }
 
 export const whatsapp = {
-    async sendText(chatId: string, text: string) {
+    async sendText(chatId: string, text: string, replyTo?: string) {
         const { endpoint, apiKey } = await getConfig()
 
         if (!endpoint) {
@@ -45,6 +45,7 @@ export const whatsapp = {
             const response = await axios.post(`${endpoint}/api/sendText`, {
                 chatId: formattedChatId,
                 text,
+                replyTo
             }, {
                 headers: { 'X-Api-Key': apiKey }
             })
@@ -55,7 +56,7 @@ export const whatsapp = {
         }
     },
 
-    async sendVoice(chatId: string, audioDataUrl: string) {
+    async sendVoice(chatId: string, audioDataUrl: string, replyTo?: string) {
         const { endpoint, apiKey } = await getConfig()
 
         try {
@@ -71,7 +72,8 @@ export const whatsapp = {
                     mimetype: 'audio/mpeg',
                     data: base64Data,
                     filename: 'voice.mp3'
-                }
+                },
+                replyTo
             }, {
                 headers: { 'X-Api-Key': apiKey }
             })
