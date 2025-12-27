@@ -13,19 +13,24 @@ const contactSchema = z.object({
 })
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
-    const session = await getServerSession(authOptions)
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    try {
+        const session = await getServerSession(authOptions)
+        if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { id } = await params
+        const { id } = await params
 
-    const contact = await prisma.contact.findUnique({
-        where: { id },
-        include: { conversations: true }
-    })
+        const contact = await prisma.contact.findUnique({
+            where: { id },
+            include: { conversations: true }
+        })
 
-    if (!contact) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+        if (!contact) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    return NextResponse.json(contact)
+        return NextResponse.json(contact)
+    } catch (error) {
+        console.error("[API] GET /contacts/[id] error:", error)
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+    }
 }
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {

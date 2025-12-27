@@ -12,31 +12,38 @@ const createConversationSchema = z.object({
 })
 
 export async function GET(req: Request) {
-    const session = await getServerSession(authOptions)
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    try {
+        const session = await getServerSession(authOptions)
+        if (!session) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
 
-    const { searchParams } = new URL(req.url)
-    const status = searchParams.get('status')
-    const contactId = searchParams.get('contact_id')
+        const { searchParams } = new URL(req.url)
+        const status = searchParams.get('status')
+        const contactId = searchParams.get('contact_id')
 
-    const where: any = {}
-    if (status) where.status = status
-    if (contactId) where.contactId = contactId
+        const where: any = {}
+        if (status) where.status = status
+        if (contactId) where.contactId = contactId
 
-    const conversations = await prisma.conversation.findMany({
-        where,
-        include: {
-            contact: true,
-            prompt: true,
-            messages: {
-                orderBy: { timestamp: 'desc' },
-                take: 1
-            }
-        },
-        orderBy: { createdAt: 'desc' }
-    })
+        const conversations = await prisma.conversation.findMany({
+            where,
+            include: {
+                contact: true,
+                prompt: true,
+                messages: {
+                    orderBy: { timestamp: 'desc' },
+                    take: 1
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        })
 
-    return NextResponse.json(conversations)
+        return NextResponse.json(conversations)
+    } catch (error) {
+        console.error("[API] GET /conversations error:", error)
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+    }
 }
 
 export async function POST(req: Request) {
