@@ -131,5 +131,23 @@ model BlacklistRule {
   mediaType String   @default("all") // 'image', 'video', 'all'
   createdAt DateTime @default(now())
 
+
   @@map("blacklist_rules")
+}
+
+model Payment {
+  id              String   @id // PayPal Transaction ID
+  amount          Decimal
+  currency        String   @default("USD")
+  status          String   // COMPLETED, PENDING, DENIED
+  payerName       String?
+  payerEmail      String?
+  
+  contactId       String?
+  contact         Contact? @relation(fields: [contactId], references: [id])
+  
+  rawJson         String?  // Store full webhook payload for debugging
+  createdAt       DateTime @default(now())
+
+  @@map("payments")
 }
