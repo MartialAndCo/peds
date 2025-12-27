@@ -1,7 +1,7 @@
 
 import { prisma } from '@/lib/prisma'
 
-export type AgentPhase = 'CONNECTION' | 'VULNERABILITY' | 'CRISIS'
+export type AgentPhase = 'CONNECTION' | 'VULNERABILITY' | 'CRISIS' | 'MONEYPOT'
 
 export const director = {
     /**
@@ -12,7 +12,8 @@ export const director = {
      */
     async determinePhase(contactPhone: string): Promise<{ phase: AgentPhase, details: any }> {
         const contact = await prisma.contact.findUnique({
-            where: { phone_whatsapp: contactPhone }
+            where: { phone_whatsapp: contactPhone },
+            include: { payments: true } // Include payments to check for MONEYPOT
         })
 
         if (!contact) throw new Error('Contact not found')
@@ -27,13 +28,16 @@ export const director = {
         let currentPhase = contact.agentPhase as AgentPhase
 
         // Logic Rule Engine (UPDATED SPEC)
+        // Phase D (MONEYPOT): Has PAID at least once.
         // Phase A (CONNECTION): Default
         // Phase B (VULNERABILITY/CONFIDENCE): Days >= 3 AND Trust >= 50
         // Phase C (CRISIS): Days >= 6 AND Trust >= 80
 
         let newPhase: AgentPhase = 'CONNECTION'
 
-        if (daysActive >= 6 && trustScore >= 80) {
+        if (contact.payments && contact.payments.length > 0) {
+            newPhase = 'MONEYPOT' as AgentPhase; // Force MoneyPot if paid
+        } else if (daysActive >= 6 && trustScore >= 80) {
             newPhase = 'CRISIS'
         } else if (daysActive >= 3 && trustScore >= 50) {
             newPhase = 'VULNERABILITY'
@@ -131,6 +135,7 @@ OUTPUT ONLY THE NEW INTEGER SCORE (e.g. "65").`;
             case 'CONNECTION': phaseGoal = settings.phase_prompt_connection || "Be engaging."; break;
             case 'VULNERABILITY': phaseGoal = settings.phase_prompt_vulnerability || "Show vulnerability."; break;
             case 'CRISIS': phaseGoal = settings.phase_prompt_crisis || "URGENT: Crisis."; break;
+            case 'MONEYPOT': phaseGoal = settings.phase_prompt_moneypot || "CLIENT/VIP MODE. Main goal: RETENTION. Treat him like your boyfriend. Be affectionate, compliant, and easy-going. STRATEGY: Maintain the relationship to keep him happy. Every few days (intermittently), ask for small amounts of money for 'cute' things (nails, bubble tea, new dress) or rent help, but DON'T be desperate like in Crisis phase. Make it feel natural. 'Baby, could you help me with my phone bill this month?'. If he says no, don't fight, just pout and move on. KEY: Keep him hooked long term."; break;
         }
 
         // 3. Assemble Blocks & Replace Placeholders

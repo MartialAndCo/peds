@@ -78,10 +78,10 @@ export default async function DashboardPage() {
             phaseMap[p.agentPhase] = p._count.agentPhase
         })
         const phaseDistribution = [
-            { name: 'Connection', value: phaseMap['CONNECTION'] || 0 },
+            { name: 'Connection', value: (phaseMap['CONNECTION'] || 0) + (phaseMap['new'] || 0) }, // Merge 'new' into Connection
             { name: 'Vulnerability', value: phaseMap['VULNERABILITY'] || 0 },
             { name: 'Crisis', value: phaseMap['CRISIS'] || 0 },
-            { name: 'Other', value: (phaseMap['new'] || 0) + (phaseMap['archive'] || 0) }
+            { name: 'Money Pot', value: phaseMap['MONEYPOT'] || 0 }
         ]
 
         // Format Daily Activity
