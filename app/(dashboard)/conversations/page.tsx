@@ -8,11 +8,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge'
 import { Plus, Check, Search } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { cn } from '@/lib/utils'
 
 export default function ConversationsPage() {
     const router = useRouter()
     const [conversations, setConversations] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
+    const [showNeedsContext, setShowNeedsContext] = useState(false)
 
     useEffect(() => {
         fetchConversations()
@@ -29,10 +31,26 @@ export default function ConversationsPage() {
         }
     }
 
+    const filteredConversations = showNeedsContext
+        ? conversations.filter(c => c.status === 'paused')
+        : conversations
+
+    const needsContextCount = conversations.filter(c => c.status === 'paused').length
+
     return (
         <div className="space-y-4">
             <div className="flex items-center justify-between">
-                <h2 className="text-3xl font-bold tracking-tight">Conversations</h2>
+                <div className="flex items-center gap-4">
+                    <h2 className="text-3xl font-bold tracking-tight">Conversations</h2>
+                    <Button
+                        variant={showNeedsContext ? "default" : "outline"}
+                        className={showNeedsContext ? "bg-orange-500 hover:bg-orange-600 text-white border-orange-600" : "text-orange-600 border-orange-200 hover:bg-orange-50"}
+                        onClick={() => setShowNeedsContext(!showNeedsContext)}
+                    >
+                        ⚠️ Needs Context
+                        {needsContextCount > 0 && <Badge variant="secondary" className="ml-2 bg-white/20 text-current">{needsContextCount}</Badge>}
+                    </Button>
+                </div>
                 <Link href="/conversations/new">
                     <Button>
                         <Plus className="mr-2 h-4 w-4" />
@@ -58,17 +76,21 @@ export default function ConversationsPage() {
                             <TableRow>
                                 <TableCell colSpan={6} className="text-center py-4">Loading...</TableCell>
                             </TableRow>
-                        ) : conversations.length === 0 ? (
+                        ) : filteredConversations.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={6} className="text-center py-4">No conversations found</TableCell>
                             </TableRow>
                         ) : (
-                            conversations.map((conv) => (
+                            filteredConversations.map((conv) => (
                                 <TableRow key={conv.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/conversations/${conv.id}`)}>
                                     <TableCell className="font-medium">{conv.contact.name}</TableCell>
                                     <TableCell>{conv.prompt.name}</TableCell>
                                     <TableCell>
-                                        <Badge variant={conv.status === 'active' ? 'default' : conv.status === 'paused' ? 'outline' : 'secondary'}>
+                                        <Badge className={cn(
+                                            conv.status === 'active' ? "bg-green-600 hover:bg-green-700" :
+                                                conv.status === 'paused' ? "bg-orange-500 hover:bg-orange-600 border-orange-600 text-white" :
+                                                    "bg-gray-500"
+                                        )}>
                                             {conv.status}
                                         </Badge>
                                     </TableCell>
