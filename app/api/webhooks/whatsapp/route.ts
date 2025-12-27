@@ -455,19 +455,28 @@ INSTRUCTION: You must REFUSE this request naturally but GENTLY.
                 !m.message_text.includes('[Voice Message -') && m.sender !== 'system'
             )
 
-            // 2. Deduplicate: Check last 3 messages for strong similarity
+            // 2. Deduplicate: Remove sequential duplicates (User X -> User X with same text)
+            // Fix: The previous logic was complex. Let's simplify.
+            // If message[i] == message[i-1], skip it.
             const uniqueHistory: any[] = []
-            cleanHistory.forEach((m: any) => {
-                const recent = uniqueHistory.slice(-3);
-                const isDuplicate = recent.some((r: any) =>
-                    r.sender === m.sender &&
-                    (r.message_text === m.message_text || r.message_text.includes(m.message_text) || m.message_text.includes(r.message_text))
-                );
+            if (cleanHistory.length > 0) {
+                uniqueHistory.push(cleanHistory[0])
+                for (let i = 1; i < cleanHistory.length; i++) {
+                    const prev = uniqueHistory[uniqueHistory.length - 1]
+                    const curr = cleanHistory[i]
 
-                if (!isDuplicate) {
-                    uniqueHistory.push(m)
+                    // Duplicate Criteria: Same Sender AND (Same Text OR Text Include)
+                    // If strict duplicate, skip.
+                    const isSameSender = prev.sender === curr.sender
+                    const isSameText = prev.message_text.trim() === curr.message_text.trim()
+
+                    if (!isSameSender || !isSameText) {
+                        uniqueHistory.push(curr)
+                    } else {
+                        console.log(`[AI Context] Skipping duplicate history message: "${curr.message_text.substring(0, 20)}..."`)
+                    }
                 }
-            })
+            }
 
             const messagesForAI = uniqueHistory.map((m: any) => ({
                 role: m.sender === 'contact' ? 'user' : 'ai',
