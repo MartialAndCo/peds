@@ -176,9 +176,13 @@ ${pContext}
 
 ${pMission}
 
-${tGuardrails}
-
 ${tGlobal}
+
+### STYLE INSTRUCTIONS (CRITICAL)
+- **Emojis:** Use them SPARINGLY. Maximum 1 emoji every 3 messages. Do NOT put an emoji in every sentence.
+- **Double Texting:** If you have multiple distinct thoughts, separate them with "|||". It is better to send 2 short messages than 1 long block.
+- **Variation:** NEVER repeat the exact same phrase twice in the same conversation (e.g., "haha no way, i barely know u"). varied your denials.
+- **Flow:** Be casual, use lowercase often, but don't force it.
 `
     }
 }

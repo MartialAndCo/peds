@@ -141,149 +141,156 @@ INSTRUCTION: Apologize to the user naturally and explain why you can't right now
         // Detect Intent (Smart Logic)
         // ... (Skipping checks for brevity, we assume existing logic is fine)
         if (payload.type === 'chat') {
-            const analysis = await mediaService.analyzeRequest(messageText)
+            try {
+                const analysis = await mediaService.analyzeRequest(messageText)
 
-            if (analysis && analysis.isMediaRequest) {
-                if (!analysis.allowed) {
-                    console.log(`Media Request Blocked: ${analysis.refusalReason}`)
-                    await whatsapp.sendText(contact.phone_whatsapp, analysis.refusalReason || "Je ne peux pas envoyer ce type de contenu.")
-                    return NextResponse.json({ success: true, handler: 'media_blocked' })
-                }
+                if (analysis && analysis.isMediaRequest) {
+                    if (!analysis.allowed) {
+                        console.log(`Media Request Blocked: ${analysis.refusalReason}`)
+                        await whatsapp.sendText(contact.phone_whatsapp, analysis.refusalReason || "Je ne peux pas envoyer ce type de contenu.")
+                        return NextResponse.json({ success: true, handler: 'media_blocked' })
+                    }
 
-                if (analysis.intentCategory) {
-                    console.log(`Media Intent Verified: ${analysis.intentCategory}`)
-                    const result = await mediaService.processRequest(contact.phone_whatsapp, analysis.intentCategory)
+                    if (analysis.intentCategory) {
+                        console.log(`Media Intent Verified: ${analysis.intentCategory}`)
+                        const result = await mediaService.processRequest(contact.phone_whatsapp, analysis.intentCategory)
 
-                    if (result.action === 'SEND') {
-                        console.log('Media found in bank. Sending...')
-                        const dataUrl = result.media.url
-                        if (dataUrl.startsWith('data:image')) {
-                            await whatsapp.sendImage(contact.phone_whatsapp, dataUrl)
-                        } else {
-                            await whatsapp.sendVideo(contact.phone_whatsapp, dataUrl)
-                        }
-
-                        // Mark sent
-                        await prisma.media.update({
-                            where: { id: result.media.id },
-                            data: { sentTo: { push: contact.phone_whatsapp } }
-                        })
-
-                        // Mem0 Log + DB Save (System Action)
-                        const { memoryService } = require('@/lib/memory')
-                        await memoryService.add(contact.phone_whatsapp, messageText)
-                        await memoryService.add(contact.phone_whatsapp, `[System]: Sent media ${analysis.intentCategory}`)
-
-                        // We don't save the image itself in messages table usually, but we could save a text placeholder
-                        // Find active conv to attach message
-                        const activeConv = await prisma.conversation.findFirst({
-                            where: { contactId: contact.id, status: 'active' },
-                            select: { id: true }
-                        })
-
-                        if (activeConv) {
-                            await prisma.message.create({
-                                data: {
-                                    conversationId: activeConv.id,
-                                    sender: 'ai',
-                                    message_text: `[Sent Media: ${analysis.intentCategory}]`,
-                                    timestamp: new Date()
-                                }
-                            }).catch(e => console.error("Failed to save system media msg", e))
-                        }
-
-                        return NextResponse.json({ success: true, handler: 'media_sent' })
-
-                    } else if (result.action === 'REQUEST_SOURCE') {
-                        console.log('No media in bank. Requesting from Source...')
-                        const status = await mediaService.requestFromSource(contact.phone_whatsapp, analysis.intentCategory)
-
-                        let currentConversation = await prisma.conversation.findFirst({
-                            where: { contactId: contact.id, status: 'active' },
-                            include: { prompt: true }
-                        })
-
-                        let activePrompt: any = currentConversation?.prompt
-                        if (!activePrompt) {
-                            activePrompt = await prisma.prompt.findFirst({ where: { isActive: true } })
-                        }
-
-                        const instruction = status === 'REQUEST_NEW'
-                            ? `(SYSTEM: The user wants a photo of ${analysis.intentCategory}. You don't have it right now. Tell them naturally you'll check later. 
-IMPORTANT: You are a REAL PERSON. NEVER say you are an AI. NEVER say you don't have a body. If you can't send it, say you are busy, shy, or the lighting is bad.
-If you want to break your response into two messages, use "|||")`
-                            : `(SYSTEM: The user is asking AGAIN for ${analysis.intentCategory}. You already said you'd check. Tell them to be patient naturally. 
-IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split messages if needed.)`;
-
-                        // Generate Response
-                        // We use the same provider as settings
-                        const provider = settings.ai_provider || 'venice'
-                        let responseText = ""
-
-                        // We need the last user message to make sense of language
-                        const userMessageForAI = messageText + "\n\n" + instruction;
-
-                        if (provider === 'anthropic') {
-                            responseText = await anthropic.chatCompletion(
-                                activePrompt?.system_prompt || "You are a helpful assistant.",
-                                [],
-                                userMessageForAI,
-                                { apiKey: settings.anthropic_api_key, model: settings.anthropic_model || 'claude-3-haiku-20240307' }
-                            );
-                        } else {
-                            responseText = await venice.chatCompletion(
-                                activePrompt?.system_prompt || "You are a helpful assistant.",
-                                [],
-                                userMessageForAI,
-                                { apiKey: settings.venice_api_key, model: settings.venice_model || 'venice-uncensored' }
-                            );
-                        }
-
-                        // SPLIT MESSAGE LOGIC
-                        const parts = responseText.split('|||').filter(p => p.trim().length > 0)
-
-                        for (const part of parts) {
-                            const cleanPart = part.trim()
-                            await whatsapp.sendTypingState(contact.phone_whatsapp, true)
-                            // Random delay for typing
-                            const charDelay = 30 + Math.random() * 20
-                            const typingDuration = Math.min(cleanPart.length * charDelay, 10000)
-                            await new Promise(r => setTimeout(r, typingDuration + 1000))
-
-                            await whatsapp.sendText(contact.phone_whatsapp, cleanPart)
-
-                            // Pause between bubbles if there are more
-                            if (parts.indexOf(part) < parts.length - 1) {
-                                await new Promise(r => setTimeout(r, 2000 + Math.random() * 2000))
+                        if (result.action === 'SEND') {
+                            console.log('Media found in bank. Sending...')
+                            const dataUrl = result.media.url
+                            if (dataUrl.startsWith('data:image')) {
+                                await whatsapp.sendImage(contact.phone_whatsapp, dataUrl)
+                            } else {
+                                await whatsapp.sendVideo(contact.phone_whatsapp, dataUrl)
                             }
-                        }
 
-                        if (currentConversation) {
-                            await prisma.message.create({
-                                data: {
-                                    conversationId: currentConversation.id,
-                                    sender: 'ai',
-                                    message_text: responseText.replace(/\|\|\|/g, '\n'), // Save full text but normalized
-                                    timestamp: new Date()
-                                }
+                            // Mark sent
+                            await prisma.media.update({
+                                where: { id: result.media.id },
+                                data: { sentTo: { push: contact.phone_whatsapp } }
                             })
-                            // Save request too to prompt context?
-                            await prisma.message.create({
-                                data: {
-                                    conversationId: currentConversation.id,
-                                    sender: 'contact',
-                                    message_text: messageText,
-                                    timestamp: new Date()
-                                }
-                            })
-                        }
 
-                        return NextResponse.json({ success: true, handler: 'media_request_pending_dynamic' })
+                            // Mem0 Log + DB Save (System Action)
+                            const { memoryService } = require('@/lib/memory')
+                            await memoryService.add(contact.phone_whatsapp, messageText)
+                            await memoryService.add(contact.phone_whatsapp, `[System]: Sent media ${analysis.intentCategory}`)
+
+                            // We don't save the image itself in messages table usually, but we could save a text placeholder
+                            // Find active conv to attach message
+                            const activeConv = await prisma.conversation.findFirst({
+                                where: { contactId: contact.id, status: 'active' },
+                                select: { id: true }
+                            })
+
+                            if (activeConv) {
+                                await prisma.message.create({
+                                    data: {
+                                        conversationId: activeConv.id,
+                                        sender: 'ai',
+                                        message_text: `[Sent Media: ${analysis.intentCategory}]`,
+                                        timestamp: new Date()
+                                    }
+                                }).catch(e => console.error("Failed to save system media msg", e))
+                            }
+
+                            return NextResponse.json({ success: true, handler: 'media_sent' })
+
+                        } else if (result.action === 'REQUEST_SOURCE') {
+                            console.log('No media in bank. Requesting from Source...')
+                            const status = await mediaService.requestFromSource(contact.phone_whatsapp, analysis.intentCategory)
+
+                            let currentConversation = await prisma.conversation.findFirst({
+                                where: { contactId: contact.id, status: 'active' },
+                                include: { prompt: true }
+                            })
+
+                            let activePrompt: any = currentConversation?.prompt
+                            if (!activePrompt) {
+                                activePrompt = await prisma.prompt.findFirst({ where: { isActive: true } })
+                            }
+
+                            const instruction = status === 'REQUEST_NEW'
+                                ? `(SYSTEM: The user wants a photo of ${analysis.intentCategory}. You don't have it right now. Tell them naturally you'll check later. 
+    IMPORTANT: You are a REAL PERSON. NEVER say you are an AI. NEVER say you don't have a body. If you can't send it, say you are busy, shy, or the lighting is bad.
+    If you want to break your response into two messages, use "|||")`
+                                : `(SYSTEM: The user is asking AGAIN for ${analysis.intentCategory}. You already said you'd check. Tell them to be patient naturally. 
+    IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split messages if needed.)`;
+
+                            // Generate Response
+                            // We use the same provider as settings
+                            const provider = settings.ai_provider || 'venice'
+                            let responseText = ""
+
+                            // We need the last user message to make sense of language
+                            const userMessageForAI = messageText + "\n\n" + instruction;
+
+                            if (provider === 'anthropic') {
+                                responseText = await anthropic.chatCompletion(
+                                    activePrompt?.system_prompt || "You are a helpful assistant.",
+                                    [],
+                                    userMessageForAI,
+                                    { apiKey: settings.anthropic_api_key, model: settings.anthropic_model || 'claude-3-haiku-20240307' }
+                                );
+                            } else {
+                                responseText = await venice.chatCompletion(
+                                    activePrompt?.system_prompt || "You are a helpful assistant.",
+                                    [],
+                                    userMessageForAI,
+                                    { apiKey: settings.venice_api_key, model: settings.venice_model || 'venice-uncensored' }
+                                );
+                            }
+
+                            // SPLIT MESSAGE LOGIC
+                            const parts = responseText.split('|||').filter(p => p.trim().length > 0)
+
+                            for (const part of parts) {
+                                const cleanPart = part.trim()
+                                await whatsapp.sendTypingState(contact.phone_whatsapp, true)
+                                // Random delay for typing
+                                const charDelay = 30 + Math.random() * 20
+                                const typingDuration = Math.min(cleanPart.length * charDelay, 10000)
+                                await new Promise(r => setTimeout(r, typingDuration + 1000))
+
+                                await whatsapp.sendText(contact.phone_whatsapp, cleanPart)
+
+                                // Pause between bubbles if there are more
+                                if (parts.indexOf(part) < parts.length - 1) {
+                                    await new Promise(r => setTimeout(r, 2000 + Math.random() * 2000))
+                                }
+                            }
+
+                            if (currentConversation) {
+                                await prisma.message.create({
+                                    data: {
+                                        conversationId: currentConversation.id,
+                                        sender: 'ai',
+                                        message_text: responseText.replace(/\|\|\|/g, '\n'), // Save full text but normalized
+                                        timestamp: new Date()
+                                    }
+                                })
+                                // Save request too to prompt context?
+                                await prisma.message.create({
+                                    data: {
+                                        conversationId: currentConversation.id,
+                                        sender: 'contact',
+                                        message_text: messageText,
+                                        timestamp: new Date()
+                                    }
+                                })
+                            }
+
+                            return NextResponse.json({ success: true, handler: 'media_request_pending_dynamic' })
+                        }
                     }
                 }
+            } catch (mediaError: any) {
+                console.error('[MediaLogic] Unexpected Error:', mediaError)
+                // Fallthrough to normal conversational AI if media logic breaks?
+                // Or just return success to avoid retries
+                // Let's fall through but logging it
             }
-            // If not isMediaRequest, fall through to conversational AI
-        }
+        }    // If not isMediaRequest, fall through to conversational AI
+
 
 
         // Find/Create Conversation (Standard Flow continuation)
@@ -306,7 +313,7 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
                 data: {
                     contactId: contact.id,
                     promptId: defaultPrompt.id,
-                    status: 'paused', // <--- COLD START
+                    status: 'active', // <--- ACTIVE START (Was PAUSED)
                     ai_enabled: true
                 },
                 include: { prompt: true }
@@ -314,6 +321,16 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
         }
 
         // 3. Save Incoming Message
+        // Idempotency Check: Prevent duplicate processing
+        const existingMessage = await prisma.message.findFirst({
+            where: { waha_message_id: payload.id }
+        })
+
+        if (existingMessage) {
+            console.log(`[Webhook] Duplicate Message ID ${payload.id} detected. Skipping.`)
+            return NextResponse.json({ success: true, ignored: true, reason: 'duplicate' })
+        }
+
         // Note: The user's snippet uses `incomingMsg.body` and `incomingMsg.id`.
         // Assuming `messageText` and `payload.id` from the original context are the correct variables here.
         const message = await prisma.message.create({
@@ -398,20 +415,23 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
             })
 
             // Clean History for AI Context
-            // 1. Remove "Download Failed" system messages
+            // 1. Remove "Download Failed" system messages and internal system markers
             const cleanHistory = history.filter((m: any) =>
-                !m.message_text.includes('[Voice Message -')
+                !m.message_text.includes('[Voice Message -') && m.sender !== 'system'
             )
 
-            // 2. Deduplicate consecutive identical messages from the same role
-            // This prevents the "Loop" effect where the AI sees its own previous repetitive answer and repeats it.
+            // 2. Deduplicate: Check last 3 messages for strong similarity
             const uniqueHistory: any[] = []
-            cleanHistory.forEach((m: any, index: number) => {
-                const prev = uniqueHistory[uniqueHistory.length - 1]
-                if (prev && prev.sender === m.sender && prev.message_text === m.message_text) {
-                    return // Skip duplicate
+            cleanHistory.forEach((m: any) => {
+                const recent = uniqueHistory.slice(-3);
+                const isDuplicate = recent.some((r: any) =>
+                    r.sender === m.sender &&
+                    (r.message_text === m.message_text || r.message_text.includes(m.message_text) || m.message_text.includes(r.message_text))
+                );
+
+                if (!isDuplicate) {
+                    uniqueHistory.push(m)
                 }
-                uniqueHistory.push(m)
             })
 
             const messagesForAI = uniqueHistory.map((m: any) => ({
@@ -497,7 +517,8 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
                         apiKey: settings.venice_api_key,
                         model: conversation.prompt.model,
                         temperature: Number(conversation.prompt.temperature),
-                        max_tokens: conversation.prompt.max_tokens
+                        max_tokens: conversation.prompt.max_tokens,
+                        frequency_penalty: 0.5
                     }
                 )
             }
@@ -558,34 +579,53 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
                 }
             } else {
                 // SPLIT MESSAGE SENDING LOGIC
-                const parts = responseText.split('|||').filter(p => p.trim().length > 0)
+                let parts = responseText.split('|||').filter(p => p.trim().length > 0)
 
-                for (const part of parts) {
-                    const cleanPart = part.trim()
-
-                    // 1. Initial Delay (Reading/Thinking) - only for first part? 
-                    // Or small pause for subsequent parts.
-                    if (parts.indexOf(part) === 0) {
-                        const preTypingDelay = Math.floor(Math.random() * 2000) + 1000
-                        await new Promise(r => setTimeout(r, preTypingDelay))
-
-                        await whatsapp.markAsRead(contact.phone_whatsapp)
+                // Fallback: If AI didn't use ||| but message has multiple paragraphs/sentences, split intelligently
+                if (parts.length === 1 && responseText.length > 50) {
+                    // Split on double newlines first (paragraphs)
+                    const paragraphs = responseText.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+                    if (paragraphs.length > 1) {
+                        parts = paragraphs;
                     } else {
-                        // Small pause before typing next part
-                        await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000))
+                        // Optional: Split by sentences if very long? 
+                        // For now, let's stick to newlines to avoid breaking mid-sentence which looks robotic if timed poorly.
+                        // But often AI sends "Haha yeah\n\nQuestion?" -> split that.
+                        // Also single newlines?
+                        const lines = responseText.split('\n').filter(p => p.trim().length > 0);
+                        if (lines.length > 1) {
+                            parts = lines;
+                        }
                     }
+                }
 
-                    // 2. Start Typing
-                    await whatsapp.sendTypingState(contact.phone_whatsapp, true)
+                try {
+                    for (const part of parts) {
+                        const cleanPart = part.trim()
 
-                    // 3. Typing Duration
-                    const charDelay = 40 + Math.random() * 20 // Slightly faster
-                    const typingDuration = Math.min(cleanPart.length * charDelay, 12000)
+                        // 1. Initial Delay
+                        if (parts.indexOf(part) === 0) {
+                            const preTypingDelay = Math.floor(Math.random() * 2000) + 1000
+                            await new Promise(r => setTimeout(r, preTypingDelay))
+                            await whatsapp.markAsRead(contact.phone_whatsapp).catch(e => console.warn('MarkRead failed', e.message))
+                        } else {
+                            await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000))
+                        }
 
-                    await new Promise(r => setTimeout(r, typingDuration))
+                        // 2. Start Typing
+                        await whatsapp.sendTypingState(contact.phone_whatsapp, true).catch(e => console.warn('Typing failed', e.message))
 
-                    // 4. Send
-                    await whatsapp.sendText(contact.phone_whatsapp, cleanPart)
+                        // 3. Typing Duration
+                        const charDelay = 40 + Math.random() * 20
+                        const typingDuration = Math.min(cleanPart.length * charDelay, 12000)
+                        await new Promise(r => setTimeout(r, typingDuration))
+
+                        // 4. Send
+                        await whatsapp.sendText(contact.phone_whatsapp, cleanPart)
+                    }
+                } catch (sendError: any) {
+                    console.error('WhatsApp Send Failed (Service likely down or unreachable):', sendError.message)
+                    // Swallow error to preserve AI response in DB
                 }
             }
         }
