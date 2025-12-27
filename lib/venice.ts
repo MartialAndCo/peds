@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 export const venice = {
-    async chatCompletion(systemPrompt: string, messages: { role: string, content: string }[], userMessage: string, config: { apiKey?: string, model?: string, temperature?: number, max_tokens?: number } = {}) {
+    async chatCompletion(systemPrompt: string, messages: { role: string, content: string }[], userMessage: string, config: { apiKey?: string, model?: string, temperature?: number, max_tokens?: number, frequency_penalty?: number } = {}) {
         const apiKey = config.apiKey || process.env.VENICE_API_KEY
         if (!apiKey) {
             console.warn('VENICE_API_KEY not configured')
@@ -29,6 +29,7 @@ export const venice = {
                 messages: apiMessages,
                 temperature: config.temperature ?? 0.7,
                 max_tokens: config.max_tokens ?? 500,
+                frequency_penalty: config.frequency_penalty ?? 0.3,
             }, {
                 headers: {
                     'Authorization': `Bearer ${apiKey}`,

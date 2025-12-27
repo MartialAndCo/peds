@@ -177,6 +177,46 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
 
                 <Card>
                     <CardHeader>
+                        <CardTitle className="text-sm uppercase tracking-wider text-gray-500">Agent State</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3 text-sm">
+                        <div>
+                            <span className="font-semibold block mb-1">Trust Score:</span>
+                            <div className="flex items-center gap-2">
+                                <span className={cn("text-lg font-bold",
+                                    (conversation.contact.trustScore || 0) < 50 ? "text-red-500" : "text-green-500"
+                                )}>
+                                    {conversation.contact.trustScore || 0}
+                                </span>
+                                <span className="text-xs text-muted-foreground">/ 100</span>
+                            </div>
+                        </div>
+                        <div>
+                            <span className="font-semibold block mb-1">Phase:</span>
+                            <Badge variant="outline" className={cn(
+                                conversation.contact.agentPhase === 'CRISIS' ? "border-red-500 text-red-500" :
+                                    conversation.contact.agentPhase === 'VULNERABILITY' ? "border-yellow-500 text-yellow-600" :
+                                        "border-blue-500 text-blue-500"
+                            )}>
+                                {conversation.contact.agentPhase || 'CONNECTION'}
+                            </Badge>
+                        </div>
+                        <div>
+                            <span className="font-semibold block">Days Active:</span>
+                            {/* Simple calc: Now - createdAt */}
+                            {Math.ceil(Math.abs(new Date().getTime() - new Date(conversation.contact.createdAt).getTime()) / (1000 * 60 * 60 * 24))} Days
+                        </div>
+                        <div className="border-t pt-2 mt-2">
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="text-gray-500">Temperature:</span>
+                                <span className="font-mono">{conversation.prompt.temperature}</span>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
                         <CardTitle className="text-sm uppercase tracking-wider text-gray-500">Context</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2 text-sm">
