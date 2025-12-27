@@ -558,13 +558,16 @@ INSTRUCTION: You must REFUSE this request naturally but GENTLY.
 
                 // ... (Director/Prompt Logic) ...
                 const { director } = require('@/lib/director')
-                // Extract recent context for the classifier (last 3 messages)
-                const recentHistory = uniqueHistory.slice(0, 3).map((m: any) => `${m.sender}: ${m.message_text}`);
-                const { sentiment } = await director.updateTrustScore(contact.phone_whatsapp, lastMessage, recentHistory).catch((e: any) => ({ sentiment: 'NEUTRAL' }))
+
+                // DAILY TRUST CHECK (Instead of per-message)
+                // Fire and forget (don't await to block AI response)
+                director.performDailyTrustAnalysis(contact.phone_whatsapp).catch((e: any) => console.error("Daily Trust Check Failed", e));
+
                 const { phase, details } = await director.determinePhase(contact.phone_whatsapp)
                 let systemPromptWithMemory = director.buildSystemPrompt(settings, contact, phase, details, conversation.prompt.system_prompt)
 
-                if (sentiment === 'BAD') systemPromptWithMemory += `\n\n[SENTIMENT TRIGGER]: The user's last message was classified as BAD. BE COLD.`
+                // Sentiment trigger removed (moved to daily analysis for stability)
+
                 if (fetchedMemories.length > 0) {
                     systemPromptWithMemory += `\n\n[USER MEMORY]:\n${fetchedMemories.map((m: any) => `- ${m.memory}`).join('\n')}`
                 }

@@ -42,6 +42,7 @@ model Contact {
   agentPhase      String         @default("CONNECTION") // CONNECTION, VULNERABILITY, CRISIS
   trustScore      Int            @default(0)
   lastPhaseUpdate DateTime       @default(now())
+  lastTrustAnalysis DateTime     @default(now())
 
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt

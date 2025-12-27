@@ -59,98 +59,53 @@ export const director = {
         }
     },
 
-    async classifyMessage(text: string, contextMessages: string[] = []): Promise<'GOOD' | 'BAD' | 'NEUTRAL'> {
-        try {
-            const settingsList = await prisma.setting.findMany()
-            const settings = settingsList.reduce((acc: any, curr: any) => { acc[curr.key] = curr.value; return acc }, {})
 
-            // Context window for better classification
-            const contextBlock = contextMessages.length > 0
-                ? `PREVIOUS CONTEXT:\n${contextMessages.map(m => `- ${m}`).join('\n')}\n`
-                : "";
-
-            const prompt = `Classify the following user message sent to a teenage girl.
-${contextBlock}
-Categories:
-- GOOD: Caring, curious, nice, validating.
-- BAD: Aggressive, sexual, creepy, rude, forceful.
-- NEUTRAL: Boring, simple, info, questions about interests.
-
-Message: "${text}"
-
-Output ONLY the label (GOOD, BAD, or NEUTRAL).`
-
-            let classification = 'NEUTRAL'
-
-            // Use cheap model if possible, or main provider
-            const provider = settings.ai_provider || 'venice'
-            if (provider === 'anthropic') {
-                const { anthropic } = require('@/lib/anthropic')
-                classification = await anthropic.chatCompletion(
-                    "You are a classifier. Output only one word.", [], prompt,
-                    { apiKey: settings.anthropic_api_key, model: 'claude-3-haiku-20240307', max_tokens: 10 }
-                )
-            } else {
-                const { venice } = require('@/lib/venice')
-                classification = await venice.chatCompletion(
-                    "You are a classifier. Output only one word.", [], prompt,
-                    { apiKey: settings.venice_api_key, model: 'venice-uncensored', max_tokens: 10 }
-                )
-            }
-
-            classification = classification.trim().toUpperCase()
-            if (classification.includes('GOOD')) return 'GOOD'
-            if (classification.includes('BAD')) return 'BAD'
-            return 'NEUTRAL'
-
-        } catch (e) {
-            console.error('Classification Failed', e)
-            return 'NEUTRAL'
-        }
-    },
 
     /**
-     * Updates trust score based on AI analysis.
-     * Uses a dampened approach with clamping.
-     */
-    async updateTrustScore(contactPhone: string, messageText: string, contextHistory: string[] = []) {
-        let scoreDelta = 0
+        // 3. AI Analysis
+        const transcript = recentMessages.map(m => `${m.sender}: ${m.message_text}`).join('\n');
 
-        const sentiment = await this.classifyMessage(messageText, contextHistory)
+        const settingsList = await prisma.setting.findMany()
+        const settings = settingsList.reduce((acc: any, curr: any) => { acc[curr.key] = curr.value; return acc }, {})
 
-        // UPDATED SCORING LOGIC
-        // Neutral interaction implies engagement -> Slight positive (+0.5 rounded to 1 occasionally? No, float support or cumulative)
-        // Let's use Integers:
-        // NEUTRAL: +1 (Interaction builds familiarity)
-        // GOOD:    +3 (Bonus)
-        // BAD:     -5 (Penalty, but not nuclear)
+        const prompt = `Analyze the trust evolution in this conversation (Teenage Girl <-> User).
+TRANSCRIPT (Last 48h):
+${transcript}
 
-        switch (sentiment) {
-            case 'GOOD': scoreDelta = 3; break;
-            case 'BAD': scoreDelta = -5; break;
-            case 'NEUTRAL': scoreDelta = 1; break; // Changed from 0 to 1. Talking is good!
+Current Score: ${contact.trustScore}/100.
+
+TASK:
+Determine the NEW Trust Score (0-100).
+- If the user is creepy, sexual, or aggressive -> DROP score significantly (-10 to -30).
+- If the user is nice, normal, and respectful -> INCREASE score steadily (+5 to +10).
+- If the user is neutral/boring -> MAINTAIN or slight increase (+2).
+
+OUTPUT ONLY THE NEW INTEGER SCORE (e.g. "65").`;
+
+        let newScoreStr = "50";
+        const provider = settings.ai_provider || 'venice';
+
+        if (provider === 'anthropic') {
+            const { anthropic } = require('@/lib/anthropic')
+            newScoreStr = await anthropic.chatCompletion("You are a Trust Analyzer. Output only a number.", [], prompt, { apiKey: settings.anthropic_api_key, model: 'claude-3-haiku-20240307' })
+        } else {
+            const { venice } = require('@/lib/venice')
+            newScoreStr = await venice.chatCompletion("You are a Trust Analyzer. Output only a number.", [], prompt, { apiKey: settings.venice_api_key, model: 'venice-uncensored' })
         }
 
-        console.log(`[Director] Analysis: ${sentiment} -> Delta: ${scoreDelta}`)
+        const newScore = parseInt(newScoreStr.trim().replace(/[^0-9]/g, '')) || contact.trustScore;
 
-        // Get current score to clamp
-        const contact = await prisma.contact.findUnique({ where: { phone_whatsapp: contactPhone }, select: { trustScore: true } })
-        if (!contact) return { sentiment, scoreDelta }
-
-        let newScore = contact.trustScore + scoreDelta
-
-        // Clamp between 0 and 100
-        if (newScore < 0) newScore = 0
-        if (newScore > 100) newScore = 100
-
+        // 4. Update
+        console.log(`[Director] Analysis Result: New Score = ${newScore}`);
         await prisma.contact.update({
-            where: { phone_whatsapp: contactPhone },
+            where: { id: contact.id },
             data: {
-                trustScore: newScore
+                trustScore: Math.min(100, Math.max(0, newScore)),
+                lastTrustAnalysis: new Date()
             }
-        })
+        });
 
-        return { sentiment, scoreDelta }
+        return newScore;
     },
 
     /**
