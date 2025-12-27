@@ -131,9 +131,21 @@ export default async function DashboardPage() {
             </div>
             <Separator />
 
-            <AnalyticsGrid data={statsData} />
+            {/* 
+            <AnalyticsGrid data={statsData} /> 
+            */}
+            <div className="p-4 bg-muted/50 rounded-lg overflow-auto">
+                <pre className="text-xs font-mono">
+                    {JSON.stringify(statsData, null, 2)}
+                </pre>
+            </div>
 
+            {/* Debugging Error Visibility */}
+            {statsData.totalContacts === 0 && (
+                <div className="p-4 border border-yellow-500 bg-yellow-50 text-yellow-800 rounded mt-4">
+                    Values are zero. Check server logs if this is unexpected.
+                </div>
+            )}
         </div>
     )
 }
-
