@@ -294,8 +294,33 @@ app.get('/api/messages/:msgId/media', authenticate, async (req, res) => {
 
 
 // Start
+// Helper: Recursive cleanup of SingletonLock
+const removeSingletonLocks = (dir) => {
+    if (!fs.existsSync(dir)) return;
+    try {
+        const items = fs.readdirSync(dir, { withFileTypes: true });
+        for (const item of items) {
+            const fullPath = path.join(dir, item.name);
+            if (item.isDirectory()) {
+                removeSingletonLocks(fullPath);
+            } else if (item.name === 'SingletonLock') {
+                try {
+                    fs.unlinkSync(fullPath);
+                    console.log(`[Cleanup] Removed lock file: ${fullPath}`);
+                } catch (e) {
+                    console.error(`[Cleanup] Failed to remove lock file: ${fullPath}`, e.message);
+                }
+            }
+        }
+    } catch (e) {
+        console.error(`[Cleanup] Error scanning directory: ${dir}`, e.message);
+    }
+};
+
 // Start
 console.log('Initializing WhatsApp Client...');
+// Clean up locks before start to prevent "Profile in use" errors
+removeSingletonLocks(path.resolve('./.wwebjs_auth'));
 client.initialize().catch(err => {
     console.error('CLIENT INIT ERROR:', err);
 });
