@@ -1,0 +1,122 @@
+import { NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { whatsapp } from '@/lib/whatsapp'
+
+// This route should be triggered by Vercel Cron (e.g., every 10 mins)
+export async function GET(req: Request) {
+    try {
+        // Authenticate Cron (Optional but recommended)
+        // const authHeader = req.headers.get('authorization');
+        // if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+        //     return new Response('Unauthorized', { status: 401 });
+        // }
+
+        console.log('[Cron] Processing Message Queue...')
+
+        // 1. Find Pending Messages due NOW (or in the past)
+        const pendingMessages = await prisma.messageQueue.findMany({
+            where: {
+                status: 'PENDING',
+                scheduledAt: {
+                    lte: new Date() // Due now or before
+                }
+            },
+            include: {
+                contact: true
+            },
+            take: 20 // Process in batches to avoid timeout
+        })
+
+        console.log(`[Cron] Found ${pendingMessages.length} pending messages.`)
+
+        if (pendingMessages.length === 0) {
+            return NextResponse.json({ success: true, processed: 0 })
+        }
+
+        const results = []
+
+        for (const queueItem of pendingMessages) {
+            try {
+                // Lock item (Optimistic locking or just update status to PROCESSING?)
+                // Simple approach: Update to SENT immediately after sending.
+                // Or update to 'PROCESSING' first if we worry about parallel crons (Vercel cron is usually unique if schedule is sparse)
+
+                // 2. Processing
+                const { content, contact } = queueItem
+                const phone = contact.phone_whatsapp
+
+                console.log(`[Cron] Sending to ${phone} (ID: ${queueItem.id})`)
+
+                // Mark Read if not already (Just in case logic: Ensure it's read before reply)
+                await whatsapp.markAsRead(phone).catch(e => { })
+
+                // Typing Logic (Simulated)
+                // Since this is a cron, we can't block for long typing on many messages.
+                // But we should send the typing indicator at least.
+                await whatsapp.sendTypingState(phone, true).catch(e => { })
+
+                // Calculate typing duration based on length, but cap it short for Cron efficiency
+                // Real typing might have happened "virtually" during the delay.
+                // But user sees "Typing..." now. 
+                // Let's do a quick typing (2-3s) to show life.
+                const typingMs = Math.min(content.length * 20, 3000)
+                await new Promise(r => setTimeout(r, typingMs))
+
+                // Send Text
+                // Check if we need to split (cron splits if needed, but webhook usually generated clean text or |||)
+                let parts = content.split('|||').filter(p => p.trim().length > 0)
+                if (parts.length === 1 && content.length > 50) {
+                    const paragraphs = content.split(/\n\s*\n/).filter(p => p.trim().length > 0)
+                    if (paragraphs.length > 1) parts = paragraphs
+                }
+
+                for (const part of parts) {
+                    await whatsapp.sendText(phone, part.trim())
+                    if (parts.indexOf(part) < parts.length - 1) {
+                        await new Promise(r => setTimeout(r, 1000)) // Short pause
+                    }
+                }
+
+                // 3. Save to Messages Table (Actual History)
+                // Note: The Webhook queue logic did NOT save to 'Message' table yet.
+                // It only queued it. Now we save it as a real sent message.
+
+                // Wait, webhook generated it but didn't save to 'Message'. Correct.
+                // We need conversationId.
+                await prisma.message.create({
+                    data: {
+                        conversationId: queueItem.conversationId,
+                        sender: 'ai',
+                        message_text: content.replace(/\|\|\|/g, '\n'),
+                        timestamp: new Date()
+                    }
+                })
+
+                // 4. Update Queue Status
+                await prisma.messageQueue.update({
+                    where: { id: queueItem.id },
+                    data: { status: 'SENT' }
+                })
+
+                results.push({ id: queueItem.id, status: 'success' })
+
+            } catch (error: any) {
+                console.error(`[Cron] Failed to process item ${queueItem.id}:`, error)
+                await prisma.messageQueue.update({
+                    where: { id: queueItem.id },
+                    data: {
+                        status: 'FAILED',
+                        attempts: { increment: 1 }
+                    }
+                })
+                results.push({ id: queueItem.id, status: 'error', error: error.message })
+            }
+        }
+
+        return NextResponse.json({ success: true, results })
+
+    } catch (error: any) {
+        console.error('[Cron] Fatal Error:', error)
+        return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+}

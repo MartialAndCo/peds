@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { venice } from '@/lib/venice'
 import { anthropic } from '@/lib/anthropic'
 import { whatsapp } from '@/lib/whatsapp'
+import { TimingManager } from '@/lib/timing'
 
 export async function POST(req: Request) {
     try {
@@ -572,12 +573,77 @@ INSTRUCTION: You must REFUSE this request naturally but GENTLY.
                     systemPromptWithMemory += `\n\n[USER MEMORY]:\n${fetchedMemories.map((m: any) => `- ${m.memory}`).join('\n')}`
                 }
 
-                // AI GENERATION
+                // AI GENERATION & TIMING LOGIC
+                // -------------------------------------------------------------
+                // 1. Analyze Context for Timing
+                const lastUserMsg = uniqueHistory.find((m: any) => m.sender === 'contact')
+                const lastUserDate = lastUserMsg ? new Date(lastUserMsg.timestamp) : new Date()
+
+                const timing = TimingManager.analyzeContext(lastUserDate, phase || 'CONNECTION')
+                console.log(`[Timing] Mode: ${timing.mode}, Delay: ${timing.delaySeconds}s, Ghost: ${timing.shouldGhost}`)
+
+                const MAX_INLINE_DELAY = 19 // Safety margin for Serverless (limit usually 60s, but let's be safe)
+                const useQueue = timing.delaySeconds > MAX_INLINE_DELAY
+
+                // 2. Queue Logic
+                if (useQueue) {
+                    console.log(`[Timing] Using Queue (Delay > ${MAX_INLINE_DELAY}s). Generating response now...`)
+
+                    if (timing.shouldGhost) {
+                        whatsapp.markAsRead(contact.phone_whatsapp).catch(e => console.error("Failed to mark read", e))
+                    }
+
+                    // Generate Response NOW (Pre-generation)
+                    const provider = settings.ai_provider || 'venice'
+                    let responseText = ""
+
+                    if (provider === 'anthropic') {
+                        responseText = await anthropic.chatCompletion(
+                            systemPromptWithMemory, contextMessages, lastMessage,
+                            { apiKey: settings.anthropic_api_key, model: settings.anthropic_model, temperature: Number(conversation.prompt.temperature), max_tokens: conversation.prompt.max_tokens }
+                        )
+                    } else {
+                        responseText = await venice.chatCompletion(
+                            systemPromptWithMemory, contextMessages, lastMessage,
+                            { apiKey: settings.venice_api_key, model: conversation.prompt.model, temperature: Number(conversation.prompt.temperature), max_tokens: conversation.prompt.max_tokens }
+                        )
+                    }
+                    responseText = responseText.replace(/\*[^*]+\*/g, '').trim()
+
+                    // Save to MessageQueue
+                    const scheduledAt = new Date(Date.now() + timing.delaySeconds * 1000)
+                    await prisma.messageQueue.create({
+                        data: {
+                            contactId: contact.id,
+                            conversationId: conversation.id,
+                            content: responseText,
+                            scheduledAt: scheduledAt,
+                            status: 'PENDING'
+                        }
+                    })
+                    console.log(`[Queue] Message queued for ${scheduledAt.toISOString()}`)
+
+                    return NextResponse.json({ success: true, handler: 'queued', scheduledAt })
+                }
+
+                // 3. Inline Logic (Fast Mode)
+                console.log(`[Timing] Inline Mode. Waiting ${timing.delaySeconds}s before replying...`)
+
+                // Wait the calculated delay (or part of it if we want to type during it?)
+                // Strategy: Wait FIRST, then Generate/Type? 
+                // Or Generate, then Wait? 
+                // Let's Wait first to simulate "reading/thinking" time before typing starts.
+                if (timing.delaySeconds > 0) {
+                    await new Promise(r => setTimeout(r, timing.delaySeconds * 1000))
+                }
+
+                // Mark read if not done? (Usually mark read when starting to type)
+                whatsapp.markAsRead(contact.phone_whatsapp).catch(e => { })
+
+                // Generate
                 const provider = settings.ai_provider || 'venice'
                 let responseText = ""
 
-                // ... (We can reuse the generation block or simplify calls) ...
-                // For brevity, inserting the generation call directly
                 if (provider === 'anthropic') {
                     responseText = await anthropic.chatCompletion(
                         systemPromptWithMemory, contextMessages, lastMessage,
@@ -599,15 +665,17 @@ INSTRUCTION: You must REFUSE this request naturally but GENTLY.
 
                 // Send (Voice or Text)
                 const isVoiceResponse = settings.voice_response_enabled === 'true' || settings.voice_response_enabled === true
+                const isVoiceMessage = payload.type === 'ptt' || payload.type === 'audio' || payload._data?.mimetype?.startsWith('audio')
+
                 if (isVoiceResponse && isVoiceMessage) {
                     // Voice Logic ...
                     const voiceText = responseText.replace(/\|\|\|/g, '. ');
                     if (settings.cartesia_api_key) {
                         const { cartesia } = require('@/lib/cartesia')
                         const audioDataUrl = await cartesia.generateAudio(voiceText, { apiKey: settings.cartesia_api_key, voiceId: settings.cartesia_voice_id, modelId: settings.cartesia_model_id })
-                        await whatsapp.sendVoice(contact.phone_whatsapp, audioDataUrl, payload.id) // <--- QUOTE
+                        await whatsapp.sendVoice(contact.phone_whatsapp, audioDataUrl, payload.id)
                     } else {
-                        await whatsapp.sendText(contact.phone_whatsapp, responseText, payload.id) // <--- QUOTE Fallback
+                        await whatsapp.sendText(contact.phone_whatsapp, responseText, payload.id)
                     }
                 } else {
                     // Text Logic
@@ -619,20 +687,20 @@ INSTRUCTION: You must REFUSE this request naturally but GENTLY.
 
                     for (const part of parts) {
                         const cleanPart = part.trim()
-                        if (parts.indexOf(part) === 0) {
-                            await whatsapp.markAsRead(contact.phone_whatsapp).catch(e => { })
-                            await new Promise(r => setTimeout(r, Math.random() * 1000 + 500))
-                        } else {
-                            await new Promise(r => setTimeout(r, 1000))
-                        }
 
                         await whatsapp.sendTypingState(contact.phone_whatsapp, true).catch(e => { })
-                        await new Promise(r => setTimeout(r, Math.min(cleanPart.length * 30, 8000)))
 
-                        // QUOTE ONLY THE FIRST PART if split? Or all? Usually just the first one logically links to the trigger.
-                        // But if we quote all, it might look spammy. Let's quote the *first* one.
+                        // Typing speed simulation
+                        const typingMs = Math.min(cleanPart.length * 30, 8000)
+                        await new Promise(r => setTimeout(r, typingMs))
+
                         const quoteId = (parts.indexOf(part) === 0) ? payload.id : undefined
                         await whatsapp.sendText(contact.phone_whatsapp, cleanPart, quoteId)
+
+                        // Small pause between bubbles
+                        if (parts.indexOf(part) < parts.length - 1) {
+                            await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000))
+                        }
                     }
                 }
 

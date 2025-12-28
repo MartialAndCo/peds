@@ -49,6 +49,7 @@ model Contact {
 
   conversations   Conversation[]
   payments        Payment[]
+  messageQueue    MessageQueue[]
 
   @@map("contacts")
 }
@@ -67,6 +68,7 @@ model Conversation {
   contact         Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
   prompt          Prompt    @relation(fields: [promptId], references: [id])
   messages        Message[]
+  messageQueue    MessageQueue[]
 
   @@map("conversations")
 }
@@ -116,15 +118,30 @@ model Media {
 }
 
 model PendingRequest {
-  id             Int       @id @default(autoincrement())
-  typeId         String
-  requesterPhone String
-  status         String    @default("pending") // pending, fulfilled
-  createdAt      DateTime  @default(now())
+  id              String   @id @default(uuid())
+  requesterPhone  String   // The contact asking
+  mediaType       String   // 'image' or 'video'
+  description     String   // "photo of you at the beach"
+  status          String   @default("pending") // pending, fulfilled, cancelled
+  createdAt       DateTime @default(now())
 
-  type           MediaType @relation(fields: [typeId], references: [id])
+  typeId          String?
+  type            MediaType? @relation(fields: [typeId], references: [id])
+}
 
-  @@map("pending_requests")
+model MessageQueue {
+  id             String      @id @default(uuid())
+  contactId      String
+  contact        Contact     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  conversationId Int
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  content        String      @db.Text
+  scheduledAt    DateTime
+  status         String      @default("PENDING") // PENDING, SENT, FAILED
+  attempts       Int         @default(0)
+  createdAt      DateTime    @default(now())
+  
+  @@index([status, scheduledAt])
 }
 
 model BlacklistRule {
