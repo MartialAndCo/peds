@@ -180,6 +180,6 @@ export const mediaService = {
             data: { status: 'fulfilled' }
         });
 
-        return { sentTo: contactPhone, type: typeId };
+        return { sentTo: contactPhone, type: typeId, mediaUrl: mediaData, mediaType: mimeType };
     }
 };
