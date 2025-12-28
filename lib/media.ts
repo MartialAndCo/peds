@@ -154,14 +154,16 @@ export const mediaService = {
 
         const typeId = latestPending.typeId;
 
-        // Save to Bank
-        const newMedia = await prisma.media.create({
-            data: {
-                typeId,
-                url: mediaData,
-                sentTo: []
-            }
-        });
+        // Save to Bank (Only if categorized)
+        if (typeId) {
+            await prisma.media.create({
+                data: {
+                    typeId,
+                    url: mediaData,
+                    sentTo: []
+                }
+            });
+        }
 
         // Fulfill Request
         const contactPhone = latestPending.requesterPhone;
