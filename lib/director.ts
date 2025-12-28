@@ -66,14 +66,29 @@ export const director = {
 
 
     /**
-        // 3. AI Analysis
-        const transcript = recentMessages.map(m => `${m.sender}: ${m.message_text}`).join('\n');
+     * Updates the trust score based on the latest interaction.
+     */
+    async updateTrustScore(contactPhone: string, lastMessage: string) {
+        // 1. Get Contact
+        const contact = await prisma.contact.findUnique({
+            where: { phone_whatsapp: contactPhone }
+        })
+        if (!contact) return;
+
+        // 2. Mock transcript (just last message for now to save tokens, or fetch history)
+        // Ideally we fetch the last few messages.
+        const recentMessages = await prisma.message.findMany({
+            where: { conversation: { contactId: contact.id } },
+            orderBy: { timestamp: 'desc' },
+            take: 5
+        })
+        const transcript = recentMessages.reverse().map(m => `${m.sender}: ${m.message_text}`).join('\n');
 
         const settingsList = await prisma.setting.findMany()
         const settings = settingsList.reduce((acc: any, curr: any) => { acc[curr.key] = curr.value; return acc }, {})
 
         const prompt = `Analyze the trust evolution in this conversation (Teenage Girl <-> User).
-TRANSCRIPT (Last 48h):
+TRANSCRIPT (Last few messages):
 ${transcript}
 
 Current Score: ${contact.trustScore}/100.
@@ -89,18 +104,22 @@ OUTPUT ONLY THE NEW INTEGER SCORE (e.g. "65").`;
         let newScoreStr = "50";
         const provider = settings.ai_provider || 'venice';
 
-        if (provider === 'anthropic') {
-            const { anthropic } = require('@/lib/anthropic')
-            newScoreStr = await anthropic.chatCompletion("You are a Trust Analyzer. Output only a number.", [], prompt, { apiKey: settings.anthropic_api_key, model: 'claude-3-haiku-20240307' })
-        } else {
-            const { venice } = require('@/lib/venice')
-            newScoreStr = await venice.chatCompletion("You are a Trust Analyzer. Output only a number.", [], prompt, { apiKey: settings.venice_api_key, model: 'venice-uncensored' })
+        try {
+            if (provider === 'anthropic') {
+                const { anthropic } = require('@/lib/anthropic')
+                newScoreStr = await anthropic.chatCompletion("You are a Trust Analyzer. Output only a number.", [], prompt, { apiKey: settings.anthropic_api_key, model: 'claude-3-haiku-20240307' })
+            } else {
+                const { venice } = require('@/lib/venice')
+                newScoreStr = await venice.chatCompletion("You are a Trust Analyzer. Output only a number.", [], prompt, { apiKey: settings.venice_api_key, model: 'venice-uncensored' })
+            }
+        } catch (e) {
+            console.error("AI Trust Analysis failed", e);
+            return;
         }
 
         const newScore = parseInt(newScoreStr.trim().replace(/[^0-9]/g, '')) || contact.trustScore;
 
         // 4. Update
-        console.log(`[Director] Analysis Result: New Score = ${newScore}`);
         await prisma.contact.update({
             where: { id: contact.id },
             data: {
