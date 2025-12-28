@@ -79,11 +79,19 @@ export class QueueWorker {
         // Mark Read
         await whatsapp.markAsRead(phone).catch(() => { })
 
-        // Simulate Typing (Short, as delay already happened)
+        // Simulate Typing (Dynamic duration based on length)
         await whatsapp.sendTypingState(phone, true).catch(() => { })
 
-        // Random tiny variance before actual send (0-2s) to avoid machine-gun burst if multiple are due
-        await new Promise(r => setTimeout(r, Math.random() * 2000))
+        // Calculate typing duration: ~50ms per char, min 2s, max 15s
+        const totalChars = content.length;
+        const typingDuration = Math.min(15000, Math.max(2000, totalChars * 50));
+        await new Promise(r => setTimeout(r, typingDuration));
+
+        // Stop Typing
+        await whatsapp.sendTypingState(phone, false).catch(() => { })
+
+        // Random tiny variance before actual send (0-2s)
+        await new Promise(r => setTimeout(r, Math.random() * 1000))
 
         // Split logic (Text bubbles)
         let parts = content.split('|||').filter((p: string) => p.trim().length > 0)
@@ -95,7 +103,8 @@ export class QueueWorker {
         for (const part of parts) {
             await whatsapp.sendText(phone, part.trim())
             if (parts.indexOf(part) < parts.length - 1) {
-                await new Promise(r => setTimeout(r, 1000 + Math.random() * 500))
+                // Pause between bubbles
+                await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000))
             }
         }
 
