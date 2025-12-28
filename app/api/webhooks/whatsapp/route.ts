@@ -582,8 +582,9 @@ INSTRUCTION: You must REFUSE this request naturally but GENTLY.
                 const timing = TimingManager.analyzeContext(lastUserDate, phase || 'CONNECTION')
                 console.log(`[Timing] Mode: ${timing.mode}, Delay: ${timing.delaySeconds}s, Ghost: ${timing.shouldGhost}`)
 
-                const MAX_INLINE_DELAY = 19 // Safety margin for Serverless (limit usually 60s, but let's be safe)
-                const useQueue = timing.delaySeconds > MAX_INLINE_DELAY
+                const MAX_INLINE_DELAY = 22 // Vercel limit ~60s, keep safe
+                // We MUST use the queue if the delay is longer than what the server allows.
+                const useQueue = timing.delaySeconds > MAX_INLINE_DELAY;
 
                 // 2. Queue Logic
                 if (useQueue) {
