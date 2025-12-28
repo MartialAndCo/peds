@@ -245,8 +245,7 @@ Output JSON ONLY:
                 return NextResponse.json({ success: true, handler: 'source_media' })
             }
         }
-        // If text -> assume normal admin usage or command (ignored for now or let fall through to AI? Admin probably doesn't want AI to reply to them usually)
-        */
+
         return NextResponse.json({ success: true, ignored: true, reason: 'admin_text' })
     }
 
@@ -738,110 +737,110 @@ INSTRUCTION: You must REFUSE this request naturally but GENTLY.
                 }
                 responseText = responseText.replace(/\*[^*]+\*/g, '').trim()
 
-                // Save to MessageQueue
-                const scheduledAt = new Date(Date.now() + timing.delaySeconds * 1000)
-                await prisma.messageQueue.create({
-                    data: {
-                        contactId: contact.id,
-                        conversationId: conversation.id,
-                        content: responseText,
-                        scheduledAt: scheduledAt,
-                        status: 'PENDING'
-                    }
-                })
-                console.log(`[Queue] Message queued for ${scheduledAt.toISOString()}`)
-
-                return NextResponse.json({ success: true, handler: 'queued', scheduledAt })
+        // Save to MessageQueue
+        const scheduledAt = new Date(Date.now() + timing.delaySeconds * 1000)
+        await prisma.messageQueue.create({
+            data: {
+                contactId: contact.id,
+                conversationId: conversation.id,
+                content: responseText,
+                scheduledAt: scheduledAt,
+                status: 'PENDING'
             }
+        })
+        console.log(`[Queue] Message queued for ${scheduledAt.toISOString()}`)
+
+        return NextResponse.json({ success: true, handler: 'queued', scheduledAt })
+    }
 
             // 3. Inline Logic (Fast Mode)
             console.log(`[Timing] Inline Mode. Waiting ${timing.delaySeconds}s before replying...`)
 
-            // Wait the calculated delay (or part of it if we want to type during it?)
-            // Strategy: Wait FIRST, then Generate/Type? 
-            // Or Generate, then Wait? 
-            // Let's Wait first to simulate "reading/thinking" time before typing starts.
-            if (timing.delaySeconds > 0) {
-                await new Promise(r => setTimeout(r, timing.delaySeconds * 1000))
+    // Wait the calculated delay (or part of it if we want to type during it?)
+    // Strategy: Wait FIRST, then Generate/Type? 
+    // Or Generate, then Wait? 
+    // Let's Wait first to simulate "reading/thinking" time before typing starts.
+    if (timing.delaySeconds > 0) {
+        await new Promise(r => setTimeout(r, timing.delaySeconds * 1000))
+    }
+
+    // Mark read if not done? (Usually mark read when starting to type)
+    whatsapp.markAsRead(contact.phone_whatsapp).catch(e => { })
+
+    // Generate
+    const provider = settings.ai_provider || 'venice'
+    let responseText = ""
+
+    if (provider === 'anthropic') {
+        responseText = await anthropic.chatCompletion(
+            systemPromptWithMemory, contextMessages, lastMessage,
+            { apiKey: settings.anthropic_api_key, model: settings.anthropic_model, temperature: Number(conversation.prompt.temperature), max_tokens: conversation.prompt.max_tokens }
+        )
+    } else {
+        responseText = await venice.chatCompletion(
+            systemPromptWithMemory, contextMessages, lastMessage,
+            { apiKey: settings.venice_api_key, model: conversation.prompt.model, temperature: Number(conversation.prompt.temperature), max_tokens: conversation.prompt.max_tokens }
+        )
+    }
+
+    responseText = responseText.replace(/\*[^*]+\*/g, '').trim()
+
+    // Save AI Response
+    await prisma.message.create({
+        data: { conversationId: conversation.id, sender: 'ai', message_text: responseText.replace(/\|\|\|/g, '\n'), timestamp: new Date() }
+    })
+
+    // Send (Voice or Text)
+    const isVoiceResponse = settings.voice_response_enabled === 'true' || settings.voice_response_enabled === true
+    const isVoiceMessage = payload.type === 'ptt' || payload.type === 'audio' || payload._data?.mimetype?.startsWith('audio')
+
+    if (isVoiceResponse && isVoiceMessage) {
+        // Voice Logic ...
+        const voiceText = responseText.replace(/\|\|\|/g, '. ');
+        if (settings.cartesia_api_key) {
+            const { cartesia } = require('@/lib/cartesia')
+            const audioDataUrl = await cartesia.generateAudio(voiceText, { apiKey: settings.cartesia_api_key, voiceId: settings.cartesia_voice_id, modelId: settings.cartesia_model_id })
+            await whatsapp.sendVoice(contact.phone_whatsapp, audioDataUrl, payload.id)
+        } else {
+            await whatsapp.sendText(contact.phone_whatsapp, responseText, payload.id)
+        }
+    } else {
+        // Text Logic
+        let parts = responseText.split('|||').filter(p => p.trim().length > 0)
+        if (parts.length === 1 && responseText.length > 50) {
+            const paragraphs = responseText.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+            if (paragraphs.length > 1) parts = paragraphs;
+        }
+
+        for (const part of parts) {
+            const cleanPart = part.trim()
+
+            await whatsapp.sendTypingState(contact.phone_whatsapp, true).catch(e => { })
+
+            // Typing speed simulation
+            const typingMs = Math.min(cleanPart.length * 30, 8000)
+            await new Promise(r => setTimeout(r, typingMs))
+
+            const quoteId = (parts.indexOf(part) === 0) ? payload.id : undefined
+            await whatsapp.sendText(contact.phone_whatsapp, cleanPart, quoteId)
+
+            // Small pause between bubbles
+            if (parts.indexOf(part) < parts.length - 1) {
+                await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000))
             }
-
-            // Mark read if not done? (Usually mark read when starting to type)
-            whatsapp.markAsRead(contact.phone_whatsapp).catch(e => { })
-
-            // Generate
-            const provider = settings.ai_provider || 'venice'
-            let responseText = ""
-
-            if (provider === 'anthropic') {
-                responseText = await anthropic.chatCompletion(
-                    systemPromptWithMemory, contextMessages, lastMessage,
-                    { apiKey: settings.anthropic_api_key, model: settings.anthropic_model, temperature: Number(conversation.prompt.temperature), max_tokens: conversation.prompt.max_tokens }
-                )
-            } else {
-                responseText = await venice.chatCompletion(
-                    systemPromptWithMemory, contextMessages, lastMessage,
-                    { apiKey: settings.venice_api_key, model: conversation.prompt.model, temperature: Number(conversation.prompt.temperature), max_tokens: conversation.prompt.max_tokens }
-                )
-            }
-
-            responseText = responseText.replace(/\*[^*]+\*/g, '').trim()
-
-            // Save AI Response
-            await prisma.message.create({
-                data: { conversationId: conversation.id, sender: 'ai', message_text: responseText.replace(/\|\|\|/g, '\n'), timestamp: new Date() }
-            })
-
-            // Send (Voice or Text)
-            const isVoiceResponse = settings.voice_response_enabled === 'true' || settings.voice_response_enabled === true
-            const isVoiceMessage = payload.type === 'ptt' || payload.type === 'audio' || payload._data?.mimetype?.startsWith('audio')
-
-            if (isVoiceResponse && isVoiceMessage) {
-                // Voice Logic ...
-                const voiceText = responseText.replace(/\|\|\|/g, '. ');
-                if (settings.cartesia_api_key) {
-                    const { cartesia } = require('@/lib/cartesia')
-                    const audioDataUrl = await cartesia.generateAudio(voiceText, { apiKey: settings.cartesia_api_key, voiceId: settings.cartesia_voice_id, modelId: settings.cartesia_model_id })
-                    await whatsapp.sendVoice(contact.phone_whatsapp, audioDataUrl, payload.id)
-                } else {
-                    await whatsapp.sendText(contact.phone_whatsapp, responseText, payload.id)
-                }
-            } else {
-                // Text Logic
-                let parts = responseText.split('|||').filter(p => p.trim().length > 0)
-                if (parts.length === 1 && responseText.length > 50) {
-                    const paragraphs = responseText.split(/\n\s*\n/).filter(p => p.trim().length > 0);
-                    if (paragraphs.length > 1) parts = paragraphs;
-                }
-
-                for (const part of parts) {
-                    const cleanPart = part.trim()
-
-                    await whatsapp.sendTypingState(contact.phone_whatsapp, true).catch(e => { })
-
-                    // Typing speed simulation
-                    const typingMs = Math.min(cleanPart.length * 30, 8000)
-                    await new Promise(r => setTimeout(r, typingMs))
-
-                    const quoteId = (parts.indexOf(part) === 0) ? payload.id : undefined
-                    await whatsapp.sendText(contact.phone_whatsapp, cleanPart, quoteId)
-
-                    // Small pause between bubbles
-                    if (parts.indexOf(part) < parts.length - 1) {
-                        await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000))
-                    }
-                }
-            }
-
-        } finally {
-            // 3. Release Lock
-            await prisma.conversation.update({
-                where: { id: conversation.id },
-                data: { processingLock: null }
-            })
         }
     }
 
-    return NextResponse.json({ success: true })
+} finally {
+    // 3. Release Lock
+    await prisma.conversation.update({
+        where: { id: conversation.id },
+        data: { processingLock: null }
+    })
+}
+    }
+
+return NextResponse.json({ success: true })
 
 } catch (error: any) {
     console.error('Webhook Error Full Stack:', error)
