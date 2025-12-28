@@ -144,16 +144,18 @@ export const mediaService = {
 
     // 4. Ingest Media
     async ingestMedia(sourcePhone: string, mediaData: string, mimeType: string) {
+        console.log(`[MediaService] Ingesting from ${sourcePhone}, mime: ${mimeType}`)
         // Find most recent pending request
         const latestPending = await prisma.pendingRequest.findFirst({
             where: { status: 'pending' },
             orderBy: { createdAt: 'desc' }
         });
+        console.log(`[MediaService] Latest Pending: ${latestPending?.id}, typeId: ${latestPending?.typeId}`)
 
         if (!latestPending) return null;
 
         if (!latestPending.typeId) {
-            console.error("Pending Request missing typeId, cannot ingest media.");
+            console.error("[MediaService] Pending Request missing typeId, cannot ingest media.");
             return null;
         }
         const typeId = latestPending.typeId;
@@ -185,5 +187,74 @@ export const mediaService = {
         });
 
         return { sentTo: contactPhone, type: typeId, mediaUrl: mediaData, mediaType: mimeType };
+    },
+
+    // 5. Logic: Process Admin Media & Schedule
+    async processAdminMedia(sourcePhone: string, ingestionResult: { sentTo: string, type: string, mediaUrl: string, mediaType: string }) {
+        const { TimingManager } = require('@/lib/timing');
+
+        const contactPhone = ingestionResult.sentTo;
+        const contact = await prisma.contact.findUnique({ where: { phone_whatsapp: contactPhone } });
+
+        if (!contact) {
+            console.error('[MediaService] Contact not found for scheduling:', contactPhone);
+            return null;
+        }
+
+        // Smart Schedule Logic
+        let conversation = await prisma.conversation.findFirst({ where: { contactId: contact.id, status: 'active' }, include: { prompt: true } });
+        if (!conversation) {
+            // Default prompt if not exists (fallback)
+            const prompt = await prisma.prompt.findFirst() || await prisma.prompt.create({ data: { id: 1, name: 'Default', system_prompt: 'Friend', model: 'llama' } });
+            conversation = await prisma.conversation.create({ data: { contactId: contact.id, promptId: prompt.id, status: 'active' }, include: { prompt: true } });
+        }
+
+        const lastMessages = await prisma.message.findMany({ where: { conversationId: conversation.id }, orderBy: { timestamp: 'desc' }, take: 15 });
+        const history = lastMessages.reverse().map((m: any) => `${m.sender === 'user' ? 'User' : 'You'}: ${m.message_text}`).join('\n');
+        const nowLA = TimingManager.getLATime().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' });
+
+        const schedulingPrompt = `(SYSTEM: You just received the photo the user asked for (Type: ${ingestionResult.type}). Goal: Deliver naturally.\nContext: Time ${nowLA}\nChat History:\n${history}\nTask: 1. Did you promise a time? 2. Calculate delay (min 1m). 3. Write caption.\nOutput JSON: { "reasoning": "...", "delay_minutes": 5, "caption": "..." })`;
+
+        const settings = await getSettings();
+        const provider = settings.ai_provider || 'venice';
+
+        let aiResponseText = "{}";
+        try {
+            if (provider === 'anthropic') {
+                aiResponseText = await anthropic.chatCompletion(conversation.prompt.system_prompt, [], schedulingPrompt, { apiKey: settings.anthropic_api_key, model: settings.anthropic_model });
+            } else {
+                aiResponseText = await venice.chatCompletion(conversation.prompt.system_prompt, [], schedulingPrompt, { apiKey: settings.venice_api_key, model: settings.venice_model });
+            }
+        } catch (e) { console.error("[MediaService] AI Sched Failed", e); }
+
+        let sched = { delay_minutes: 5, caption: "Here!", reasoning: "Default" };
+        try {
+            const match = aiResponseText.match(new RegExp('\\{[\\s\\S]*\\}'));
+            if (match) sched = JSON.parse(match[0]);
+        } catch (e) { }
+
+        const delay = Math.max(1, sched.delay_minutes || 2);
+        const scheduledAt = new Date(Date.now() + delay * 60 * 1000); // Wait delay minutes
+
+        console.log(`[MediaService] Queueing item for ${contact.id} at ${scheduledAt}`);
+
+        const newItem = await prisma.messageQueue.create({
+            data: {
+                contactId: contact.id,
+                conversationId: conversation.id,
+                content: sched.caption || "Sent.",
+                mediaUrl: ingestionResult.mediaUrl,
+                mediaType: ingestionResult.mediaType,
+                scheduledAt: scheduledAt,
+                status: 'PENDING'
+            }
+        });
+
+        // Try Notify Source (Optional, swallow errors)
+        try {
+            await whatsapp.sendText(sourcePhone, `📅 Scheduled: ${scheduledAt.toLocaleTimeString()} (${delay}m).\nReason: ${sched.reasoning}`);
+        } catch (e) { console.warn("[MediaService] Failed to notify source (WAHA error?), but Queue Item created."); }
+
+        return newItem;
     }
 };

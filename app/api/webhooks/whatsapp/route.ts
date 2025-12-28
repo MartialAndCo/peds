@@ -105,45 +105,9 @@ export async function POST(req: Request) {
 
                     if (ingestionResult) {
                         await whatsapp.sendText(sourcePhone, `✅ Media ingested. Analyzing chat history...`)
-                        const contactPhone = ingestionResult.sentTo
-                        const contact = await prisma.contact.findUnique({ where: { phone_whatsapp: contactPhone } })
 
-                        if (contact) {
-                            // Smart Schedule Logic
-                            let conversation = await prisma.conversation.findFirst({ where: { contactId: contact.id, status: 'active' }, include: { prompt: true } })
-                            if (!conversation) conversation = await prisma.conversation.create({ data: { contactId: contact.id, promptId: 1, status: 'active' }, include: { prompt: true } })
-
-                            const lastMessages = await prisma.message.findMany({ where: { conversationId: conversation.id }, orderBy: { timestamp: 'desc' }, take: 15 })
-                            const history = lastMessages.reverse().map((m: any) => `${m.sender === 'user' ? 'User' : 'You'}: ${m.message_text}`).join('\n')
-                            const nowLA = TimingManager.getLATime().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' })
-
-                            const schedulingPrompt = `(SYSTEM: You just received the photo the user asked for (Type: ${ingestionResult.type}). Goal: Deliver naturally.\nContext: Time ${nowLA}\nChat History:\n${history}\nTask: 1. Did you promise a time? 2. Calculate delay (min 1m). 3. Write caption.\nOutput JSON: { "reasoning": "...", "delay_minutes": 5, "caption": "..." })`
-
-                            const provider = settings.ai_provider || 'venice'
-                            let aiResponseText = "{}"
-                            try {
-                                if (provider === 'anthropic') aiResponseText = await anthropic.chatCompletion(conversation.prompt.system_prompt, [], schedulingPrompt, { apiKey: settings.anthropic_api_key, model: settings.anthropic_model })
-                                else aiResponseText = await venice.chatCompletion(conversation.prompt.system_prompt, [], schedulingPrompt, { apiKey: settings.venice_api_key, model: settings.venice_model })
-                            } catch (e) { console.error("AI Sched Failed", e) }
-
-                            let sched = { delay_minutes: 5, caption: "Here!", reasoning: "Default" }
-                            try {
-                                const match = aiResponseText.match(new RegExp('\\{[\\s\\S]*\\}'))
-                                if (match) sched = JSON.parse(match[0])
-                            } catch (e) { }
-
-                            const delay = Math.max(1, sched.delay_minutes || 2)
-                            const scheduledAt = new Date(Date.now() + delay * 60 * 1000)
-
-                            await prisma.messageQueue.create({
-                                data: {
-                                    contactId: contact.id, conversationId: conversation.id,
-                                    content: sched.caption || "Sent.", mediaUrl: ingestionResult.mediaUrl, mediaType: ingestionResult.mediaType,
-                                    scheduledAt: scheduledAt, status: 'PENDING'
-                                }
-                            })
-                            await whatsapp.sendText(sourcePhone, `📅 Scheduled: ${scheduledAt.toLocaleTimeString()} (${delay}m).\nReason: ${sched.reasoning}`)
-                        }
+                        // Delegate to Service
+                        await mediaService.processAdminMedia(sourcePhone, ingestionResult)
                     } else {
                         await whatsapp.sendText(sourcePhone, `✅ Media stored (Uncategorized).`)
                     }
