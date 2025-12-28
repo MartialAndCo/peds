@@ -12,6 +12,7 @@ export default function DashboardLayout({
                 <Sidebar />
             </div>
             <main className="md:pl-72 h-full">
+                {/* Dashboard Layout Refreshed */}
                 <Navbar />
                 <div className="h-full p-8 pt-0">
                     {children}

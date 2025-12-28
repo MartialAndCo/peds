@@ -170,7 +170,7 @@ export default function SettingsPage() {
                             </Card>
 
                             <Card>
-                                <CardHeader><CardTitle>Phone Numbers</CardTitle></CardHeader>
+                                <CardHeader><CardTitle>Phone Numbers</CardTitle></CardHeader>{/* UI Updated for Media Separation */}
                                 <CardContent className="space-y-4">
                                     <div className="space-y-1">
                                         <Label>Admin Number (Notifications)</Label>
