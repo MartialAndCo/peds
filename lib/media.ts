@@ -123,8 +123,17 @@ export const mediaService = {
             return 'REQUEST_PENDING';
         }
 
+        // Fetch type details to populate required fields
+        const mediaType = await prisma.mediaType.findUnique({ where: { id: typeId } });
+
         await prisma.pendingRequest.create({
-            data: { typeId, requesterPhone: contactPhone, status: 'pending' }
+            data: {
+                typeId,
+                requesterPhone: contactPhone,
+                status: 'pending',
+                mediaType: 'image', // Default assumption, or could be inferred from typeId keywords? "photo_" -> image
+                description: mediaType?.description || `Request for ${typeId}`
+            }
         });
 
         const msg = `📸 *Media Request*\n\nUser ${contactPhone} wants: *${typeId}*\n\nReply with a photo/video (or just chat) to fulfill it.`;
@@ -157,13 +166,7 @@ export const mediaService = {
         // Fulfill Request
         const contactPhone = latestPending.requesterPhone;
 
-        if (mimeType.startsWith('image')) {
-            await whatsapp.sendImage(contactPhone, mediaData);
-        } else if (mimeType.startsWith('video')) {
-            await whatsapp.sendVideo(contactPhone, mediaData);
-        } else {
-            // fallback
-        }
+        // (Removed immediate send logic)
 
         // Mark sent
         await prisma.media.update({
