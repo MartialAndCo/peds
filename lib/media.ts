@@ -166,6 +166,10 @@ export const mediaService = {
         }
         const typeId = latestPending.typeId;
 
+        if (!mediaData.startsWith('data:')) {
+            mediaData = `data:${mimeType || 'image/jpeg'};base64,${mediaData}`;
+        }
+
         // Save to Bank
         const newMedia = await prisma.media.create({
             data: {
