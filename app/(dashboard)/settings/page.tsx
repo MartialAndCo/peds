@@ -170,12 +170,17 @@ export default function SettingsPage() {
                             </Card>
 
                             <Card>
-                                <CardHeader><CardTitle>Admin Source</CardTitle></CardHeader>
+                                <CardHeader><CardTitle>Phone Numbers</CardTitle></CardHeader>
                                 <CardContent className="space-y-4">
                                     <div className="space-y-1">
-                                        <Label>Source Phone Number</Label>
+                                        <Label>Admin Number (Notifications)</Label>
                                         <Input value={settings.source_phone_number || ''} onChange={(e) => setSettings({ ...settings, source_phone_number: e.target.value })} placeholder="+33..." />
-                                        <p className="text-xs text-muted-foreground">Admin number for notifications.</p>
+                                        <p className="text-xs text-muted-foreground">Admin number for system alerts.</p>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label>Media Source Number (Content)</Label>
+                                        <Input value={settings.media_source_number || ''} onChange={(e) => setSettings({ ...settings, media_source_number: e.target.value })} placeholder="+33..." />
+                                        <p className="text-xs text-muted-foreground">Number that receives media requests.</p>
                                     </div>
                                 </CardContent>
                             </Card>

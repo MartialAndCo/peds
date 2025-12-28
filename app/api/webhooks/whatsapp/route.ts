@@ -43,10 +43,18 @@ export async function POST(req: Request) {
         let messageText = payload.body || ""
 
         // --- 1. Source (Admin) Logic ---
-        const sourcePhone = settings.source_phone_number
-        if (sourcePhone && normalizedPhone === sourcePhone) {
-            console.log('Message from Source (Admin).')
+        const adminPhone = settings.source_phone_number
+        const mediaSourcePhone = settings.media_source_number || adminPhone // Fallback
+
+        // Check if sender is privileged
+        const isPrivilegedSender =
+            (adminPhone && normalizedPhone.includes(adminPhone.replace('+', ''))) ||
+            (mediaSourcePhone && normalizedPhone.includes(mediaSourcePhone.replace('+', '')))
+
+        if (isPrivilegedSender) {
+            console.log(`[Webhook] Privileged message from ${normalizedPhone}`)
             const text = messageText
+            const sourcePhone = normalizedPhone.split('@')[0] // Just the number
 
             // A. Check for Commands [PROBLEM]
             if (text.toUpperCase().includes('[PROBLEM]')) {

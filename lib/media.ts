@@ -110,10 +110,16 @@ export const mediaService = {
 
     // 3. Request from Source
     async requestFromSource(contactPhone: string, typeId: string) {
-        const settings = await prisma.setting.findUnique({ where: { key: 'source_phone_number' } });
+        // Use separate Media Source Number
+        const settings = await prisma.setting.findUnique({ where: { key: 'media_source_number' } });
         const sourcePhone = settings?.value;
+        const adminSettings = await prisma.setting.findUnique({ where: { key: 'source_phone_number' } })
+        const adminPhone = adminSettings?.value
 
-        if (!sourcePhone) return 'NO_SOURCE';
+        // Fallback to Admin Phone if Media Source not set
+        const targetPhone = sourcePhone || adminPhone
+
+        if (!targetPhone) return 'NO_SOURCE';
 
         const existing = await prisma.pendingRequest.findFirst({
             where: { typeId, requesterPhone: contactPhone, status: 'pending' }
@@ -137,7 +143,7 @@ export const mediaService = {
         });
 
         const msg = `📸 *Media Request*\n\nUser ${contactPhone} wants: *${typeId}*\n\nReply with a photo/video (or just chat) to fulfill it.`;
-        await whatsapp.sendText(sourcePhone, msg);
+        await whatsapp.sendText(targetPhone, msg);
 
         return 'REQUEST_NEW';
     },
