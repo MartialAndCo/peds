@@ -152,18 +152,20 @@ export const mediaService = {
 
         if (!latestPending) return null;
 
+        if (!latestPending.typeId) {
+            console.error("Pending Request missing typeId, cannot ingest media.");
+            return null;
+        }
         const typeId = latestPending.typeId;
 
-        // Save to Bank (Only if categorized)
-        if (typeId) {
-            await prisma.media.create({
-                data: {
-                    typeId,
-                    url: mediaData,
-                    sentTo: []
-                }
-            });
-        }
+        // Save to Bank
+        const newMedia = await prisma.media.create({
+            data: {
+                typeId,
+                url: mediaData,
+                sentTo: []
+            }
+        });
 
         // Fulfill Request
         const contactPhone = latestPending.requesterPhone;
