@@ -146,7 +146,98 @@ INSTRUCTION: Apologize to the user naturally and explain why you can't right now
                 const ingestionResult = await mediaService.ingestMedia(sourcePhone, `data:${mimeType};base64,${media.data}`, mimeType)
 
                 if (ingestionResult) {
-                    await whatsapp.sendText(sourcePhone, `✅ Media ingested for ${ingestionResult.type}. Sent to ${ingestionResult.sentTo}.`)
+                    await whatsapp.sendText(sourcePhone, `✅ Media ingested. Analyzing chat history to schedule natural delivery...`)
+
+                    const contactPhone = ingestionResult.sentTo
+                    const contact = await prisma.contact.findUnique({ where: { phone_whatsapp: contactPhone } })
+
+                    if (contact) {
+                        // 1. Get Context (History)
+                        let conversation = await prisma.conversation.findFirst({
+                            where: { contactId: contact.id, status: 'active' },
+                            include: { prompt: true }
+                        })
+
+                        if (!conversation) {
+                            conversation = await prisma.conversation.create({
+                                data: { contactId: contact.id, promptId: 1, status: 'active' },
+                                include: { prompt: true }
+                            })
+                        }
+
+                        const lastMessages = await prisma.message.findMany({
+                            where: { conversationId: conversation.id },
+                            orderBy: { timestamp: 'desc' },
+                            take: 15
+                        })
+                        const history = lastMessages.reverse().map((m: any) => `${m.sender === 'user' ? 'User' : 'You'}: ${m.message_text}`).join('\n')
+
+                        // 2. AI Decision (Smart Schedule)
+                        // uses TimingManager.getLATime() for reference
+                        const nowLA = TimingManager.getLATime().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' })
+
+                        const schedulingPrompt = `(SYSTEM: You just received the photo the user asked for (Type: ${ingestionResult.type}).
+Your goal is to deliver it NATURALLY based on your recent conversation.
+
+Context:
+- Current Time (LA): ${nowLA}
+- Recent Chat:
+${history}
+
+Task:
+1.  Did you promise to send this at a specific time? (e.g. "tonight", "after school", "in 5 mins").
+2.  If yes, calculate the delay in minutes to match that promise.
+3.  If no, choose a natural delay (e.g. 2-10 mins to "find" the file).
+4.  Write a short, natural caption (e.g. "Trouvée !", "Chose promise...", "Tiens !").
+
+Output JSON ONLY:
+{
+  "reasoning": "I said I would send it tonight at 8pm, so I need to wait 4 hours.",
+  "delay_minutes": 240,
+  "caption": "Here is the photo..."
+})`
+
+                        // Call AI
+                        const provider = settings.ai_provider || 'venice'
+                        let aiResponseText = ""
+                        try {
+                            if (provider === 'anthropic') {
+                                aiResponseText = await anthropic.chatCompletion(conversation.prompt.system_prompt, [], schedulingPrompt, { apiKey: settings.anthropic_api_key, model: settings.anthropic_model })
+                            } else {
+                                aiResponseText = await venice.chatCompletion(conversation.prompt.system_prompt, [], schedulingPrompt, { apiKey: settings.venice_api_key, model: settings.venice_model })
+                            }
+                        } catch (e) {
+                            console.error("AI Scheduling Failed", e)
+                            aiResponseText = "{}"
+                        }
+
+                        // Parse
+                        let scheduleData = { delay_minutes: 5, caption: "Here !", reasoning: "Default" }
+                        try {
+                            const match = aiResponseText.match(/\{[\s\S]*\}/)
+                            if (match) scheduleData = JSON.parse(match[0])
+                        } catch (e) {
+                            console.warn("Failed to parse scheduling JSON", aiResponseText)
+                        }
+
+                        // 3. Queue It
+                        const validDelay = Math.max(1, scheduleData.delay_minutes || 2) // Min 1 min
+                        const scheduledAt = new Date(Date.now() + validDelay * 60 * 1000)
+
+                        await prisma.messageQueue.create({
+                            data: {
+                                contactId: contact.id,
+                                conversationId: conversation.id,
+                                content: scheduleData.caption || "Sent.",
+                                mediaUrl: ingestionResult.mediaUrl,
+                                mediaType: ingestionResult.mediaType,
+                                scheduledAt: scheduledAt,
+                                status: 'PENDING'
+                            }
+                        })
+
+                        await whatsapp.sendText(sourcePhone, `📅 Scheduled for ${scheduledAt.toLocaleTimeString()} (in ${validDelay}m).\nReason: ${scheduleData.reasoning}`)
+                    }
                 } else {
                     await whatsapp.sendText(sourcePhone, `✅ Media stored (Uncategorized or no pending request).`)
                 }
