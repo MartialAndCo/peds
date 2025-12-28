@@ -134,6 +134,7 @@ INSTRUCTION: Apologize to the user naturally and explain why you can't right now
             return NextResponse.json({ success: true, handler: 'source_cancel' })
         }
 
+        /*
         // If Media -> Ingest
         const isMedia = payload.type === 'image' || payload.type === 'video'
         if (isMedia) {
@@ -245,6 +246,7 @@ Output JSON ONLY:
             }
         }
         // If text -> assume normal admin usage or command (ignored for now or let fall through to AI? Admin probably doesn't want AI to reply to them usually)
+        */
         return NextResponse.json({ success: true, ignored: true, reason: 'admin_text' })
     }
 
