@@ -84,8 +84,8 @@ export class TimingManager {
         // If last message was < 5 mins ago, we are "in flow" -> Fast Replies
         const minsSinceLastMsg = lastUserMessageTime ? (new Date().getTime() - lastUserMessageTime.getTime()) / 1000 / 60 : 999
         if (minsSinceLastMsg < 5) {
-            // In Flow -> Fast Mode: 8s - 45s
-            const delay = Math.floor(Math.random() * (45 - 8 + 1)) + 8
+            // In Flow -> Fast Mode: 5s - 15s (Ensure inline processing < 22s)
+            const delay = Math.floor(Math.random() * (15 - 5 + 1)) + 5
             return { mode: 'FAST', delaySeconds: delay, shouldGhost: true }
         }
 
