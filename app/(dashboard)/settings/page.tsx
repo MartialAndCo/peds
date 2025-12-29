@@ -182,6 +182,16 @@ export default function SettingsPage() {
                                         <Input value={settings.media_source_number || ''} onChange={(e) => setSettings({ ...settings, media_source_number: e.target.value })} placeholder="+33..." />
                                         <p className="text-xs text-muted-foreground">Number that receives media requests.</p>
                                     </div>
+                                    <div className="space-y-1">
+                                        <Label>Voice Source Number (Human Audio)</Label>
+                                        <Input value={settings.voice_source_number || ''} onChange={(e) => setSettings({ ...settings, voice_source_number: e.target.value })} placeholder="+33..." />
+                                        <p className="text-xs text-muted-foreground">Number that receives voice requests to record.</p>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label>Lead Provider Number (Data Input)</Label>
+                                        <Input value={settings.lead_provider_number || ''} onChange={(e) => setSettings({ ...settings, lead_provider_number: e.target.value })} placeholder="+33..." />
+                                        <p className="text-xs text-muted-foreground">Number authorized to send new leads (Phone + Context).</p>
+                                    </div>
                                 </CardContent>
                             </Card>
                         </div>

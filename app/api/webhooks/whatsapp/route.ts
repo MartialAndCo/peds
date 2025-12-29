@@ -44,12 +44,16 @@ export async function POST(req: Request) {
 
         // --- 1. Source (Admin) Logic ---
         const adminPhone = settings.source_phone_number
-        const mediaSourcePhone = settings.media_source_number || adminPhone // Fallback
+        const mediaSourcePhone = settings.media_source_number || adminPhone
+        const voiceSourcePhone = settings.voice_source_number || adminPhone
+        const leadProviderPhone = settings.lead_provider_number || adminPhone
 
         // Check if sender is privileged
         const isPrivilegedSender =
             (adminPhone && normalizedPhone.includes(adminPhone.replace('+', ''))) ||
-            (mediaSourcePhone && normalizedPhone.includes(mediaSourcePhone.replace('+', '')))
+            (mediaSourcePhone && normalizedPhone.includes(mediaSourcePhone.replace('+', ''))) ||
+            (voiceSourcePhone && normalizedPhone.includes(voiceSourcePhone.replace('+', ''))) ||
+            (leadProviderPhone && normalizedPhone.includes(leadProviderPhone.replace('+', '')))
 
         if (isPrivilegedSender) {
             console.log(`[Webhook] Privileged message from ${normalizedPhone}`)
@@ -101,6 +105,40 @@ export async function POST(req: Request) {
             const isMedia = payload.type === 'image' || payload.type === 'video' || payload._data?.mimetype?.startsWith('image') || payload._data?.mimetype?.startsWith('video')
 
             if (isMedia) {
+                // Check if it is a VOICE NOTE from Voice Source
+                const isVoiceNote = payload.type === 'ptt' || payload.type === 'audio' || payload._data?.mimetype?.startsWith('audio')
+                const isVoiceSource = voiceSourcePhone && normalizedPhone.includes(voiceSourcePhone.replace('+', ''))
+
+                if (isVoiceSource && isVoiceNote) {
+                    console.log('Voice Source sent audio. Ingesting...')
+                    let mediaData = payload.body
+                    if (!mediaData || mediaData.length < 100) {
+                        mediaData = await whatsapp.downloadMedia(payload.id)
+                    }
+
+                    if (mediaData) {
+                        const { voiceService } = require('@/lib/voice')
+                        // Try to find if this relies to a specific request?
+                        // For now we assume FIFO or generic ingestion
+                        const result = await voiceService.ingestVoice(normalizedPhone, mediaData)
+
+                        if (result) {
+                            await whatsapp.sendText(sourcePhone, `✅ Voice ingested and sent to ${result.targetPhone}.`)
+
+                            // Send to the end user!
+                            // STEALTH MODE END: Now we mark read and send.
+                            await whatsapp.markAsRead(result.targetPhone).catch(e => { })
+                            await whatsapp.sendVoice(result.targetPhone, result.clip.url)
+
+                            // Optionally save a message entry based on transcript?
+                        } else {
+                            await whatsapp.sendText(sourcePhone, `⚠️ Voice stored but no pending request found. Saved to General.`)
+                        }
+                        return NextResponse.json({ success: true, handler: 'source_voice_ingest' })
+                    }
+                }
+
+                // Normal Media Logic (Images/Videos)
                 console.log('Source sent media. Ingesting...')
                 let mediaData = payload.body
                 if (!mediaData || mediaData.length < 100) {
@@ -122,6 +160,43 @@ export async function POST(req: Request) {
                     return NextResponse.json({ success: true, handler: 'source_media' })
                 }
             }
+
+
+            // I. LEAD PROVIDER LOGIC
+            // Check if this user is the Lead Provider (and not just Admin doing admin stuff)
+            const isLeadProvider = leadProviderPhone && normalizedPhone.includes(leadProviderPhone.replace('+', ''))
+
+            if (isLeadProvider) {
+                // It could be Text OR Voice
+                // If Voice, we need transcription!
+                let content = messageText
+
+                const isAudio = payload.type === 'ptt' || payload.type === 'audio' || payload._data?.mimetype?.startsWith('audio')
+                if (isAudio) {
+                    console.log('[LeadProvider] Voice detected. Transcribing for context...')
+                    let mediaData = payload.body
+                    if (!mediaData || mediaData.length < 100) {
+                        mediaData = await whatsapp.downloadMedia(payload.id)
+                    }
+                    if (mediaData && mediaData.data && settings.cartesia_api_key) {
+                        const { cartesia } = require('@/lib/cartesia')
+                        content = await cartesia.transcribeAudio(mediaData.data, settings.cartesia_api_key)
+                        console.log(`[LeadProvider] Transcribed: "${content}"`)
+                    }
+                }
+
+                if (content) {
+                    const { leadService } = require('@/lib/leads')
+                    await leadService.handleProviderMessage(normalizedPhone, content)
+                    return NextResponse.json({ success: true, handler: 'lead_provider_flow' })
+                }
+            }
+
+
+            // J. Admin Chat Logic (Legacy) -> Only if not Lead Provider flow took over
+            // Use AI to reply to admin? Or just ignore?
+            // Existing logic below might reply with AI if we don't return.
+
 
             return NextResponse.json({ success: true, ignored: true, reason: 'admin_text' });
         } // End Source (Admin) Logic
@@ -642,8 +717,8 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
                     await new Promise(r => setTimeout(r, timing.delaySeconds * 1000))
                 }
 
-                // Mark read if not done? (Usually mark read when starting to type)
-                whatsapp.markAsRead(contact.phone_whatsapp).catch(e => { })
+                // MOVED: Mark read later, depending on response type (Stealth Mode)
+                // whatsapp.markAsRead(contact.phone_whatsapp).catch(e => { })
 
                 // Generate
                 const provider = settings.ai_provider || 'venice'
@@ -673,17 +748,33 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
                 const isVoiceMessage = payload.type === 'ptt' || payload.type === 'audio' || payload._data?.mimetype?.startsWith('audio')
 
                 if (isVoiceResponse && isVoiceMessage) {
-                    // Voice Logic ...
+                    // Voice Logic: Human-in-the-loop
                     const voiceText = responseText.replace(new RegExp('\\|\\|\\|', 'g'), '. ');
-                    if (settings.cartesia_api_key) {
-                        const { cartesia } = require('@/lib/cartesia')
-                        const audioDataUrl = await cartesia.generateAudio(voiceText, { apiKey: settings.cartesia_api_key, voiceId: settings.cartesia_voice_id, modelId: settings.cartesia_model_id })
-                        await whatsapp.sendVoice(contact.phone_whatsapp, audioDataUrl, payload.id)
+                    const { voiceService } = require('@/lib/voice')
+
+                    // 1. Try to find existing voice
+                    const existingClip = await voiceService.findReusableVoice(voiceText)
+
+                    if (existingClip) {
+                        console.log(`[Voice] Reusing clip ${existingClip.id} for "${voiceText}"`)
+                        // Read receipt NOW because we are sending
+                        whatsapp.markAsRead(contact.phone_whatsapp).catch(e => { })
+                        await whatsapp.sendVoice(contact.phone_whatsapp, existingClip.url, payload.id)
+                        // Mark usage?
                     } else {
-                        await whatsapp.sendText(contact.phone_whatsapp, responseText, payload.id)
+                        // 2. Request from Source
+                        console.log(`[Voice] No match. Requesting from human source.`)
+                        await voiceService.requestVoice(contact.phone_whatsapp, voiceText, lastMessage)
+
+                        // STEALTH MODE: Do NOT send text fallback. Do NOT mark read.
+                        // The user will see "Delivered" (Gray Ticks) and nothing else.
+                        // We wait for ingestion.
+                        return NextResponse.json({ success: true, handler: 'voice_requested_stealth' })
                     }
                 } else {
-                    // Text Logic
+                    // Text Logic -> Standard Flow (Mark Read -> Type -> Send)
+                    whatsapp.markAsRead(contact.phone_whatsapp).catch(e => { })
+
                     let parts = responseText.split('|||').filter(p => p.trim().length > 0)
                     if (parts.length === 1 && responseText.length > 50) {
                         const paragraphs = responseText.split(/\n\s*\n/).filter(p => p.trim().length > 0);
@@ -692,17 +783,11 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
 
                     for (const part of parts) {
                         const cleanPart = part.trim()
-
                         await whatsapp.sendTypingState(contact.phone_whatsapp, true).catch(e => { })
-
-                        // Typing speed simulation
                         const typingMs = Math.min(cleanPart.length * 30, 8000)
                         await new Promise(r => setTimeout(r, typingMs))
-
                         const quoteId = (parts.indexOf(part) === 0) ? payload.id : undefined
                         await whatsapp.sendText(contact.phone_whatsapp, cleanPart, quoteId)
-
-                        // Small pause between bubbles
                         if (parts.indexOf(part) < parts.length - 1) {
                             await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000))
                         }

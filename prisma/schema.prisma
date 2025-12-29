@@ -62,6 +62,7 @@ model Conversation {
   status          String    @default("active") // active, paused, closed
   ai_enabled      Boolean   @default(true)
   processingLock  DateTime? // For ensuring sequential processing
+  metadata        Json?     // Flexible storage for flow states (e.g. Lead Ingestion Drafts)
   createdAt       DateTime  @default(now())
   closedAt        DateTime?
   
@@ -154,6 +155,30 @@ model BlacklistRule {
 
 
   @@map("blacklist_rules")
+}
+
+
+model VoiceCategory {
+  id          String      @id // e.g. "greeting_shy", "refusal_polite"
+  description String?
+  createdAt   DateTime    @default(now())
+  clips       VoiceClip[]
+
+  @@map("voice_categories")
+}
+
+model VoiceClip {
+  id          Int            @id @default(autoincrement())
+  categoryId  String
+  url         String
+  transcript  String?        // "Hello friend"
+  sentTo      String[]       @default([]) // Array of phone numbers
+  sourcePhone String?        // Who recorded it
+  createdAt   DateTime       @default(now())
+  
+  category    VoiceCategory  @relation(fields: [categoryId], references: [id])
+
+  @@map("voice_clips")
 }
 
 model Payment {
