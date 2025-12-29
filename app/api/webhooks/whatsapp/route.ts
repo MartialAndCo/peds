@@ -872,20 +872,30 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
                             }
                         }
                     }
-                } else {
-                    console.error('[AI] Empty response received. Ghosting user to allow retry later.');
                 }
-
-                return NextResponse.json({ success: true })
-
-            } catch (error: any) {
-                console.error('Webhook Error Full Stack:', error)
-                console.error('Webhook Error Message:', error.message)
-                // If Prisma Error
-                if (error.code) {
-                    console.error('Prisma Error Code:', error.code)
-                    console.error('Prisma Meta:', error.meta)
-                }
-                return NextResponse.json({ error: error.message }, { status: 500 })
+            } else {
+                console.error('[AI] Empty response received. Ghosting user to allow retry later.');
             }
+
+        } finally {
+            // 3. Release Lock
+            await prisma.conversation.update({
+                where: { id: conversation.id },
+                data: { processingLock: null }
+            })
         }
+    } // End if (conversation.ai_enabled)
+
+    return NextResponse.json({ success: true })
+
+} catch (error: any) {
+    console.error('Webhook Error Full Stack:', error)
+    console.error('Webhook Error Message:', error.message)
+    // If Prisma Error
+    if (error.code) {
+        console.error('Prisma Error Code:', error.code)
+        console.error('Prisma Meta:', error.meta)
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 })
+}
+}
