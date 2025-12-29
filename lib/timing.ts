@@ -66,7 +66,7 @@ export class TimingManager {
         return { start: todaySchoolStart, end: todaySchoolEnd }
     }
 
-    static analyzeContext(lastUserMessageTime: Date | null, phase: string): { mode: 'FAST' | 'NORMAL' | 'SLOW' | 'SLEEP', delaySeconds: number, shouldGhost: boolean } {
+    static analyzeContext(lastUserMessageTime: Date | null, phase: string): { mode: 'FAST' | 'NORMAL' | 'SLOW' | 'SLEEP' | 'INSTANT_TEST', delaySeconds: number, shouldGhost: boolean } {
         const nowLA = this.getLATime()
 
         // 1. Check Sleep
