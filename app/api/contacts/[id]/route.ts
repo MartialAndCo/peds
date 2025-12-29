@@ -63,18 +63,29 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
             data: body
         })
 
-        // SYNC CONVERSATION STATUS
-        // If contact is made active, ensure the latest conversation is also active (unpaused).
+        // SYNC CONVERSATION STATUS & TRIGGER AI
+        // If contact is made active, ensure the latest conversation is also active (unpaused) AND reply.
         if (body.status === 'active') {
             const latestConv = await prisma.conversation.findFirst({
                 where: { contactId: id },
                 orderBy: { createdAt: 'desc' }
             })
+
             if (latestConv && latestConv.status === 'paused') {
-                await prisma.conversation.update({
-                    where: { id: latestConv.id },
-                    data: { status: 'active' }
-                })
+                console.log(`[PUT Contact] Contact activated. Triggering AI Activation for Conv ${latestConv.id}`)
+
+                // Fetch Settings
+                const settingsList = await prisma.setting.findMany()
+                const settings = settingsList.reduce((acc: any, curr: any) => {
+                    acc[curr.key] = curr.value
+                    return acc
+                }, {})
+
+                const { activator } = require('@/lib/activator')
+                // Run in background (don't block UI)
+                activator.activateConversation(latestConv.id, body.notes || "", settings)
+                    .then((res: any) => console.log('[PUT Contact] Auto-Activation Result:', res))
+                    .catch((err: any) => console.error('[PUT Contact] Auto-Activation Failed:', err))
             }
         }
 
