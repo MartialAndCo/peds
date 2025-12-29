@@ -429,7 +429,7 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
                 data: {
                     contactId: contact.id,
                     promptId: defaultPrompt.id,
-                    status: 'active', // <--- CHANGED: Active by default (No Cold Start Pause)
+                    status: 'paused', // <--- FIXED: Paused by default (Wait for Context)
                     ai_enabled: true
                 },
                 include: { prompt: true }
