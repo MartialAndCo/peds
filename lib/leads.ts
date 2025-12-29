@@ -8,9 +8,8 @@ export const leadService = {
      */
     parseLeadMessage(text: string) {
         // Regex to find phone numbers (flexible: +33, 06, etc)
-        // This is a naive regex, can be improved.
-        // Look for sequence of digits, optionally with spaces or +
-        const phoneRegex = /(?:\+|00)?(?:[0-9] ?){6,14}[0-9]/g
+        // Handled: spaces, dots, dashes, non-breaking spaces
+        const phoneRegex = /(?:\+|00)?(?:[0-9][\-\.\s(\)]?){6,14}[0-9]/g
 
         const phones = text.match(phoneRegex)
 
@@ -20,7 +19,8 @@ export const leadService = {
 
         // Assume the first one is the target
         const rawPhone = phones[0]
-        const cleanPhone = rawPhone.replace(/\s/g, '').replace(/^00/, '+')
+        // Clean: remove spaces, dots, dashes, parens
+        const cleanPhone = rawPhone.replace(/[\s\.\-\(\)]/g, '').replace(/^00/, '+')
 
         // Normalize 06/07 to +33 (default FR if no country code)
         let finalPhone = cleanPhone
