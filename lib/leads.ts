@@ -88,6 +88,7 @@ export const leadService = {
                 data: {
                     metadata: {
                         state: 'CONFIRMING',
+                        lastReminder: new Date(), // Initialize tracking
                         draft: {
                             phone: parseResult.phone,
                             context: parseResult.context
