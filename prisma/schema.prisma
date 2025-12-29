@@ -125,6 +125,7 @@ model PendingRequest {
   description     String   // "photo of you at the beach"
   status          String   @default("pending") // pending, fulfilled, cancelled
   createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   typeId          String?
   type            MediaType? @relation(fields: [typeId], references: [id])

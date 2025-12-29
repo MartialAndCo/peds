@@ -20,24 +20,18 @@ export const voiceService = {
             return 'NO_SOURCE'
         }
 
-        // 2. Create Pending Request (using PendingRequest table or just MessageQueue?)
-        // The implementation plan suggested just notifying source. 
-        // We need to know who to forward it to when it comes back.
-        // We can reuse `PendingRequest` table but add a `type="voice"` flag or just use `description`.
-
-        // Let's CREATE a PendingRequest
+        // 2. Create Pending Request
         await prisma.pendingRequest.create({
             data: {
                 requesterPhone: contactPhone,
-                mediaType: 'audio', // New type
-                description: textToSay, // We store the text to say here
+                mediaType: 'audio',
+                description: textToSay,
                 status: 'pending',
-                // We don't link to a mediaType strictly, or we could create a dummy one.
             }
         })
 
         // 3. Notify Source
-        const message = `🎤 **Voice Request**\n\n**Context:** ${context}\n**Say:** "${textToSay}"\n\nReply to this message with a **Voice Note**.`
+        const message = `🎤 **New Voice Request**\n\n*${context}*\n\nPlease say:\n\n*${textToSay}*\n\nReply with the Voice Note.`
         await whatsapp.sendText(sourcePhone, message)
 
         return 'REQUESTED'
@@ -46,13 +40,10 @@ export const voiceService = {
     /**
      * Ingest a voice note sent by the Human Source.
      */
-    async ingestVoice(sourcePhone: string, mediaData: string, replyToMessageId?: string, messageBody?: string) {
+    async ingestVoice(sourcePhone: string, mediaData: string) {
         console.log('[Voice] Ingesting voice from source...')
 
-        // 1. Find the Pending Request
-        // If the source replied to a specific message, we could try to track it, but often they just send it.
-        // Let's look for the *oldest* pending audio request.
-
+        // 1. Find the Pending Request (Oldest PENDING)
         const pending = await prisma.pendingRequest.findFirst({
             where: {
                 status: 'pending',
@@ -63,30 +54,17 @@ export const voiceService = {
 
         if (!pending) {
             console.log('[Voice] No pending voice requests found.')
-            return null
+            return { action: 'saved_no_request' }
         }
 
-        // 2. Save to VoiceClip
-        const transcript = pending.description // The text we asked for
-
-        // Check if category exists or create "general"
+        // 2. Save Voice Clip
+        const transcript = pending.description
         let category = await prisma.voiceCategory.findFirst({ where: { id: 'general' } })
         if (!category) {
             category = await prisma.voiceCategory.create({ data: { id: 'general', description: 'General replies' } })
         }
 
-        // We need to upload this media somewhere permanent? 
-        // For now, `mediaData` is base64. We need a URL.
-        // In the MediaService we use `uploadToS3` or similar? 
-        // If we don't have S3 set up in this snippet, we might store base64 temporarily (bad practice) or rely on WAHA?
-        // Wait, `Media` model has `url`. Ideally we assume `mediaService.upload` exists.
-        // Let's check `lib/media.ts` via import or duplication? 
-        // To be safe and simple: let's assume we can treat base64 as the "url" (data URI) for now if small, 
-        // OR we just use the `whatsapp.downloadMedia` result which gives base64.
-
-        // NOTE: In production, upload this to S3/R2. For this task, we'll store the data URI 
-        // (Postgres text limit might be hit for long audio, but for short voice < 1MB it fits in Text/Bytea often, though not recommended).
-        // Let's check if we have an upload utility. I'll mock `saveMedia` logic or assume data-uri is okay for prototype.
+        // Use base64 data uri for now
         const audioUrl = mediaData.startsWith('data:') ? mediaData : `data:audio/ogg;base64,${mediaData}`
 
         const clip = await prisma.voiceClip.create({
@@ -95,21 +73,95 @@ export const voiceService = {
                 url: audioUrl,
                 transcript: transcript,
                 sourcePhone: sourcePhone,
-                sentTo: [pending.requesterPhone] // Mark as sent to the requester
+                sentTo: [] // Not sent yet
             }
         })
 
-        // 3. Mark Pending as Fulfilled
+        // 3. Update Pending Request to CONFIRMING (Link via description hack or just assume order?)
+        // Ideally we should link the clip to the request. But schema is rigid.
+        // We'll trust the order. We mark it as 'confirming'.
+        // We need to store WHICH clip is waiting. Detailed status?
+        // Let's use `typeId` field in PendingRequest to store the clip ID temporarily? It's a string.
         await prisma.pendingRequest.update({
             where: { id: pending.id },
-            data: { status: 'fulfilled' }
+            data: {
+                status: 'confirming',
+                typeId: clip.id.toString() // Link the clip
+            }
         })
 
-        // 4. Return info to Caller (to send it)
         return {
-            clip,
-            targetPhone: pending.requesterPhone
+            action: 'confirming',
+            clipId: clip.id,
+            transcript: transcript
         }
+    },
+
+    /**
+     * Handle Confirmation (OK/NO) from Source
+     */
+    async handleConfirmation(sourcePhone: string, text: string) {
+        const cleanText = text.trim().toUpperCase().replace(/[^A-Z]/g, '')
+
+        // Find the request currently in 'confirming' state
+        const request = await prisma.pendingRequest.findFirst({
+            where: { status: 'confirming', mediaType: 'audio' },
+            orderBy: { createdAt: 'asc' }
+        })
+
+        if (!request) return null
+
+        if (cleanText === 'OK' || cleanText === 'YES') {
+            // SEND IT
+            const clipId = parseInt(request.typeId || '0')
+            const clip = await prisma.voiceClip.findUnique({ where: { id: clipId } })
+
+            if (clip) {
+                // Determine target
+                const targetPhone = request.requesterPhone
+
+                // Send
+                await whatsapp.markAsRead(targetPhone).catch(e => { })
+                await whatsapp.sendVoice(targetPhone, clip.url)
+
+                // Update Clip stats
+                await prisma.voiceClip.update({
+                    where: { id: clip.id },
+                    data: { sentTo: { push: targetPhone } }
+                })
+
+                // Mark Request Fulfilled
+                await prisma.pendingRequest.update({
+                    where: { id: request.id },
+                    data: { status: 'fulfilled' }
+                })
+
+                // Monthly Stats
+                const now = new Date()
+                const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
+                const count = await prisma.voiceClip.count({
+                    where: { createdAt: { gte: firstDay } }
+                })
+
+                return {
+                    status: 'sent',
+                    targetPhone,
+                    stats: count
+                }
+            }
+        } else if (cleanText === 'NO' || cleanText === 'RETRY') {
+            // RETRY
+            // Delete the bad clip? Or keep it? Let's keep it as wasted.
+            // Reset request to 'pending'
+            await prisma.pendingRequest.update({
+                where: { id: request.id },
+                data: { status: 'pending', typeId: null }
+            })
+
+            return { status: 'retry', transcript: request.description }
+        }
+
+        return { status: 'unknown' }
     },
 
     /**

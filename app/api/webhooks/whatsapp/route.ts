@@ -118,22 +118,14 @@ export async function POST(req: Request) {
 
                     if (mediaData) {
                         const { voiceService } = require('@/lib/voice')
-                        // Try to find if this relies to a specific request?
-                        // For now we assume FIFO or generic ingestion
                         const result = await voiceService.ingestVoice(normalizedPhone, mediaData)
 
-                        if (result) {
-                            await whatsapp.sendText(sourcePhone, `✅ Voice ingested and sent to ${result.targetPhone}.`)
-
-                            // Send to the end user!
-                            // STEALTH MODE END: Now we mark read and send.
-                            await whatsapp.markAsRead(result.targetPhone).catch(e => { })
-                            await whatsapp.sendVoice(result.targetPhone, result.clip.url)
-
-                            // Optionally save a message entry based on transcript?
-                        } else {
+                        if (result.action === 'confirming') {
+                            await whatsapp.sendText(sourcePhone, `🎙️ **Voice Received**\n\nTranscript: "*${result.transcript}*"\n\nReply **OK** to send to user.\nReply **NO** to retry (keeps request open).`)
+                        } else if (result.action === 'saved_no_request') {
                             await whatsapp.sendText(sourcePhone, `⚠️ Voice stored but no pending request found. Saved to General.`)
                         }
+
                         return NextResponse.json({ success: true, handler: 'source_voice_ingest' })
                     }
                 }

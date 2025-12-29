@@ -3,3 +3,6 @@
 
 # Every 10 minutes: Rescue Abandoned Conversations
 */10 * * * * curl -s "https://main.die6qcz48fek8.amplifyapp.com/api/cron/rescue" > /dev/null
+
+# Every 5 minutes: Remind Voice Source
+*/5 * * * * curl -s "https://main.die6qcz48fek8.amplifyapp.com/api/cron/remind-voice" > /dev/null
