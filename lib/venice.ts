@@ -41,7 +41,10 @@ export const venice = {
         } catch (error: any) {
             console.error('Venice AI Error:', error.response?.data || error.message)
             const detail = error.response ? `${error.response.status} - ${JSON.stringify(error.response.data)}` : error.message
-            return `Désolé, une erreur est survenue avec l'IA. Debug: ${detail}`
+            console.error('[Venice] Wrapper Error:', detail);
+            // FAIL SAFE: Never return error text to the user.
+            // Return empty string to signal failure to the caller.
+            return "";
         }
     }
 }

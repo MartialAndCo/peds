@@ -43,7 +43,10 @@ export const anthropic = {
         } catch (error: any) {
             console.error('Anthropic AI Error:', error)
             const detail = error.message || JSON.stringify(error)
-            return `Désolé, une erreur est survenue avec l'IA. Debug: ${detail}`
+            console.error('[Anthropic] Wrapper Error:', detail);
+            // FAIL SAFE: Never return error text to the user.
+            // Return empty string to signal failure to the caller.
+            return "";
         }
     }
 }

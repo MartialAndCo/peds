@@ -797,81 +797,95 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
 
                 responseText = responseText.replace(new RegExp('\\*[^*]+\\*', 'g'), '').trim()
 
-                // Save AI Response
-                await prisma.message.create({
-                    data: { conversationId: conversation.id, sender: 'ai', message_text: responseText.replace(new RegExp('\\|\\|\\|', 'g'), '\n'), timestamp: new Date() }
-                })
+                if (responseText && responseText.trim().length > 0) {
+                    // SAFETY FILTER (FINAL CHECK)
+                    const FORBIDDEN_PATTERNS = [
+                        'Désolé, une erreur',
+                        'Debug:',
+                        '{"error":',
+                        'Error:',
+                        'undefined',
+                        'null',
+                        'Inference processing failed',
+                        '500 -'
+                    ];
 
-                // Send (Voice or Text)
-                const isVoiceResponse = settings.voice_response_enabled === 'true' || settings.voice_response_enabled === true
-                const isVoiceMessage = payload.type === 'ptt' || payload.type === 'audio' || payload._data?.mimetype?.startsWith('audio')
+                    const hasForbidden = FORBIDDEN_PATTERNS.some(p => responseText.includes(p));
+                    if (hasForbidden) {
+                        console.error(`[Safety] BLOCKED response containing forbidden pattern: "${responseText}"`);
+                        // STOP HERE
+                        return NextResponse.json({ success: true, handler: 'blocked_safety' });
+                    }
 
-                if (isVoiceResponse && isVoiceMessage) {
-                    // Voice Logic: Human-in-the-loop
-                    const voiceText = responseText.replace(new RegExp('\\|\\|\\|', 'g'), '. ');
-                    const { voiceService } = require('@/lib/voice')
+                    // Save AI Response
+                    await prisma.message.create({
+                        data: { conversationId: conversation.id, sender: 'ai', message_text: responseText.replace(new RegExp('\\|\\|\\|', 'g'), '\n'), timestamp: new Date() }
+                    })
 
-                    // 1. Try to find existing voice
-                    const existingClip = await voiceService.findReusableVoice(voiceText)
+                    // Send (Voice or Text)
+                    const isVoiceResponse = settings.voice_response_enabled === 'true' || settings.voice_response_enabled === true
+                    const isVoiceMessage = payload.type === 'ptt' || payload.type === 'audio' || payload._data?.mimetype?.startsWith('audio')
 
-                    if (existingClip) {
-                        console.log(`[Voice] Reusing clip ${existingClip.id} for "${voiceText}"`)
-                        // Read receipt NOW because we are sending
-                        whatsapp.markAsRead(contact.phone_whatsapp).catch(e => { })
-                        await whatsapp.sendVoice(contact.phone_whatsapp, existingClip.url, payload.id)
-                        // Mark usage?
+                    if (isVoiceResponse && isVoiceMessage) {
+                        // Voice Logic: Human-in-the-loop
+                        const voiceText = responseText.replace(new RegExp('\\|\\|\\|', 'g'), '. ');
+                        const { voiceService } = require('@/lib/voice')
+
+                        // 1. Try to find existing voice
+                        const existingClip = await voiceService.findReusableVoice(voiceText)
+
+                        if (existingClip) {
+                            console.log(`[Voice] Reusing clip ${existingClip.id} for "${voiceText}"`)
+                            // Read receipt NOW because we are sending
+                            whatsapp.markAsRead(contact.phone_whatsapp).catch(e => { })
+                            await whatsapp.sendVoice(contact.phone_whatsapp, existingClip.url, payload.id)
+                            // Mark usage?
+                        } else {
+                            // 2. Request from Source
+                            console.log(`[Voice] No match. Requesting from human source.`)
+                            await voiceService.requestVoice(contact.phone_whatsapp, voiceText, lastMessage)
+
+                            // STEALTH MODE: Do NOT send text fallback. Do NOT mark read.
+                            // The user will see "Delivered" (Gray Ticks) and nothing else.
+                            // We wait for ingestion.
+                            return NextResponse.json({ success: true, handler: 'voice_requested_stealth' })
+                        }
                     } else {
-                        // 2. Request from Source
-                        console.log(`[Voice] No match. Requesting from human source.`)
-                        await voiceService.requestVoice(contact.phone_whatsapp, voiceText, lastMessage)
+                        // Text Logic -> Standard Flow (Mark Read -> Type -> Send)
+                        whatsapp.markAsRead(contact.phone_whatsapp).catch(e => { })
 
-                        // STEALTH MODE: Do NOT send text fallback. Do NOT mark read.
-                        // The user will see "Delivered" (Gray Ticks) and nothing else.
-                        // We wait for ingestion.
-                        return NextResponse.json({ success: true, handler: 'voice_requested_stealth' })
-                    }
-                } else {
-                    // Text Logic -> Standard Flow (Mark Read -> Type -> Send)
-                    whatsapp.markAsRead(contact.phone_whatsapp).catch(e => { })
+                        let parts = responseText.split('|||').filter(p => p.trim().length > 0)
+                        if (parts.length === 1 && responseText.length > 50) {
+                            const paragraphs = responseText.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+                            if (paragraphs.length > 1) parts = paragraphs;
+                        }
 
-                    let parts = responseText.split('|||').filter(p => p.trim().length > 0)
-                    if (parts.length === 1 && responseText.length > 50) {
-                        const paragraphs = responseText.split(/\n\s*\n/).filter(p => p.trim().length > 0);
-                        if (paragraphs.length > 1) parts = paragraphs;
-                    }
-
-                    for (const part of parts) {
-                        const cleanPart = part.trim()
-                        await whatsapp.sendTypingState(contact.phone_whatsapp, true).catch(e => { })
-                        const typingMs = Math.min(cleanPart.length * 30, 8000)
-                        await new Promise(r => setTimeout(r, typingMs))
-                        const quoteId = (parts.indexOf(part) === 0) ? payload.id : undefined
-                        await whatsapp.sendText(contact.phone_whatsapp, cleanPart, quoteId)
-                        if (parts.indexOf(part) < parts.length - 1) {
-                            await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000))
+                        for (const part of parts) {
+                            const cleanPart = part.trim()
+                            await whatsapp.sendTypingState(contact.phone_whatsapp, true).catch(e => { })
+                            const typingMs = Math.min(cleanPart.length * 30, 8000)
+                            await new Promise(r => setTimeout(r, typingMs))
+                            const quoteId = (parts.indexOf(part) === 0) ? payload.id : undefined
+                            await whatsapp.sendText(contact.phone_whatsapp, cleanPart, quoteId)
+                            if (parts.indexOf(part) < parts.length - 1) {
+                                await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000))
+                            }
                         }
                     }
+                } else {
+                    console.error('[AI] Empty response received. Ghosting user to allow retry later.');
                 }
 
-            } finally {
-                // 3. Release Lock
-                await prisma.conversation.update({
-                    where: { id: conversation.id },
-                    data: { processingLock: null }
-                })
+                return NextResponse.json({ success: true })
+
+            } catch (error: any) {
+                console.error('Webhook Error Full Stack:', error)
+                console.error('Webhook Error Message:', error.message)
+                // If Prisma Error
+                if (error.code) {
+                    console.error('Prisma Error Code:', error.code)
+                    console.error('Prisma Meta:', error.meta)
+                }
+                return NextResponse.json({ error: error.message }, { status: 500 })
             }
         }
-
-        return NextResponse.json({ success: true })
-
-    } catch (error: any) {
-        console.error('Webhook Error Full Stack:', error)
-        console.error('Webhook Error Message:', error.message)
-        // If Prisma Error
-        if (error.code) {
-            console.error('Prisma Error Code:', error.code)
-            console.error('Prisma Meta:', error.meta)
-        }
-        return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-}
