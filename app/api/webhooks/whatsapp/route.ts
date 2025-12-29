@@ -704,7 +704,8 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
                 // AI GENERATION & TIMING LOGIC
                 // -------------------------------------------------------------
                 // 1. Analyze Context for Timing
-                const lastUserMsg = uniqueHistory.find((m: any) => m.sender === 'contact')
+                // FIX: uniqueHistory is Ascending (Old -> New). .find() gives Oldest. We need Newest.
+                const lastUserMsg = [...uniqueHistory].reverse().find((m: any) => m.sender === 'contact')
                 const lastUserDate = lastUserMsg ? new Date(lastUserMsg.timestamp) : new Date()
 
                 const timing = TimingManager.analyzeContext(lastUserDate, phase || 'CONNECTION')
