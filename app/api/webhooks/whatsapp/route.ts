@@ -872,7 +872,7 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
                             }
                         }
                     }
-                } // End if/else (Voice/Text)
+                }
             } else {
                 console.error('[AI] Empty response received. Ghosting user to allow retry later.');
             }
