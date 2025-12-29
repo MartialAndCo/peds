@@ -420,6 +420,12 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
             include: { prompt: true }
         })
 
+        if (conversation) {
+            console.log(`[Webhook] Found Conversation ID: ${conversation.id}, Status: ${conversation.status}`)
+        } else {
+            console.log(`[Webhook] No Conversation found. Creating new (Paused).`)
+        }
+
         if (!conversation) {
             const defaultPrompt = await prisma.prompt.findFirst({ where: { isActive: true } }) || await prisma.prompt.findFirst()
             if (!defaultPrompt) return NextResponse.json({ error: 'No prompt configured' }, { status: 500 })
