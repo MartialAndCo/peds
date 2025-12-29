@@ -5,13 +5,19 @@ import { anthropic } from '@/lib/anthropic'
 import axios from 'axios'
 const { director } = require('@/lib/director')
 
+
+export const dynamic = 'force-dynamic'; // Prevent caching
+
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
     try {
         const { id } = await params
         const conversationId = parseInt(id)
-        const { context, ai_provider } = await req.json() // Context from Dashboard
+        const { context, ai_provider } = await req.json()
+
+        console.log(`[Activate] Request for Conversation ID: ${conversationId}`)
 
         // 1. Activate Conversation & Update Notes
+
         const conversation = await prisma.conversation.update({
             where: { id: conversationId },
             data: { status: 'active' },

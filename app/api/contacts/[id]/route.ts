@@ -14,6 +14,8 @@ const contactSchema = z.object({
     isHidden: z.boolean().optional()
 })
 
+export const dynamic = 'force-dynamic'; // Ensure we always fetch fresh DB state
+
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
     try {
         const session = await getServerSession(authOptions)
