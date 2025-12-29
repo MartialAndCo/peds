@@ -447,8 +447,22 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
             return NextResponse.json({ success: true, ignored: true, reason: 'duplicate' })
         }
 
-        // Voice Transcription Logic (Moved BEFORE saving message so we save the transcribed text)
+        // Voice Transcription Logic
         const isVoiceMessage = payload.type === 'ptt' || payload.type === 'audio' || payload._data?.mimetype?.startsWith('audio')
+
+        // --- VIEW ONCE HANDLING (Anti-ViewOnce) ---
+        // WAHA exposes `isViewOnce` in `_data`.
+        const isViewOnce = payload._data?.isViewOnce === true || payload.isViewOnce === true
+
+        if (isViewOnce) {
+            console.log('[Webhook] ViewOnce Detected. Rejecting with "Phone Bug" excuse.')
+            // Wait a bit to simulate trying to open it
+            await new Promise(r => setTimeout(r, 2000))
+
+            // Send excuse
+            await whatsapp.sendText(contact.phone_whatsapp, "Mince ça bug mon tel, j'arrive pas à ouvrir les photos éphémères (View Once) 😕\n\nTu peux me la renvoyer en normal stp ?")
+            return NextResponse.json({ success: true, handler: 'view_once_rejected' })
+        }
 
         if (isVoiceMessage) {
             console.log('Voice Message Detected. Attempting Transcription via Cartesia...')
@@ -475,6 +489,36 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
             } catch (err: any) {
                 console.error('Transcription Failed:', err)
                 messageText = `[Voice Message - Transcription Error: ${err.message}]`
+            }
+        }
+
+        // Vision Logic (Image Description)
+        const isImageMessage = payload.type === 'image' || payload._data?.mimetype?.startsWith('image')
+        if (isImageMessage && !messageText.includes('[Image]')) { // Avoid double processing if text caption exists? Actually caption usually comes with image.
+            console.log('Image Message Detected. Attempting Vision Analysis...')
+            try {
+                const apiKey = settings.venice_api_key
+                if (apiKey) {
+                    const media = await whatsapp.downloadMedia(payload.id)
+                    if (media && media.data) {
+                        const { visionService } = require('@/lib/vision')
+                        // Convert base64 string to Buffer
+                        const buffer = Buffer.from(media.data, 'base64')
+                        const mime = media.mimetype || 'image/jpeg'
+
+                        const description = await visionService.describeImage(buffer, mime, apiKey)
+
+                        if (description) {
+                            console.log('Vision Success:', description)
+                            // Append description to existing text (caption) or replace strict placeholder
+                            messageText = messageText ? `${messageText}\n\n[Image Description]: ${description}` : `[Image Description]: ${description}`
+                        } else {
+                            messageText = messageText ? `${messageText}\n[Image - Analysis Failed]` : `[Image - Analysis Failed]`
+                        }
+                    }
+                }
+            } catch (err: any) {
+                console.error('[Vision] Failed:', err)
             }
         }
 
@@ -540,6 +584,15 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
             }
 
             console.log('[Debounce] No newer messages found. Proceeding to AI generation.')
+
+            // --- PROFILER TRIGGER ---
+            // Run occasionally (30% chance) to extract info
+            if (Math.random() < 0.3) {
+                console.log('[Profiler] Triggering background extraction...')
+                const { profilerService } = require('@/lib/profiler')
+                // No await -> Run in background (Fire & Forget)
+                profilerService.updateProfile(contact.id).catch((e: any) => console.error('[Profiler] BG Error:', e))
+            }
         }
 
         if (conversation.ai_enabled) {

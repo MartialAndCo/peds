@@ -43,6 +43,8 @@ model Contact {
   trustScore      Int            @default(0)
   lastPhaseUpdate DateTime       @default(now())
   lastTrustAnalysis DateTime     @default(now())
+  
+  profile         Json?          // Stores extracted info: { age, job, location, name, ... }
 
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
