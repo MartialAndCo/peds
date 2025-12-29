@@ -503,7 +503,7 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
                     if (media && media.data) {
                         const { visionService } = require('@/lib/vision')
                         // Convert base64 string to Buffer
-                        const buffer = Buffer.from(media.data, 'base64')
+                        const buffer = Buffer.from(media.data as unknown as string, 'base64')
                         const mime = media.mimetype || 'image/jpeg'
 
                         const description = await visionService.describeImage(buffer, mime, apiKey)
