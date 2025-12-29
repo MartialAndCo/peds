@@ -84,7 +84,7 @@ export async function GET(req: Request) {
                 const historyRaw = await prisma.message.findMany({
                     where: { conversationId: conv.id },
                     orderBy: { timestamp: 'desc' },
-                    take: 20
+                    take: 100 // Updated to 100 as per user request (Large Context Window)
                 })
                 const history = historyRaw.reverse().map(m => ({
                     role: m.sender === 'contact' ? 'user' : 'ai',
