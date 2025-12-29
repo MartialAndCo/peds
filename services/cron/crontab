@@ -1,0 +1,5 @@
+# Every 10 minutes: Process Message Queue
+*/10 * * * * curl -s "https://main.die6qcz48fek8.amplifyapp.com/api/cron/process-queue" > /dev/null
+
+# Every 10 minutes: Rescue Abandoned Conversations
+*/10 * * * * curl -s "https://main.die6qcz48fek8.amplifyapp.com/api/cron/rescue" > /dev/null

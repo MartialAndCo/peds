@@ -16,3 +16,10 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./services/whatsapp/.wwebjs_auth:/app/.wwebjs_auth
+
+  cron:
+    build: ./services/cron
+    container_name: nextjs_cron
+    restart: unless-stopped
+    depends_on:
+      - whatsapp-server
