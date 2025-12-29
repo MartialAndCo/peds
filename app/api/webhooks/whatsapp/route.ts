@@ -805,7 +805,7 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
                 responseText = responseText.replace(new RegExp('\\*[^*]+\\*', 'g'), '').trim()
 
                 if (responseText && responseText.trim().length > 0) {
-                    // SAFETY FILTER (FINAL CHECK)
+                    // SAFETY FILTER
                     const FORBIDDEN_PATTERNS = [
                         'Désolé, une erreur',
                         'Debug:',
@@ -820,20 +820,13 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
                     const hasForbidden = FORBIDDEN_PATTERNS.some(p => responseText.includes(p));
                     if (hasForbidden) {
                         console.error(`[Safety] BLOCKED response containing forbidden pattern: "${responseText}"`);
-                        // STOP HERE
                         return NextResponse.json({ success: true, handler: 'blocked_safety' });
                     }
 
-                    // Save AI Response
-                    await prisma.message.create({
-                        data: { conversationId: conversation.id, sender: 'ai', message_text: responseText.replace(new RegExp('\\|\\|\\|', 'g'), '\n'), timestamp: new Date() }
-                    })
-
-                    // Send (Voice or Text)
+                    // AUTO-DETECT VOICE INTENT FROM PROMPT (BEFORE SAVING)
                     let isVoiceResponse = settings.voice_response_enabled === 'true' || settings.voice_response_enabled === true
                     let isVoiceMessage = payload.type === 'ptt' || payload.type === 'audio' || payload._data?.mimetype?.startsWith('audio')
 
-                    // AUTO-DETECT VOICE INTENT FROM PROMPT
                     if (responseText.startsWith('[VOICE]')) {
                         console.log('[Voice] AI explicitly requested Voice Note mode via tag.')
                         isVoiceResponse = true
@@ -841,6 +834,12 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
                         responseText = responseText.replace('[VOICE]', '').trim()
                     }
 
+                    // Save AI Response (CLEANED)
+                    await prisma.message.create({
+                        data: { conversationId: conversation.id, sender: 'ai', message_text: responseText.replace(new RegExp('\\|\\|\\|', 'g'), '\n'), timestamp: new Date() }
+                    })
+
+                    // Send (Voice or Text)
                     if (isVoiceResponse && isVoiceMessage) {
                         // Voice Logic: Human-in-the-loop
                         const voiceText = responseText.replace(new RegExp('\\|\\|\\|', 'g'), '. ');
