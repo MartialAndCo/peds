@@ -65,6 +65,29 @@ export const director = {
 
 
 
+    async performDailyTrustAnalysis(contactPhone: string) {
+        const contact = await prisma.contact.findUnique({
+            where: { phone_whatsapp: contactPhone }
+        });
+        if (!contact) return;
+
+        const now = new Date();
+        const lastCheck = new Date(contact.lastTrustAnalysis);
+
+        // Check if Same Day
+        const isSameDay = now.getDate() === lastCheck.getDate() &&
+            now.getMonth() === lastCheck.getMonth() &&
+            now.getFullYear() === lastCheck.getFullYear();
+
+        if (isSameDay) {
+            // Already checked today.
+            return;
+        }
+
+        console.log(`[Director] Performing Daily Trust Analysis for ${contactPhone}...`);
+        await this.updateTrustScore(contactPhone, "");
+    },
+
     /**
      * Updates the trust score based on the latest interaction.
      */
