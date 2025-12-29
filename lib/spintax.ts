@@ -46,3 +46,47 @@ export function getAdminVoiceRequest(context: string, textToSay: string): string
     const result = spin(chosen);
     return result.replace('{context}', context).replace('{textToSay}', textToSay);
 }
+
+/**
+ * Returns a varied Lead Confirmation message (English)
+ */
+export function getLeadConfirmationMsg(phone: string, context: string): string {
+    const templates = [
+        "📋 **{Lead Confirmation|Verify Lead}**\n\n👤 Target: {phone}\n📝 Context: \"{context}\"\n\nReply **{OK|YES}** to send.\nReply **CANCEL** to stop.",
+        "🧐 **{Check details|Confirm Lead}**\n\nTarget: {phone}\nInfo: \"{context}\"\n\nSend **{OK|YES}** to proceed or **CANCEL**.",
+        "🚦 **{Ready to send?|Awaiting Approval}**\n\n-> {phone}\n-> \"{context}\"\n\n**{OK|YES}** = Go\n**CANCEL** = Stop",
+        "🛑 **{Pause|Wait}**\n\nVerify:\nPhone: {phone}\nCtx: {context}\n\nType **{OK|YES}** to launch."
+    ]
+    const chosen = templates[Math.floor(Math.random() * templates.length)];
+    const result = spin(chosen);
+    return result.replace('{phone}', phone).replace('{context}', context);
+}
+
+/**
+ * Returns a varied Lead Success message with Stats (English)
+ */
+export function getLeadSuccessMsg(messageSent: string, count: number): string {
+    const templates = [
+        "🚀 **{Lead Sent|Message Sent}**!\n\nMsg: \"{message}\"\n\n📊 **{Monthly Stats|This Month}**: {count} leads sent.",
+        "✅ **{Done|Sent}**.\n\nContent: \"{message}\"\n\n📈 **Stats**: {count} leads so far.",
+        "📨 **{Delivered|On its way}**.\n\n\"{message}\"\n\n🔢 Total this month: {count}.",
+        "🔥 **{Boom|Success}**! Lead processed.\n\n\"{message}\"\n\n🏆 Count: {count}."
+    ]
+    const chosen = templates[Math.floor(Math.random() * templates.length)];
+    const result = spin(chosen);
+    return result.replace('{message}', messageSent).replace('{count}', count.toString());
+}
+
+/**
+ * Returns a varied Lead Cancel message (English)
+ */
+export function getLeadCancelMsg(): string {
+    const templates = [
+        "❌ {Cancelled|Aborted}. Send a new 'Phone + Context' when ready.",
+        "🚫 {Stopped|Cancelled}. Waiting for next lead.",
+        "🛑 {Operation cancelled|Action stopped}. Ready for new input.",
+        "🗑️ {Discarded|Deleted}. Send check 'Phone + Context' again."
+    ]
+    const chosen = templates[Math.floor(Math.random() * templates.length)];
+    return spin(chosen);
+}
