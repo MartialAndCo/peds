@@ -58,6 +58,12 @@ const routes = [
         href: '/sandbox',
         color: 'text-orange-500',
     },
+    {
+        label: 'Cercle Privé',
+        icon: Users, // Using Users for now, or maybe Star if available
+        href: '/dashboard/profiles',
+        color: 'text-amber-500',
+    },
 ]
 
 import { useWahaStatus } from "@/components/waha-status-provider";
