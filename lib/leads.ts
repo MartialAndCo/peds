@@ -150,26 +150,23 @@ export const leadService = {
                 })
 
                 // 3. Generate Introduction
-                // We ask the AI to generate a message based on the context
+                // STANDARD: Use simple, natural openers instead of AI generation to avoid "weird" context failures.
+                const openers = [
+                    "Hey it's Lena",
+                    "Hey it's Lena!",
+                    "Hey!",
+                    "Hey"
+                ]
+                const firstMessage = openers[Math.floor(Math.random() * openers.length)]
+
+                /* AI Generation REMOVED for stability
                 const systemPrompt = targetConv.prompt.system_prompt
                 const genPrompt = `(SYSTEM: You are starting a conversation with a new person.
 CONTEXT PROVIDED BY SOURCE: "${draft.context}".
 INSTRUCTION: Write the first message to this person. Be natural, don't mention "the source" explicitly unless it makes sense. Just slide into their DMs effectively based on the context. Keep it short.)`
-
-                const settingsList = await prisma.setting.findMany()
-                const settings = settingsList.reduce((acc: any, curr: any) => { acc[curr.key] = curr.value; return acc }, {})
-
-                // Use Venice/Anthropic
-                let firstMessage = ""
-                try {
-                    firstMessage = await venice.chatCompletion(systemPrompt, [], genPrompt, { apiKey: settings.venice_api_key, model: settings.venice_model })
-                } catch (e) {
-                    console.error("Failed to generate opener", e)
-                    firstMessage = "Hello!"
-                }
-
-                // Clean thought bubbles
-                firstMessage = firstMessage.replace(new RegExp('\\*[^*]+\\*', 'g'), '').trim()
+                
+                // ... (Removed Venice Call) ...
+                */
 
                 // 4. Send to Target
                 await whatsapp.sendText(targetPhone, firstMessage)
