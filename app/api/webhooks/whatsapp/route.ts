@@ -830,8 +830,16 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
                     })
 
                     // Send (Voice or Text)
-                    const isVoiceResponse = settings.voice_response_enabled === 'true' || settings.voice_response_enabled === true
-                    const isVoiceMessage = payload.type === 'ptt' || payload.type === 'audio' || payload._data?.mimetype?.startsWith('audio')
+                    let isVoiceResponse = settings.voice_response_enabled === 'true' || settings.voice_response_enabled === true
+                    let isVoiceMessage = payload.type === 'ptt' || payload.type === 'audio' || payload._data?.mimetype?.startsWith('audio')
+
+                    // AUTO-DETECT VOICE INTENT FROM PROMPT
+                    if (responseText.startsWith('[VOICE]')) {
+                        console.log('[Voice] AI explicitly requested Voice Note mode via tag.')
+                        isVoiceResponse = true
+                        isVoiceMessage = true // Force entry into voice logic
+                        responseText = responseText.replace('[VOICE]', '').trim()
+                    }
 
                     if (isVoiceResponse && isVoiceMessage) {
                         // Voice Logic: Human-in-the-loop
