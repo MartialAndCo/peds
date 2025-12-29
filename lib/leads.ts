@@ -152,13 +152,8 @@ export const leadService = {
 
                 // 3. Generate Introduction
                 // STANDARD: Use simple, natural openers instead of AI generation to avoid "weird" context failures.
-                const openers = [
-                    "Hey it's Lena",
-                    "Hey it's Lena!",
-                    "Hey!",
-                    "Hey"
-                ]
-                const firstMessage = openers[Math.floor(Math.random() * openers.length)]
+                const { getLeadOpener } = require('@/lib/spintax')
+                const firstMessage = getLeadOpener()
 
                 /* AI Generation REMOVED for stability
                 const systemPrompt = targetConv.prompt.system_prompt
