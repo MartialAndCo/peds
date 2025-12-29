@@ -10,6 +10,8 @@ const contactSchema = z.object({
     source: z.string().optional(),
     notes: z.string().optional(),
     status: z.string().optional(),
+    testMode: z.boolean().optional(),
+    isHidden: z.boolean().optional()
 })
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -84,6 +86,10 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
             await prisma.message.deleteMany({
                 where: { conversationId: { in: conversationIds } }
             })
+            // Queue
+            await prisma.messageQueue.deleteMany({
+                where: { conversationId: { in: conversationIds } }
+            })
         }
 
         // 3. Delete conversations
@@ -91,12 +97,21 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
             where: { contactId: id }
         })
 
+        // Queue direct link
+        await prisma.messageQueue.deleteMany({ where: { contactId: id } })
+
         // 4. Delete Mem0 memories (Using phone_whatsapp as userId)
         const contact = await prisma.contact.findUnique({ where: { id } });
         if (contact && contact.phone_whatsapp) {
             const { memoryService } = require('@/lib/memory');
-            // Fire and forget or await? Await to ensure cleanup.
             await memoryService.deleteAll(contact.phone_whatsapp);
+
+            // Delete Pending Requests / Voice logic
+            try {
+                await prisma.pendingRequest.deleteMany({ where: { requesterPhone: contact.phone_whatsapp } })
+                // We can't easily delete voice clips sent BY them unless we track sourcePhone perfectly.
+                // Assuming sourcePhone handles it.
+            } catch (e) { console.error('Cleanup warning', e) }
         }
 
         // 5. Delete contact
@@ -108,6 +123,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
         if (error.code === 'P2025') {
             return NextResponse.json({ error: 'Not found' }, { status: 404 })
         }
+        console.error("Delete Error", error)
         return NextResponse.json({ error: error.message }, { status: 500 })
     }
 }

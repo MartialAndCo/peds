@@ -8,7 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { PlayCircle, AlertTriangle } from 'lucide-react'
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
+import { PlayCircle, AlertTriangle, Trash2, EyeOff, Zap } from 'lucide-react'
 
 export default function EditContactPage() {
     const params = useParams()
@@ -50,6 +52,26 @@ export default function EditContactPage() {
         }
     }
 
+    const handleUpdateSettings = async (updates: any) => {
+        try {
+            setContact({ ...contact, ...updates }) // Optimistic UI
+            await axios.put(`/api/contacts/${contact.id}`, updates)
+        } catch (e: any) {
+            alert('Failed to update settings: ' + e.message)
+        }
+    }
+
+    const handleDelete = async () => {
+        if (!confirm("ATTENTION: Cela va supprimer DÉFINITIVEMENT ce contact et TOUTES ses conversations, messages, et souvenirs. Cette action est irréversible. Continuer ?")) return;
+
+        try {
+            await axios.delete(`/api/contacts/${contact.id}`)
+            router.push('/contacts')
+        } catch (e: any) {
+            alert('Delete failed: ' + e.message)
+        }
+    }
+
     if (!contact) return <div className="p-8 text-center animate-pulse">Loading contact data...</div>
 
     const isPaused = conversation?.status === 'paused'
@@ -68,6 +90,55 @@ export default function EditContactPage() {
                     </Badge>
                 </div>
             </div>
+
+            {/* SETTINGS CARD (testMode, isHidden, Delete) */}
+            <Card className="border-slate-200 shadow-sm">
+                <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                        Paramètres Avancés
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                            <Label className="text-base flex items-center gap-2">
+                                <Zap className="h-4 w-4 text-amber-500" />
+                                Mode Test (Réponse Instantanée)
+                            </Label>
+                            <p className="text-sm text-slate-500">
+                                Ignore les délais (délai de réflexion, écriture) pour tester rapidement l'IA.
+                            </p>
+                        </div>
+                        <Switch
+                            checked={contact?.testMode || false}
+                            onCheckedChange={(checked) => handleUpdateSettings({ testMode: checked })}
+                        />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                            <Label className="text-base flex items-center gap-2">
+                                <EyeOff className="h-4 w-4 text-slate-500" />
+                                Masquer des listes
+                            </Label>
+                            <p className="text-sm text-slate-500">
+                                Cache ce numéro du Dashboard (ex: Numéro source de Leads).
+                            </p>
+                        </div>
+                        <Switch
+                            checked={contact?.isHidden || false}
+                            onCheckedChange={(checked) => handleUpdateSettings({ isHidden: checked })}
+                        />
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-100 flex justify-end">
+                        <Button variant="destructive" size="sm" onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Supprimer Définitivement (Deep Clean)
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
 
             {/* COLD START ACTIVATION PANEL */}
             {isPaused && (

@@ -31,9 +31,12 @@ export async function GET(req: Request) {
         ]
     }
 
+    // Filter out hidden contacts unless explicitly requested? No, user wants them gone.
+    where.isHidden = false;
+
     const contacts = await prisma.contact.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { updatedAt: 'desc' }, // Sort by recently active, not created
         take: 100 // limit to 100 for safety
     })
     return NextResponse.json(contacts)

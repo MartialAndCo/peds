@@ -21,7 +21,10 @@ export interface PipelineContact {
 
 export async function getPipelineData() {
     const contacts = await prisma.contact.findMany({
-        where: { status: { not: 'blacklisted' } },
+        where: {
+            status: { not: 'blacklisted' },
+            isHidden: false
+        },
         include: {
             conversations: {
                 orderBy: { createdAt: 'desc' },
