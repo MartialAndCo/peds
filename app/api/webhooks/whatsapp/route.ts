@@ -708,6 +708,15 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
                 const lastUserDate = lastUserMsg ? new Date(lastUserMsg.timestamp) : new Date()
 
                 const timing = TimingManager.analyzeContext(lastUserDate, phase || 'CONNECTION')
+
+                // TEST MODE OVERRIDE: Force Instant Reply
+                if (contact.testMode) {
+                    console.log(`[Timing] Test Mode Active for ${contact.phone_whatsapp}. Overriding delay to 0s.`)
+                    timing.delaySeconds = 0
+                    timing.shouldGhost = false
+                    timing.mode = 'INSTANT_TEST'
+                }
+
                 console.log(`[Timing] Mode: ${timing.mode}, Delay: ${timing.delaySeconds}s, Ghost: ${timing.shouldGhost}`)
 
                 const MAX_INLINE_DELAY = 22 // Vercel limit ~60s, keep safe
