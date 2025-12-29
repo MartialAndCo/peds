@@ -23,7 +23,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
         const contact = await prisma.contact.findUnique({
             where: { id },
-            include: { conversations: true }
+            include: {
+                conversations: {
+                    orderBy: { createdAt: 'desc' }
+                }
+            }
         })
 
         if (!contact) return NextResponse.json({ error: 'Not found' }, { status: 404 })
