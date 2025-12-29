@@ -63,6 +63,21 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
             data: body
         })
 
+        // SYNC CONVERSATION STATUS
+        // If contact is made active, ensure the latest conversation is also active (unpaused).
+        if (body.status === 'active') {
+            const latestConv = await prisma.conversation.findFirst({
+                where: { contactId: id },
+                orderBy: { createdAt: 'desc' }
+            })
+            if (latestConv && latestConv.status === 'paused') {
+                await prisma.conversation.update({
+                    where: { id: latestConv.id },
+                    data: { status: 'active' }
+                })
+            }
+        }
+
         return NextResponse.json(contact)
     } catch (error: any) {
         if (error instanceof z.ZodError) {
