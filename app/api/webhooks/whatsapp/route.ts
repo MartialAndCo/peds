@@ -24,9 +24,16 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: true, ignored: true })
         }
 
-        const from = payload.from // e.g. 33612345678@c.us
+        let from = payload.from // e.g. 33612345678@c.us or @s.whatsapp.net
+
+        // Normalize if coming from raw Baileys
+        if (from.includes('@s.whatsapp.net')) {
+            from = from.replace('@s.whatsapp.net', '@c.us')
+        }
+
         if (!from.includes('@c.us')) {
-            // Group or status, ignore
+            // Group (g.us) or status (broadcast), ignore
+            console.log(`[Webhook] Ignored JID: ${from}`)
             return NextResponse.json({ success: true, ignored: true })
         }
 
