@@ -42,9 +42,14 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: true, ignored: true })
         }
 
-        // Standardize phone number
-        const phone_whatsapp = from.split('@')[0]
-        const normalizedPhone = `+${phone_whatsapp}`
+        // Standardize phone number or LID
+        let normalizedPhone = `+${from.split('@')[0]}`
+
+        // Fix: If it's an LID, we MUST keep the @lid suffix to reply correctly.
+        // Otherwise we try to send to partial_number@c.us which fails (Timeout).
+        if (from.includes('@lid')) {
+            normalizedPhone = from // Store "12345@lid"
+        }
 
         // Fetch Settings Early
         const settingsList = await prisma.setting.findMany()
