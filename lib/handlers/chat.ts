@@ -1,0 +1,287 @@
+// lib/handlers/chat.ts
+import { prisma } from '@/lib/prisma'
+import { whatsapp } from '@/lib/whatsapp'
+import { venice } from '@/lib/venice'
+import { anthropic } from '@/lib/anthropic'
+import { TimingManager } from '@/lib/timing'
+import { NextResponse } from 'next/server'
+
+export async function handleChat(
+    payload: any,
+    contact: any,
+    conversation: any,
+    settings: any,
+    messageTextInput: string // The initial text (or transcribed voice from caller)
+) {
+    let messageText = messageTextInput
+
+    // 1. View Once Handling
+    const isViewOnce = payload._data?.isViewOnce === true || payload.isViewOnce === true
+    if (isViewOnce) {
+        console.log('[Chat] ViewOnce Detected. Rejecting.')
+        await new Promise(r => setTimeout(r, 2000))
+        await whatsapp.sendText(contact.phone_whatsapp, "Mince ça bug mon tel, j'arrive pas à ouvrir les photos éphémères (View Once) 😕\n\nTu peux me la renvoyer en normal stp ?")
+        return { handled: true, result: 'view_once_rejected' }
+    }
+
+    // 2. Transcription (if not already done by caller, but caller handles heavy lifting usually. 
+    // Actually, looking at route.ts, transcription logic WAS inline. 
+    // Let's assume caller (route.ts) did the transcription to keep this handler pure "Chat/AI" logic?
+    // OR, we move transcription here. Ideally here to keep route clean.
+    // Let's move transcription here.
+
+    const isVoiceMessage = payload.type === 'ptt' || payload.type === 'audio' || payload._data?.mimetype?.startsWith('audio')
+    if (isVoiceMessage && !messageText.startsWith('[Voice Message -')) {
+        console.log('Chat: Voice Message Detected. Transcribing...')
+        try {
+            const apiKey = settings.cartesia_api_key
+            if (apiKey) {
+                const media = await whatsapp.downloadMedia(payload.id)
+                if (media && media.data) {
+                    const { cartesia } = require('@/lib/cartesia')
+                    const transcript = await cartesia.transcribeAudio(media.data, { apiKey })
+                    if (transcript) {
+                        messageText = `[Voice Message Transcribed]: ${transcript}`
+                    } else {
+                        messageText = "[Voice Message - Transcription Empty]"
+                    }
+                } else messageText = "[Voice Message - Download Failed]"
+            } else messageText = "[Voice Message - Transcription Disabled]"
+        } catch (err: any) {
+            console.error('Transcription Failed:', err)
+            messageText = `[Voice Message - Transcription Error: ${err.message}]`
+        }
+    }
+
+    // 3. Vision Logic
+    const isImageMessage = payload.type === 'image' || payload._data?.mimetype?.startsWith('image')
+    if (isImageMessage && !messageText.includes('[Image Description]')) {
+        console.log('Chat: Image Detected. Analyzing...')
+        try {
+            const apiKey = settings.venice_api_key
+            if (apiKey) {
+                const media = await whatsapp.downloadMedia(payload.id)
+                if (media && media.data) {
+                    const { visionService } = require('@/lib/vision')
+                    const buffer = Buffer.from(media.data as unknown as string, 'base64')
+                    const description = await visionService.describeImage(buffer, media.mimetype || 'image/jpeg', apiKey)
+                    if (description) {
+                        messageText = messageText ? `${messageText}\n\n[Image Description]: ${description}` : `[Image Description]: ${description}`
+                    }
+                }
+            }
+        } catch (e) { console.error('Vision Failed', e) }
+    }
+
+    // 4. Save Contact Message
+    try {
+        await prisma.message.create({
+            data: {
+                conversationId: conversation.id,
+                sender: 'contact',
+                message_text: messageText,
+                waha_message_id: payload.id,
+                timestamp: new Date()
+            }
+        })
+    } catch (e: any) {
+        if (e.code === 'P2002') return { handled: true, result: 'duplicate' }
+        throw e
+    }
+
+    // 5. Checks (Paused/VoiceFail)
+    if (conversation.status === 'paused') {
+        console.log(`[Chat] Conv ${conversation.id} is PAUSED.`)
+        return { handled: true, result: 'paused' }
+    }
+    if (messageText.startsWith('[Voice Message -')) {
+        await whatsapp.sendText(contact.phone_whatsapp, "Désolé, je ne peux pas écouter les messages vocaux pour le moment.")
+        return { handled: true, result: 'voice_error' }
+    }
+
+    if (!conversation.ai_enabled) return { handled: true, result: 'ai_disabled' }
+
+    // 6. Debounce
+    if (!contact.testMode) {
+        const DEBOUNCE_MS = 6000
+        await new Promise(resolve => setTimeout(resolve, DEBOUNCE_MS))
+        const newerMessage = await prisma.message.findFirst({
+            where: {
+                conversationId: conversation.id,
+                sender: 'contact',
+                timestamp: { gt: new Date(Date.now() - DEBOUNCE_MS + 500) },
+                id: { gt: (await prisma.message.findFirst({ where: { waha_message_id: payload.id } }))?.id || 0 }
+            }
+        })
+        if (newerMessage) return { handled: true, result: 'debounced' }
+
+        // Background Profiler (30%)
+        if (Math.random() < 0.3) {
+            const { profilerService } = require('@/lib/profiler')
+            profilerService.updateProfile(contact.id).catch(console.error)
+        }
+    }
+
+    // 7. Spinlock
+    await acquireLock(conversation.id)
+
+    try {
+        // AI GENERATION LOGIC
+        return await generateAndSendAI(conversation, contact, settings, messageText, payload)
+    } finally {
+        await releaseLock(conversation.id)
+    }
+}
+
+// --- HELPERS ---
+
+async function acquireLock(convId: number) {
+    const LOCK_TIMEOUT = 30000
+    let isLocked = true
+    let retries = 0
+    while (isLocked && retries < 15) {
+        const c = await prisma.conversation.findUnique({ where: { id: convId } })
+        if (!c?.processingLock || new Date().getTime() - c.processingLock.getTime() > LOCK_TIMEOUT) isLocked = false
+        else {
+            await new Promise(r => setTimeout(r, 1000))
+            retries++
+        }
+    }
+    await prisma.conversation.update({ where: { id: convId }, data: { processingLock: new Date() } })
+}
+
+async function releaseLock(convId: number) {
+    await prisma.conversation.update({ where: { id: convId }, data: { processingLock: null } })
+}
+
+async function generateAndSendAI(conversation: any, contact: any, settings: any, lastMessageText: string, payload: any) {
+    // 1. Fetch History
+    const historyDesc = await prisma.message.findMany({
+        where: { conversationId: conversation.id },
+        orderBy: { timestamp: 'desc' },
+        take: 50
+    })
+    const history = historyDesc.reverse()
+
+    // Dedupe
+    const uniqueHistory: any[] = []
+    if (history.length > 0) uniqueHistory.push(history[0])
+    for (let i = 1; i < history.length; i++) {
+        const prev = uniqueHistory[uniqueHistory.length - 1]
+        const curr = history[i]
+        if (prev.sender !== curr.sender || prev.message_text.trim() !== curr.message_text.trim()) uniqueHistory.push(curr)
+    }
+
+    const messagesForAI = uniqueHistory.map((m: any) => ({
+        role: m.sender === 'contact' ? 'user' : 'ai',
+        content: m.message_text
+    }))
+    const contextMessages = messagesForAI.slice(0, -1)
+    const lastContent = messagesForAI[messagesForAI.length - 1]?.content || lastMessageText
+
+    // 2. Memory & Director
+    const { memoryService } = require('@/lib/memory')
+    const { director } = require('@/lib/director')
+
+    let memories = []
+    try {
+        const res = await memoryService.search(contact.phone_whatsapp, lastContent)
+        memories = Array.isArray(res) ? res : (res?.results || [])
+    } catch (e) { }
+
+    director.performDailyTrustAnalysis(contact.phone_whatsapp).catch(console.error)
+    const { phase, details } = await director.determinePhase(contact.phone_whatsapp)
+    let systemPrompt = director.buildSystemPrompt(settings, contact, phase, details, conversation.prompt.system_prompt)
+    if (memories.length > 0) systemPrompt += `\n\n[MEMORY]:\n${memories.map((m: any) => `- ${m.memory}`).join('\n')}`
+
+    // 3. Timing
+    const lastUserDate = new Date() // Approx
+    const timing = TimingManager.analyzeContext(lastUserDate, phase)
+    if (contact.testMode) { timing.delaySeconds = 0; timing.mode = 'INSTANT' }
+
+    // Queue if delay > 22s
+    if (timing.delaySeconds > 22) {
+        const scheduledAt = new Date(Date.now() + timing.delaySeconds * 1000)
+
+        // Generate NOW
+        const responseText = await callAI(settings, conversation, systemPrompt, contextMessages, lastContent)
+
+        await prisma.messageQueue.create({
+            data: {
+                contactId: contact.id,
+                conversationId: conversation.id,
+                content: responseText,
+                scheduledAt: scheduledAt,
+                status: 'PENDING'
+            }
+        })
+        if (timing.shouldGhost) whatsapp.markAsRead(contact.phone_whatsapp).catch(() => { })
+        return { handled: true, result: 'queued', scheduledAt }
+    }
+
+    // 4. Inline Wait
+    console.log(`[Chat] Waiting ${timing.delaySeconds}s...`)
+    if (timing.delaySeconds > 0) await new Promise(r => setTimeout(r, timing.delaySeconds * 1000))
+
+    // 5. Generate & Send
+    let responseText = await callAI(settings, conversation, systemPrompt, contextMessages, lastContent)
+
+    // Safety
+    if (responseText.includes('Error:') || responseText.includes('undefined')) return { handled: true, result: 'blocked_safety' }
+
+    // Voice Response Logic
+    let isVoice = (settings.voice_response_enabled === 'true' || settings.voice_response_enabled === true) && (payload.type === 'ptt' || payload.type === 'audio')
+    if (responseText.startsWith('[VOICE]')) { isVoice = true; responseText = responseText.replace('[VOICE]', '').trim() }
+
+    await prisma.message.create({
+        data: { conversationId: conversation.id, sender: 'ai', message_text: responseText.replace(/\|\|\|/g, '\n'), timestamp: new Date() }
+    })
+
+    if (isVoice) {
+        const { voiceService } = require('@/lib/voice')
+        const voiceText = responseText.replace(/\|\|\|/g, '. ')
+        const existing = await voiceService.findReusableVoice(voiceText)
+        if (existing) {
+            whatsapp.markAsRead(contact.phone_whatsapp).catch(() => { })
+            await whatsapp.sendVoice(contact.phone_whatsapp, existing.url, payload.id)
+        } else {
+            await voiceService.requestVoice(contact.phone_whatsapp, voiceText, lastContent)
+            return { handled: true, result: 'voice_requested' }
+        }
+    } else {
+        // Text Send
+        whatsapp.markAsRead(contact.phone_whatsapp).catch(() => { })
+        let parts = responseText.split('|||').filter(p => p.trim().length > 0)
+        if (parts.length === 1 && responseText.length > 50) {
+            const paragraphs = responseText.split(/\n\s*\n/).filter(p => p.trim().length > 0)
+            if (paragraphs.length > 1) parts = paragraphs
+        }
+
+        for (const part of parts) {
+            const cleanPart = part.trim()
+            await whatsapp.sendTypingState(contact.phone_whatsapp, true).catch(() => { })
+            await new Promise(r => setTimeout(r, Math.min(cleanPart.length * 30, 8000)))
+            const quoteId = (parts.indexOf(part) === 0) ? payload.id : undefined
+            await whatsapp.sendText(contact.phone_whatsapp, cleanPart, quoteId)
+            if (parts.indexOf(part) < parts.length - 1) await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000))
+        }
+    }
+
+    return { handled: true, result: 'sent' }
+}
+
+async function callAI(settings: any, conv: any, sys: string, ctx: any[], last: string) {
+    const provider = settings.ai_provider || 'venice'
+    const params = {
+        apiKey: provider === 'anthropic' ? settings.anthropic_api_key : settings.venice_api_key,
+        model: provider === 'anthropic' ? settings.anthropic_model : conv.prompt.model,
+        temperature: Number(conv.prompt.temperature),
+        max_tokens: conv.prompt.max_tokens
+    }
+
+    let txt = ""
+    if (provider === 'anthropic') txt = await anthropic.chatCompletion(sys, ctx, last, params)
+    else txt = await venice.chatCompletion(sys, ctx, last, params)
+
+    return txt.replace(new RegExp('\\*[^*]+\\*', 'g'), '').trim()
+}
