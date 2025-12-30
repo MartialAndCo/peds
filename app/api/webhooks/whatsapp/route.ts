@@ -31,7 +31,12 @@ export async function POST(req: Request) {
             from = from.replace('@s.whatsapp.net', '@c.us')
         }
 
-        if (!from.includes('@c.us')) {
+        if (from.includes('@lid')) {
+            // LIDs are valid identifiers in new WhatsApp architecture
+            // We treat them as valid senders.
+            // Note: Ideally we should resolve to the phone number via Baileys store, 
+            // but for now we accept the LID as the identifier.
+        } else if (!from.includes('@c.us')) {
             // Group (g.us) or status (broadcast), ignore
             console.log(`[Webhook] Ignored JID: ${from}`)
             return NextResponse.json({ success: true, ignored: true })
