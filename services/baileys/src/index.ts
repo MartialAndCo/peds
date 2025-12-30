@@ -84,6 +84,12 @@ async function connectToWhatsApp() {
     sock.ev.on('creds.update', saveCreds)
 
 
+
+    // Map<LID, PN> to resolve real numbers
+    const lidToPnMap = new Map<string, string>()
+
+    // ... inside existing code ...
+
     sock.ev.on('connection.update', (update: any) => {
         const { connection, lastDisconnect, qr } = update
 
@@ -103,9 +109,7 @@ async function connectToWhatsApp() {
                 // SAFETY: Exponential Backoff to prevent Ban
                 const delayStr = process.env.RECONNECT_DELAY || '5000'
                 const baseDelay = parseInt(delayStr)
-                // Use random jitter + base delay to act "human"
                 const actualDelay = baseDelay + Math.random() * 5000
-
                 server.log.info(`Waiting ${actualDelay}ms before reconnecting...`)
                 setTimeout(connectToWhatsApp, actualDelay)
             }
@@ -113,6 +117,25 @@ async function connectToWhatsApp() {
             currentStatus = 'CONNECTED'
             currentQR = null
             server.log.info('Opened connection')
+        }
+    })
+
+    // Listen for Contact Updates to build LID->PN Map
+    sock.ev.on('contacts.upsert', (contacts: any) => {
+        for (const c of contacts) {
+            if (c.lid && c.id && c.id.endsWith('@s.whatsapp.net')) {
+                lidToPnMap.set(c.lid, c.id)
+                server.log.info({ lid: c.lid, pn: c.id }, 'Mapped LID to PN')
+            }
+        }
+    })
+
+    sock.ev.on('contacts.update', (updates: any) => {
+        for (const c of updates) {
+            if (c.lid && c.id && c.id.endsWith('@s.whatsapp.net')) {
+                lidToPnMap.set(c.lid, c.id)
+                server.log.info({ lid: c.lid, pn: c.id }, 'Updated Mapped LID to PN')
+            }
         }
     })
 
@@ -130,8 +153,23 @@ async function connectToWhatsApp() {
             const msg = m.messages[0]
             if (!msg.message) return // Protocol message?
 
-            // DEBUG: Print full message to find the real phone number (s.whatsapp.net) vs LID
-            server.log.warn({ full_msg: msg }, 'DEBUG: INSPECTING MESSAGE FOR REAL JID')
+            // Normalize JID
+            let from = msg.key.remoteJid || ''
+            let realPn = null
+
+            // If LID, try to resolve to PN for display
+            if (from.includes('@lid')) {
+                const resolved = lidToPnMap.get(from)
+                if (resolved) {
+                    realPn = resolved.replace('@s.whatsapp.net', '') // just the number
+                    server.log.info({ lid: from, resolved: realPn }, 'Resolved LID to PN for Webhook')
+                } else {
+                    server.log.warn({ lid: from }, 'Could not resolve LID to PN (yet)')
+                }
+            } else {
+                from = from.replace('@s.whatsapp.net', '@c.us')
+            }
+
 
             // Cache Message for Media Retrieval
             const msgId = msg.key.id
@@ -142,7 +180,7 @@ async function connectToWhatsApp() {
             }
 
             // Normalize JID: Baileys uses @s.whatsapp.net, WAHA uses @c.us
-            const from = (msg.key.remoteJid || '').replace('@s.whatsapp.net', '@c.us')
+
             const fromMe = msg.key.fromMe
             const senderName = msg.pushName || 'Unknown'
 
@@ -172,7 +210,8 @@ async function connectToWhatsApp() {
                     _data: {
                         notifyName: senderName,
                         mimetype: mimetype,
-                        isViewOnce: msg.message.viewOnceMessage || msg.message.viewOnceMessageV2 ? true : false
+                        isViewOnce: msg.message.viewOnceMessage || msg.message.viewOnceMessageV2 ? true : false,
+                        phoneNumber: realPn // Send resolved real number to Webhook
                     }
                 }
             }

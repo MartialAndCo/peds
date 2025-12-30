@@ -48,7 +48,21 @@ export async function POST(req: Request) {
         // Fix: If it's an LID, we MUST keep the @lid suffix to reply correctly.
         // Otherwise we try to send to partial_number@c.us which fails (Timeout).
         if (from.includes('@lid')) {
-            normalizedPhone = from // Store "12345@lid"
+            // Keep "from" as LID for now, but check if we resolved a real number
+            normalizedPhone = from
+
+            // Fix: If Baileys resolved a real phone number, USE IT as the canonical ID.
+            if (payload._data?.phoneNumber) {
+                console.log(`[Webhook] Replacing LID ${from} with Resolved PN ${payload._data.phoneNumber}`)
+                // Ensure it has +
+                const pn = payload._data.phoneNumber.replace('@s.whatsapp.net', '').replace('@c.us', '')
+                normalizedPhone = pn.startsWith('+') ? pn : `+${pn}`
+
+                // We update 'from' too? No, 'from' is where the message came from (technical).
+                // But the Contact ID (normalizedPhone) will be the real number.
+                // Downstream handlers use 'contact.phone_whatsapp' to reply.
+                // If user said we can reply to PN, this is perfect.
+            }
         }
 
         // Fetch Settings Early
