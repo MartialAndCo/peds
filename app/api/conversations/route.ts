@@ -1,19 +1,14 @@
+import { NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { z } from 'zod'
 import { whatsapp } from '@/lib/whatsapp'
 
 const createConversationSchema = z.object({
     contact_id: z.string(),
     prompt_id: z.number(),
     initial_message: z.string().min(1).optional(),
-})
-
-export async function GET(req: Request) {
-    // ... (keep GET logic same)
-    // Wait, I should not replace the whole GET, just lines 1-6 imports and line 81.
-    // Using a better targeted replacement.
-
-    contact_id: z.string(),
-        prompt_id: z.number(),
-            initial_message: z.string().min(1).optional(),
 })
 
 export async function GET(req: Request) {
