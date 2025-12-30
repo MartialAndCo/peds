@@ -8,6 +8,9 @@ export class QueueWorker {
     private static CHECK_INTERVAL = 30 * 1000
 
     static start() {
+        console.log('[QueueWorker] Start Ignored (Disabled for Serverless Safety)')
+        return; // HARD DISABLE
+
         if (this.isRunning) return
         this.isRunning = true
         console.log('[QueueWorker] Starting integrated background worker...')
