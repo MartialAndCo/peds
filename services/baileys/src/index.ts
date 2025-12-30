@@ -33,6 +33,18 @@ server.addHook('preHandler', async (request, reply) => {
     }
 })
 
+// Mock silent logger to satisfy Baileys requirements without import issues
+const silentLogger: any = {
+    level: 'silent',
+    trace: () => { },
+    debug: () => { },
+    info: () => { },
+    warn: () => { },
+    error: () => { },
+    fatal: () => { },
+    child: () => silentLogger
+}
+
 let sock: any = null
 
 async function connectToWhatsApp() {
@@ -43,11 +55,11 @@ async function connectToWhatsApp() {
 
     sock = makeWASocket({
         version,
-        logger: { level: 'silent' } as any,
+        logger: silentLogger,
         printQRInTerminal: false, // We handle it manually
         auth: {
             creds: state.creds,
-            keys: makeCacheableSignalKeyStore(state.keys, { level: 'silent' } as any),
+            keys: makeCacheableSignalKeyStore(state.keys, silentLogger),
         },
         generateHighQualityLinkPreview: true,
     })
