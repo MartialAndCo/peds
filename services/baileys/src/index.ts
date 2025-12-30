@@ -43,11 +43,11 @@ async function connectToWhatsApp() {
 
     sock = makeWASocket({
         version,
-        logger: pino({ level: 'silent' }) as any,
+        logger: { level: 'silent' } as any,
         printQRInTerminal: false, // We handle it manually
         auth: {
             creds: state.creds,
-            keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' }) as any),
+            keys: makeCacheableSignalKeyStore(state.keys, { level: 'silent' } as any),
         },
         generateHighQualityLinkPreview: true,
     })
