@@ -26,3 +26,27 @@ export async function GET() {
         return NextResponse.json({ error: error.message }, { status: 500 })
     }
 }
+
+export async function POST(req: Request) {
+    const session = await getServerSession(authOptions)
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    try {
+        const json = await req.json()
+        const { id, description, keywords } = json
+
+        if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 })
+
+        const mediaType = await prisma.mediaType.create({
+            data: {
+                id,
+                description,
+                keywords: keywords || []
+            }
+        })
+        return NextResponse.json(mediaType)
+    } catch (error: any) {
+        if (error.code === 'P2002') return NextResponse.json({ error: 'Category ID already exists' }, { status: 409 })
+        return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+}

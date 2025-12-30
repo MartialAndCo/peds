@@ -130,6 +130,9 @@ async function connectToWhatsApp() {
             const msg = m.messages[0]
             if (!msg.message) return // Protocol message?
 
+            // DEBUG: Print full message to find the real phone number (s.whatsapp.net) vs LID
+            server.log.warn({ full_msg: msg }, 'DEBUG: INSPECTING MESSAGE FOR REAL JID')
+
             // Cache Message for Media Retrieval
             const msgId = msg.key.id
             if (msgId) {
