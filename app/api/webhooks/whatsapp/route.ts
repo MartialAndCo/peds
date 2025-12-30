@@ -6,8 +6,10 @@ import { whatsapp } from '@/lib/whatsapp'
 import { TimingManager } from '@/lib/timing'
 
 export async function POST(req: Request) {
+    console.log('🔹 Webhook POST received')
     try {
         const body = await req.json()
+        console.log('🔹 Webhook Body:', JSON.stringify(body, null, 2))
         // Payload structure from our new service:
         // { event: 'message', payload: { from, body, fromMe, type, _data: { notifyName, mimetype }, ... } }
 

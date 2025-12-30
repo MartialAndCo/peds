@@ -165,9 +165,13 @@ async function connectToWhatsApp() {
                 }
             }
 
-            await axios.post(WEBHOOK_URL, payload)
+            const response = await axios.post(WEBHOOK_URL, payload)
+            server.log.info({ msg: 'Webhook sent successfully', status: response.status, url: WEBHOOK_URL })
         } catch (err: any) {
             server.log.error(`Webhook failed: ${err.message}`)
+            if (err.response) {
+                server.log.error({ status: err.response.status, data: err.response.data })
+            }
         }
     })
 }
