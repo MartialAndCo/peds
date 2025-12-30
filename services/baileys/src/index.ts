@@ -25,7 +25,10 @@ const server = fastify({
 
 // Middleware for Auth
 server.addHook('preHandler', async (request, reply) => {
-    if (request.url === '/api/status') return // Skip auth for health check
+    // Allow /status (used by lib/whatsapp.ts and health checks) and /api/status (legacy/standard)
+    const allowedPaths = ['/status', '/api/status']
+    // Fastify might strip trailing slash, checking plain match
+    if (allowedPaths.includes(request.url.split('?')[0])) return
 
     const apiKey = request.headers['x-api-key']
     if (apiKey !== AUTH_TOKEN) {
@@ -46,6 +49,8 @@ const silentLogger: any = {
 }
 
 let sock: any = null
+let currentStatus = 'STARTING'
+let currentQR: string | null = null
 
 async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys')
@@ -68,17 +73,25 @@ async function connectToWhatsApp() {
 
     sock.ev.on('connection.update', (update: any) => {
         const { connection, lastDisconnect, qr } = update
+
         if (qr) {
-            server.log.info('QR Code generated. Scan it with your phone.')
+            currentStatus = 'SCAN_QR_CODE'
+            currentQR = qr
+            server.log.info('QR Code generated')
             qrcode.generate(qr, { small: true })
         }
+
         if (connection === 'close') {
+            currentStatus = 'DISCONNECTED'
+            currentQR = null
             const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut
             server.log.info(`Connection closed due to ${lastDisconnect?.error}, reconnecting: ${shouldReconnect}`)
             if (shouldReconnect) {
                 connectToWhatsApp()
             }
         } else if (connection === 'open') {
+            currentStatus = 'CONNECTED'
+            currentQR = null
             server.log.info('Opened connection')
         }
     })
@@ -132,6 +145,17 @@ async function connectToWhatsApp() {
 }
 
 // --- API ROUTES ---
+
+// Status (public) - Supports both /status and /api/status convention
+const statusHandler = async (request: any, reply: any) => {
+    return {
+        status: currentStatus,
+        qr: currentQR,
+        engine: 'baileys'
+    }
+}
+server.get('/status', statusHandler)
+server.get('/api/status', statusHandler)
 
 // Send Text
 server.post('/api/sendText', async (request: any, reply) => {
