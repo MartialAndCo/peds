@@ -36,9 +36,10 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "node_modules",
-  "waha-server",
-  "scripts",
-  "services"
-]
+  "exclude": [
+    "node_modules",
+    "waha-server",
+    "scripts",
+    "services"
+  ]
 }
