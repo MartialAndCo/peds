@@ -3,7 +3,8 @@ import makeWASocket, {
     DisconnectReason,
     fetchLatestBaileysVersion,
     makeCacheableSignalKeyStore,
-    WAMessage
+    WAMessage,
+    downloadMediaMessage
 } from 'baileys'
 import { Boom } from '@hapi/boom'
 import fastify from 'fastify'
@@ -19,6 +20,11 @@ const PORT = 3001
 const WEBHOOK_URL = process.env.WEBHOOK_URL
 const AUTH_TOKEN = process.env.AUTH_TOKEN || 'secret'
 
+// Simple Cache for recent messages to enable media download by ID
+// Map<MessageID, WAMessage>
+const messageCache = new Map<string, WAMessage>()
+const CACHE_TTL_MS = 5 * 60 * 1000 // 5 Minutes
+
 const server = fastify({
     logger: { level: 'info' }
 })
@@ -26,9 +32,14 @@ const server = fastify({
 // Middleware for Auth
 server.addHook('preHandler', async (request, reply) => {
     // Allow /status (used by lib/whatsapp.ts and health checks) and /api/status (legacy/standard)
+    // Also allow the root for health checkers to avoid log spam (optional, but good practice to just 200 or 404 cleanly)
     const allowedPaths = ['/status', '/api/status']
-    // Fastify might strip trailing slash, checking plain match
-    if (allowedPaths.includes(request.url.split('?')[0])) return
+    const urlPath = request.url.split('?')[0]
+
+    // If exact match
+    if (allowedPaths.includes(urlPath)) return
+
+    // Allow Media route with auth? (Logic falls through to check API Key)
 
     const apiKey = request.headers['x-api-key']
     if (apiKey !== AUTH_TOKEN) {
@@ -67,6 +78,7 @@ async function connectToWhatsApp() {
             keys: makeCacheableSignalKeyStore(state.keys, silentLogger),
         },
         generateHighQualityLinkPreview: true,
+        // Remove default retry to avoid excessive noise
     })
 
     sock.ev.on('creds.update', saveCreds)
@@ -87,7 +99,8 @@ async function connectToWhatsApp() {
             const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut
             server.log.info(`Connection closed due to ${lastDisconnect?.error}, reconnecting: ${shouldReconnect}`)
             if (shouldReconnect) {
-                connectToWhatsApp()
+                // Decay retry?
+                setTimeout(connectToWhatsApp, 3000)
             }
         } else if (connection === 'open') {
             currentStatus = 'CONNECTED'
@@ -104,6 +117,14 @@ async function connectToWhatsApp() {
             const msg = m.messages[0]
             if (!msg.message) return // Protocol message?
 
+            // Cache Message for Media Retrieval
+            const msgId = msg.key.id
+            if (msgId) {
+                messageCache.set(msgId, msg)
+                // Schedule Cleanup
+                setTimeout(() => messageCache.delete(msgId), CACHE_TTL_MS)
+            }
+
             const from = msg.key.remoteJid
             const fromMe = msg.key.fromMe
             const senderName = msg.pushName || 'Unknown'
@@ -114,6 +135,7 @@ async function connectToWhatsApp() {
             else if (msg.message.extendedTextMessage?.text) body = msg.message.extendedTextMessage.text
             else if (msg.message.imageMessage?.caption) body = msg.message.imageMessage.caption
             else if (msg.message.videoMessage?.caption) body = msg.message.videoMessage.caption
+            else if (msg.message.audioMessage) body = '[Voice Message]' // Placeholder
 
             // Determine mimetype/type for media
             let mimetype = null
@@ -125,15 +147,16 @@ async function connectToWhatsApp() {
             const payload = {
                 event: 'message',
                 payload: {
+                    id: msgId,
                     from: from,
                     body: body,
                     fromMe: fromMe,
+                    type: msg.message.audioMessage ? 'ptt' : (msg.message.imageMessage ? 'image' : 'chat'), // Simple type deduction
                     _data: {
                         notifyName: senderName,
-                        mimetype: mimetype
-                    },
-                    // Add raw message if needed for debug
-                    // _raw: msg 
+                        mimetype: mimetype,
+                        isViewOnce: msg.message.viewOnceMessage || msg.message.viewOnceMessageV2 ? true : false
+                    }
                 }
             }
 
@@ -143,6 +166,43 @@ async function connectToWhatsApp() {
         }
     })
 }
+
+// --- API ROUTES ---
+
+// Download Media
+server.get('/api/messages/:id/media', async (request: any, reply) => {
+    const { id } = request.params
+
+    const msg = messageCache.get(id)
+    if (!msg) {
+        return reply.code(404).send({ error: 'Message not found or expired in cache' })
+    }
+
+    try {
+        const buffer = await downloadMediaMessage(
+            msg,
+            'buffer',
+            {},
+            {
+                logger: silentLogger,
+                reuploadRequest: sock.updateMediaMessage // Helper to refresh url if needed
+            }
+        )
+
+        // Helper to extract mimetype again
+        let mimetype = 'application/octet-stream'
+        if (msg.message?.imageMessage) mimetype = msg.message.imageMessage.mimetype || mimetype
+        else if (msg.message?.audioMessage) mimetype = msg.message.audioMessage.mimetype || mimetype
+        else if (msg.message?.videoMessage) mimetype = msg.message.videoMessage.mimetype || mimetype
+
+        reply.header('Content-Type', mimetype)
+        return reply.send(buffer)
+
+    } catch (e: any) {
+        server.log.error(e)
+        return reply.code(500).send({ error: 'Failed to download media: ' + e.message })
+    }
+})
 
 // --- API ROUTES ---
 
