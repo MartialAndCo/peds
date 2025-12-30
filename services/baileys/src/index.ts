@@ -5,7 +5,7 @@ import makeWASocket, {
     makeCacheableSignalKeyStore,
     WAMessage,
     downloadMediaMessage
-} from 'baileys'
+} from '@whiskeysockets/baileys'
 import { Boom } from '@hapi/boom'
 import fastify from 'fastify'
 import pino from 'pino'
