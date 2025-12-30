@@ -5,7 +5,9 @@ export async function register() {
         console.log('[Instrumentation] Registering Background Services...')
 
         // Dynamic import to avoid bundling issues
-        const { QueueWorker } = await import('@/lib/worker')
-        QueueWorker.start()
+        // Dynamic import to avoid bundling issues
+        // const { QueueWorker } = await import('@/lib/worker')
+        // QueueWorker.start()
+        console.log('[Instrumentation] Worker disabled for Serverless (Using Cron instead)')
     }
 }

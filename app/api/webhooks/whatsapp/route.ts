@@ -6,10 +6,10 @@ import { whatsapp } from '@/lib/whatsapp'
 import { TimingManager } from '@/lib/timing'
 
 export async function POST(req: Request) {
-    console.log('🔹 Webhook POST received [Build: 2025-12-30_18-50]')
+    console.error('🔹 Webhook POST received [Build: 2025-12-30_19-00-ERROR-LOGS]')
     try {
         const body = await req.json()
-        console.log('🔹 Webhook Body:', JSON.stringify(body, null, 2))
+        console.error('🔹 Webhook Body:', JSON.stringify(body, null, 2))
         // Payload structure from our new service:
         // { event: 'message', payload: { from, body, fromMe, type, _data: { notifyName, mimetype }, ... } }
 
@@ -70,12 +70,12 @@ export async function POST(req: Request) {
             (voiceSourcePhone && cleanSender === voiceSourcePhone.replace('+', '')) ||
             (leadProviderPhone && cleanSender === leadProviderPhone.replace('+', ''))
 
-        console.log(`[Webhook] Sender: ${normalizedPhone} (Clean: ${cleanSender})`)
-        console.log(`[Webhook] AdminPhone: ${adminPhone}, MediaSource: ${mediaSourcePhone}, LeadProvider: ${leadProviderPhone}`)
-        console.log(`[Webhook] IsPrivileged: ${isPrivilegedSender}`)
+        console.error(`[Webhook] Sender: ${normalizedPhone} (Clean: ${cleanSender})`)
+        console.error(`[Webhook] AdminPhone: ${adminPhone}, MediaSource: ${mediaSourcePhone}, LeadProvider: ${leadProviderPhone}`)
+        console.error(`[Webhook] IsPrivileged: ${isPrivilegedSender}`)
 
         if (isPrivilegedSender) {
-            console.log(`[Webhook] Privileged message from ${normalizedPhone}`)
+            console.error(`[Webhook] Privileged message from ${normalizedPhone}`)
             const text = messageText
             const sourcePhone = normalizedPhone.split('@')[0] // Just the number
 
