@@ -234,10 +234,7 @@ server.post('/api/sendFile', async (request: any, reply) => {
 })
 
 
-// Status
-server.get('/api/status', async (request, reply) => {
-    return { status: 'ok', engine: 'baileys' }
-})
+
 
 
 const start = async () => {
