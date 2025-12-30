@@ -60,107 +60,19 @@ export async function POST(req: Request) {
             const text = messageText
             const sourcePhone = normalizedPhone.split('@')[0] // Just the number
 
-            // A. Check for Commands [PROBLEM]
-            if (text.toUpperCase().includes('[PROBLEM]')) {
-                const { getAdminProblemAck } = require('@/lib/spintax')
-                const problemDesc = text.replace(new RegExp('\\[PROBLEM\\]', 'i'), '').trim()
-                await whatsapp.sendText(sourcePhone, getAdminProblemAck(problemDesc))
-                return NextResponse.json({ success: true, handler: 'source_problem' })
+            // 1. Admin Commands (Problem, Cancel, etc.)
+            const { handleAdminCommand } = require('@/lib/handlers/admin')
+            const adminResult = await handleAdminCommand(text, sourcePhone, settings)
+            if (adminResult.handled) {
+                return NextResponse.json({ success: true, handler: adminResult.type })
             }
 
-            // B. Check for Commands [CANCEL]
-            if (text.toUpperCase().includes('[CANCEL]') || text.toUpperCase().includes('[ANNULER]')) {
-                const { getAdminCancelAck, getAdminZeroPending } = require('@/lib/spintax')
-                const reason = text.replace(new RegExp('\\[CANCEL\\]|\\[ANNULER\\]', 'i'), '').trim()
-                const pending = await prisma.pendingRequest.findFirst({ where: { status: 'pending' } })
-                if (pending) {
-                    await prisma.pendingRequest.update({ where: { id: pending.id }, data: { status: 'cancelled' } })
-
-                    const baseMsg = getAdminCancelAck(reason)
-                    await whatsapp.sendText(sourcePhone, `${baseMsg}${reason ? ' Contact informé.' : ''}`)
-
-                    if (reason) {
-                        const contactPhone = pending.requesterPhone
-                        let currentConversation = await prisma.conversation.findFirst({
-                            where: { contactId: (await prisma.contact.findUnique({ where: { phone_whatsapp: contactPhone } }))?.id, status: 'active' },
-                            include: { prompt: true }
-                        })
-
-                        const systemMsg = `(SYSTEM: You promised a photo but realized you cannot send it. Reason: "${reason}". INSTRUCTION: Apologize naturally.)`
-                        const provider = settings.ai_provider || 'venice'
-                        let aiReply = ""
-                        try {
-                            if (provider === 'anthropic') aiReply = await anthropic.chatCompletion(currentConversation?.prompt?.system_prompt || "Friend.", [], systemMsg, { apiKey: settings.anthropic_api_key, model: settings.anthropic_model })
-                            else aiReply = await venice.chatCompletion(currentConversation?.prompt?.system_prompt || "Friend.", [], systemMsg, { apiKey: settings.venice_api_key, model: settings.venice_model })
-
-                            await whatsapp.sendText(contactPhone, aiReply)
-                            if (currentConversation) await prisma.message.create({ data: { conversationId: currentConversation.id, sender: 'ai', message_text: aiReply, timestamp: new Date() } })
-                        } catch (e) {
-                            console.error("Cancel AI Failed", e)
-                        }
-                    }
-                } else {
-                    await whatsapp.sendText(sourcePhone, getAdminZeroPending())
-                }
-                return NextResponse.json({ success: true, handler: 'source_cancel' })
+            // 2. Media/Voice Ingestion
+            const { handleSourceMedia } = require('@/lib/handlers/media')
+            const mediaResult = await handleSourceMedia(payload, sourcePhone, normalizedPhone, settings)
+            if (mediaResult.handled) {
+                return NextResponse.json({ success: true, handler: mediaResult.type })
             }
-
-            // C. Media Logic (Smart Scheduling)
-            const isMedia = payload.type === 'image' || payload.type === 'video' || payload._data?.mimetype?.startsWith('image') || payload._data?.mimetype?.startsWith('video')
-
-            if (isMedia) {
-                // Check if it is a VOICE NOTE from Voice Source
-                const isVoiceNote = payload.type === 'ptt' || payload.type === 'audio' || payload._data?.mimetype?.startsWith('audio')
-                const isVoiceSource = voiceSourcePhone && normalizedPhone.includes(voiceSourcePhone.replace('+', ''))
-
-                if (isVoiceSource && isVoiceNote) {
-                    console.log('Voice Source sent audio. Ingesting...')
-                    let mediaData = payload.body
-                    if (!mediaData || mediaData.length < 100) {
-                        mediaData = await whatsapp.downloadMedia(payload.id)
-                    }
-
-                    if (mediaData) {
-                        const { voiceService } = require('@/lib/voice')
-                        const result = await voiceService.ingestVoice(normalizedPhone, mediaData)
-
-                        if (result.action === 'confirming') {
-                            const { spin } = require('@/lib/spintax')
-                            await whatsapp.sendText(sourcePhone, spin(`{🎙️|🗣️} **{Voice Received|Audio In}**\n\nTranscript: "*${result.transcript}*"\n\nReply **OK** to send.\nReply **NO** to retry.`))
-                        } else if (result.action === 'saved_no_request') {
-                            const { spin } = require('@/lib/spintax')
-                            await whatsapp.sendText(sourcePhone, spin(`{⚠️|ℹ️} {Voice stored|Saved} but no pending request.`))
-                        }
-
-                        return NextResponse.json({ success: true, handler: 'source_voice_ingest' })
-                    }
-                }
-
-                // Normal Media Logic (Images/Videos)
-                console.log('Source sent media. Ingesting...')
-                let mediaData = payload.body
-                if (!mediaData || mediaData.length < 100) {
-                    mediaData = await whatsapp.downloadMedia(payload.id)
-                }
-
-                if (mediaData) {
-                    const { mediaService } = require('@/lib/media')
-                    const ingestionResult = await mediaService.ingestMedia(sourcePhone, mediaData, payload._data?.mimetype || payload.type)
-
-                    if (ingestionResult) {
-                        const { spin } = require('@/lib/spintax')
-                        await whatsapp.sendText(sourcePhone, spin(`{✅|📥} {Media ingested|Photo received}. Analyzing...`))
-
-                        // Delegate to Service
-                        await mediaService.processAdminMedia(sourcePhone, ingestionResult)
-                    } else {
-                        const { spin } = require('@/lib/spintax')
-                        await whatsapp.sendText(sourcePhone, spin(`{✅|💾} {Media stored|Saved} (Uncategorized).`))
-                    }
-                    return NextResponse.json({ success: true, handler: 'source_media' })
-                }
-            }
-
 
             // I. LEAD PROVIDER LOGIC
             // Check if this user is the Lead Provider (and not just Admin doing admin stuff)

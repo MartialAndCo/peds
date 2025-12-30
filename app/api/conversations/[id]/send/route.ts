@@ -4,7 +4,7 @@ import { whatsapp } from '@/lib/whatsapp'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { z } from 'zod'
-import { waha } from '@/lib/waha'
+
 
 export async function POST(
     req: Request,

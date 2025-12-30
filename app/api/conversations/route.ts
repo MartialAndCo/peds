@@ -1,14 +1,19 @@
-import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { z } from 'zod'
-import { waha } from '@/lib/waha'
+import { whatsapp } from '@/lib/whatsapp'
 
 const createConversationSchema = z.object({
     contact_id: z.string(),
     prompt_id: z.number(),
     initial_message: z.string().min(1).optional(),
+})
+
+export async function GET(req: Request) {
+    // ... (keep GET logic same)
+    // Wait, I should not replace the whole GET, just lines 1-6 imports and line 81.
+    // Using a better targeted replacement.
+
+    contact_id: z.string(),
+        prompt_id: z.number(),
+            initial_message: z.string().min(1).optional(),
 })
 
 export async function GET(req: Request) {
@@ -77,8 +82,8 @@ export async function POST(req: Request) {
 
         // If initial message provided, send it
         if (body.initial_message) {
-            // Send via WAHA
-            await waha.sendText(conversation.contact.phone_whatsapp, body.initial_message)
+            // Send via WhatsApp
+            await whatsapp.sendText(conversation.contact.phone_whatsapp, body.initial_message)
 
             // Save to DB
             await prisma.message.create({
