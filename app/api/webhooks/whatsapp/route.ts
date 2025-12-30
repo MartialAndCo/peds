@@ -6,7 +6,7 @@ import { whatsapp } from '@/lib/whatsapp'
 import { TimingManager } from '@/lib/timing'
 
 export async function POST(req: Request) {
-    console.log('🔹 Webhook POST received')
+    console.log('🔹 Webhook POST received [Build: 2025-12-30_18-50]')
     try {
         const body = await req.json()
         console.log('🔹 Webhook Body:', JSON.stringify(body, null, 2))
@@ -57,14 +57,20 @@ export async function POST(req: Request) {
         const voiceSourcePhone = settings.voice_source_number || adminPhone
         const leadProviderPhone = settings.lead_provider_number || adminPhone
 
-        // Check if sender is privileged
-        const isPrivilegedSender =
-            (adminPhone && normalizedPhone.includes(adminPhone.replace('+', ''))) ||
-            (mediaSourcePhone && normalizedPhone.includes(mediaSourcePhone.replace('+', ''))) ||
-            (voiceSourcePhone && normalizedPhone.includes(voiceSourcePhone.replace('+', ''))) ||
-            (leadProviderPhone && normalizedPhone.includes(leadProviderPhone.replace('+', '')))
+        // Check if sender is privileged (Strict Equality to avoid partial matches)
+        // Normalize admin phones by removing '+' for comparison if normalizedPhone has it?
+        // normalizedPhone = "+33..."
+        // adminPhone might be "+33..." or "33..."
+        // Let's stripping '+' from both for comparison.
+        const cleanSender = normalizedPhone.replace('+', '')
 
-        console.log(`[Webhook] Sender: ${normalizedPhone}`)
+        const isPrivilegedSender =
+            (adminPhone && cleanSender === adminPhone.replace('+', '')) ||
+            (mediaSourcePhone && cleanSender === mediaSourcePhone.replace('+', '')) ||
+            (voiceSourcePhone && cleanSender === voiceSourcePhone.replace('+', '')) ||
+            (leadProviderPhone && cleanSender === leadProviderPhone.replace('+', ''))
+
+        console.log(`[Webhook] Sender: ${normalizedPhone} (Clean: ${cleanSender})`)
         console.log(`[Webhook] AdminPhone: ${adminPhone}, MediaSource: ${mediaSourcePhone}, LeadProvider: ${leadProviderPhone}`)
         console.log(`[Webhook] IsPrivileged: ${isPrivilegedSender}`)
 
