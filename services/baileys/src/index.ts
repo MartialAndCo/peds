@@ -311,6 +311,25 @@ server.post('/api/sendFile', async (request: any, reply) => {
     }
 })
 
+// Send Typing State
+server.post('/api/sendStateTyping', async (request: any, reply) => {
+    const { chatId, isTyping } = request.body
+    if (!chatId) return reply.code(400).send({ error: 'Missing chatId' })
+    const jid = chatId.includes('@') ? chatId : `${chatId}@c.us`
+    try {
+        await sock.sendPresenceUpdate(isTyping ? 'composing' : 'available', jid)
+        return { success: true }
+    } catch (e: any) {
+        server.log.error(e)
+        return reply.code(500).send({ error: e.message })
+    }
+})
+
+// Mark Seen (Mock for now to prevent 404s)
+server.post('/api/markSeen', async (request: any, reply) => {
+    return { success: true, status: 'ignored_safe' }
+})
+
 
 
 
