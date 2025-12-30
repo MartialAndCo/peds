@@ -1,6 +1,0 @@
-node_modules
-.wwebjs_auth
-.git
-.env
-logs
-*.log

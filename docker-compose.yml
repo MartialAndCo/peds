@@ -2,20 +2,19 @@ version: '3.8'
 
 services:
   whatsapp-server:
-    build: ./services/whatsapp
-    container_name: waha
+    build: ./services/baileys
+    container_name: baos
     restart: unless-stopped
     ports:
       - "3001:3001"
     environment:
-      - PORT=3001
       - WEBHOOK_URL=https://main.die6qcz48fek8.amplifyapp.com/api/webhooks/whatsapp
       - AUTH_TOKEN=${WAHA_API_KEY:-secret}
-      - CHROME_BIN=/usr/bin/google-chrome-stable
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - ./services/whatsapp/.wwebjs_auth:/app/.wwebjs_auth
+      - ./services/baileys/auth_info_baileys:/app/auth_info_baileys
+
 
   cron:
     build: ./services/cron
