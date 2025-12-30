@@ -20,7 +20,7 @@ const WEBHOOK_URL = process.env.WEBHOOK_URL
 const AUTH_TOKEN = process.env.AUTH_TOKEN || 'secret'
 
 const server = fastify({
-    logger: pino({ level: 'info' })
+    logger: { level: 'info' }
 })
 
 // Middleware for Auth
