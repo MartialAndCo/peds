@@ -4,7 +4,7 @@ import makeWASocket, {
     fetchLatestBaileysVersion,
     makeCacheableSignalKeyStore,
     WAMessage
-} from '@whiskeysockets/baileys'
+} from 'baileys'
 import { Boom } from '@hapi/boom'
 import fastify from 'fastify'
 import pino from 'pino'

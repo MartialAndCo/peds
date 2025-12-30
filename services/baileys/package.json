@@ -1,15 +1,16 @@
 {
     "name": "baileys-api",
     "version": "1.0.0",
+    "type": "module",
     "description": "Lightweight WhatsApp API using Baileys",
     "main": "dist/index.js",
     "scripts": {
         "start": "node dist/index.js",
         "build": "tsc",
-        "dev": "ts-node-dev --respawn --transpile-only src/index.ts"
+        "dev": "ts-node-dev --respawn --transpile-only --esm src/index.ts"
     },
     "dependencies": {
-        "@whiskeysockets/baileys": "^6.5.0",
+        "baileys": "^6.7.16",
         "fastify": "^4.24.3",
         "pino": "^8.16.1",
         "pino-pretty": "^10.2.3",
