@@ -19,7 +19,7 @@ export async function GET(req: Request) {
 
         const qrBuffer = await QRCode.toBuffer(qr)
 
-        return new NextResponse(qrBuffer, {
+        return new NextResponse(qrBuffer as any, {
             headers: {
                 'Content-Type': 'image/png',
                 'Content-Length': qrBuffer.length.toString()

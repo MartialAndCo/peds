@@ -111,7 +111,12 @@ async function connectToWhatsApp() {
 
     // Webhook Logic
     sock.ev.on('messages.upsert', async (m: any) => {
-        if (!WEBHOOK_URL) return
+        server.log.info({ msg: 'messages.upsert received', count: m.messages.length, type: m.type })
+
+        if (!WEBHOOK_URL) {
+            server.log.warn('WEBHOOK_URL not configured, skipping webhook')
+            return
+        }
 
         try {
             const msg = m.messages[0]
