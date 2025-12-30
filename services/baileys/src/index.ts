@@ -25,6 +25,8 @@ const server = fastify({
 
 // Middleware for Auth
 server.addHook('preHandler', async (request, reply) => {
+    if (request.url === '/api/status') return // Skip auth for health check
+
     const apiKey = request.headers['x-api-key']
     if (apiKey !== AUTH_TOKEN) {
         reply.code(401).send({ error: 'Unauthorized' })
@@ -42,7 +44,7 @@ async function connectToWhatsApp() {
     sock = makeWASocket({
         version,
         logger: pino({ level: 'silent' }) as any,
-        printQRInTerminal: true,
+        printQRInTerminal: false, // We handle it manually
         auth: {
             creds: state.creds,
             keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' }) as any),
@@ -56,6 +58,7 @@ async function connectToWhatsApp() {
         const { connection, lastDisconnect, qr } = update
         if (qr) {
             server.log.info('QR Code generated. Scan it with your phone.')
+            qrcode.generate(qr, { small: true })
         }
         if (connection === 'close') {
             const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut
