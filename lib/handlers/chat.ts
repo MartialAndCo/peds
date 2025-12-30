@@ -197,7 +197,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     // 3. Timing
     const lastUserDate = new Date() // Approx
     const timing = TimingManager.analyzeContext(lastUserDate, phase)
-    if (contact.testMode) { timing.delaySeconds = 0; timing.mode = 'INSTANT' }
+    if (contact.testMode) { timing.delaySeconds = 0; timing.mode = 'INSTANT_TEST' }
 
     // Queue if delay > 22s
     if (timing.delaySeconds > 22) {
