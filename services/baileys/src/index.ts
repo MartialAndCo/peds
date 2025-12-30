@@ -83,6 +83,7 @@ async function connectToWhatsApp() {
 
     sock.ev.on('creds.update', saveCreds)
 
+
     sock.ev.on('connection.update', (update: any) => {
         const { connection, lastDisconnect, qr } = update
 
@@ -99,8 +100,14 @@ async function connectToWhatsApp() {
             const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut
             server.log.info(`Connection closed due to ${lastDisconnect?.error}, reconnecting: ${shouldReconnect}`)
             if (shouldReconnect) {
-                // Decay retry?
-                setTimeout(connectToWhatsApp, 3000)
+                // SAFETY: Exponential Backoff to prevent Ban
+                const delayStr = process.env.RECONNECT_DELAY || '5000'
+                const baseDelay = parseInt(delayStr)
+                // Use random jitter + base delay to act "human"
+                const actualDelay = baseDelay + Math.random() * 5000
+
+                server.log.info(`Waiting ${actualDelay}ms before reconnecting...`)
+                setTimeout(connectToWhatsApp, actualDelay)
             }
         } else if (connection === 'open') {
             currentStatus = 'CONNECTED'
@@ -108,6 +115,7 @@ async function connectToWhatsApp() {
             server.log.info('Opened connection')
         }
     })
+
 
     // Webhook Logic
     sock.ev.on('messages.upsert', async (m: any) => {
