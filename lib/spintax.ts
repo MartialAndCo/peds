@@ -90,3 +90,28 @@ export function getLeadCancelMsg(): string {
     const chosen = templates[Math.floor(Math.random() * templates.length)];
     return spin(chosen);
 }
+/**
+ * Returns a varied Admin Cancel message (English/French mixed as per usage)
+ */
+export function getAdminCancelAck(reason: string): string {
+    const templates = [
+        "✅ {Demande annulée|Request cancelled}.{ Contact informé.|}",
+        "🗑️ {Supprimé|Deleted}.{ Raison envoyée.|}",
+        "⛔ {Annulation confirmée|Cancellation done}.{ Notified contact.|}"
+    ]
+    const chosen = templates[Math.floor(Math.random() * templates.length)];
+    const result = spin(chosen);
+    // Rough handle for "if reason exists" logic in caller, but here we just return text. 
+    // The caller currently does `reason ? ' Contact informé.' : ''`
+    // Let's just return the base spin and let caller append specific logic or handle it here? 
+    // Caller logic is simple. I'll keep it simple here.
+    return result;
+}
+
+export function getAdminProblemAck(desc: string): string {
+    return spin(`{✅|🆗|📝} {Problème signalé|Problem reported|Noted}: "${desc}".`);
+}
+
+export function getAdminZeroPending(): string {
+    return spin("{⚠️|ℹ️} {Aucune demande en attente|No pending request|Nothing to process}.");
+}

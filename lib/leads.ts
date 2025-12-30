@@ -81,7 +81,8 @@ export const leadService = {
             }
 
             // Valid Parse -> Transition to CONFIRMING
-            const confirmMsg = `📋 **Lead Confirmation**\n\n👤 **Target:** ${parseResult.phone}\n📝 **Context:** "${parseResult.context}"\n\nReply **OK** to send this lead.\nReply **CANCEL** to stop.`
+            const { getLeadConfirmationMsg } = require('@/lib/spintax')
+            const confirmMsg = getLeadConfirmationMsg(parseResult.phone, parseResult.context)
 
             await prisma.conversation.update({
                 where: { id: conversation.id },
@@ -110,7 +111,9 @@ export const leadService = {
                 // ACTION: CREATE AND START
                 const draft = metadata.draft
 
-                await whatsapp.sendText(providerPhone, "✅ Processing... Creating contact and starting conversation.")
+                // Using spin for this simple ACK too
+                const { spin } = require('@/lib/spintax')
+                await whatsapp.sendText(providerPhone, spin("{✅|🆗|👍} {Processing|Starting|Creating conctact}..."))
 
                 // 1. Create/Get Target Contact
                 const targetPhone = draft.phone
@@ -152,7 +155,7 @@ export const leadService = {
 
                 // 3. Generate Introduction
                 // STANDARD: Use simple, natural openers instead of AI generation to avoid "weird" context failures.
-                const { getLeadOpener } = require('@/lib/spintax')
+                const { getLeadOpener, getLeadSuccessMsg } = require('@/lib/spintax')
                 const firstMessage = getLeadOpener()
 
                 /* AI Generation REMOVED for stability
@@ -187,7 +190,7 @@ INSTRUCTION: Write the first message to this person. Be natural, don't mention "
                     }
                 })
 
-                await whatsapp.sendText(providerPhone, `🚀 **Lead Sent!**\nMessage: "${firstMessage}"\n\n📊 **Monthly Stats:** You have sent ${count} leads this month.`)
+                await whatsapp.sendText(providerPhone, getLeadSuccessMsg(firstMessage, count))
 
                 // Reset Provider State
                 await prisma.conversation.update({
@@ -197,7 +200,8 @@ INSTRUCTION: Write the first message to this person. Be natural, don't mention "
 
             } else {
                 // Cancel
-                await whatsapp.sendText(providerPhone, "❌ Cancelled. Send a new 'Phone + Context' whenever you are ready.")
+                const { getLeadCancelMsg } = require('@/lib/spintax')
+                await whatsapp.sendText(providerPhone, getLeadCancelMsg())
                 // Reset Provider State
                 await prisma.conversation.update({
                     where: { id: conversation.id },

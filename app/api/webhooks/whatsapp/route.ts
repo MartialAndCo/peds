@@ -62,18 +62,22 @@ export async function POST(req: Request) {
 
             // A. Check for Commands [PROBLEM]
             if (text.toUpperCase().includes('[PROBLEM]')) {
+                const { getAdminProblemAck } = require('@/lib/spintax')
                 const problemDesc = text.replace(new RegExp('\\[PROBLEM\\]', 'i'), '').trim()
-                await whatsapp.sendText(sourcePhone, `✅ Problème signalé: "${problemDesc}".`)
+                await whatsapp.sendText(sourcePhone, getAdminProblemAck(problemDesc))
                 return NextResponse.json({ success: true, handler: 'source_problem' })
             }
 
             // B. Check for Commands [CANCEL]
             if (text.toUpperCase().includes('[CANCEL]') || text.toUpperCase().includes('[ANNULER]')) {
+                const { getAdminCancelAck, getAdminZeroPending } = require('@/lib/spintax')
                 const reason = text.replace(new RegExp('\\[CANCEL\\]|\\[ANNULER\\]', 'i'), '').trim()
                 const pending = await prisma.pendingRequest.findFirst({ where: { status: 'pending' } })
                 if (pending) {
                     await prisma.pendingRequest.update({ where: { id: pending.id }, data: { status: 'cancelled' } })
-                    await whatsapp.sendText(sourcePhone, `✅ Demande annulée.${reason ? ' Contact informé.' : ''}`)
+
+                    const baseMsg = getAdminCancelAck(reason)
+                    await whatsapp.sendText(sourcePhone, `${baseMsg}${reason ? ' Contact informé.' : ''}`)
 
                     if (reason) {
                         const contactPhone = pending.requesterPhone
@@ -96,7 +100,7 @@ export async function POST(req: Request) {
                         }
                     }
                 } else {
-                    await whatsapp.sendText(sourcePhone, "⚠️ Aucune demande en attente.")
+                    await whatsapp.sendText(sourcePhone, getAdminZeroPending())
                 }
                 return NextResponse.json({ success: true, handler: 'source_cancel' })
             }
@@ -121,9 +125,11 @@ export async function POST(req: Request) {
                         const result = await voiceService.ingestVoice(normalizedPhone, mediaData)
 
                         if (result.action === 'confirming') {
-                            await whatsapp.sendText(sourcePhone, `🎙️ **Voice Received**\n\nTranscript: "*${result.transcript}*"\n\nReply **OK** to send to user.\nReply **NO** to retry (keeps request open).`)
+                            const { spin } = require('@/lib/spintax')
+                            await whatsapp.sendText(sourcePhone, spin(`{🎙️|🗣️} **{Voice Received|Audio In}**\n\nTranscript: "*${result.transcript}*"\n\nReply **OK** to send.\nReply **NO** to retry.`))
                         } else if (result.action === 'saved_no_request') {
-                            await whatsapp.sendText(sourcePhone, `⚠️ Voice stored but no pending request found. Saved to General.`)
+                            const { spin } = require('@/lib/spintax')
+                            await whatsapp.sendText(sourcePhone, spin(`{⚠️|ℹ️} {Voice stored|Saved} but no pending request.`))
                         }
 
                         return NextResponse.json({ success: true, handler: 'source_voice_ingest' })
@@ -142,12 +148,14 @@ export async function POST(req: Request) {
                     const ingestionResult = await mediaService.ingestMedia(sourcePhone, mediaData, payload._data?.mimetype || payload.type)
 
                     if (ingestionResult) {
-                        await whatsapp.sendText(sourcePhone, `✅ Media ingested. Analyzing chat history...`)
+                        const { spin } = require('@/lib/spintax')
+                        await whatsapp.sendText(sourcePhone, spin(`{✅|📥} {Media ingested|Photo received}. Analyzing...`))
 
                         // Delegate to Service
                         await mediaService.processAdminMedia(sourcePhone, ingestionResult)
                     } else {
-                        await whatsapp.sendText(sourcePhone, `✅ Media stored (Uncategorized).`)
+                        const { spin } = require('@/lib/spintax')
+                        await whatsapp.sendText(sourcePhone, spin(`{✅|💾} {Media stored|Saved} (Uncategorized).`))
                     }
                     return NextResponse.json({ success: true, handler: 'source_media' })
                 }
