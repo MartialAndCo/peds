@@ -64,6 +64,10 @@ export async function POST(req: Request) {
             (voiceSourcePhone && normalizedPhone.includes(voiceSourcePhone.replace('+', ''))) ||
             (leadProviderPhone && normalizedPhone.includes(leadProviderPhone.replace('+', '')))
 
+        console.log(`[Webhook] Sender: ${normalizedPhone}`)
+        console.log(`[Webhook] AdminPhone: ${adminPhone}, MediaSource: ${mediaSourcePhone}, LeadProvider: ${leadProviderPhone}`)
+        console.log(`[Webhook] IsPrivileged: ${isPrivilegedSender}`)
+
         if (isPrivilegedSender) {
             console.log(`[Webhook] Privileged message from ${normalizedPhone}`)
             const text = messageText
