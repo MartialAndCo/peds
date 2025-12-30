@@ -130,7 +130,8 @@ async function connectToWhatsApp() {
                 setTimeout(() => messageCache.delete(msgId), CACHE_TTL_MS)
             }
 
-            const from = msg.key.remoteJid
+            // Normalize JID: Baileys uses @s.whatsapp.net, WAHA uses @c.us
+            const from = (msg.key.remoteJid || '').replace('@s.whatsapp.net', '@c.us')
             const fromMe = msg.key.fromMe
             const senderName = msg.pushName || 'Unknown'
 
