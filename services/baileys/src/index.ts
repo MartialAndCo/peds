@@ -71,18 +71,23 @@ async function connectToWhatsApp() {
 
     sock = makeWASocket({
         version,
-        logger: silentLogger,
-        printQRInTerminal: false, // We handle it manually
-        auth: {
-            creds: state.creds,
-            keys: makeCacheableSignalKeyStore(state.keys, silentLogger),
-        },
-        generateHighQualityLinkPreview: true,
-        // Best Practices for Anti-Ban & Stability:
+        printQRInTerminal: false, // handled via event
+        generateHighQualityLinkPreview: false, // performance optimization
+        syncFullHistory: false, // fast startup (bot mode)
         markOnlineOnConnect: false, // Don't appear online immediately/constantly
         connectTimeoutMs: 60_000,   // Longer timeout to avoid "Timed Out" loops
         defaultQueryTimeoutMs: 60_000,
         keepAliveIntervalMs: 10_000, // Keep connection alive actively
+        logger: silentLogger,
+        auth: state,
+        // REQUIRED: Handler to allow Baileys to resend messages if needed (prevent hangs)
+        getMessage: async (key) => {
+            if (messageCache.has(key.id || '')) {
+                return messageCache.get(key.id || '')
+            }
+            // Fallback (safe default)
+            return { conversation: 'hello' }
+        }
     })
 
     sock.ev.on('creds.update', saveCreds)
