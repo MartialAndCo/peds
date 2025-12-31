@@ -55,6 +55,7 @@ class GlobalMessageQueue {
     private async process() {
         if (this.isProcessing) return
         this.isProcessing = true
+        console.log('[Queue] Starting Process Loop')
 
         while (this.hasPendingItems()) {
             // 1. Rate Limit Check
@@ -66,7 +67,9 @@ class GlobalMessageQueue {
 
             // 2. Round Robin Selection
             const item = this.getNextItem()
-            if (!item) break // Should not happen if hasPendingItems is true
+            if (!item) break
+
+            console.log(`[Queue] Processing item for ${item.chatId.substring(0, 10)}...`)
 
             // 3. Process Item
             try {
@@ -76,31 +79,35 @@ class GlobalMessageQueue {
                     for (let i = 0; i < parts.length; i++) {
                         const part = parts[i]
 
-                        // A. Simulate Typing (Human Behavior)
-                        // Length based delay: 50ms per char + random variance
+                        // A. Simulate Typing
                         const typingDuration = Math.min(part.length * 60, 6000) + (Math.random() * 500)
 
-                        await whatsapp.sendTypingState(item.chatId, true)
+                        // We wrap sendTyping in try/catch to avoid crashing if it fails
+                        try { await whatsapp.sendTypingState(item.chatId, true) } catch (e) {
+                            console.warn('[Queue] Typing failed, ignoring')
+                        }
                         await new Promise(r => setTimeout(r, typingDuration))
 
                         // B. Send
+                        console.log(`[Queue] Sending part ${i + 1}/${parts.length}`)
                         await whatsapp.sendText(item.chatId, part)
                         this.lastSentTime = Date.now()
 
-                        // C. Pause between parts (if multiple)
+                        // C. Pause
                         if (i < parts.length - 1) {
-                            // Random pause 1s - 3s
                             await new Promise(r => setTimeout(r, 1000 + Math.random() * 2000))
                         }
                     }
                 }
+                console.log(`[Queue] Item resolved`)
                 item.resolve(true)
-            } catch (e) {
-                console.error('[Queue] Process Error:', e)
+            } catch (e: any) {
+                console.error('[Queue] Process Error:', e.message)
                 item.reject(e)
             }
         }
 
+        console.log('[Queue] Loop Finished')
         this.isProcessing = false
     }
 

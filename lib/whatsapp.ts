@@ -47,11 +47,13 @@ export const whatsapp = {
                 text,
                 replyTo
             }, {
-                headers: { 'X-Api-Key': apiKey }
+                headers: { 'X-Api-Key': apiKey },
+                timeout: 15000 // 15s timeout
             })
             return response.data
         } catch (error: any) {
             console.error('WhatsApp Service SendText Error:', error.message)
+            if (error.code === 'ECONNABORTED') throw new Error('WhatsApp Service Timeout (15s)')
             throw new Error(`Failed to send WhatsApp message: ${error.message}`)
         }
     },
