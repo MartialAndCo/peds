@@ -102,8 +102,8 @@ async function connectToWhatsApp() {
                 lidToPnMap.set(key, val as string)
             }
             server.log.info(`Loaded ${lidToPnMap.size} LID mappings from disk`)
-        } catch (e) {
-            server.log.error('Failed to load LID map', e)
+        } catch (e: any) {
+            server.log.error({ err: e }, 'Failed to load LID map')
         }
     }
 
@@ -111,8 +111,8 @@ async function connectToWhatsApp() {
         try {
             const obj = Object.fromEntries(lidToPnMap)
             fs.writeFileSync(MAP_FILE, JSON.stringify(obj, null, 2))
-        } catch (e) {
-            server.log.error('Failed to save LID map', e)
+        } catch (e: any) {
+            server.log.error({ err: e }, 'Failed to save LID map')
         }
     }
 
