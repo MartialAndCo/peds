@@ -80,7 +80,8 @@ class GlobalMessageQueue {
                         const part = parts[i]
 
                         // A. Simulate Typing
-                        const typingDuration = Math.min(part.length * 60, 6000) + (Math.random() * 500)
+                        // Minimum 2s typing, max 8s
+                        const typingDuration = Math.max(2000, Math.min(part.length * 80, 8000)) + (Math.random() * 1000)
 
                         // We wrap sendTyping in try/catch to avoid crashing if it fails
                         try { await whatsapp.sendTypingState(item.chatId, true) } catch (e) {
