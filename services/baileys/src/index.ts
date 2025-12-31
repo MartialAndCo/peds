@@ -83,7 +83,8 @@ async function connectToWhatsApp() {
         // REQUIRED: Handler to allow Baileys to resend messages if needed (prevent hangs)
         getMessage: async (key) => {
             if (messageCache.has(key.id || '')) {
-                return messageCache.get(key.id || '')
+                const cached = messageCache.get(key.id || '')
+                return cached?.message || undefined
             }
             // Fallback (safe default)
             return { conversation: 'hello' }
