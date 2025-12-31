@@ -62,7 +62,7 @@ export async function POST(req: Request) {
                 // Sending to LID often causes Timeouts/Bans on new sessions.
                 // It is better to ignore the message than to crash/ban.
                 console.error(`[Webhook] SAFETY ALERT: Could not resolve LID to PN for ${from}. IGNORING message to prevent timeout ban.`)
-                return NextResponse.json({ success: true, ignored: true, reason: 'safety_lid_unresolved' })
+                return NextResponse.json({ success: true, ignored: true, reason: 'safety_lid_unresolved' } as any)
             }
             // We update 'from' too? No, 'from' is where the message came from (technical).
             // But the Contact ID (normalizedPhone) will be the real number.
@@ -416,9 +416,6 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
 
         console.log(`[Webhook] Chat Result: ${chatResult.result}`)
         return NextResponse.json({ success: true, handler: chatResult.result })
-
-
-        return NextResponse.json({ success: true })
 
     } catch (error: any) {
         console.error('Webhook Error Full Stack:', error)

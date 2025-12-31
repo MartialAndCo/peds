@@ -4,6 +4,7 @@ import { whatsapp } from '@/lib/whatsapp'
 import { venice } from '@/lib/venice'
 import { anthropic } from '@/lib/anthropic'
 import { TimingManager } from '@/lib/timing'
+import { messageQueue } from '@/lib/queue'
 import { NextResponse } from 'next/server'
 
 export async function handleChat(
@@ -249,22 +250,21 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
             return { handled: true, result: 'voice_requested' }
         }
     } else {
-        // Text Send
+        // Text Send -> Via Global Queue (Anti-Ban)
         whatsapp.markAsRead(contact.phone_whatsapp).catch(() => { })
+
+        // Split if needed
         let parts = responseText.split('|||').filter(p => p.trim().length > 0)
         if (parts.length === 1 && responseText.length > 50) {
             const paragraphs = responseText.split(/\n\s*\n/).filter(p => p.trim().length > 0)
             if (paragraphs.length > 1) parts = paragraphs
         }
 
-        for (const part of parts) {
-            const cleanPart = part.trim()
-            await whatsapp.sendTypingState(contact.phone_whatsapp, true).catch(() => { })
-            await new Promise(r => setTimeout(r, Math.min(cleanPart.length * 30, 8000)))
-            const quoteId = (parts.indexOf(part) === 0) ? payload.id : undefined
-            await whatsapp.sendText(contact.phone_whatsapp, cleanPart, quoteId)
-            if (parts.indexOf(part) < parts.length - 1) await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000))
-        }
+        // Clean parts
+        const cleanParts = parts.map(p => p.trim())
+
+        // Enqueue
+        await messageQueue.enqueueText(contact.phone_whatsapp, cleanParts)
     }
 
     return { handled: true, result: 'sent' }
