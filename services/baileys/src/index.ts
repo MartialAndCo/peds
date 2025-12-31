@@ -91,6 +91,30 @@ async function connectToWhatsApp() {
 
     // Map<LID, PN> to resolve real numbers
     const lidToPnMap = new Map<string, string>()
+    const MAP_FILE = 'auth_info_baileys/lid_map.json'
+
+    // Load Map
+    if (fs.existsSync(MAP_FILE)) {
+        try {
+            const data = fs.readFileSync(MAP_FILE, 'utf-8')
+            const obj = JSON.parse(data)
+            for (const [key, val] of Object.entries(obj)) {
+                lidToPnMap.set(key, val as string)
+            }
+            server.log.info(`Loaded ${lidToPnMap.size} LID mappings from disk`)
+        } catch (e) {
+            server.log.error('Failed to load LID map', e)
+        }
+    }
+
+    const saveMap = () => {
+        try {
+            const obj = Object.fromEntries(lidToPnMap)
+            fs.writeFileSync(MAP_FILE, JSON.stringify(obj, null, 2))
+        } catch (e) {
+            server.log.error('Failed to save LID map', e)
+        }
+    }
 
     // ... inside existing code ...
 
@@ -127,21 +151,27 @@ async function connectToWhatsApp() {
 
     // Listen for Contact Updates to build LID->PN Map
     sock.ev.on('contacts.upsert', (contacts: any) => {
+        let changed = false
         for (const c of contacts) {
             if (c.lid && c.id && c.id.endsWith('@s.whatsapp.net')) {
                 lidToPnMap.set(c.lid, c.id)
+                changed = true
                 server.log.info({ lid: c.lid, pn: c.id }, 'Mapped LID to PN')
             }
         }
+        if (changed) saveMap()
     })
 
     sock.ev.on('contacts.update', (updates: any) => {
+        let changed = false
         for (const c of updates) {
             if (c.lid && c.id && c.id.endsWith('@s.whatsapp.net')) {
                 lidToPnMap.set(c.lid, c.id)
+                changed = true
                 server.log.info({ lid: c.lid, pn: c.id }, 'Updated Mapped LID to PN')
             }
         }
+        if (changed) saveMap()
     })
 
 
@@ -169,7 +199,8 @@ async function connectToWhatsApp() {
                     realPn = resolved.replace('@s.whatsapp.net', '') // just the number
                     server.log.info({ lid: from, resolved: realPn }, 'Resolved LID to PN for Webhook')
                 } else {
-                    server.log.warn({ lid: from }, 'Could not resolve LID to PN (yet)')
+                    // DEBUG: Dump the full message to find the phone number
+                    server.log.warn({ lid: from, msgKey: msg.key, msgStruct: msg }, 'Could not resolve LID to PN (yet) - RAW DUMP')
                 }
             } else {
                 from = from.replace('@s.whatsapp.net', '@c.us')
