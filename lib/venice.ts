@@ -24,6 +24,7 @@ export const venice = {
         ]
 
         try {
+            console.log(`[Venice] Sending request. Model: ${model}. Context: ${apiMessages.length} msgs. KeyPrefix: ${apiKey.substring(0, 5)}...`)
             const response = await axios.post('https://api.venice.ai/api/v1/chat/completions', {
                 model,
                 messages: apiMessages,

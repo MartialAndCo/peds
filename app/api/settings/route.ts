@@ -28,8 +28,8 @@ export async function PUT(req: Request) {
         const updates = Object.entries(json).map(([key, value]) => {
             return prisma.setting.upsert({
                 where: { key },
-                update: { value: String(value) },
-                create: { key, value: String(value) }
+                update: { value: String(value).trim() },
+                create: { key, value: String(value).trim() }
             })
         })
 
