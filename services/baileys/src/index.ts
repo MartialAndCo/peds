@@ -212,7 +212,7 @@ async function connectToWhatsApp() {
                 if (!resolved && (msg.key as any).senderPn) {
                     resolved = (msg.key as any).senderPn
                     // Self-heal: Save to map
-                    lidToPnMap.set(from, resolved)
+                    lidToPnMap.set(from, resolved as string)
                     saveMap()
                     server.log.info({ lid: from, resolved, source: 'senderPn' }, 'Self-healed LID mapping from Message Key')
                 }
