@@ -152,7 +152,19 @@ async function connectToWhatsApp() {
     // Listen for Contact Updates to build LID->PN Map
     sock.ev.on('contacts.upsert', (contacts: any) => {
         let changed = false
+        // DEBUG: Log first few contacts to see structure
+        if (contacts.length > 0) {
+            server.log.info({ firstContact: contacts[0], count: contacts.length }, 'Contacts Upsert Raw Sample')
+        }
         for (const c of contacts) {
+            // Log if we see a split (LID + ID) but maybe format is different
+            if (c.lid || c.id) {
+                // Trace potential matches
+                if (c.lid && !lidToPnMap.has(c.lid)) {
+                    // server.log.info({ item: c }, 'Examining Contact for LID') // Too spammy?
+                }
+            }
+
             if (c.lid && c.id && c.id.endsWith('@s.whatsapp.net')) {
                 lidToPnMap.set(c.lid, c.id)
                 changed = true
