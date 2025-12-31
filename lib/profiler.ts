@@ -43,6 +43,8 @@ export const profilerService = {
 
             // Clean Markdown code blocks if present
             const cleanJson = result.replace(/```json/g, '').replace(/```/g, '').trim()
+            if (!cleanJson || cleanJson.length < 2) return
+
             const profileData = JSON.parse(cleanJson)
 
             // 3. Update Contact
