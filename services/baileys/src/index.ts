@@ -78,7 +78,11 @@ async function connectToWhatsApp() {
             keys: makeCacheableSignalKeyStore(state.keys, silentLogger),
         },
         generateHighQualityLinkPreview: true,
-        // Remove default retry to avoid excessive noise
+        // Best Practices for Anti-Ban & Stability:
+        markOnlineOnConnect: false, // Don't appear online immediately/constantly
+        connectTimeoutMs: 60_000,   // Longer timeout to avoid "Timed Out" loops
+        defaultQueryTimeoutMs: 60_000,
+        keepAliveIntervalMs: 10_000, // Keep connection alive actively
     })
 
     sock.ev.on('creds.update', saveCreds)
@@ -107,9 +111,10 @@ async function connectToWhatsApp() {
             server.log.info(`Connection closed due to ${lastDisconnect?.error}, reconnecting: ${shouldReconnect}`)
             if (shouldReconnect) {
                 // SAFETY: Exponential Backoff to prevent Ban
-                const delayStr = process.env.RECONNECT_DELAY || '5000'
+                // INCREASED due to recent restriction: Min 20s, Max 60s
+                const delayStr = process.env.RECONNECT_DELAY || '20000'
                 const baseDelay = parseInt(delayStr)
-                const actualDelay = baseDelay + Math.random() * 5000
+                const actualDelay = baseDelay + Math.random() * 40000
                 server.log.info(`Waiting ${actualDelay}ms before reconnecting...`)
                 setTimeout(connectToWhatsApp, actualDelay)
             }

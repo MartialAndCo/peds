@@ -57,12 +57,17 @@ export async function POST(req: Request) {
                 // Ensure it has +
                 const pn = payload._data.phoneNumber.replace('@s.whatsapp.net', '').replace('@c.us', '')
                 normalizedPhone = pn.startsWith('+') ? pn : `+${pn}`
-
-                // We update 'from' too? No, 'from' is where the message came from (technical).
-                // But the Contact ID (normalizedPhone) will be the real number.
-                // Downstream handlers use 'contact.phone_whatsapp' to reply.
-                // If user said we can reply to PN, this is perfect.
+            } else {
+                // SAFETY: If we could not resolve the LID to a Real Number, we CANNOT reply safely.
+                // Sending to LID often causes Timeouts/Bans on new sessions.
+                // It is better to ignore the message than to crash/ban.
+                console.error(`[Webhook] SAFETY ALERT: Could not resolve LID to PN for ${from}. IGNORING message to prevent timeout ban.`)
+                return NextResponse.json({ success: true, ignored: true, reason: 'safety_lid_unresolved' })
             }
+            // We update 'from' too? No, 'from' is where the message came from (technical).
+            // But the Contact ID (normalizedPhone) will be the real number.
+            // Downstream handlers use 'contact.phone_whatsapp' to reply.
+            // If user said we can reply to PN, this is perfect.
         }
 
         // Fetch Settings Early
