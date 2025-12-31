@@ -206,7 +206,17 @@ async function connectToWhatsApp() {
 
             // If LID, try to resolve to PN for display
             if (from.includes('@lid')) {
-                const resolved = lidToPnMap.get(from)
+                let resolved = lidToPnMap.get(from)
+
+                // Fallback: Check if message key contains senderPn (Baileys v6.7+ feature)
+                if (!resolved && (msg.key as any).senderPn) {
+                    resolved = (msg.key as any).senderPn
+                    // Self-heal: Save to map
+                    lidToPnMap.set(from, resolved)
+                    saveMap()
+                    server.log.info({ lid: from, resolved, source: 'senderPn' }, 'Self-healed LID mapping from Message Key')
+                }
+
                 if (resolved) {
                     realPn = resolved.replace('@s.whatsapp.net', '') // just the number
                     server.log.info({ lid: from, resolved: realPn }, 'Resolved LID to PN for Webhook')
