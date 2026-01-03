@@ -8,6 +8,7 @@ frontend:
       commands:
         - env | grep -e DB_ -e NEXT_ -e WAHA_ -e AI_ -e ANTHROPIC_ -e VENICE_ -e ELEVENLABS_ -e AUTH_ -e WEBHOOK_ >> .env.production
         - npx prisma generate
+        - npx prisma migrate deploy
         - npm run build
   artifacts:
     baseDirectory: .next
