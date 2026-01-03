@@ -349,16 +349,29 @@ server.post('/api/sendText', async (request: any, reply) => {
         return reply.code(400).send({ error: 'Missing chatId or text' })
     }
 
-    // Format JID
     // Format JID: Standardize to s.whatsapp.net for individuals to avoid USync overhead/timeouts
     const jid = chatId.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`
 
-    try {
-        await sock.sendMessage(jid, { text: text })
-        return { success: true, status: 'sent' }
-    } catch (e: any) {
-        server.log.error(e)
-        return reply.code(500).send({ error: e.message })
+    server.log.info({ msg: 'Attempting to send text', jid, textLength: text.length })
+
+    // Retry Logic (Internal)
+    let attempts = 0
+    const maxAttempts = 3
+
+    while (attempts < maxAttempts) {
+        try {
+            await sock.sendMessage(jid, { text: text })
+            return { success: true, status: 'sent', attempts: attempts + 1 }
+        } catch (e: any) {
+            attempts++
+            server.log.error({ msg: 'SendText attempt failed', error: e.message, attempt: attempts })
+
+            if (attempts >= maxAttempts) {
+                return reply.code(500).send({ error: e.message })
+            }
+            // Wait 1s before retry
+            await new Promise(r => setTimeout(r, 1000))
+        }
     }
 })
 
