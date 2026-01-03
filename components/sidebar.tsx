@@ -13,7 +13,8 @@ import {
     Bot,
     LogOut,
     Beaker,
-    Image
+    Image,
+    List
 } from 'lucide-react'
 
 const routes = [
@@ -40,6 +41,12 @@ const routes = [
         icon: MessageSquare,
         href: '/conversations',
         color: 'text-green-700',
+    },
+    {
+        label: 'Queue',
+        icon: List,
+        href: '/queue',
+        color: 'text-yellow-500',
     },
     {
         label: 'Media',
