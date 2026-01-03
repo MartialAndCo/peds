@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { whatsapp } from '@/lib/whatsapp'
 import { venice } from '@/lib/venice'
 import { anthropic } from '@/lib/anthropic'
+import { openrouter } from '@/lib/openrouter'
 import { TimingManager } from '@/lib/timing'
 import { messageQueue } from '@/lib/queue'
 import { NextResponse } from 'next/server'
@@ -273,14 +274,15 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 async function callAI(settings: any, conv: any, sys: string, ctx: any[], last: string) {
     const provider = settings.ai_provider || 'venice'
     const params = {
-        apiKey: provider === 'anthropic' ? settings.anthropic_api_key : settings.venice_api_key,
-        model: provider === 'anthropic' ? settings.anthropic_model : conv.prompt.model,
+        apiKey: provider === 'anthropic' ? settings.anthropic_api_key : (provider === 'openrouter' ? settings.openrouter_api_key : settings.venice_api_key),
+        model: provider === 'anthropic' ? settings.anthropic_model : (provider === 'openrouter' ? settings.openrouter_model : conv.prompt.model),
         temperature: Number(conv.prompt.temperature),
         max_tokens: conv.prompt.max_tokens
     }
 
     let txt = ""
     if (provider === 'anthropic') txt = await anthropic.chatCompletion(sys, ctx, last, params)
+    else if (provider === 'openrouter') txt = await openrouter.chatCompletion(sys, ctx, last, params)
     else txt = await venice.chatCompletion(sys, ctx, last, params)
 
     return txt.replace(new RegExp('\\*[^*]+\\*', 'g'), '').trim()

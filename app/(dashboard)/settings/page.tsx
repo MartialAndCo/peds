@@ -17,6 +17,8 @@ export default function SettingsPage() {
         venice_model: 'venice-uncensored',
         anthropic_api_key: '',
         anthropic_model: 'claude-3-haiku-20240307',
+        openrouter_api_key: '',
+        openrouter_model: 'cognitivecomputations/dolphin-mistral-24b-venice-edition:free',
         ai_provider: 'venice'
     })
     const [loading, setLoading] = useState(true)
@@ -204,9 +206,10 @@ export default function SettingsPage() {
                         <Card>
                             <CardHeader><CardTitle>AI Provider</CardTitle></CardHeader>
                             <CardContent className="space-y-6">
-                                <div className="flex items-center space-x-4">
+                                <div className="grid grid-cols-3 gap-4">
                                     <Button type="button" variant={settings.ai_provider === 'venice' ? 'default' : 'outline'} onClick={() => setSettings({ ...settings, ai_provider: 'venice' })} className="w-full">Venice AI</Button>
                                     <Button type="button" variant={settings.ai_provider === 'anthropic' ? 'default' : 'outline'} onClick={() => setSettings({ ...settings, ai_provider: 'anthropic' })} className="w-full">Anthropic</Button>
+                                    <Button type="button" variant={settings.ai_provider === 'openrouter' ? 'default' : 'outline'} onClick={() => setSettings({ ...settings, ai_provider: 'openrouter' })} className="w-full">OpenRouter</Button>
                                 </div>
 
                                 {settings.ai_provider === 'venice' && (
@@ -230,6 +233,18 @@ export default function SettingsPage() {
                                         <div className="space-y-1">
                                             <Label>Model</Label>
                                             <Input value={settings.anthropic_model} onChange={(e) => setSettings({ ...settings, anthropic_model: e.target.value })} />
+                                        </div>
+                                    </div>
+                                )}
+                                {settings.ai_provider === 'openrouter' && (
+                                    <div className="space-y-4 border rounded p-4 bg-slate-50">
+                                        <div className="space-y-1">
+                                            <Label>OpenRouter API Key</Label>
+                                            <Input type="password" value={settings.openrouter_api_key} onChange={(e) => setSettings({ ...settings, openrouter_api_key: e.target.value })} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label>Model</Label>
+                                            <Input value={settings.openrouter_model} onChange={(e) => setSettings({ ...settings, openrouter_model: e.target.value })} />
                                         </div>
                                     </div>
                                 )}
