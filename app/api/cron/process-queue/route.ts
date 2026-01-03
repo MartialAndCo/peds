@@ -24,7 +24,7 @@ export async function GET(req: Request) {
             include: {
                 contact: true
             },
-            take: 20 // Process in batches to avoid timeout
+            take: 50 // Process in batches to avoid timeout
         })
 
         console.log(`[Cron] Found ${pendingMessages.length} pending messages.`)
@@ -51,15 +51,11 @@ export async function GET(req: Request) {
                 await whatsapp.markAsRead(phone).catch(e => { })
 
                 // Typing Logic (Simulated)
-                // Since this is a cron, we can't block for long typing on many messages.
-                // But we should send the typing indicator at least.
+                // Non-blocking simulated typing state (just fire and forget, don't await long duration)
                 await whatsapp.sendTypingState(phone, true).catch(e => { })
 
-                // Calculate typing duration based on length, but cap it short for Cron efficiency
-                // Real typing might have happened "virtually" during the delay.
-                // But user sees "Typing..." now. 
-                // Let's do a quick typing (2-3s) to show life.
-                const typingMs = Math.min(content.length * 20, 3000)
+                // Reduced typing for Cron efficiency (Max 1s)
+                const typingMs = Math.min(content.length * 10, 1000)
                 await new Promise(r => setTimeout(r, typingMs))
 
                 // Send Text

@@ -17,6 +17,14 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: true, ignored: true })
         }
 
+        // Security: Verify Secret
+        const secret = req.headers.get('x-internal-secret')
+        const expectedSecret = process.env.WEBHOOK_SECRET
+        if (expectedSecret && secret !== expectedSecret) {
+            console.error('[Webhook] Security Violation: Invalid Secret Key')
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+
         const payload = body.payload
 
         // Ignore own messages

@@ -6,7 +6,7 @@ frontend:
         - npm ci --legacy-peer-deps
     build:
       commands:
-        - env | grep -e DB_ -e NEXT_ -e WAHA_ -e AI_ -e ANTHROPIC_ -e VENICE_ -e ELEVENLABS_ >> .env.production
+        - env | grep -e DB_ -e NEXT_ -e WAHA_ -e AI_ -e ANTHROPIC_ -e VENICE_ -e ELEVENLABS_ -e AUTH_ -e WEBHOOK_ >> .env.production
         - npx prisma generate
         - npm run build
   artifacts:

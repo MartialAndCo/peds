@@ -18,7 +18,17 @@ dotenv.config()
 
 const PORT = 3001
 const WEBHOOK_URL = process.env.WEBHOOK_URL
-const AUTH_TOKEN = process.env.AUTH_TOKEN || 'secret'
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET
+const AUTH_TOKEN = process.env.AUTH_TOKEN
+
+if (!AUTH_TOKEN) {
+    console.error('FATAL: AUTH_TOKEN is not defined in environment variables. Exiting for security.')
+    process.exit(1)
+}
+
+if (!WEBHOOK_SECRET) {
+    console.warn('WARNING: WEBHOOK_SECRET is not defined. Webhook calls will likely fail authentication.')
+}
 
 // Simple Cache for recent messages to enable media download by ID
 // Map<MessageID, WAMessage>
@@ -281,7 +291,11 @@ async function connectToWhatsApp() {
                 }
             }
 
-            const response = await axios.post(WEBHOOK_URL, payload)
+            const response = await axios.post(WEBHOOK_URL, payload, {
+                headers: {
+                    'x-internal-secret': WEBHOOK_SECRET || ''
+                }
+            })
             server.log.info({ msg: 'Webhook sent successfully', status: response.status, url: WEBHOOK_URL })
         } catch (err: any) {
             server.log.error(`Webhook failed: ${err.message}`)

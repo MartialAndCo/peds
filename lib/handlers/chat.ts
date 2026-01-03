@@ -5,7 +5,7 @@ import { venice } from '@/lib/venice'
 import { anthropic } from '@/lib/anthropic'
 import { openrouter } from '@/lib/openrouter'
 import { TimingManager } from '@/lib/timing'
-import { messageQueue } from '@/lib/queue'
+// import { messageQueue } from '@/lib/queue' // Deprecated
 import { NextResponse } from 'next/server'
 
 export async function handleChat(
@@ -253,21 +253,19 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
             return { handled: true, result: 'voice_requested' }
         }
     } else {
-        // Text Send -> Via Global Queue (Anti-Ban)
+        // Text Send -> Via DB Queue (Reliable)
         whatsapp.markAsRead(contact.phone_whatsapp).catch(() => { })
 
-        // Split if needed
-        let parts = responseText.split('|||').filter(p => p.trim().length > 0)
-        if (parts.length === 1 && responseText.length > 50) {
-            const paragraphs = responseText.split(/\n\s*\n/).filter(p => p.trim().length > 0)
-            if (paragraphs.length > 1) parts = paragraphs
-        }
-
-        // Clean parts
-        const cleanParts = parts.map(p => p.trim())
-
-        // Enqueue
-        await messageQueue.enqueueText(contact.phone_whatsapp, cleanParts)
+        // We push the raw responseText (with |||) to DB. The Cron/Worker handles splitting.
+        await prisma.messageQueue.create({
+            data: {
+                contactId: contact.id,
+                conversationId: conversation.id,
+                content: responseText,
+                scheduledAt: new Date(),
+                status: 'PENDING'
+            }
+        })
     }
 
     return { handled: true, result: 'sent' }
