@@ -32,8 +32,7 @@ export const voiceService = {
 
         // 3. Notify Source
         // 3. Notify Source
-        const { getAdminVoiceRequest } = require('@/lib/spintax')
-        const message = getAdminVoiceRequest(context, textToSay) + "\n\nReply with the Voice Note."
+        const message = `"${textToSay}"`
         await whatsapp.sendText(sourcePhone, message)
 
         return 'REQUESTED'
