@@ -86,8 +86,8 @@ async function connectToWhatsApp() {
                 const cached = messageCache.get(key.id || '')
                 return cached?.message || undefined
             }
-            // Fallback (safe default)
-            return { conversation: 'hello' }
+            // Fallback (return undefined to let Baileys handle it, or throw)
+            return undefined
         }
     })
 
