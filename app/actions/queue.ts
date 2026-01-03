@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
+import { whatsapp } from '@/lib/whatsapp'
 
 export async function getQueueItems() {
     try {
@@ -45,5 +46,62 @@ export async function deleteQueueItem(id: string) {
     } catch (error) {
         console.error('Failed to delete queue item:', error)
         return { success: false, error: 'Failed' }
+    }
+}
+
+export async function sendQueueItemNow(id: string) {
+    try {
+        const item = await prisma.messageQueue.findUnique({
+            where: { id },
+            include: { contact: true }
+        })
+
+        if (!item || item.status !== 'PENDING') {
+            return { success: false, error: 'Item not found or already processed' }
+        }
+
+        const { content, contact } = item
+        const phone = contact.phone_whatsapp
+
+        // 1. Send Immediately
+        // Typing (Fast)
+        await whatsapp.sendTypingState(phone, true).catch(() => { })
+        // await new Promise(r => setTimeout(r, 1000)) // Skip wait for "Now" action
+
+        // Send Parts
+        let parts = content.split('|||').filter(p => p.trim().length > 0)
+        if (parts.length === 1 && content.length > 50) {
+            const paragraphs = content.split(/\n\s*\n/).filter(p => p.trim().length > 0)
+            if (paragraphs.length > 1) parts = paragraphs
+        }
+
+        for (const part of parts) {
+            await whatsapp.sendText(phone, part.trim())
+            if (parts.indexOf(part) < parts.length - 1) {
+                await new Promise(r => setTimeout(r, 500))
+            }
+        }
+
+        // 2. Save to History
+        await prisma.message.create({
+            data: {
+                conversationId: item.conversationId,
+                sender: 'ai',
+                message_text: content.replace(/\|\|\|/g, '\n'),
+                timestamp: new Date()
+            }
+        })
+
+        // 3. Mark as SENT
+        await prisma.messageQueue.update({
+            where: { id },
+            data: { status: 'SENT' }
+        })
+
+        revalidatePath('/queue')
+        return { success: true }
+    } catch (error: any) {
+        console.error('Failed to send queue item now:', error)
+        return { success: false, error: error.message }
     }
 }

@@ -1,12 +1,10 @@
-'use client'
-
 import { useEffect, useState } from 'react'
-import { getQueueItems, deleteQueueItem } from '@/app/actions/queue'
+import { getQueueItems, deleteQueueItem, sendQueueItemNow } from '@/app/actions/queue'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { RefreshCcw, Trash2 } from 'lucide-react'
+import { RefreshCcw, Trash2, Zap } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
@@ -31,6 +29,14 @@ export default function QueuePage() {
     const handleDelete = async (id: string) => {
         if (!confirm('Are you sure you want to cancel this message?')) return
         await deleteQueueItem(id)
+        fetchItems()
+    }
+
+    const handleSendNow = async (id: string) => {
+        if (!confirm('Send this message immediately?')) return
+        setLoading(true)
+        const result = await sendQueueItemNow(id)
+        if (!result.success) alert('Failed: ' + result.error)
         fetchItems()
     }
 
@@ -95,7 +101,18 @@ export default function QueuePage() {
                                                 {item.status}
                                             </Badge>
                                         </TableCell>
-                                        <TableCell className="text-right">
+                                        <TableCell className="text-right space-x-2">
+                                            {item.status === 'PENDING' && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50"
+                                                    title="Send Now"
+                                                    onClick={() => handleSendNow(item.id)}
+                                                >
+                                                    <Zap className="h-4 w-4" />
+                                                </Button>
+                                            )}
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
