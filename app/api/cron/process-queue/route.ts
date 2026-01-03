@@ -65,8 +65,10 @@ export async function GET(req: Request) {
                 // Send Text
                 // Check if we need to split (cron splits if needed, but webhook usually generated clean text or |||)
                 let parts = content.split('|||').filter(p => p.trim().length > 0)
+
+                // Fallback: Splitting by newlines if big block
                 if (parts.length === 1 && content.length > 50) {
-                    const paragraphs = content.split(/\n\s*\n/).filter(p => p.trim().length > 0)
+                    const paragraphs = content.split(/\n+/).filter(p => p.trim().length > 0)
                     if (paragraphs.length > 1) parts = paragraphs
                 }
 

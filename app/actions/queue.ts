@@ -70,8 +70,12 @@ export async function sendQueueItemNow(id: string) {
 
         // Send Parts
         let parts = content.split('|||').filter(p => p.trim().length > 0)
+
+        // Fallback: If no ||| separator and text is long, split by newlines (single or double)
         if (parts.length === 1 && content.length > 50) {
-            const paragraphs = content.split(/\n\s*\n/).filter(p => p.trim().length > 0)
+            // Split by single newline, but group short lines? 
+            // Better: just split by newline for now to avoid walls of text.
+            const paragraphs = content.split(/\n+/).filter(p => p.trim().length > 0)
             if (paragraphs.length > 1) parts = paragraphs
         }
 
