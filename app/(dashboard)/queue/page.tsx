@@ -1,3 +1,5 @@
+'use client'
+
 import { useEffect, useState } from 'react'
 import { getQueueItems, deleteQueueItem, sendQueueItemNow } from '@/app/actions/queue'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
