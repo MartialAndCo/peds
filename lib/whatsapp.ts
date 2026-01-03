@@ -31,6 +31,7 @@ export async function getConfig() {
 
 export const whatsapp = {
     async sendText(chatId: string, text: string, replyTo?: string) {
+        console.log(`[WhatsApp] Sending Text to ${chatId}: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`)
         const { endpoint, apiKey } = await getConfig()
 
         if (!endpoint) {
@@ -59,6 +60,7 @@ export const whatsapp = {
     },
 
     async sendVoice(chatId: string, audioDataUrl: string, replyTo?: string) {
+        console.log(`[WhatsApp] Sending Voice to ${chatId}`)
         const { endpoint, apiKey } = await getConfig()
 
         try {
@@ -87,6 +89,7 @@ export const whatsapp = {
 
     // For compatibility if we need to send images/files later
     async sendFile(chatId: string, fileDataUrl: string, filename: string, caption?: string) {
+        console.log(`[WhatsApp] Sending File to ${chatId}: ${filename}`)
         const { endpoint, apiKey } = await getConfig()
         try {
             const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`

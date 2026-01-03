@@ -197,6 +197,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     if (memories.length > 0) systemPrompt += `\n\n[MEMORY]:\n${memories.map((m: any) => `- ${m.memory}`).join('\n')}`
 
     // 3. Timing
+    console.log(`[Chat] Generating AI response for Conv ${conversation.id}...`)
     const lastUserDate = new Date() // Approx
     const timing = TimingManager.analyzeContext(lastUserDate, phase)
     if (contact.testMode) { timing.delaySeconds = 0; timing.mode = 'INSTANT_TEST' }
@@ -227,6 +228,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
     // 5. Generate & Send
     let responseText = await callAI(settings, conversation, systemPrompt, contextMessages, lastContent)
+    console.log(`[Chat] AI Response: "${responseText.substring(0, 100)}${responseText.length > 100 ? '...' : ''}"`)
 
     // Safety
     if (responseText.includes('Error:') || responseText.includes('undefined')) return { handled: true, result: 'blocked_safety' }
@@ -279,6 +281,8 @@ async function callAI(settings: any, conv: any, sys: string, ctx: any[], last: s
         temperature: Number(conv.prompt.temperature),
         max_tokens: conv.prompt.max_tokens
     }
+
+    console.log(`[Chat] Calling Provider: ${provider}, Model: ${params.model}`)
 
     let txt = ""
     if (provider === 'anthropic') txt = await anthropic.chatCompletion(sys, ctx, last, params)

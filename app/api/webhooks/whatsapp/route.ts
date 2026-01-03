@@ -6,10 +6,10 @@ import { whatsapp } from '@/lib/whatsapp'
 import { TimingManager } from '@/lib/timing'
 
 export async function POST(req: Request) {
-    console.error('🔹 Webhook POST received [Build: 2025-12-30_19-00-ERROR-LOGS]')
+    // console.log('🔹 Webhook POST received [Build: 2026-01-03_LOGS_ENABLED]')
     try {
         const body = await req.json()
-        console.error('🔹 Webhook Body:', JSON.stringify(body, null, 2))
+        // console.log('🔹 Webhook Body:', JSON.stringify(body, null, 2))
         // Payload structure from our new service:
         // { event: 'message', payload: { from, body, fromMe, type, _data: { notifyName, mimetype }, ... } }
 
@@ -55,13 +55,13 @@ export async function POST(req: Request) {
             if (payload._data?.phoneNumber) {
                 console.log(`[Webhook] Replacing LID ${from} with Resolved PN ${payload._data.phoneNumber}`)
                 // Ensure it has +
-                const pn = payload._data.phoneNumber.replace('@s.whatsapp.net', '').replace('@c.us', '')
+                const pn = payload._data.phoneNumber.replace('@s.whatsapp.net', '@c.us', '').replace('@c.us', '')
                 normalizedPhone = pn.startsWith('+') ? pn : `+${pn}`
             } else {
                 // SAFETY: If we could not resolve the LID to a Real Number, we CANNOT reply safely.
                 // Sending to LID often causes Timeouts/Bans on new sessions.
                 // It is better to ignore the message than to crash/ban.
-                console.error(`[Webhook] SAFETY ALERT: Could not resolve LID to PN for ${from}. IGNORING message to prevent timeout ban.`)
+                console.warn(`[Webhook] SAFETY ALERT: Could not resolve LID to PN for ${from}. IGNORING message to prevent timeout ban.`)
                 return NextResponse.json({ success: true, ignored: true, reason: 'safety_lid_unresolved' } as any)
             }
             // We update 'from' too? No, 'from' is where the message came from (technical).
@@ -99,9 +99,8 @@ export async function POST(req: Request) {
             (voiceSourcePhone && cleanSender === voiceSourcePhone.replace('+', '')) ||
             (leadProviderPhone && cleanSender === leadProviderPhone.replace('+', ''))
 
-        console.error(`[Webhook] Sender: ${normalizedPhone} (Clean: ${cleanSender})`)
-        console.error(`[Webhook] AdminPhone: ${adminPhone}, MediaSource: ${mediaSourcePhone}, LeadProvider: ${leadProviderPhone}`)
-        console.error(`[Webhook] IsPrivileged: ${isPrivilegedSender}`)
+        console.log(`[Webhook] Incoming from: ${normalizedPhone} (Clean: ${cleanSender})`)
+        // console.log(`[Webhook] Privileged Check: ${isPrivilegedSender}`)
 
         if (isPrivilegedSender) {
             console.error(`[Webhook] Privileged message from ${normalizedPhone}`)
