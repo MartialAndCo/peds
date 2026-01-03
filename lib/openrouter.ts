@@ -6,7 +6,7 @@ export const openrouter = {
         messages: { role: string; content: string }[],
         userMessage: string,
         config: { apiKey?: string; model?: string; temperature?: number; max_tokens?: number } = {}
-    ) {
+    ): Promise<string> {
         const apiKey = config.apiKey || process.env.OPENROUTER_API_KEY;
         if (!apiKey) {
             console.warn("OPENROUTER_API_KEY not configured");
@@ -36,7 +36,15 @@ export const openrouter = {
                 stream: false,
             });
 
-            return completion.choices[0]?.message?.content || "";
+            const content = completion.choices[0]?.message?.content;
+            if (typeof content === 'string') return content;
+            if (Array.isArray(content)) {
+                // Handle multimodal content (array of blocks)
+                return content
+                    .map((part: any) => (part.type === 'text' ? part.text : ''))
+                    .join('');
+            }
+            return "";
         } catch (error: any) {
             console.error("[OpenRouter] Error:", error);
             return "";
