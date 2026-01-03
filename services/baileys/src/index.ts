@@ -350,7 +350,8 @@ server.post('/api/sendText', async (request: any, reply) => {
     }
 
     // Format JID
-    const jid = chatId.includes('@') ? chatId : `${chatId}@c.us`
+    // Format JID: Standardize to s.whatsapp.net for individuals to avoid USync overhead/timeouts
+    const jid = chatId.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`
 
     try {
         await sock.sendMessage(jid, { text: text })
@@ -370,7 +371,7 @@ server.post('/api/sendVoice', async (request: any, reply) => {
         return reply.code(400).send({ error: 'Missing chatId or file data' })
     }
 
-    const jid = chatId.includes('@') ? chatId : `${chatId}@c.us`
+    const jid = chatId.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`
 
     try {
         const buffer = Buffer.from(file.data, 'base64')
@@ -394,7 +395,7 @@ server.post('/api/sendFile', async (request: any, reply) => {
         return reply.code(400).send({ error: 'Missing chatId or file data' })
     }
 
-    const jid = chatId.includes('@') ? chatId : `${chatId}@c.us`
+    const jid = chatId.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`
 
     try {
         const buffer = Buffer.from(file.data, 'base64')
@@ -421,7 +422,7 @@ server.post('/api/sendFile', async (request: any, reply) => {
 server.post('/api/sendStateTyping', async (request: any, reply) => {
     const { chatId, isTyping } = request.body
     if (!chatId) return reply.code(400).send({ error: 'Missing chatId' })
-    const jid = chatId.includes('@') ? chatId : `${chatId}@c.us`
+    const jid = chatId.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`
     try {
         await sock.sendPresenceUpdate(isTyping ? 'composing' : 'available', jid)
         return { success: true }
