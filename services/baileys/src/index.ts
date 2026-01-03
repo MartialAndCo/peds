@@ -78,6 +78,7 @@ async function connectToWhatsApp() {
         connectTimeoutMs: 60_000,   // Longer timeout to avoid "Timed Out" loops
         defaultQueryTimeoutMs: 60_000,
         keepAliveIntervalMs: 10_000, // Keep connection alive actively
+        retryRequestDelayMs: 5000, // Wait before retrying failed requests (helps with Bad MAC)
         logger: silentLogger,
         auth: state,
         // REQUIRED: Handler to allow Baileys to resend messages if needed (prevent hangs)
