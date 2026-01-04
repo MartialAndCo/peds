@@ -1,4 +1,5 @@
 import { OpenRouter } from "@openrouter/sdk";
+import { venice } from "./venice";
 
 export const openrouter = {
     async chatCompletion(
@@ -8,7 +9,6 @@ export const openrouter = {
         config: { apiKey?: string; model?: string; temperature?: number; max_tokens?: number } = {}
     ): Promise<string> {
         let apiKey = config.apiKey || process.env.OPENROUTER_API_KEY;
-        const fallbackKey = process.env.VENICE_API_KEY;
 
         if (!apiKey) {
             console.warn("OPENROUTER_API_KEY not configured");
@@ -26,60 +26,48 @@ export const openrouter = {
             { role: "user", content: userMessage },
         ];
 
-        // Helper function to send request
-        const attemptRequest = async (currentKey: string, isRetry = false): Promise<string | null> => {
-            try {
-                const client = new OpenRouter({ apiKey: currentKey });
-                const completion = await client.chat.send({
-                    model: model,
-                    messages: apiMessages as any,
-                    temperature: config.temperature ?? 0.7,
-                    stream: false,
-                });
-
-                const content = completion.choices[0]?.message?.content;
-                if (typeof content === 'string') return content;
-                if (Array.isArray(content)) {
-                    return content
-                        .map((part: any) => (part.type === 'text' ? part.text : ''))
-                        .join('');
-                }
-                return "";
-            } catch (error: any) {
-                // Check for Rate Limit (429) or specific error message from the user's report
-                const isRateLimit = error?.message?.includes('429') ||
-                    JSON.stringify(error).includes('rate-limited') ||
-                    error?.code === 429;
-
-                if (isRateLimit && !isRetry && fallbackKey && fallbackKey !== currentKey) {
-                    console.warn(`[OpenRouter] Rate limited on primary key. Switching to Venice Fallback Key...`);
-                    return null; // Signal to retry
-                }
-
-                console.error(`[OpenRouter] Error (Retry: ${isRetry}):`, error);
-                throw error; // Throw to be caught by caller or outer logic
-            }
-        };
-
         try {
-            // Attempt 1: Primary Key
-            let response = await attemptRequest(apiKey);
+            const client = new OpenRouter({ apiKey });
+            const completion = await client.chat.send({
+                model: model,
+                messages: apiMessages as any,
+                temperature: config.temperature ?? 0.7,
+                stream: false,
+            });
 
-            // Attempt 2: Fallback Key (if first attempt returned null)
-            if (response === null && fallbackKey) {
+            const content = completion.choices[0]?.message?.content;
+            if (typeof content === 'string') return content;
+            if (Array.isArray(content)) {
+                return content
+                    .map((part: any) => (part.type === 'text' ? part.text : ''))
+                    .join('');
+            }
+            return "";
+
+        } catch (error: any) {
+            // Check for Rate Limit (429)
+            const isRateLimit = error?.message?.includes('429') ||
+                JSON.stringify(error).includes('rate-limited') ||
+                error?.code === 429;
+
+            if (isRateLimit) {
+                console.warn(`[OpenRouter] Rate limit hit (429). Falling back to Venice Service...`);
                 try {
-                    response = await attemptRequest(fallbackKey, true);
+                    // Fallback to Venice Service
+                    return await venice.chatCompletion(
+                        systemPrompt,
+                        messages,
+                        userMessage,
+                        config
+                    );
                 } catch (fallbackError) {
-                    console.error("[OpenRouter] Fallback failed:", fallbackError);
-                    return ""; // Return empty on final failure
+                    console.error("[OpenRouter] Venice Fallback failed:", fallbackError);
+                    return "";
                 }
             }
 
-            return response || "";
-
-        } catch (e) {
+            console.error(`[OpenRouter] Error:`, error);
             return "";
         }
     },
-};
 };
