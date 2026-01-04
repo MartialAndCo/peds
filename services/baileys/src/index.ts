@@ -460,9 +460,38 @@ server.post('/api/sendStateTyping', async (request: any, reply) => {
     }
 })
 
-// Mark Seen (Mock for now to prevent 404s)
+// Mark Seen (Real)
 server.post('/api/markSeen', async (request: any, reply) => {
-    return { success: true, status: 'ignored_safe' }
+    const { chatId } = request.body
+    if (!chatId) return reply.code(400).send({ error: 'Missing chatId' })
+    const jid = chatId.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`
+
+    try {
+        // 1. Find recent unread messages from this JID in Cache
+        const keysToRead: any[] = []
+        for (const [id, msg] of messageCache.entries()) {
+            if (msg.key.remoteJid === jid && !msg.key.fromMe) {
+                keysToRead.push(msg.key)
+            }
+        }
+
+        if (keysToRead.length > 0) {
+            server.log.info({ jid, count: keysToRead.length }, 'Marking messages as read')
+            await sock.readMessages(keysToRead)
+
+            // Cleanup cache for these to prevent re-reading? 
+            // Optional, but keeping them might be useful for media download.
+        } else {
+            // Fallback: Just clear unread badge on bot side
+            // server.log.info({ jid }, 'No specific messages to read, clearing badge')
+            // await sock.chatModify({ markRead: true, lastMessages: [] }, jid).catch(() => {})
+        }
+
+        return { success: true, readCount: keysToRead.length }
+    } catch (e: any) {
+        server.log.error(e)
+        return reply.code(500).send({ error: e.message })
+    }
 })
 
 
