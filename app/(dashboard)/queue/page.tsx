@@ -80,10 +80,31 @@ export default function QueuePage() {
                                         <TableCell>
                                             <div className="flex flex-col">
                                                 <span className="font-medium">
-                                                    {format(new Date(item.scheduledAt), 'HH:mm:ss', { locale: fr })}
+                                                    {(() => {
+                                                        // Force Paris Timezone Display
+                                                        // Server sends ISO (UTC). We want to show what this time is in Paris.
+                                                        const date = new Date(item.scheduledAt)
+                                                        // Basic Intl formatting to handle timezone efficiently without heavy libs if possible, 
+                                                        // or use toZonedTime if we import it.
+                                                        // Let's use Intl for zero-dependency reliability on client
+                                                        return new Intl.DateTimeFormat('fr-FR', {
+                                                            timeZone: 'Europe/Paris',
+                                                            hour: '2-digit',
+                                                            minute: '2-digit',
+                                                            second: '2-digit'
+                                                        }).format(date)
+                                                    })()}
                                                 </span>
                                                 <span className="text-xs text-muted-foreground">
-                                                    {format(new Date(item.scheduledAt), 'dd/MM/yyyy', { locale: fr })}
+                                                    {(() => {
+                                                        const date = new Date(item.scheduledAt)
+                                                        return new Intl.DateTimeFormat('fr-FR', {
+                                                            timeZone: 'Europe/Paris',
+                                                            day: '2-digit',
+                                                            month: '2-digit',
+                                                            year: 'numeric'
+                                                        }).format(date)
+                                                    })()}
                                                 </span>
                                             </div>
                                         </TableCell>

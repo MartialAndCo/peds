@@ -64,6 +64,9 @@ export async function sendQueueItemNow(id: string) {
         const phone = contact.phone_whatsapp
 
         // 1. Send Immediately
+        // Fix: Mark Read to avoid ghosting blue ticks
+        await whatsapp.markAsRead(phone).catch(() => { })
+
         // Typing (Fast)
         await whatsapp.sendTypingState(phone, true).catch(() => { })
         // await new Promise(r => setTimeout(r, 1000)) // Skip wait for "Now" action
