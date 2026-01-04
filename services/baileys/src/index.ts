@@ -734,7 +734,9 @@ if (CRON_URL) {
     setInterval(async () => {
         try {
             // Fire and forget, but log failures occasionally
-            await axios.get(CRON_URL, { timeout: 5000 })
+            const response = await axios.get(CRON_URL, { timeout: 5000 })
+            // Log success every time to debug queue issues
+            server.log.info({ processed: response.data?.processed ?? 'unknown' }, 'Cron Pinger OK')
         } catch (e: any) {
             // Log error to help debug why messages aren't leaving
             server.log.warn({ error: e.message, url: CRON_URL }, 'Cron Pinger Failed')
