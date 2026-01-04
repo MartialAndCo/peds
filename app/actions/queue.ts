@@ -67,9 +67,16 @@ export async function sendQueueItemNow(id: string) {
         // Fix: Mark Read to avoid ghosting blue ticks
         await whatsapp.markAsRead(phone).catch(() => { })
 
-        // Typing (Fast)
+        const fullLength = content.length
+        // Realistic Typing for "Send Now" (User wants it faster than natural, but not instant)
+        // 40ms/char is fast typing. Min 2s, Max 8s.
+        const typingDuration = Math.min(Math.max(fullLength * 40, 2500), 8000)
+
+        // Typing State
         await whatsapp.sendTypingState(phone, true).catch(() => { })
-        // await new Promise(r => setTimeout(r, 1000)) // Skip wait for "Now" action
+
+        // ACTUALLY WAIT for the typing duration
+        await new Promise(r => setTimeout(r, typingDuration))
 
         // Send Parts
         let parts = content.split('|||').filter(p => p.trim().length > 0)
@@ -84,8 +91,10 @@ export async function sendQueueItemNow(id: string) {
 
         for (const part of parts) {
             await whatsapp.sendText(phone, part.trim())
+            // Pause between bubbles (Realism)
             if (parts.indexOf(part) < parts.length - 1) {
-                await new Promise(r => setTimeout(r, 500))
+                await whatsapp.sendTypingState(phone, true).catch(() => { }) // Typings again for next bubble
+                await new Promise(r => setTimeout(r, 2000)) // 2s pause
             }
         }
 
