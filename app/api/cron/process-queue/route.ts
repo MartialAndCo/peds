@@ -106,22 +106,10 @@ export async function GET(req: Request) {
                     }
                 }
 
-                // 3. Save to Messages Table (Actual History)
-                // Note: The Webhook queue logic did NOT save to 'Message' table yet.
-                // It only queued it. Now we save it as a real sent message.
+                // NOTE: Message is already saved to Message table by the chat handler
+                // that queued it. We just need to update the queue status.
 
-                // Wait, webhook generated it but didn't save to 'Message'. Correct.
-                // We need conversationId.
-                await prisma.message.create({
-                    data: {
-                        conversationId: queueItem.conversationId,
-                        sender: 'ai',
-                        message_text: content.replace(/\|\|\|/g, '\n'),
-                        timestamp: new Date()
-                    }
-                })
-
-                // 4. Update Queue Status
+                // 3. Update Queue Status
                 await prisma.messageQueue.update({
                     where: { id: queueItem.id },
                     data: { status: 'SENT' }
