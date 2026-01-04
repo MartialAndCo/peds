@@ -688,21 +688,30 @@ server.post('/api/markSeen', async (request: any, reply) => {
             server.log.info({ jid, storeSize: store.messages.size }, 'No unread messages found for this contact')
         }
 
-        // Also try chatModify on the target chat
-        if (targetChatJid) {
-            const chatMsgs = store.messages.get(targetChatJid)
-            if (chatMsgs && chatMsgs.length > 0) {
-                const lastMsg = chatMsgs[chatMsgs.length - 1]
-                if (lastMsg && lastMsg.key && lastMsg.messageTimestamp) {
-                    // Baileys requires messageTimestamp in the lastMessages array
-                    await sock.chatModify(
-                        { markRead: true, lastMessages: [{ key: lastMsg.key, messageTimestamp: lastMsg.messageTimestamp }] },
-                        targetChatJid
-                    ).catch((err: any) => {
-                        server.log.warn({ err: err.message || err }, 'chatModify failed')
-                    })
-                    server.log.info({ chatJid: targetChatJid }, 'Applied chatModify markRead')
+        // Also try chatModify with the last RECEIVED message (not fromMe)
+        if (keysToRead.length > 0) {
+            // Use the last key we already collected (they're all non-fromMe)
+            const lastReceivedKey = keysToRead[keysToRead.length - 1]
+            // Find the full message to get the timestamp
+            let lastReceivedMsg: any = null
+            for (const [chatJid, chatMsgs] of store.messages.entries()) {
+                for (const msg of chatMsgs) {
+                    if (msg.key.id === lastReceivedKey.id) {
+                        lastReceivedMsg = msg
+                        break
+                    }
                 }
+                if (lastReceivedMsg) break
+            }
+
+            if (lastReceivedMsg && lastReceivedMsg.messageTimestamp) {
+                await sock.chatModify(
+                    { markRead: true, lastMessages: [{ key: lastReceivedMsg.key, messageTimestamp: lastReceivedMsg.messageTimestamp }] },
+                    lastReceivedMsg.key.remoteJid
+                ).catch((err: any) => {
+                    server.log.warn({ err: err.message || err }, 'chatModify failed')
+                })
+                server.log.info({ chatJid: lastReceivedMsg.key.remoteJid }, 'Applied chatModify markRead')
             }
         }
 
