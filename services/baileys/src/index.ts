@@ -259,8 +259,8 @@ async function connectToWhatsApp() {
                 // 'messages.upsert' might be processing the message right now.
                 if (!msg) {
                     console.log(`[Store] Msg ${key.id} not found immediately. Waiting for upsert...`)
-                    for (let i = 0; i < 5; i++) {
-                        await new Promise(r => setTimeout(r, 200)) // Wait 200ms
+                    for (let i = 0; i < 10; i++) {
+                        await new Promise(r => setTimeout(r, 300)) // Wait 300ms
                         msg = await store.loadMessage(key.remoteJid!, key.id!)
                         if (msg) {
                             console.log(`[Store] Recovered msg ${key.id} after wait (Attempt ${i + 1})`)
