@@ -483,13 +483,19 @@ server.post('/api/markSeen', async (request: any, reply) => {
         if (keysToRead.length > 0) {
             server.log.info({ jid, count: keysToRead.length }, 'Marking messages as read')
             await sock.readMessages(keysToRead)
+        }
 
-            // Cleanup cache for these to prevent re-reading? 
-            // Optional, but keeping them might be useful for media download.
+        // Fallback / Catch-all: Ensure the chat is marked as read up to the last known message
+        const lastKey = lastMessageMap.get(jid)
+        if (lastKey) {
+            // This ensures "Blue Ticks" for older messages not in cache or if readMessages missed some
+            await sock.chatModify({ markRead: true, lastMessages: [{ key: lastKey }] }, jid).catch((err: any) => {
+                server.log.warn({ err }, 'Failed to chatModify (markRead)')
+            })
+            server.log.info({ jid }, 'Force marked chat as read via chatModify')
         } else {
-            // Fallback: Just clear unread badge on bot side
-            // server.log.info({ jid }, 'No specific messages to read, clearing badge')
-            // await sock.chatModify({ markRead: true, lastMessages: [] }, jid).catch(() => {})
+            // Blind mark as read if we have no key (clears badge but might not blue tick old msgs)
+            await sock.chatModify({ markRead: true, lastMessages: [] }, jid).catch(() => { })
         }
 
         return { success: true, readCount: keysToRead.length }
