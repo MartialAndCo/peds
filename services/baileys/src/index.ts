@@ -630,17 +630,35 @@ server.post('/api/markSeen', async (request: any, reply) => {
     const jid = chatId.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`
 
     try {
-        // 1. Find recent unread messages from this JID in Cache
+        // 1. Find unread messages from this JID using the STORE (not volatile cache)
         const keysToRead: any[] = []
-        for (const [id, msg] of messageCache.entries()) {
-            if (msg.key.remoteJid === jid && !msg.key.fromMe) {
-                keysToRead.push(msg.key)
+
+        // Check all chats in store (handles LID <-> PN mismatch)
+        for (const [chatJid, chatMsgs] of store.messages.entries()) {
+            // Match by exact JID OR by phone number (to handle LID vs PN)
+            const phoneInJid = jid.replace('@s.whatsapp.net', '')
+            const phoneInChatJid = chatJid.replace('@s.whatsapp.net', '').replace('@lid', '').replace(':', '') // crude extraction
+
+            // Match if JIDs are equal or they share the same phone number
+            const isMatch = chatJid === jid || chatJid.includes(phoneInJid)
+
+            if (isMatch || chatJid.includes(phoneInJid.slice(-10))) { // Also partial match for safety
+                for (const msg of chatMsgs) {
+                    // Only mark messages FROM the contact (not fromMe)
+                    if (!msg.key.fromMe) {
+                        keysToRead.push(msg.key)
+                    }
+                }
             }
         }
 
         if (keysToRead.length > 0) {
-            server.log.info({ jid, count: keysToRead.length }, 'Marking messages as read')
-            await sock.readMessages(keysToRead)
+            server.log.info({ jid, count: keysToRead.length }, 'Marking messages as read (from Store)')
+            await sock.readMessages(keysToRead).catch((err: any) => {
+                server.log.warn({ err }, 'readMessages failed, falling back to chatModify')
+            })
+        } else {
+            server.log.info({ jid }, 'No unread messages found in store for this JID')
         }
 
         // Fallback / Catch-all: Ensure the chat is marked as read up to the last known message
