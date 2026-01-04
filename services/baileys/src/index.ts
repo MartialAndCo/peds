@@ -90,6 +90,8 @@ async function connectToWhatsApp() {
 
     server.log.info(`using WA v${version.join('.')}, isLatest: ${isLatest}`)
 
+    const msgRetryCounterCache = new Map<string, number>()
+
     sock = makeWASocket({
         version,
         printQRInTerminal: false, // handled via event
@@ -102,6 +104,7 @@ async function connectToWhatsApp() {
         retryRequestDelayMs: 5000, // Wait before retrying failed requests (helps with Bad MAC)
         logger: silentLogger,
         auth: state,
+        msgRetryCounterCache, // REQUIRED for reliable delivery
         // REQUIRED: Handler to allow Baileys to resend messages if needed (prevent hangs)
         getMessage: async (key) => {
             if (store) {
