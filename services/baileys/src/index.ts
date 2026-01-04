@@ -67,8 +67,8 @@ function makeSimpleStore() {
                     }
 
                     messages.set(jid, list)
-                    // DEBUG: Very verbose but needed for now
-                    // console.log(`[Store] Saved msg ${m.key.id} for ${jid}`)
+                    // DEBUG: Explicitly log saves to catch why retries fail
+                    console.log(`[Store] Saved msg ${m.key.id} for ${jid} (History: ${list.length})`)
                 }
             })
         },
