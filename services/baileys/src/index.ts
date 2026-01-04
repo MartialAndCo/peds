@@ -18,9 +18,9 @@ import { createRequire } from 'module' // fix for simple-to-import modules
 
 dotenv.config()
 
-// ESM/CJS interop fix for specific named exports that might be missing in default ESM view
-const require = createRequire(import.meta.url)
-const { makeInMemoryStore } = require('@whiskeysockets/baileys')
+// ESM/CJS interop fix key: Remove require hacks that fail in Docker
+// const require = createRequire(import.meta.url) // REMOVED
+// const { makeInMemoryStore } = require('@whiskeysockets/baileys') // REMOVED
 
 const PORT = 3001
 const WEBHOOK_URL = process.env.WEBHOOK_URL
@@ -36,13 +36,81 @@ if (!WEBHOOK_SECRET) {
     console.warn('WARNING: WEBHOOK_SECRET is not defined. Webhook calls will likely fail authentication.')
 }
 
-// --- STORE IMPLEMENTATION ---
-const store = makeInMemoryStore({ logger: pino({ level: 'silent' }) })
+// --- CUSTOM STORE IMPLEMENTATION ---
+// Replaces makeInMemoryStore to enable message retries without import issues
+function makeSimpleStore() {
+    // remoteJid -> Array of WAMessage
+    const messages = new Map<string, any[]>()
+
+    return {
+        messages, // Expose for debugging if needed
+        bind(ev: any) {
+            ev.on('messages.upsert', (data: any) => {
+                const { messages: msgs, type } = data
+                for (const m of msgs) {
+                    const jid = m.key.remoteJid
+                    if (!jid) continue
+                    const list = messages.get(jid) || []
+
+                    // If update, find and replace? For now, just append/manage simple history
+                    // Simple history: Keep last 200 messages per chat
+                    const existingIdx = list.findIndex((ex: any) => ex.key.id === m.key.id)
+                    if (existingIdx > -1) {
+                        list[existingIdx] = m
+                    } else {
+                        list.push(m)
+                    }
+
+                    // Trim
+                    if (list.length > 200) {
+                        list.splice(0, list.length - 200)
+                    }
+
+                    messages.set(jid, list)
+                }
+            })
+        },
+        async loadMessage(jid: string, id: string) {
+            const list = messages.get(jid)
+            if (!list || list.length === 0) return undefined
+            const found = list.find((m: any) => m.key.id === id)
+            return found // return the full message object
+        },
+        readFromFile(path: string) {
+            if (fs.existsSync(path)) {
+                try {
+                    const data = JSON.parse(fs.readFileSync(path, 'utf-8'))
+                    // Correctly rehydrate Map
+                    for (const jid in data) {
+                        messages.set(jid, data[jid])
+                    }
+                    console.log(`[Store] Loaded ${messages.size} chats from disk`)
+                } catch (e) {
+                    console.error('[Store] Failed to load from file', e)
+                }
+            }
+        },
+        writeToFile(path: string) {
+            try {
+                // Convert Map to Object for JSON
+                const obj: Record<string, any[]> = {}
+                for (const [k, v] of messages.entries()) {
+                    obj[k] = v
+                }
+                fs.writeFileSync(path, JSON.stringify(obj, null, 2))
+            } catch (e) {
+                console.error('[Store] Failed to write to file', e)
+            }
+        }
+    }
+}
+
+const store = makeSimpleStore()
 const STORE_FILE = 'auth_info_baileys/baileys_store.json'
 store.readFromFile(STORE_FILE)
 setInterval(() => {
     store.writeToFile(STORE_FILE)
-}, 10_000)
+}, 30_000)
 
 // --- RETRY CACHE (Robust Interface) ---
 const msgRetryCounterCache = {
