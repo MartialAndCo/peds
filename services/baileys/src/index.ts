@@ -4,18 +4,23 @@ import makeWASocket, {
     fetchLatestBaileysVersion,
     makeCacheableSignalKeyStore,
     WAMessage,
-    downloadMediaMessage,
-    makeInMemoryStore
+    downloadMediaMessage
 } from '@whiskeysockets/baileys'
 import { Boom } from '@hapi/boom'
 import fastify from 'fastify'
-import pino from 'pino'
+import { pino } from 'pino'
+// import pino from 'pino' // TS often hates default import in ESM
 import qrcode from 'qrcode-terminal'
 import axios from 'axios'
 import dotenv from 'dotenv'
 import fs from 'fs'
+import { createRequire } from 'module' // fix for simple-to-import modules
 
 dotenv.config()
+
+// ESM/CJS interop fix for specific named exports that might be missing in default ESM view
+const require = createRequire(import.meta.url)
+const { makeInMemoryStore } = require('@whiskeysockets/baileys')
 
 const PORT = 3001
 const WEBHOOK_URL = process.env.WEBHOOK_URL
@@ -32,17 +37,23 @@ if (!WEBHOOK_SECRET) {
 }
 
 // --- STORE IMPLEMENTATION ---
-// Use robust in-memory store (persisted to JSON) to track chats/messages for Read Receipts
 const store = makeInMemoryStore({ logger: pino({ level: 'silent' }) })
 const STORE_FILE = 'auth_info_baileys/baileys_store.json'
 store.readFromFile(STORE_FILE)
-// Save every 10s
 setInterval(() => {
     store.writeToFile(STORE_FILE)
 }, 10_000)
 
-// Simple Cache for recent messages to enable media download by ID
-// Map<MessageID, WAMessage>
+// --- RETRY CACHE (Robust Interface) ---
+const msgRetryCounterCache = {
+    _map: new Map<string, number>(),
+    get: function (key: string) { return this._map.get(key) },
+    set: function (key: string, value: number) { this._map.set(key, value) },
+    del: function (key: string) { this._map.delete(key) },
+    flushAll: function () { this._map.clear() }
+}
+
+// Simple Cache for recent messages
 const messageCache = new Map<string, WAMessage>()
 const CACHE_TTL_MS = 5 * 60 * 1000 // 5 Minutes
 
