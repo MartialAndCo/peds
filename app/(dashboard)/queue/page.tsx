@@ -60,7 +60,8 @@ export default function QueuePage() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Scheduled</TableHead>
+                                <TableHead>Created (Généré)</TableHead>
+                                <TableHead>Scheduled (Envoi)</TableHead>
                                 <TableHead>Contact</TableHead>
                                 <TableHead>Message</TableHead>
                                 <TableHead>Status</TableHead>
@@ -70,7 +71,7 @@ export default function QueuePage() {
                         <TableBody>
                             {items.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">
+                                    <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
                                         No messages in queue
                                     </TableCell>
                                 </TableRow>
@@ -79,14 +80,24 @@ export default function QueuePage() {
                                     <TableRow key={item.id}>
                                         <TableCell>
                                             <div className="flex flex-col">
+                                                <span className="font-medium text-xs text-muted-foreground">
+                                                    {(() => {
+                                                        const date = new Date(item.createdAt)
+                                                        return new Intl.DateTimeFormat('fr-FR', {
+                                                            timeZone: 'Europe/Paris',
+                                                            hour: '2-digit',
+                                                            minute: '2-digit',
+                                                            second: '2-digit'
+                                                        }).format(date)
+                                                    })()}
+                                                </span>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            <div className="flex flex-col">
                                                 <span className="font-medium">
                                                     {(() => {
-                                                        // Force Paris Timezone Display
-                                                        // Server sends ISO (UTC). We want to show what this time is in Paris.
                                                         const date = new Date(item.scheduledAt)
-                                                        // Basic Intl formatting to handle timezone efficiently without heavy libs if possible, 
-                                                        // or use toZonedTime if we import it.
-                                                        // Let's use Intl for zero-dependency reliability on client
                                                         return new Intl.DateTimeFormat('fr-FR', {
                                                             timeZone: 'Europe/Paris',
                                                             hour: '2-digit',
