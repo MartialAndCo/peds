@@ -210,9 +210,30 @@ async function connectToWhatsApp() {
         // REQUIRED: Handler to allow Baileys to resend messages if needed (prevent hangs)
         getMessage: async (key) => {
             if (store) {
-                // DEBUG: Trace retries
+                // DEBUG: Trace retries with Race Condition handling
                 // console.log(`[Baileys] Request to retrieve msg ${key.id}`)
-                const msg = await store.loadMessage(key.remoteJid!, key.id!)
+
+                // Attempt 1: Immediate fetch
+                let msg = await store.loadMessage(key.remoteJid!, key.id!)
+
+                // Race Condition Fix: If not found, wait briefly and retry.
+                // 'messages.upsert' might be processing the message right now.
+                if (!msg) {
+                    console.log(`[Store] Msg ${key.id} not found immediately. Waiting for upsert...`)
+                    for (let i = 0; i < 5; i++) {
+                        await new Promise(r => setTimeout(r, 200)) // Wait 200ms
+                        msg = await store.loadMessage(key.remoteJid!, key.id!)
+                        if (msg) {
+                            console.log(`[Store] Recovered msg ${key.id} after wait (Attempt ${i + 1})`)
+                            break
+                        }
+                    }
+                }
+
+                if (!msg) {
+                    console.log(`[Store] GAVE UP looking for ${key.id}`)
+                }
+
                 return msg?.message || undefined
             }
             return undefined
