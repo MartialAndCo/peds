@@ -67,13 +67,23 @@ function makeSimpleStore() {
                     }
 
                     messages.set(jid, list)
+                    // DEBUG: Very verbose but needed for now
+                    // console.log(`[Store] Saved msg ${m.key.id} for ${jid}`)
                 }
             })
         },
         async loadMessage(jid: string, id: string) {
             const list = messages.get(jid)
-            if (!list || list.length === 0) return undefined
+            if (!list || list.length === 0) {
+                console.log(`[Store] No messages found for ${jid}`)
+                return undefined
+            }
             const found = list.find((m: any) => m.key.id === id)
+            if (found) {
+                console.log(`[Store] Found message ${id} for retry`)
+            } else {
+                console.log(`[Store] Message ${id} NOT found in store (Size: ${list.length})`)
+            }
             return found // return the full message object
         },
         readFromFile(path: string) {
@@ -200,6 +210,8 @@ async function connectToWhatsApp() {
         // REQUIRED: Handler to allow Baileys to resend messages if needed (prevent hangs)
         getMessage: async (key) => {
             if (store) {
+                // DEBUG: Trace retries
+                // console.log(`[Baileys] Request to retrieve msg ${key.id}`)
                 const msg = await store.loadMessage(key.remoteJid!, key.id!)
                 return msg?.message || undefined
             }
