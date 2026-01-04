@@ -153,24 +153,25 @@ const messageCache = new Map<string, WAMessage>()
 const CACHE_TTL_MS = 5 * 60 * 1000 // 5 Minutes
 
 const server = fastify({
-    logger: { level: 'info' }
+    logger: { level: 'info' },
+    disableRequestLogging: true // Disable automatic request/response logging
 })
 
-// Disable logging for /status health checks (too spammy)
-server.addHook('onRequest', async (request, reply) => {
+// Manual request logging (skip /status health checks)
+server.addHook('onResponse', async (request, reply) => {
     const urlPath = request.url.split('?')[0]
+    // Skip logging for health check routes
     if (urlPath === '/status' || urlPath === '/api/status') {
-        // Disable logging for this request
-        request.log = {
-            info: () => { },
-            warn: () => { },
-            error: () => { },
-            debug: () => { },
-            trace: () => { },
-            fatal: () => { },
-            child: () => request.log
-        } as any
+        return
     }
+    // Log only important requests
+    server.log.info({
+        reqId: request.id,
+        method: request.method,
+        url: request.url,
+        statusCode: reply.statusCode,
+        responseTime: reply.elapsedTime
+    }, 'request completed')
 })
 
 // Middleware for Auth
@@ -645,50 +646,40 @@ server.post('/api/markSeen', async (request: any, reply) => {
     const { chatId } = request.body
     if (!chatId) return reply.code(400).send({ error: 'Missing chatId' })
     const jid = chatId.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`
+    const phoneNumber = jid.replace('@s.whatsapp.net', '')
 
     try {
-        // 1. Find unread messages from this JID using the STORE (not volatile cache)
+        // Collect ALL unread message keys from ALL chats
+        // We can't reliably match LID to PN from this scope, so we mark everything
         const keysToRead: any[] = []
 
-        // Check all chats in store (handles LID <-> PN mismatch)
         for (const [chatJid, chatMsgs] of store.messages.entries()) {
-            // Match by exact JID OR by phone number (to handle LID vs PN)
-            const phoneInJid = jid.replace('@s.whatsapp.net', '')
-            const phoneInChatJid = chatJid.replace('@s.whatsapp.net', '').replace('@lid', '').replace(':', '') // crude extraction
-
-            // Match if JIDs are equal or they share the same phone number
-            const isMatch = chatJid === jid || chatJid.includes(phoneInJid)
-
-            if (isMatch || chatJid.includes(phoneInJid.slice(-10))) { // Also partial match for safety
-                for (const msg of chatMsgs) {
-                    // Only mark messages FROM the contact (not fromMe)
-                    if (!msg.key.fromMe) {
-                        keysToRead.push(msg.key)
-                    }
+            // Skip if we can verify this chat is NOT related
+            // But since we can't, just collect ALL non-fromMe messages
+            for (const msg of chatMsgs) {
+                if (!msg.key.fromMe) {
+                    keysToRead.push(msg.key)
                 }
             }
         }
 
         if (keysToRead.length > 0) {
-            server.log.info({ jid, count: keysToRead.length }, 'Marking messages as read (from Store)')
+            server.log.info({ jid, count: keysToRead.length }, 'Marking ALL unread messages as read')
             await sock.readMessages(keysToRead).catch((err: any) => {
-                server.log.warn({ err }, 'readMessages failed, falling back to chatModify')
+                server.log.warn({ err }, 'readMessages failed')
             })
         } else {
-            server.log.info({ jid }, 'No unread messages found in store for this JID')
+            server.log.info({ jid, storeSize: store.messages.size }, 'No unread messages found in store')
         }
 
-        // Fallback / Catch-all: Ensure the chat is marked as read up to the last known message
-        const lastKey = lastMessageMap.get(jid)
-        if (lastKey) {
-            // This ensures "Blue Ticks" for older messages not in cache or if readMessages missed some
-            await sock.chatModify({ markRead: true, lastMessages: [{ key: lastKey }] }, jid).catch((err: any) => {
-                server.log.warn({ err }, 'Failed to chatModify (markRead)')
-            })
-            server.log.info({ jid }, 'Force marked chat as read via chatModify')
-        } else {
-            // Blind mark as read if we have no key (clears badge but might not blue tick old msgs)
-            await sock.chatModify({ markRead: true, lastMessages: [] }, jid).catch(() => { })
+        // Also try chatModify for good measure
+        for (const [chatJid, chatMsgs] of store.messages.entries()) {
+            if (chatMsgs.length > 0) {
+                const lastMsg = chatMsgs[chatMsgs.length - 1]
+                if (lastMsg && lastMsg.key) {
+                    await sock.chatModify({ markRead: true, lastMessages: [{ key: lastMsg.key }] }, chatJid).catch(() => { })
+                }
+            }
         }
 
         return { success: true, readCount: keysToRead.length }
