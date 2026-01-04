@@ -254,6 +254,11 @@ async function connectToWhatsApp() {
                 setTimeout(() => messageCache.delete(msgId), CACHE_TTL_MS)
             }
 
+            // Track Last Message for Read Receipts (Blue Ticks)
+            if (msg.key.remoteJid && !msg.key.fromMe) {
+                lastMessageMap.set(msg.key.remoteJid, msg.key)
+            }
+
             // Normalize JID: Baileys uses @s.whatsapp.net, WAHA uses @c.us
 
             const fromMe = msg.key.fromMe
@@ -498,11 +503,38 @@ server.post('/api/markSeen', async (request: any, reply) => {
 
 
 
+// --- Cron Logic (Self-Healing) ---
+// Use this service (running on EC2) to trigger the Next.js Queue Worker
+const CRON_URL = process.env.CRON_URL || (WEBHOOK_URL ? WEBHOOK_URL.replace('/webhooks/whatsapp', '/cron/process-queue') : null)
+
+if (CRON_URL) {
+    server.log.info({ cronUrl: CRON_URL }, 'Initializing Queue Trigger (Cron Pinger)')
+    setInterval(async () => {
+        try {
+            // Fire and forget
+            await axios.get(CRON_URL).catch(() => { })
+        } catch (e) {
+            // Ignore errors, it's just a pulse
+        }
+    }, 10000) // 10 seconds pulse
+} else {
+    server.log.warn('CRON_URL could not be derived. Queue auto-processing disabled.')
+}
+
+
+// --- Last Message Tracking for Robust Read Receipts ---
+const lastMessageMap = new Map<string, any>() // JID -> MessageKey
+
+// ... (existing helper function could go here)
+
 const start = async () => {
     try {
         await server.listen({ port: PORT, host: '0.0.0.0' })
         server.log.info(`Server listening on port ${PORT}`)
+
+        // Connect
         connectToWhatsApp()
+
     } catch (err) {
         server.log.error(err)
         process.exit(1)
