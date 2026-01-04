@@ -11,14 +11,21 @@ export async function GET(req: Request) {
         //     return new Response('Unauthorized', { status: 401 });
         // }
 
-        console.log('[Cron] Processing Message Queue...')
+        const now = new Date()
+        console.log(`[Cron] Processing Message Queue... Server time: ${now.toISOString()}`)
+
+        // Debug: Count ALL pending messages (even future ones)
+        const allPending = await prisma.messageQueue.count({
+            where: { status: 'PENDING' }
+        })
+        console.log(`[Cron] Total PENDING messages (all): ${allPending}`)
 
         // 1. Find Pending Messages due NOW (or in the past)
         const pendingMessages = await prisma.messageQueue.findMany({
             where: {
                 status: 'PENDING',
                 scheduledAt: {
-                    lte: new Date() // Due now or before
+                    lte: now // Due now or before
                 }
             },
             include: {
@@ -27,7 +34,18 @@ export async function GET(req: Request) {
             take: 50 // Process in batches to avoid timeout
         })
 
-        console.log(`[Cron] Found ${pendingMessages.length} pending messages.`)
+        console.log(`[Cron] Found ${pendingMessages.length} pending messages DUE NOW.`)
+
+        // Log the first few scheduled times for debugging
+        if (allPending > 0 && pendingMessages.length === 0) {
+            const nextPending = await prisma.messageQueue.findFirst({
+                where: { status: 'PENDING' },
+                orderBy: { scheduledAt: 'asc' }
+            })
+            if (nextPending) {
+                console.log(`[Cron] Next scheduled message at: ${nextPending.scheduledAt?.toISOString()} (in ${Math.round((nextPending.scheduledAt!.getTime() - now.getTime()) / 1000)}s)`)
+            }
+        }
 
         if (pendingMessages.length === 0) {
             return NextResponse.json({ success: true, processed: 0 })

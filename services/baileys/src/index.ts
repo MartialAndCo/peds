@@ -733,13 +733,18 @@ if (CRON_URL) {
     server.log.info({ cronUrl: CRON_URL }, 'Initializing Queue Trigger (Cron Pinger)')
     setInterval(async () => {
         try {
-            // Fire and forget, but log failures occasionally
             const response = await axios.get(CRON_URL, { timeout: 5000 })
-            // Log success every time to debug queue issues
-            server.log.info({ processed: response.data?.processed ?? 'unknown' }, 'Cron Pinger OK')
+            // Log full response for debugging
+            const data = response.data
+            if (data?.processed > 0) {
+                server.log.info({ data }, 'Cron Pinger: Messages Sent!')
+            }
+            // Silent when processed = 0 (normal operation)
         } catch (e: any) {
-            // Log error to help debug why messages aren't leaving
-            server.log.warn({ error: e.message, url: CRON_URL }, 'Cron Pinger Failed')
+            // Log full error details
+            const status = e.response?.status
+            const errorData = e.response?.data
+            server.log.warn({ error: e.message, status, errorData, url: CRON_URL }, 'Cron Pinger Failed')
         }
     }, 10000)
 } else {

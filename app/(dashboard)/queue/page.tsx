@@ -23,8 +23,13 @@ export default function QueuePage() {
 
     useEffect(() => {
         fetchItems()
-        // Auto refresh every 10s
-        const interval = setInterval(fetchItems, 10000)
+        // Auto refresh AND Process Queue every 10s
+        // This is a client-side trigger for the Queue Worker, essential if Vercel Cron is not configured.
+        const interval = setInterval(() => {
+            fetchItems()
+            // Trigger Queue Processing (Fire and Forget)
+            fetch('/api/cron/process-queue').catch(err => console.error("Auto-process failed", err))
+        }, 10000)
         return () => clearInterval(interval)
     }, [])
 
