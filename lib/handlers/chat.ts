@@ -226,13 +226,30 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     console.log(`[Chat] Waiting ${timing.delaySeconds}s...`)
     if (timing.delaySeconds > 0) await new Promise(r => setTimeout(r, timing.delaySeconds * 1000))
 
-    // 5. Generate & Send
-    let responseText = await callAI(settings, conversation, systemPrompt, contextMessages, lastContent)
+    // 5. Generate with Retry Limit
+    let attempts = 0
+    const MAX_RETRIES = 2
+    let responseText = ""
+
+    while (attempts < MAX_RETRIES) {
+        attempts++
+        let currentSystemPrompt = systemPrompt
+        if (attempts > 1) {
+            console.log(`[Chat] Retry #${attempts} for Conv ${conversation.id} due to empty response.`)
+            currentSystemPrompt += "\n\n[SYSTEM CRITICAL]: Your previous response was valid actions like *nods* but contained NO spoken text. You MUST write spoken text now. Do not just act. Say something."
+        }
+
+        responseText = await callAI(settings, conversation, currentSystemPrompt, contextMessages, lastContent)
+
+        // Valid response found?
+        if (responseText && responseText.trim().length > 0) break
+    }
+
     console.log(`[Chat] AI Response: "${responseText.substring(0, 100)}${responseText.length > 100 ? '...' : ''}"`)
 
-    // Safety: Check for Error or Empty response
+    // Safety: Final Check (If still empty after retries, abort)
     if (!responseText || responseText.trim().length === 0) {
-        console.warn(`[Chat] AI returned empty response for Conv ${conversation.id}. Aborting send.`)
+        console.warn(`[Chat] AI returned empty response after ${attempts} attempts for Conv ${conversation.id}. Aborting send.`)
         return { handled: true, result: 'ai_response_empty' }
     }
     if (responseText.includes('Error:') || responseText.includes('undefined')) return { handled: true, result: 'blocked_safety' }
