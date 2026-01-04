@@ -257,6 +257,7 @@ async function connectToWhatsApp() {
             // Track Last Message for Read Receipts (Blue Ticks)
             if (msg.key.remoteJid && !msg.key.fromMe) {
                 lastMessageMap.set(msg.key.remoteJid, msg.key)
+                saveLastKeys() // Persist immediately
             }
 
             // Normalize JID: Baileys uses @s.whatsapp.net, WAHA uses @c.us
@@ -510,19 +511,19 @@ server.post('/api/markSeen', async (request: any, reply) => {
 
 
 // --- Cron Logic (Self-Healing) ---
-// Use this service (running on EC2) to trigger the Next.js Queue Worker
 const CRON_URL = process.env.CRON_URL || (WEBHOOK_URL ? WEBHOOK_URL.replace('/webhooks/whatsapp', '/cron/process-queue') : null)
 
 if (CRON_URL) {
     server.log.info({ cronUrl: CRON_URL }, 'Initializing Queue Trigger (Cron Pinger)')
     setInterval(async () => {
         try {
-            // Fire and forget
-            await axios.get(CRON_URL).catch(() => { })
-        } catch (e) {
-            // Ignore errors, it's just a pulse
+            // Fire and forget, but log failures occasionally
+            await axios.get(CRON_URL, { timeout: 5000 })
+        } catch (e: any) {
+            // Log error to help debug why messages aren't leaving
+            server.log.warn({ error: e.message, url: CRON_URL }, 'Cron Pinger Failed')
         }
-    }, 10000) // 10 seconds pulse
+    }, 10000)
 } else {
     server.log.warn('CRON_URL could not be derived. Queue auto-processing disabled.')
 }
@@ -530,6 +531,30 @@ if (CRON_URL) {
 
 // --- Last Message Tracking for Robust Read Receipts ---
 const lastMessageMap = new Map<string, any>() // JID -> MessageKey
+const LAST_MSG_FILE = 'auth_info_baileys/last_msg_map.json'
+
+// Load Last Keys
+if (fs.existsSync(LAST_MSG_FILE)) {
+    try {
+        const data = fs.readFileSync(LAST_MSG_FILE, 'utf-8')
+        const obj = JSON.parse(data)
+        for (const [key, val] of Object.entries(obj)) {
+            lastMessageMap.set(key, val)
+        }
+        server.log.info(`Loaded ${lastMessageMap.size} Last Message Keys from disk`)
+    } catch (e) {
+        server.log.error('Failed to load Last Message Map')
+    }
+}
+
+const saveLastKeys = () => {
+    try {
+        const obj = Object.fromEntries(lastMessageMap)
+        fs.writeFileSync(LAST_MSG_FILE, JSON.stringify(obj, null, 2))
+    } catch (e) {
+        server.log.error('Failed to save Last Message Map')
+    }
+}
 
 // ... (existing helper function could go here)
 
