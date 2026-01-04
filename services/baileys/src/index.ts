@@ -693,8 +693,14 @@ server.post('/api/markSeen', async (request: any, reply) => {
             const chatMsgs = store.messages.get(targetChatJid)
             if (chatMsgs && chatMsgs.length > 0) {
                 const lastMsg = chatMsgs[chatMsgs.length - 1]
-                if (lastMsg && lastMsg.key) {
-                    await sock.chatModify({ markRead: true, lastMessages: [{ key: lastMsg.key }] }, targetChatJid).catch(() => { })
+                if (lastMsg && lastMsg.key && lastMsg.messageTimestamp) {
+                    // Baileys requires messageTimestamp in the lastMessages array
+                    await sock.chatModify(
+                        { markRead: true, lastMessages: [{ key: lastMsg.key, messageTimestamp: lastMsg.messageTimestamp }] },
+                        targetChatJid
+                    ).catch((err: any) => {
+                        server.log.warn({ err: err.message || err }, 'chatModify failed')
+                    })
                     server.log.info({ chatJid: targetChatJid }, 'Applied chatModify markRead')
                 }
             }
