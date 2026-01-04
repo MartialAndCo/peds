@@ -36,7 +36,15 @@ export async function GET(req: Request) {
                     take: 1
                 }
             },
+            // Initial sort by creation, but we will re-sort in memory by last message
             orderBy: { createdAt: 'desc' }
+        })
+
+        // Sort by Last Message Timestamp
+        conversations.sort((a, b) => {
+            const dateA = a.messages[0]?.timestamp?.getTime() || a.createdAt.getTime()
+            const dateB = b.messages[0]?.timestamp?.getTime() || b.createdAt.getTime()
+            return dateB - dateA
         })
 
         return NextResponse.json(conversations)

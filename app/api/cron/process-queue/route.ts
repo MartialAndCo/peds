@@ -54,9 +54,11 @@ export async function GET(req: Request) {
                 // Non-blocking simulated typing state (just fire and forget, don't await long duration)
                 await whatsapp.sendTypingState(phone, true).catch(e => { })
 
-                // Reduced typing for Cron efficiency (Max 1s)
-                const typingMs = Math.min(content.length * 10, 1000)
-                await new Promise(r => setTimeout(r, typingMs))
+                // REALISTIC Typing (Cron can afford a few seconds now that batch is 50 and we process efficiently)
+                // 50-80ms per char is human-like.
+                // Cap at 8-10s to avoid holding the worker too long.
+                const typingMs = Math.min(content.length * 60, 8000)
+                await new Promise(r => setTimeout(r, typingMs + 500)) // +500ms base delay
 
                 // Send Text
                 // Check if we need to split (cron splits if needed, but webhook usually generated clean text or |||)
