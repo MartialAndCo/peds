@@ -4,7 +4,8 @@ import makeWASocket, {
     fetchLatestBaileysVersion,
     makeCacheableSignalKeyStore,
     WAMessage,
-    downloadMediaMessage
+    downloadMediaMessage,
+    makeInMemoryStore
 } from '@whiskeysockets/baileys'
 import { Boom } from '@hapi/boom'
 import fastify from 'fastify'
@@ -29,6 +30,16 @@ if (!AUTH_TOKEN) {
 if (!WEBHOOK_SECRET) {
     console.warn('WARNING: WEBHOOK_SECRET is not defined. Webhook calls will likely fail authentication.')
 }
+
+// --- STORE IMPLEMENTATION ---
+// Use robust in-memory store (persisted to JSON) to track chats/messages for Read Receipts
+const store = makeInMemoryStore({ logger: pino({ level: 'silent' }) })
+const STORE_FILE = 'auth_info_baileys/baileys_store.json'
+store.readFromFile(STORE_FILE)
+// Save every 10s
+setInterval(() => {
+    store.writeToFile(STORE_FILE)
+}, 10_000)
 
 // Simple Cache for recent messages to enable media download by ID
 // Map<MessageID, WAMessage>
@@ -93,14 +104,15 @@ async function connectToWhatsApp() {
         auth: state,
         // REQUIRED: Handler to allow Baileys to resend messages if needed (prevent hangs)
         getMessage: async (key) => {
-            if (messageCache.has(key.id || '')) {
-                const cached = messageCache.get(key.id || '')
-                return cached?.message || undefined
+            if (store) {
+                const msg = await store.loadMessage(key.remoteJid!, key.id!)
+                return msg?.message || undefined
             }
-            // Fallback (return undefined to let Baileys handle it, or throw)
             return undefined
         }
     })
+
+    store.bind(sock.ev)
 
     sock.ev.on('creds.update', saveCreds)
 
