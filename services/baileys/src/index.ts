@@ -156,6 +156,23 @@ const server = fastify({
     logger: { level: 'info' }
 })
 
+// Disable logging for /status health checks (too spammy)
+server.addHook('onRequest', async (request, reply) => {
+    const urlPath = request.url.split('?')[0]
+    if (urlPath === '/status' || urlPath === '/api/status') {
+        // Disable logging for this request
+        request.log = {
+            info: () => { },
+            warn: () => { },
+            error: () => { },
+            debug: () => { },
+            trace: () => { },
+            fatal: () => { },
+            child: () => request.log
+        } as any
+    }
+})
+
 // Middleware for Auth
 server.addHook('preHandler', async (request, reply) => {
     // Allow /status (used by lib/whatsapp.ts and health checks) and /api/status (legacy/standard)
