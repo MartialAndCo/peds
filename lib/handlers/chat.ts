@@ -230,7 +230,11 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     let responseText = await callAI(settings, conversation, systemPrompt, contextMessages, lastContent)
     console.log(`[Chat] AI Response: "${responseText.substring(0, 100)}${responseText.length > 100 ? '...' : ''}"`)
 
-    // Safety
+    // Safety: Check for Error or Empty response
+    if (!responseText || responseText.trim().length === 0) {
+        console.warn(`[Chat] AI returned empty response for Conv ${conversation.id}. Aborting send.`)
+        return { handled: true, result: 'ai_response_empty' }
+    }
     if (responseText.includes('Error:') || responseText.includes('undefined')) return { handled: true, result: 'blocked_safety' }
 
     // Voice Response Logic

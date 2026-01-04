@@ -47,6 +47,17 @@ export async function GET(req: Request) {
 
                 console.log(`[Cron] Sending to ${phone} (ID: ${queueItem.id})`)
 
+                // GUARD: Check for empty content (prevent empty bubbles)
+                if (!content || content.trim().length === 0) {
+                    console.warn(`[Cron] Validation Error: Empty content for QueueItem ${queueItem.id}. Skipping.`)
+                    await prisma.messageQueue.update({
+                        where: { id: queueItem.id },
+                        data: { status: 'INVALID_EMPTY' } // Custom status or FAILED
+                    })
+                    results.push({ id: queueItem.id, status: 'skipped_empty' })
+                    continue
+                }
+
                 // Mark Read if not already (Just in case logic: Ensure it's read before reply)
                 await whatsapp.markAsRead(phone).catch(e => { })
 
