@@ -103,7 +103,11 @@ async function connectToWhatsApp() {
         keepAliveIntervalMs: 10_000, // Keep connection alive actively
         retryRequestDelayMs: 5000, // Wait before retrying failed requests (helps with Bad MAC)
         logger: silentLogger,
-        auth: state,
+        auth: {
+            creds: state.creds,
+            // Caching keys is CRITICAL to prevent 'closed session' errors and improve performance
+            keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' }))
+        },
         msgRetryCounterCache, // REQUIRED for reliable delivery
         // REQUIRED: Handler to allow Baileys to resend messages if needed (prevent hangs)
         getMessage: async (key) => {
