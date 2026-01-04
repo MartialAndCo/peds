@@ -152,6 +152,10 @@ const msgRetryCounterCache = {
 const messageCache = new Map<string, WAMessage>()
 const CACHE_TTL_MS = 5 * 60 * 1000 // 5 Minutes
 
+// Global LID to Phone Number Map (for markSeen and other lookups)
+const lidToPnMap = new Map<string, string>()
+const LID_MAP_FILE = 'auth_info_baileys/lid_map.json'
+
 const server = fastify({
     logger: { level: 'info' },
     disableRequestLogging: true // Disable automatic request/response logging
@@ -281,14 +285,10 @@ async function connectToWhatsApp() {
 
 
 
-    // Map<LID, PN> to resolve real numbers
-    const lidToPnMap = new Map<string, string>()
-    const MAP_FILE = 'auth_info_baileys/lid_map.json'
-
-    // Load Map
-    if (fs.existsSync(MAP_FILE)) {
+    // Load LID Map from disk (uses global lidToPnMap)
+    if (fs.existsSync(LID_MAP_FILE)) {
         try {
-            const data = fs.readFileSync(MAP_FILE, 'utf-8')
+            const data = fs.readFileSync(LID_MAP_FILE, 'utf-8')
             const obj = JSON.parse(data)
             for (const [key, val] of Object.entries(obj)) {
                 lidToPnMap.set(key, val as string)
@@ -302,7 +302,7 @@ async function connectToWhatsApp() {
     const saveMap = () => {
         try {
             const obj = Object.fromEntries(lidToPnMap)
-            fs.writeFileSync(MAP_FILE, JSON.stringify(obj, null, 2))
+            fs.writeFileSync(LID_MAP_FILE, JSON.stringify(obj, null, 2))
         } catch (e: any) {
             server.log.error({ err: e }, 'Failed to save LID map')
         }
@@ -649,35 +649,53 @@ server.post('/api/markSeen', async (request: any, reply) => {
     const phoneNumber = jid.replace('@s.whatsapp.net', '')
 
     try {
-        // Collect ALL unread message keys from ALL chats
-        // We can't reliably match LID to PN from this scope, so we mark everything
+        // Build set of JIDs that match this phone number
+        const matchingJids = new Set<string>([jid])
+
+        // Reverse lookup: Find LIDs that map to this phone number
+        for (const [lid, pn] of lidToPnMap.entries()) {
+            if (pn === phoneNumber || pn === jid || pn.includes(phoneNumber)) {
+                matchingJids.add(lid)
+            }
+        }
+
+        server.log.info({ jid, matchingJids: Array.from(matchingJids) }, 'Looking for messages to mark as read')
+
+        // Collect message keys ONLY from matching chats
         const keysToRead: any[] = []
+        let targetChatJid: string | null = null
 
         for (const [chatJid, chatMsgs] of store.messages.entries()) {
-            // Skip if we can verify this chat is NOT related
-            // But since we can't, just collect ALL non-fromMe messages
-            for (const msg of chatMsgs) {
-                if (!msg.key.fromMe) {
-                    keysToRead.push(msg.key)
+            // Check if this chat matches any of our target JIDs
+            const isMatch = matchingJids.has(chatJid) || chatJid.includes(phoneNumber.slice(-10))
+
+            if (isMatch) {
+                targetChatJid = chatJid
+                for (const msg of chatMsgs) {
+                    if (!msg.key.fromMe) {
+                        keysToRead.push(msg.key)
+                    }
                 }
             }
         }
 
         if (keysToRead.length > 0) {
-            server.log.info({ jid, count: keysToRead.length }, 'Marking ALL unread messages as read')
+            server.log.info({ jid, count: keysToRead.length }, 'Marking messages as read for this contact')
             await sock.readMessages(keysToRead).catch((err: any) => {
                 server.log.warn({ err }, 'readMessages failed')
             })
         } else {
-            server.log.info({ jid, storeSize: store.messages.size }, 'No unread messages found in store')
+            server.log.info({ jid, storeSize: store.messages.size }, 'No unread messages found for this contact')
         }
 
-        // Also try chatModify for good measure
-        for (const [chatJid, chatMsgs] of store.messages.entries()) {
-            if (chatMsgs.length > 0) {
+        // Also try chatModify on the target chat
+        if (targetChatJid) {
+            const chatMsgs = store.messages.get(targetChatJid)
+            if (chatMsgs && chatMsgs.length > 0) {
                 const lastMsg = chatMsgs[chatMsgs.length - 1]
                 if (lastMsg && lastMsg.key) {
-                    await sock.chatModify({ markRead: true, lastMessages: [{ key: lastMsg.key }] }, chatJid).catch(() => { })
+                    await sock.chatModify({ markRead: true, lastMessages: [{ key: lastMsg.key }] }, targetChatJid).catch(() => { })
+                    server.log.info({ chatJid: targetChatJid }, 'Applied chatModify markRead')
                 }
             }
         }
