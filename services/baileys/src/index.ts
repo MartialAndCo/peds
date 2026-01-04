@@ -73,12 +73,29 @@ function makeSimpleStore() {
             })
         },
         async loadMessage(jid: string, id: string) {
-            const list = messages.get(jid)
+            // 1. Try direct lookup (Fast)
+            let list = messages.get(jid)
+            let found = list?.find((m: any) => m.key.id === id)
+
+            // 2. Deep Search (Fallback for LID <-> PN mismatch)
+            if (!found) {
+                // If JID is LID, it might be stored under PN, or vice versa.
+                // iterate all chats to find the ID.
+                for (const [chatJid, chatMsgs] of messages.entries()) {
+                    if (chatJid === jid) continue // Already checked
+                    const match = chatMsgs.find((m: any) => m.key.id === id)
+                    if (match) {
+                        console.log(`[Store] Found msg ${id} in OTHER chat ${chatJid} (Requested: ${jid})`)
+                        return match
+                    }
+                }
+            }
+
             if (!list || list.length === 0) {
                 console.log(`[Store] No messages found for ${jid}`)
                 return undefined
             }
-            const found = list.find((m: any) => m.key.id === id)
+
             if (found) {
                 console.log(`[Store] Found message ${id} for retry`)
             } else {
