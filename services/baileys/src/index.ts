@@ -102,12 +102,14 @@ async function connectToWhatsApp() {
     server.log.info(`using WA v${version.join('.')}, isLatest: ${isLatest}`)
 
     // Fix: msgRetryCounterCache must implement CacheStore interface (get/set/del/flushAll)
-    const retryMap = new Map<string, number>()
+    // We use 'any' for the map to satisfy the generic CacheStore requirement, 
+    // effectively it stores numbers for retries.
+    const retryMap = new Map<string, any>()
     const msgRetryCounterCache = {
-        get: (key: string) => retryMap.get(key),
-        set: (key: string, value: number) => retryMap.set(key, value),
-        del: (key: string) => retryMap.delete(key),
-        flushAll: () => retryMap.clear()
+        get: <T>(key: string) => retryMap.get(key) as T | undefined,
+        set: <T>(key: string, value: T) => { retryMap.set(key, value) },
+        del: (key: string) => { retryMap.delete(key) },
+        flushAll: () => { retryMap.clear() }
     }
 
     sock = makeWASocket({
