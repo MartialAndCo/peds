@@ -53,12 +53,16 @@ export const openrouter = {
             if (isRateLimit) {
                 console.warn(`[OpenRouter] Rate limit hit (429). Falling back to Venice Service...`);
                 try {
-                    // Fallback to Venice Service
+                    // Fallback to Venice Service - DO NOT pass the OpenRouter apiKey
                     return await venice.chatCompletion(
                         systemPrompt,
                         messages,
                         userMessage,
-                        config
+                        {
+                            // Don't pass apiKey - let Venice use VENICE_API_KEY from env
+                            temperature: config.temperature,
+                            max_tokens: config.max_tokens
+                        }
                     );
                 } catch (fallbackError) {
                     console.error("[OpenRouter] Venice Fallback failed:", fallbackError);
