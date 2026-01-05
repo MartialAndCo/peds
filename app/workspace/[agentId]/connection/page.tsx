@@ -84,6 +84,7 @@ export default function AgentConnectionPage() {
     }
 
     const resetSession = async () => {
+        if (!agentId) return
         if (!confirm('Reset Session? This will clear all auth data and require a new QR scan.')) return
         try {
             setStatus('STARTING')
