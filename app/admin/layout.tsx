@@ -9,7 +9,7 @@ export default function AdminLayout({
 }) {
     return (
         <AgentProvider>
-            <div className="h-full relative bg-[#0a0a0a]">
+            <div className="h-full relative bg-[#0f172a]">
                 {/* Fixed Admin Sidebar */}
                 <div className="hidden md:flex h-full w-64 flex-col fixed inset-y-0 z-50">
                     <SidebarAdmin />

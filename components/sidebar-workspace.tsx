@@ -40,7 +40,7 @@ export function SidebarWorkspace() {
     ]
 
     return (
-        <div className="flex flex-col h-full bg-[#0a0a0a] border-r border-white/[0.06]">
+        <div className="flex flex-col h-full bg-[#0f172a] border-r border-white/[0.06]">
             {/* Back Link */}
             <div className="p-4 border-b border-white/[0.06]">
                 <Link

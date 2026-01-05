@@ -35,7 +35,7 @@ const Navbar = () => {
     const displayLabel = isAgentId ? 'Overview' : (PATH_LABELS[lastSegment] || lastSegment)
 
     return (
-        <div className="flex items-center h-14 px-4 bg-[#0a0a0a]/80 backdrop-blur-xl border-b border-white/[0.06] sticky top-0 z-40">
+        <div className="flex items-center h-14 px-4 bg-[#0f172a]/80 backdrop-blur-xl border-b border-white/[0.06] sticky top-0 z-40">
             <MobileSidebar />
 
             <div className="flex items-center gap-2 ml-4">

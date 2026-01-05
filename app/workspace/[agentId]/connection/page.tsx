@@ -94,7 +94,7 @@ export default function AgentConnectionPage() {
     )
 
     return (
-        <div className="max-w-3xl space-y-8">
+        <div className="space-y-8 max-w-5xl">
             {/* Header */}
             <div>
                 <h1 className="text-2xl font-semibold text-white">Connectivity</h1>
@@ -115,9 +115,9 @@ export default function AgentConnectionPage() {
                         <span className="text-white font-medium">WhatsApp</span>
                     </div>
                     <div className={`px-3 py-1.5 rounded-full text-xs font-medium ${status === 'CONNECTED' ? 'bg-green-500/10 text-green-500' :
-                            status === 'SCAN_QR' ? 'bg-yellow-500/10 text-yellow-500' :
-                                status === 'STARTING' ? 'bg-blue-500/10 text-blue-500' :
-                                    'bg-white/[0.06] text-white/60'
+                        status === 'SCAN_QR' ? 'bg-yellow-500/10 text-yellow-500' :
+                            status === 'STARTING' ? 'bg-blue-500/10 text-blue-500' :
+                                'bg-white/[0.06] text-white/60'
                         }`}>
                         {status === 'CONNECTED' ? 'Connected' :
                             status === 'SCAN_QR' ? 'Awaiting Scan' :

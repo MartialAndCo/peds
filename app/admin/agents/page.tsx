@@ -65,7 +65,7 @@ export default function AgentsLobbyPage() {
     )
 
     return (
-        <div className="max-w-4xl space-y-8">
+        <div className="space-y-8">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
@@ -102,8 +102,8 @@ export default function AgentsLobbyPage() {
                                     </span>
                                 </div>
                                 <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${isOnline
-                                        ? 'bg-green-500/10 text-green-500'
-                                        : 'bg-white/[0.04] text-white/40'
+                                    ? 'bg-green-500/10 text-green-500'
+                                    : 'bg-white/[0.04] text-white/40'
                                     }`}>
                                     {isOnline ? (
                                         <Wifi className="h-3 w-3" />
@@ -144,7 +144,7 @@ export default function AgentsLobbyPage() {
 
             {/* Create Dialog */}
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                <DialogContent className="bg-[#141414] border-white/[0.08]">
+                <DialogContent className="bg-[#1e293b] border-white/[0.08]">
                     <DialogHeader>
                         <DialogTitle className="text-white">Create Agent</DialogTitle>
                     </DialogHeader>

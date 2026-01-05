@@ -65,7 +65,7 @@ export default function AgentOverviewPage() {
     )
 
     return (
-        <div className="max-w-4xl space-y-8">
+        <div className="space-y-8">
             {/* Header */}
             <div>
                 <h1 className="text-2xl font-semibold text-white">Overview</h1>
@@ -105,8 +105,8 @@ export default function AgentOverviewPage() {
                         )}
                     </div>
                     <p className={`text-xl font-medium ${wahaStatus === 'ONLINE' ? 'text-green-500' :
-                            wahaStatus === 'SCANNING' ? 'text-yellow-500' :
-                                'text-white/40'
+                        wahaStatus === 'SCANNING' ? 'text-yellow-500' :
+                            'text-white/40'
                         }`}>
                         {wahaStatus === 'ONLINE' ? 'Connected' :
                             wahaStatus === 'SCANNING' ? 'Awaiting Scan' :
