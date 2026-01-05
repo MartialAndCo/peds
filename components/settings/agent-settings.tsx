@@ -163,8 +163,9 @@ export function AgentSettings() {
                 // Close dialog after delay
                 setTimeout(() => setIsConnectOpen(false), 2000)
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error('Poll failed', e)
+            setConnectionStatus(`ERROR: ${e.response?.status || ''} ${e.message || 'Unknown'}`)
         }
     }
 

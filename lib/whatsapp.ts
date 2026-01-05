@@ -119,13 +119,19 @@ export const whatsapp = {
 
     // Get Status (replaces getSessionStatus)
     async getStatus(agentId?: number) {
-        const { endpoint } = await getConfig()
+        const { endpoint, apiKey } = await getConfig()
         try {
             const url = agentId ? `${endpoint}/api/sessions/${agentId}/status` : `${endpoint}/status`
-            const response = await axios.get(url)
+            // console.log(`[WhatsApp] Checking Status: ${url}`)
+            const response = await axios.get(url, {
+                headers: { 'X-Api-Key': apiKey }, // Ensure Auth is sent
+                timeout: 5000
+            })
             return response.data
-        } catch (e) {
-            return { status: 'UNREACHABLE', error: 'Could not connect to WhatsApp Service' }
+        } catch (e: any) {
+            console.error(`[WhatsApp] Status Check Failed for ${agentId || 'global'}:`, e.message, e.response?.data)
+            if (e.response?.status === 404) return { status: 'OFFLINE', error: 'Session not found' }
+            return { status: 'UNREACHABLE', error: e.message }
         }
     },
 
