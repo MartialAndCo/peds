@@ -14,7 +14,8 @@ import {
     LogOut,
     Beaker,
     Image,
-    List
+    List,
+    Server
 } from 'lucide-react'
 
 const routes = [
@@ -70,6 +71,12 @@ const routes = [
         icon: Users, // Using Users for now, or maybe Star if available
         href: '/dashboard/profiles',
         color: 'text-amber-500',
+    },
+    {
+        label: 'System',
+        icon: Server,
+        href: '/system',
+        color: 'text-cyan-500',
     },
 ]
 

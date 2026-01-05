@@ -185,5 +185,54 @@ export const whatsapp = {
         } catch (error: any) {
             console.error('WhatsApp Service TypingStatus Error:', error.message)
         }
+    },
+
+    // --- Admin API Methods ---
+    async adminStatus() {
+        const { endpoint, apiKey } = await getConfig()
+        try {
+            const response = await axios.get(`${endpoint}/api/admin/status`, {
+                headers: { 'X-Admin-Key': apiKey },
+                timeout: 5000
+            })
+            return response.data
+        } catch (error: any) {
+            console.error('WhatsApp Admin Status Error:', error.message)
+            return { success: false, error: error.message, status: null }
+        }
+    },
+
+    async adminLogs(lines: number = 100) {
+        const { endpoint, apiKey } = await getConfig()
+        try {
+            const response = await axios.get(`${endpoint}/api/admin/logs?lines=${lines}`, {
+                headers: { 'X-Admin-Key': apiKey },
+                timeout: 5000
+            })
+            return response.data
+        } catch (error: any) {
+            console.error('WhatsApp Admin Logs Error:', error.message)
+            return { success: false, error: error.message, lines: [] }
+        }
+    },
+
+    async adminAction(action: string) {
+        const { endpoint, apiKey } = await getConfig()
+        try {
+            const response = await axios.post(`${endpoint}/api/admin/action`,
+                { action },
+                {
+                    headers: {
+                        'X-Admin-Key': apiKey,
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 30000 // 30s for actions like git pull
+                }
+            )
+            return response.data
+        } catch (error: any) {
+            console.error('WhatsApp Admin Action Error:', error.message)
+            return { success: false, error: error.message }
+        }
     }
 }
