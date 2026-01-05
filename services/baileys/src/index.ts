@@ -866,9 +866,13 @@ server.post('/api/admin/action', async (request: any, reply: any) => {
 
         switch (action) {
             case 'git_pull':
-                // Execute git pull in the peds directory
-                const gitResult = await execAsync('cd /app && git pull 2>&1', { timeout: 30000 })
-                result = { success: true, output: gitResult.stdout + gitResult.stderr }
+                // Execute git pull in the peds directory on host (mapped volume)
+                // Note: This only works if the container has access to host git repo
+                // For safety, return instructions instead of executing from container
+                result = {
+                    success: false,
+                    message: 'Git pull must be done from host. SSH to EC2 and run: cd ~/peds && git pull'
+                }
                 break
 
             case 'rebuild':
