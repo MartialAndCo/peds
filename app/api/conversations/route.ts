@@ -21,10 +21,12 @@ export async function GET(req: Request) {
         const { searchParams } = new URL(req.url)
         const status = searchParams.get('status')
         const contactId = searchParams.get('contact_id')
+        const agentId = searchParams.get('agentId')
 
         const where: any = {}
         if (status) where.status = status
         if (contactId) where.contactId = contactId
+        if (agentId) where.agentId = parseInt(agentId)
 
         const conversations = await prisma.conversation.findMany({
             where,

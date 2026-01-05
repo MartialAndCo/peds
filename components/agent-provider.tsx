@@ -70,7 +70,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     const setSelectedAgent = (agent: Agent) => {
         setSelectedAgentState(agent)
         localStorage.setItem('selectedAgentId', agent.id.toString())
-        // Optional: Hard refresh or router.refresh() if needed to reload data for new agent context
+        document.cookie = `activeAgentId=${agent.id}; path=/; max-age=31536000`
         router.refresh()
     }
 

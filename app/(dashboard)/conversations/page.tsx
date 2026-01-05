@@ -10,19 +10,24 @@ import { Plus, Check, Search } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 
+import { useAgent } from '@/components/agent-provider'
+
 export default function ConversationsPage() {
     const router = useRouter()
+    const { selectedAgent } = useAgent()
     const [conversations, setConversations] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [showNeedsContext, setShowNeedsContext] = useState(false)
 
     useEffect(() => {
-        fetchConversations()
-    }, [])
+        if (selectedAgent) {
+            fetchConversations()
+        }
+    }, [selectedAgent])
 
     const fetchConversations = async () => {
         try {
-            const res = await axios.get('/api/conversations')
+            const res = await axios.get(`/api/conversations?agentId=${selectedAgent?.id}`)
             setConversations(res.data)
         } catch (error) {
             console.error(error)

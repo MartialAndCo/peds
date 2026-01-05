@@ -3,9 +3,22 @@ import { Separator } from "@/components/ui/separator"
 import { AnalyticsGrid } from "@/components/dashboard/analytics-grid"
 import { startOfMonth, subDays, format } from "date-fns"
 
+import { cookies } from 'next/headers'
+
 export const dynamic = 'force-dynamic' // Ensure real-time data
 
 export default async function DashboardPage() {
+    const cookieStore = await cookies()
+    const activeAgentIdRaw = cookieStore.get('activeAgentId')?.value
+    const activeAgentId = activeAgentIdRaw ? parseInt(activeAgentIdRaw) : undefined
+
+    // Filters
+    // Filters (typed as any to bypass strict checks)
+    const agentFilter: any = activeAgentId ? { agentId: activeAgentId } : {}
+    const msgFilter: any = activeAgentId ? { conversation: { agentId: activeAgentId } } : {}
+    const contactFilter: any = activeAgentId ? { conversations: { some: { agentId: activeAgentId } } } : {}
+    const paymentFilter: any = activeAgentId ? { contact: { conversations: { some: { agentId: activeAgentId } } } } : {}
+
     let statsData = {
         revenue: 0,
         mrr: 0,
@@ -35,47 +48,60 @@ export default async function DashboardPage() {
             dailyActivityRaw
         ] = await Promise.all([
             // Revenue Total
-            prisma.payment.aggregate({ _sum: { amount: true } }),
+            prisma.payment.aggregate({
+                _sum: { amount: true },
+                where: paymentFilter
+            }),
             // MRR (This Month)
             prisma.payment.aggregate({
                 _sum: { amount: true },
-                where: { createdAt: { gte: startOfMonth(new Date()) } }
+                where: {
+                    createdAt: { gte: startOfMonth(new Date()) },
+                    ...paymentFilter
+                }
             }),
             // Counts
-            prisma.contact.count(),
-            prisma.conversation.count({ where: { status: 'active' } }),
+            prisma.contact.count({ where: contactFilter }),
+            prisma.conversation.count({ where: { status: 'active', ...agentFilter } }),
             // Messages 24h
-            prisma.message.count({ where: { timestamp: { gte: subDays(new Date(), 1) } } }),
-            prisma.message.count(),
+            prisma.message.count({ where: { timestamp: { gte: subDays(new Date(), 1) }, ...msgFilter } }),
+            prisma.message.count({ where: msgFilter }),
             // Paying users count (approx by payments, ideal distinct contactId)
-            prisma.payment.groupBy({ by: ['contactId'] }),
+            prisma.payment.groupBy({
+                by: ['contactId'],
+                where: paymentFilter
+            }),
             // Trust Score Avg
-            prisma.contact.aggregate({ _avg: { trustScore: true } }),
+            prisma.contact.aggregate({
+                _avg: { trustScore: true },
+                where: contactFilter
+            }),
             // Phase Distribution
             prisma.contact.groupBy({
                 by: ['agentPhase'],
-                _count: { agentPhase: true }
+                _count: { agentPhase: true },
+                where: contactFilter as any
             }),
             // Daily Activity (Last 7 days) 
             prisma.message.findMany({
-                where: { timestamp: { gte: subDays(new Date(), 7) } },
+                where: { timestamp: { gte: subDays(new Date(), 7) }, ...msgFilter },
                 select: { timestamp: true }
             })
         ])
 
         // 2. Process Data
-        const revenue = totalRevenueAgg._sum.amount ? Number(totalRevenueAgg._sum.amount) : 0
-        const mrr = monthlyRevenueAgg._sum.amount ? Number(monthlyRevenueAgg._sum.amount) : 0
+        const revenue = totalRevenueAgg._sum?.amount ? Number(totalRevenueAgg._sum.amount) : 0
+        const mrr = monthlyRevenueAgg._sum?.amount ? Number(monthlyRevenueAgg._sum.amount) : 0
         const payingUsers = paymentsCount.length
         const conversionRate = contactsCount > 0 ? (payingUsers / contactsCount) * 100 : 0
         const arpu = payingUsers > 0 ? revenue / payingUsers : 0
-        const trustScoreAvg = trustScoreAgg._avg.trustScore ? Math.round(trustScoreAgg._avg.trustScore) : 0
+        const trustScoreAvg = trustScoreAgg._avg?.trustScore ? Math.round(trustScoreAgg._avg.trustScore) : 0
         const avgMessagesPerContact = contactsCount > 0 ? totalMessages / contactsCount : 0
 
         // Format Phase Distribution
         const phaseMap: Record<string, number> = {}
-        contactsByPhase.forEach(p => {
-            phaseMap[p.agentPhase] = p._count.agentPhase
+        contactsByPhase.forEach((p: any) => {
+            phaseMap[p.agentPhase] = p._count?.agentPhase || 0
         })
         const phaseDistribution = [
             { name: 'Connection', value: (phaseMap['CONNECTION'] || 0) + (phaseMap['new'] || 0) }, // Merge 'new' into Connection
