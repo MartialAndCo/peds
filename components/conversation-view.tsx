@@ -186,7 +186,7 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
     }
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[calc(100vh-8rem)]">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full">
             {/* Chat Area (Left/Middle) */}
             <Card className="md:col-span-2 flex flex-col h-full">
                 <CardHeader className="flex flex-row items-center justify-between py-3 border-b">
