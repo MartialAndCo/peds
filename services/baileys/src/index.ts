@@ -208,12 +208,14 @@ async function startSession(sessionId: string) {
             sessionData.status = 'DISCONNECTED'
             server.log.info({ sessionId, error: lastDisconnect?.error }, `Connection closed. Reconnect: ${shouldReconnect}`)
 
+            // Always clean up old session reference to allow restart
+            sessions.delete(sessionId)
+            clearInterval(storeInterval)
+
             if (shouldReconnect) {
                 setTimeout(() => startSession(sessionId), 5000) // Simple retry
             } else {
                 server.log.warn({ sessionId }, 'Session logged out. Need manual restart/scan.')
-                sessions.delete(sessionId)
-                clearInterval(storeInterval)
             }
         } else if (connection === 'open') {
             sessionData.status = 'CONNECTED'
