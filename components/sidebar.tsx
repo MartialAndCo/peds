@@ -23,6 +23,7 @@ const routeGroups = [
         title: "Main",
         routes: [
             { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard', color: 'text-sky-500' },
+            { label: 'Agents', icon: Bot, href: '/agents', color: 'text-emerald-500' },
             { label: 'Conversations', icon: MessageSquare, href: '/conversations', color: 'text-green-700' },
             { label: 'Queue', icon: List, href: '/queue', color: 'text-yellow-500' },
         ]
