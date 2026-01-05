@@ -47,7 +47,7 @@ async function runScenario() {
 
         // A. Director Build
         const { phase, details } = await director.determinePhase(phone)
-        const systemPrompt = director.buildSystemPrompt(
+        const systemPrompt = await director.buildSystemPrompt(
             settings,
             contact,
             phase,

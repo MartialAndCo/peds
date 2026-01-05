@@ -38,7 +38,7 @@ export const activator = {
 
         // 3. Build System Prompt
         const { phase, details } = await director.determinePhase(conversation.contact.phone_whatsapp)
-        let systemPrompt = director.buildSystemPrompt(
+        let systemPrompt = await director.buildSystemPrompt(
             settings,
             conversation.contact,
             phase,

@@ -31,7 +31,7 @@ export async function GET() {
         const settingsList = await prisma.setting.findMany()
         const settings = settingsList.reduce((acc: any, curr: any) => { acc[curr.key] = curr.value; return acc }, {})
 
-        const prompt = director.buildSystemPrompt(
+        const prompt = await director.buildSystemPrompt(
             settings,
             contact,
             'CRISIS',

@@ -188,7 +188,7 @@ export async function POST(req: Request) {
 
             // 3. Construct Modular Prompt
             // We use the same 'buildSystemPrompt' as the webhook
-            let systemPrompt = director.buildSystemPrompt(
+            let systemPrompt = await director.buildSystemPrompt(
                 settings,
                 contact,
                 phase,
