@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import axios from 'axios'
+import { useParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Loader2, Save } from 'lucide-react'
 
-export default function AgentIdentityPage({ params }: { params: { agentId: string } }) {
+export default function AgentIdentityPage() {
+    const { agentId } = useParams()
     const [agent, setAgent] = useState<any>(null)
     const [settings, setSettings] = useState<any>({})
     const [loading, setLoading] = useState(true)
@@ -17,7 +19,7 @@ export default function AgentIdentityPage({ params }: { params: { agentId: strin
         const fetchAgent = async () => {
             try {
                 const res = await axios.get('/api/agents')
-                const found = res.data.find((a: any) => a.id.toString() === params.agentId)
+                const found = res.data.find((a: any) => a.id.toString() === agentId)
                 if (found) {
                     setAgent(found)
                     const map: any = {}
@@ -29,7 +31,7 @@ export default function AgentIdentityPage({ params }: { params: { agentId: strin
             } catch (e) { console.error(e) } finally { setLoading(false) }
         }
         fetchAgent()
-    }, [params.agentId])
+    }, [agentId])
 
     const handleSave = async () => {
         setSaving(true)

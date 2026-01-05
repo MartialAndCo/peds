@@ -2,39 +2,39 @@
 
 import { useState, useEffect } from 'react'
 import axios from 'axios'
-import { useRouter } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Loader2, Trash } from 'lucide-react'
 
-export default function AgentSettingsPage({ params }: { params: { agentId: string } }) {
+export default function AgentSettingsPage() {
+    const { agentId } = useParams()
     const [agent, setAgent] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const router = useRouter()
     const [formData, setFormData] = useState({ name: '', color: '' })
 
     useEffect(() => {
-        const id = params.agentId
         axios.get('/api/agents').then(res => {
-            const found = res.data.find((a: any) => a.id.toString() === id)
+            const found = res.data.find((a: any) => a.id.toString() === agentId)
             setAgent(found)
             if (found) setFormData({ name: found.name, color: found.color })
             setLoading(false)
         }).catch(e => setLoading(false))
-    }, [params.agentId])
+    }, [agentId])
 
     const handleUpdate = async () => {
-        await axios.put(`/api/agents/${params.agentId}`, formData)
+        await axios.put(`/api/agents/${agentId}`, formData)
         alert('Updated')
         window.location.reload()
     }
 
     const handleDelete = async () => {
         if (!confirm('EXTREME DANGER: Deleting an agent will orphan their conversations. Continue?')) return
-        await axios.delete(`/api/agents/${params.agentId}`)
-        router.push('/agents')
+        await axios.delete(`/api/agents/${agentId}`)
+        router.push('/admin/agents')
     }
 
     if (loading) return <Loader2 className="animate-spin" />

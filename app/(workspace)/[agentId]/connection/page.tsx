@@ -2,11 +2,15 @@
 
 import { useState, useEffect } from 'react'
 import axios from 'axios'
+import { useParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Loader2, QrCode, Power } from 'lucide-react'
+import { Loader2, QrCode, Power, Radio } from 'lucide-react'
+import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 
-export default function AgentConnectionPage({ params }: { params: { agentId: string } }) {
+export default function AgentConnectionPage() {
+    const { agentId } = useParams()
     const [agent, setAgent] = useState<any>(null)
     const [status, setStatus] = useState('UNKNOWN')
     const [loading, setLoading] = useState(true)
@@ -24,7 +28,7 @@ export default function AgentConnectionPage({ params }: { params: { agentId: str
         const fetchAgent = async () => {
             try {
                 const res = await axios.get('/api/agents')
-                const found = res.data.find((a: any) => a.id.toString() === params.agentId)
+                const found = res.data.find((a: any) => a.id.toString() === agentId)
                 if (found) {
                     setAgent(found)
                     // Map settings array to state
@@ -38,7 +42,7 @@ export default function AgentConnectionPage({ params }: { params: { agentId: str
             } catch (e) { setLoading(false) }
         }
         fetchAgent()
-    }, [params.agentId])
+    }, [agentId])
 
     useEffect(() => {
         const checkStatus = async () => {
@@ -62,7 +66,7 @@ export default function AgentConnectionPage({ params }: { params: { agentId: str
     const handleSaveSettings = async () => {
         setSaving(true)
         try {
-            await axios.put(`/api/agents/${params.agentId}`, {
+            await axios.put(`/api/agents/${agentId}`, {
                 ...agent,
                 settings
             })
@@ -206,6 +210,3 @@ export default function AgentConnectionPage({ params }: { params: { agentId: str
     )
 }
 
-import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
-import { Radio } from 'lucide-react'

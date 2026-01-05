@@ -68,7 +68,7 @@ export default function AgentsLobbyPage() {
 
                 {/* AGENT CARDS */}
                 {agents.map((agent) => (
-                    <Link key={agent.id} href={`/agents/${agent.id}`} className="block">
+                    <Link key={agent.id} href={`/workspace/${agent.id}/overview`} className="block">
                         <Card className="h-64 relative overflow-hidden group hover:shadow-xl transition-all border-slate-200 hover:border-slate-300">
                             <div className="absolute top-0 left-0 w-full h-2" style={{ backgroundColor: agent.color }} />
 

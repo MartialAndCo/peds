@@ -89,8 +89,7 @@ export default function ConversationsPage() {
                             </TableRow>
                         ) : (
                             filteredConversations.map((conv) => (
-                                <TableRow key={conv.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/conversations/${conv.id}`)}>
-                                    <TableCell className="font-medium">{conv.contact.name}</TableCell>
+                                <TableRow key={conv.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/workspace/${conv.agentId}/conversations/${conv.id}`)}>\n                                    <TableCell className="font-medium">{conv.contact.name}</TableCell>
                                     <TableCell>{conv.prompt.name}</TableCell>
                                     <TableCell>
                                         <Badge className={cn(

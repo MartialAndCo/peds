@@ -1,13 +1,14 @@
-"use client";
-
 import { Menu } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
-import { Sidebar } from "@/components/sidebar";
+import { usePathname } from "next/navigation";
+import { SidebarAdmin } from "@/components/sidebar-admin";
+import { SidebarWorkspace } from "@/components/sidebar-workspace";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 
 export const MobileSidebar = () => {
     const [isMounted, setIsMounted] = useState(false);
+    const pathname = usePathname();
 
     useEffect(() => {
         setIsMounted(true);
@@ -17,6 +18,8 @@ export const MobileSidebar = () => {
         return null;
     }
 
+    const isWorkspace = pathname.startsWith('/workspace');
+
     return (
         <Sheet>
             <SheetTrigger asChild>
@@ -24,9 +27,9 @@ export const MobileSidebar = () => {
                     <Menu />
                 </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="p-0 bg-[#111827] text-white border-r-0 w-72">
+            <SheetContent side="left" className="p-0 border-r-0 w-72">
                 <SheetTitle className="sr-only">Mobile Menu</SheetTitle>
-                <Sidebar />
+                {isWorkspace ? <SidebarWorkspace /> : <SidebarAdmin />}
             </SheetContent>
         </Sheet>
     );
