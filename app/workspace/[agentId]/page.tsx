@@ -3,9 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import axios from 'axios'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2, MessageSquare, Users, Wifi, WifiOff, Activity } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import Link from 'next/link'
+import { Loader2, MessageSquare, Wifi, WifiOff, Settings, Fingerprint, Zap } from 'lucide-react'
 
 export default function AgentOverviewPage() {
     const { agentId } = useParams()
@@ -22,12 +21,10 @@ export default function AgentOverviewPage() {
 
     const fetchData = async () => {
         try {
-            // Fetch agent info
             const agentsRes = await axios.get('/api/agents')
             const found = agentsRes.data.find((a: any) => a.id.toString() === agentId)
             setAgent(found)
 
-            // Fetch real stats for this agent
             const conversationsRes = await axios.get(`/api/conversations?agentId=${agentId}`)
             const conversations = conversationsRes.data
             const totalMessages = conversations.reduce((acc: number, c: any) => acc + (c._count?.messages || 0), 0)
@@ -37,7 +34,6 @@ export default function AgentOverviewPage() {
                 messages: totalMessages
             })
 
-            // Initial WAHA status fetch
             await fetchWahaStatus()
         } catch (e) {
             console.error('Failed to fetch overview data:', e)
@@ -58,81 +54,101 @@ export default function AgentOverviewPage() {
         }
     }
 
-    if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="animate-spin h-8 w-8 text-slate-400" /></div>
-    if (!agent) return <div className="text-center text-slate-500 py-20">Agent not found</div>
+    if (loading) return (
+        <div className="flex items-center justify-center h-64">
+            <Loader2 className="animate-spin h-6 w-6 text-white/40" />
+        </div>
+    )
 
-    const statusConfig = {
-        ONLINE: { icon: Wifi, color: 'text-emerald-500', bg: 'bg-emerald-100', label: 'Connected' },
-        SCANNING: { icon: Activity, color: 'text-amber-500', bg: 'bg-amber-100', label: 'Awaiting QR Scan' },
-        OFFLINE: { icon: WifiOff, color: 'text-red-500', bg: 'bg-red-100', label: 'Disconnected' },
-        UNREACHABLE: { icon: WifiOff, color: 'text-slate-400', bg: 'bg-slate-100', label: 'Service Unreachable' }
-    }[wahaStatus] || { icon: WifiOff, color: 'text-slate-400', bg: 'bg-slate-100', label: 'Unknown' }
-
-    const StatusIcon = statusConfig.icon
+    if (!agent) return (
+        <div className="text-center text-white/40 py-20">Agent not found</div>
+    )
 
     return (
-        <div className="space-y-8">
+        <div className="max-w-4xl space-y-8">
+            {/* Header */}
             <div>
-                <h1 className="text-3xl font-bold tracking-tight mb-2 text-white">My Desk</h1>
-                <p className="text-slate-400">Welcome to {agent.name}'s workspace.</p>
+                <h1 className="text-2xl font-semibold text-white">Overview</h1>
+                <p className="text-white/40 text-sm mt-1">
+                    {agent.name}'s workspace dashboard
+                </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="bg-slate-800/50 border-slate-700">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-slate-300">Total Conversations</CardTitle>
-                        <MessageSquare className="h-4 w-4 text-sky-400" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-3xl font-bold text-white">{stats.conversations}</div>
-                        <p className="text-xs text-slate-500">Active threads for this agent</p>
-                    </CardContent>
-                </Card>
-                <Card className="bg-slate-800/50 border-slate-700">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-slate-300">Messages Exchanged</CardTitle>
-                        <Users className="h-4 w-4 text-purple-400" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-3xl font-bold text-white">{stats.messages}</div>
-                        <p className="text-xs text-slate-500">Total across all conversations</p>
-                    </CardContent>
-                </Card>
-                <Card className={cn("border-slate-700", statusConfig.bg.replace('bg-', 'bg-opacity-10 bg-'))}>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-slate-300">WhatsApp Status</CardTitle>
-                        <StatusIcon className={cn("h-4 w-4", statusConfig.color)} />
-                    </CardHeader>
-                    <CardContent>
-                        <div className={cn("text-2xl font-bold", statusConfig.color)}>{statusConfig.label}</div>
-                        <p className="text-xs text-slate-500">Real-time connection</p>
-                    </CardContent>
-                </Card>
+            {/* Stats Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Conversations */}
+                <div className="glass rounded-2xl p-5">
+                    <div className="flex items-center justify-between mb-3">
+                        <span className="text-white/40 text-sm">Conversations</span>
+                        <MessageSquare className="h-4 w-4 text-white/20" />
+                    </div>
+                    <p className="text-3xl font-semibold text-white">{stats.conversations}</p>
+                </div>
+
+                {/* Messages */}
+                <div className="glass rounded-2xl p-5">
+                    <div className="flex items-center justify-between mb-3">
+                        <span className="text-white/40 text-sm">Messages</span>
+                        <MessageSquare className="h-4 w-4 text-white/20" />
+                    </div>
+                    <p className="text-3xl font-semibold text-white">{stats.messages}</p>
+                </div>
+
+                {/* Connection Status */}
+                <div className="glass rounded-2xl p-5">
+                    <div className="flex items-center justify-between mb-3">
+                        <span className="text-white/40 text-sm">WhatsApp</span>
+                        {wahaStatus === 'ONLINE' ? (
+                            <Wifi className="h-4 w-4 text-green-500" />
+                        ) : (
+                            <WifiOff className="h-4 w-4 text-white/20" />
+                        )}
+                    </div>
+                    <p className={`text-xl font-medium ${wahaStatus === 'ONLINE' ? 'text-green-500' :
+                            wahaStatus === 'SCANNING' ? 'text-yellow-500' :
+                                'text-white/40'
+                        }`}>
+                        {wahaStatus === 'ONLINE' ? 'Connected' :
+                            wahaStatus === 'SCANNING' ? 'Awaiting Scan' :
+                                'Disconnected'}
+                    </p>
+                </div>
             </div>
 
-            <Card className="bg-slate-800/50 border-slate-700">
-                <CardHeader>
-                    <CardTitle className="text-lg text-slate-200">Quick Actions</CardTitle>
-                </CardHeader>
-                <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <a href={`/workspace/${agentId}/conversations`} className="flex flex-col items-center p-4 rounded-lg bg-slate-700/50 hover:bg-slate-700 transition-colors group">
-                        <MessageSquare className="h-8 w-8 text-sky-400 group-hover:scale-110 transition-transform" />
-                        <span className="mt-2 text-sm text-slate-300">View Chats</span>
-                    </a>
-                    <a href={`/workspace/${agentId}/connection`} className="flex flex-col items-center p-4 rounded-lg bg-slate-700/50 hover:bg-slate-700 transition-colors group">
-                        <Wifi className="h-8 w-8 text-emerald-400 group-hover:scale-110 transition-transform" />
-                        <span className="mt-2 text-sm text-slate-300">Connectivity</span>
-                    </a>
-                    <a href={`/workspace/${agentId}/identity`} className="flex flex-col items-center p-4 rounded-lg bg-slate-700/50 hover:bg-slate-700 transition-colors group">
-                        <Users className="h-8 w-8 text-purple-400 group-hover:scale-110 transition-transform" />
-                        <span className="mt-2 text-sm text-slate-300">Identity</span>
-                    </a>
-                    <a href={`/workspace/${agentId}/settings`} className="flex flex-col items-center p-4 rounded-lg bg-slate-700/50 hover:bg-slate-700 transition-colors group">
-                        <Activity className="h-8 w-8 text-amber-400 group-hover:scale-110 transition-transform" />
-                        <span className="mt-2 text-sm text-slate-300">Settings</span>
-                    </a>
-                </CardContent>
-            </Card>
+            {/* Quick Actions */}
+            <div className="glass rounded-2xl p-6">
+                <h2 className="text-white font-medium mb-4">Quick Actions</h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <Link
+                        href={`/workspace/${agentId}/conversations`}
+                        className="flex flex-col items-center p-4 rounded-xl bg-white/[0.02] hover:bg-white/[0.06] transition-colors group"
+                    >
+                        <MessageSquare className="h-6 w-6 text-white/40 group-hover:text-white transition-colors" />
+                        <span className="mt-2 text-sm text-white/60 group-hover:text-white">Conversations</span>
+                    </Link>
+                    <Link
+                        href={`/workspace/${agentId}/connection`}
+                        className="flex flex-col items-center p-4 rounded-xl bg-white/[0.02] hover:bg-white/[0.06] transition-colors group"
+                    >
+                        <Zap className="h-6 w-6 text-white/40 group-hover:text-white transition-colors" />
+                        <span className="mt-2 text-sm text-white/60 group-hover:text-white">Connectivity</span>
+                    </Link>
+                    <Link
+                        href={`/workspace/${agentId}/identity`}
+                        className="flex flex-col items-center p-4 rounded-xl bg-white/[0.02] hover:bg-white/[0.06] transition-colors group"
+                    >
+                        <Fingerprint className="h-6 w-6 text-white/40 group-hover:text-white transition-colors" />
+                        <span className="mt-2 text-sm text-white/60 group-hover:text-white">Identity</span>
+                    </Link>
+                    <Link
+                        href={`/workspace/${agentId}/settings`}
+                        className="flex flex-col items-center p-4 rounded-xl bg-white/[0.02] hover:bg-white/[0.06] transition-colors group"
+                    >
+                        <Settings className="h-6 w-6 text-white/40 group-hover:text-white transition-colors" />
+                        <span className="mt-2 text-sm text-white/60 group-hover:text-white">Settings</span>
+                    </Link>
+                </div>
+            </div>
         </div>
     )
 }

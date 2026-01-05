@@ -9,7 +9,7 @@ export default function AdminLayout({
 }) {
     return (
         <AgentProvider>
-            <div className="h-full relative bg-slate-50">
+            <div className="h-full relative bg-[#0a0a0a]">
                 {/* Fixed Admin Sidebar */}
                 <div className="hidden md:flex h-full w-64 flex-col fixed inset-y-0 z-50">
                     <SidebarAdmin />
@@ -18,7 +18,7 @@ export default function AdminLayout({
                 {/* Main Content Area */}
                 <main className="md:pl-64 h-full flex flex-col">
                     <Navbar />
-                    <div className="flex-1 p-8 pt-4 overflow-y-auto">
+                    <div className="flex-1 p-8 pt-6 overflow-y-auto">
                         {children}
                     </div>
                 </main>

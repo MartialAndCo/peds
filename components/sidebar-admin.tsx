@@ -20,23 +20,23 @@ const adminRoutes = [
     {
         title: "Platform",
         routes: [
-            { label: 'Global Overview', icon: LayoutDashboard, href: '/admin', color: 'text-sky-500' },
-            { label: 'Agent Lobby', icon: Bot, href: '/admin/agents', color: 'text-emerald-500' },
+            { label: 'Overview', icon: LayoutDashboard, href: '/admin' },
+            { label: 'Agents', icon: Bot, href: '/admin/agents' },
         ]
     },
     {
-        title: "Centralized Data",
+        title: "Data",
         routes: [
-            { label: 'Global Contacts', icon: Users, href: '/admin/contacts', color: 'text-pink-700' },
-            { label: 'Global Conversations', icon: Globe, href: '/admin/conversations', color: 'text-cyan-500' },
+            { label: 'Contacts', icon: Users, href: '/admin/contacts' },
+            { label: 'Conversations', icon: Globe, href: '/admin/conversations' },
         ]
     },
     {
-        title: "System Control",
+        title: "System",
         routes: [
-            { label: 'Infrastructure', icon: Server, href: '/admin/system', color: 'text-slate-500' },
-            { label: 'Global Settings', icon: Settings, href: '/admin/settings', color: 'text-blue-600' },
-            { label: 'Moderation', icon: ShieldCheck, href: '/admin/moderation', color: 'text-red-500' },
+            { label: 'Infrastructure', icon: Server, href: '/admin/system' },
+            { label: 'Settings', icon: Settings, href: '/admin/settings' },
+            { label: 'Moderation', icon: ShieldCheck, href: '/admin/moderation' },
         ]
     }
 ]
@@ -45,56 +45,60 @@ export function SidebarAdmin() {
     const pathname = usePathname()
 
     return (
-        <div className="space-y-4 py-4 flex flex-col h-full bg-[#0f172a] text-white border-r border-slate-800">
-            <div className="px-3 py-2 flex-1 overflow-y-auto">
-                <Link href="/admin" className="flex items-center pl-3 mb-10 group">
-                    <div className="relative w-10 h-10 mr-4">
-                        <div className="absolute inset-0 rounded-full blur opacity-75 bg-gradient-to-r from-cyan-500 to-blue-600 animate-pulse"></div>
-                        <div className="relative rounded-full w-full h-full flex items-center justify-center border border-white/10 overflow-hidden bg-slate-900 shadow-inner">
-                            <Server className="h-5 w-5 text-cyan-400" />
-                        </div>
+        <div className="flex flex-col h-full bg-[#0a0a0a] border-r border-white/[0.06]">
+            {/* Logo */}
+            <div className="p-4 border-b border-white/[0.06]">
+                <Link href="/admin" className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center">
+                        <span className="text-black font-bold text-lg">P</span>
                     </div>
-                    <div className="flex flex-col">
-                        <h1 className="text-lg font-bold text-white">PedsAI Admin</h1>
-                        <span className="text-[10px] uppercase tracking-widest text-cyan-500 font-bold">System Level</span>
+                    <div>
+                        <p className="text-white font-semibold text-sm">PedsAI</p>
+                        <p className="text-white/40 text-xs">Admin Portal</p>
                     </div>
                 </Link>
+            </div>
 
-                <div className="space-y-6">
-                    {adminRoutes.map((group, groupIndex) => (
-                        <div key={groupIndex}>
-                            <h3 className="mb-2 px-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                {group.title}
-                            </h3>
-                            <div className="space-y-1">
-                                {group.routes.map((route) => (
+            {/* Navigation */}
+            <div className="flex-1 overflow-y-auto py-4">
+                {adminRoutes.map((group, i) => (
+                    <div key={i} className="mb-6">
+                        <p className="px-4 mb-2 text-[10px] font-semibold uppercase tracking-widest text-white/30">
+                            {group.title}
+                        </p>
+                        <div className="space-y-0.5 px-2">
+                            {group.routes.map((route) => {
+                                const isActive = pathname === route.href
+                                return (
                                     <Link
                                         key={route.href}
                                         href={route.href}
                                         className={cn(
-                                            "text-sm group flex p-3 w-full justify-start font-medium cursor-pointer hover:text-white hover:bg-white/5 rounded-lg transition",
-                                            pathname === route.href ? "text-white bg-white/10" : "text-zinc-400"
+                                            "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
+                                            isActive
+                                                ? "bg-white/[0.08] text-white"
+                                                : "text-white/50 hover:text-white hover:bg-white/[0.04]"
                                         )}
                                     >
-                                        <div className="flex items-center flex-1">
-                                            <route.icon className={cn("h-5 w-5 mr-3", route.color)} />
-                                            {route.label}
-                                        </div>
+                                        <route.icon className="h-4 w-4" />
+                                        {route.label}
                                     </Link>
-                                ))}
-                            </div>
+                                )
+                            })}
                         </div>
-                    ))}
-                </div>
+                    </div>
+                ))}
             </div>
-            <div className="px-3 py-2 border-t border-white/5">
+
+            {/* Footer */}
+            <div className="p-4 border-t border-white/[0.06]">
                 <Button
                     variant="ghost"
-                    className="w-full justify-start text-zinc-400 hover:text-white hover:bg-white/5"
+                    className="w-full justify-start text-white/40 hover:text-white hover:bg-white/[0.04] h-10"
                     onClick={() => signOut({ callbackUrl: '/login' })}
                 >
-                    <LogOut className="h-5 w-5 mr-3" />
-                    Exit Portal
+                    <LogOut className="h-4 w-4 mr-3" />
+                    Sign Out
                 </Button>
             </div>
         </div>

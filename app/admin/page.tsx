@@ -1,16 +1,11 @@
 import { prisma } from "@/lib/prisma"
-import { Separator } from "@/components/ui/separator"
-import { AnalyticsGrid } from "@/components/dashboard/analytics-grid"
 import { startOfMonth, subDays, format, startOfDay, endOfDay } from "date-fns"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { Users, Bot, MessageSquare, TrendingUp, Activity } from "lucide-react"
+import { Users, Bot, MessageSquare, TrendingUp } from "lucide-react"
+import { AnalyticsGrid } from "@/components/dashboard/analytics-grid"
 
 export const dynamic = 'force-dynamic'
 
 export default async function DashboardPage() {
-    // SYSTEM DASHBOARD: No agent filtering here. 
-    // This is the global view for the administrator.
-
     let statsData = {
         revenue: 0,
         mrr: 0,
@@ -74,76 +69,69 @@ export default async function DashboardPage() {
             arpu: payingUsers > 0 ? revenue / payingUsers : 0,
             totalContacts: contactsCount,
             activeContacts: activeConversationsCount,
-            trustScoreAvg: 0, // Global trust avg might not be relevant or we can add it
+            trustScoreAvg: 0,
             messageVolume: messageCount24h,
             avgMessagesPerContact: contactsCount > 0 ? totalMessages / contactsCount : 0,
-            phaseDistribution: [], // We can skip phase distribution for global or aggregate it
+            phaseDistribution: [],
             dailyActivity: dailyActivityRaw.reverse()
         }
 
         return (
-            <div className="flex flex-col gap-8 pb-10">
-                <div className="flex flex-col gap-2">
-                    <h2 className="text-3xl font-bold tracking-tight text-slate-900">System Overview</h2>
-                    <p className="text-slate-500 font-medium">
-                        Global performance metrics across all <span className="text-emerald-600 font-bold">{agentsCount} active agents</span>.
+            <div className="max-w-4xl space-y-8">
+                {/* Header */}
+                <div>
+                    <h1 className="text-2xl font-semibold text-white">Overview</h1>
+                    <p className="text-white/40 text-sm mt-1">
+                        System-wide metrics across {agentsCount} active agents
                     </p>
                 </div>
 
-                <Separator />
+                {/* Stats Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="glass rounded-2xl p-5">
+                        <div className="flex items-center justify-between mb-3">
+                            <span className="text-white/40 text-sm">Agents</span>
+                            <Bot className="h-4 w-4 text-white/20" />
+                        </div>
+                        <p className="text-3xl font-semibold text-white">{agentsCount}</p>
+                    </div>
 
-                {/* FAST STATS ROW */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total Agents</CardTitle>
-                            <Bot className="h-4 w-4 text-emerald-500" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{agentsCount}</div>
-                            <p className="text-xs text-muted-foreground font-medium">Currently online & active</p>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Global Contacts</CardTitle>
-                            <Users className="h-4 w-4 text-blue-500" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{contactsCount}</div>
-                            <p className="text-xs text-muted-foreground font-medium">Across all agent networks</p>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Active Chats</CardTitle>
-                            <MessageSquare className="h-4 w-4 text-purple-500" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{activeConversationsCount}</div>
-                            <p className="text-xs text-muted-foreground font-medium">Pending AI responses</p>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-                            <TrendingUp className="h-4 w-4 text-amber-500" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{revenue.toFixed(2)}€</div>
-                            <p className="text-xs text-muted-foreground font-medium">Aggregated financials</p>
-                        </CardContent>
-                    </Card>
+                    <div className="glass rounded-2xl p-5">
+                        <div className="flex items-center justify-between mb-3">
+                            <span className="text-white/40 text-sm">Contacts</span>
+                            <Users className="h-4 w-4 text-white/20" />
+                        </div>
+                        <p className="text-3xl font-semibold text-white">{contactsCount}</p>
+                    </div>
+
+                    <div className="glass rounded-2xl p-5">
+                        <div className="flex items-center justify-between mb-3">
+                            <span className="text-white/40 text-sm">Active Chats</span>
+                            <MessageSquare className="h-4 w-4 text-white/20" />
+                        </div>
+                        <p className="text-3xl font-semibold text-white">{activeConversationsCount}</p>
+                    </div>
+
+                    <div className="glass rounded-2xl p-5">
+                        <div className="flex items-center justify-between mb-3">
+                            <span className="text-white/40 text-sm">Revenue</span>
+                            <TrendingUp className="h-4 w-4 text-white/20" />
+                        </div>
+                        <p className="text-3xl font-semibold text-white">{revenue.toFixed(0)}€</p>
+                    </div>
                 </div>
 
-                <Separator />
-
-                <div className="grid grid-cols-1 gap-4">
+                {/* Analytics Grid */}
+                <div className="glass rounded-2xl p-6">
                     <AnalyticsGrid data={statsData} />
                 </div>
             </div>
         )
     } catch (error: any) {
-        return <div className="p-20 text-center text-red-500">Error loading global dashboard: {error.message}</div>
+        return (
+            <div className="flex items-center justify-center h-64">
+                <p className="text-red-400">Error loading dashboard: {error.message}</p>
+            </div>
+        )
     }
 }

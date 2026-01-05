@@ -3,21 +3,17 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { Plus, User, Loader2 } from 'lucide-react'
+import { Plus, Loader2, Wifi, WifiOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 
 export default function AgentsLobbyPage() {
     const [agents, setAgents] = useState<any[]>([])
     const [agentStatuses, setAgentStatuses] = useState<Record<string, string>>({})
     const [loading, setLoading] = useState(true)
     const [isCreateOpen, setIsCreateOpen] = useState(false)
-    const [newAgent, setNewAgent] = useState({ name: '', phone: '', color: '#10b981' })
-    const router = useRouter()
+    const [newAgent, setNewAgent] = useState({ name: '', phone: '' })
 
     useEffect(() => {
         fetchAgents()
@@ -27,7 +23,6 @@ export default function AgentsLobbyPage() {
         try {
             const res = await axios.get('/api/agents')
             setAgents(res.data)
-            // After fetching agents, get their statuses
             fetchStatuses(res.data)
         } catch (e) {
             console.error(e)
@@ -37,11 +32,9 @@ export default function AgentsLobbyPage() {
     }
 
     const fetchStatuses = async (agentsList: any[]) => {
-        // For now, check the global WAHA status since multi-session might not be set up
         try {
             const res = await axios.get('/api/waha/status')
             const globalStatus = res.data.status
-            // Apply global status to all agents for now
             const statuses: Record<string, string> = {}
             agentsList.forEach(a => {
                 statuses[a.id] = globalStatus === 'WORKING' ? 'ONLINE' :
@@ -59,107 +52,129 @@ export default function AgentsLobbyPage() {
             await axios.post('/api/agents', newAgent)
             setIsCreateOpen(false)
             fetchAgents()
-            setNewAgent({ name: '', phone: '', color: '#10b981' })
+            setNewAgent({ name: '', phone: '' })
         } catch (e) {
-            alert('Error creating agent')
+            console.error('Error creating agent')
         }
     }
 
-    const getStatusBadge = (agentId: string) => {
-        const status = agentStatuses[agentId] || 'UNKNOWN'
-        const config = {
-            ONLINE: { bg: 'bg-emerald-500', text: 'text-white', label: '🟢 Online', glow: 'shadow-emerald-500/50' },
-            PENDING: { bg: 'bg-amber-500', text: 'text-white', label: '🟠 Scanning', glow: '' },
-            OFFLINE: { bg: 'bg-slate-400', text: 'text-white', label: '🔴 Offline', glow: '' },
-            UNKNOWN: { bg: 'bg-slate-300', text: 'text-slate-600', label: '⚪ Unknown', glow: '' }
-        }[status] || { bg: 'bg-slate-300', text: 'text-slate-600', label: status, glow: '' }
-        return config
-    }
-
-    if (loading) return <div className="p-10 flex justify-center"><Loader2 className="animate-spin h-8 w-8 text-slate-400" /></div>
+    if (loading) return (
+        <div className="flex items-center justify-center h-64">
+            <Loader2 className="animate-spin h-6 w-6 text-white/40" />
+        </div>
+    )
 
     return (
-        <div className="max-w-6xl mx-auto space-y-8 pb-20 pt-10">
-            <div className="flex flex-col space-y-2">
-                <h1 className="text-4xl font-extrabold tracking-tight text-slate-900">Agent Lobby</h1>
-                <p className="text-slate-500 text-lg">Select an agent to enter their dedicated workspace.</p>
+        <div className="max-w-4xl space-y-8">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-semibold text-white">Agents</h1>
+                    <p className="text-white/40 text-sm mt-1">
+                        Select an agent to manage
+                    </p>
+                </div>
+                <Button
+                    onClick={() => setIsCreateOpen(true)}
+                    className="bg-white text-black hover:bg-white/90"
+                >
+                    <Plus className="h-4 w-4 mr-2" />
+                    New Agent
+                </Button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {/* CREATE CARD */}
-                <button
-                    onClick={() => setIsCreateOpen(true)}
-                    className="group relative flex flex-col items-center justify-center h-64 border-2 border-dashed border-slate-300 rounded-xl hover:border-emerald-500 hover:bg-emerald-50 transition-all cursor-pointer"
-                >
-                    <div className="h-16 w-16 bg-slate-100 rounded-full flex items-center justify-center group-hover:bg-emerald-200 transition-colors mb-4">
-                        <Plus className="h-8 w-8 text-slate-400 group-hover:text-emerald-700" />
-                    </div>
-                    <span className="font-semibold text-slate-500 group-hover:text-emerald-800">Create New Agent</span>
-                </button>
-
-                {/* AGENT CARDS */}
+            {/* Agent Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {agents.map((agent) => {
-                    const statusConfig = getStatusBadge(agent.id)
-                    const isOnline = agentStatuses[agent.id] === 'ONLINE'
+                    const status = agentStatuses[agent.id] || 'OFFLINE'
+                    const isOnline = status === 'ONLINE'
 
                     return (
-                        <Link key={agent.id} href={`/workspace/${agent.id}`} className="block">
-                            <Card className={`h-64 relative overflow-hidden group hover:shadow-xl transition-all border-slate-200 hover:border-slate-300 ${isOnline ? 'ring-2 ring-emerald-400 ring-offset-2' : ''}`}>
-                                <div className="absolute top-0 left-0 w-full h-2" style={{ backgroundColor: agent.color }} />
-
-                                {/* Status Badge */}
-                                <div className="absolute top-4 right-4 z-10">
-                                    <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${statusConfig.bg} ${statusConfig.text}`}>
-                                        {statusConfig.label}
+                        <Link
+                            key={agent.id}
+                            href={`/workspace/${agent.id}`}
+                            className="glass rounded-2xl p-5 hover:bg-white/[0.06] transition-all group"
+                        >
+                            <div className="flex items-start justify-between mb-4">
+                                <div className="w-12 h-12 rounded-xl bg-white/[0.08] flex items-center justify-center">
+                                    <span className="text-white font-semibold">
+                                        {agent.name.substring(0, 2).toUpperCase()}
                                     </span>
                                 </div>
+                                <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${isOnline
+                                        ? 'bg-green-500/10 text-green-500'
+                                        : 'bg-white/[0.04] text-white/40'
+                                    }`}>
+                                    {isOnline ? (
+                                        <Wifi className="h-3 w-3" />
+                                    ) : (
+                                        <WifiOff className="h-3 w-3" />
+                                    )}
+                                    {isOnline ? 'Online' : 'Offline'}
+                                </div>
+                            </div>
 
-                                <CardContent className="h-full flex flex-col items-center justify-center p-6 space-y-4">
-                                    <div
-                                        className={`h-20 w-20 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-md transition-transform group-hover:scale-110 ${isOnline ? 'shadow-lg ' + statusConfig.glow : ''}`}
-                                        style={{ backgroundColor: agent.color }}
-                                    >
-                                        {agent.name.substring(0, 2).toUpperCase()}
-                                    </div>
-
-                                    <div className="text-center space-y-1">
-                                        <h3 className="text-xl font-bold text-slate-800 group-hover:text-emerald-600 transition-colors">{agent.name}</h3>
-                                        <p className="text-sm text-slate-400 font-mono">{agent.phone || 'No Phone'}</p>
-                                    </div>
-
-                                    <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <span className="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-full font-medium">Enter Workspace &rarr;</span>
-                                    </div>
-                                </CardContent>
-                            </Card>
+                            <h3 className="text-white font-medium group-hover:text-white transition-colors">
+                                {agent.name}
+                            </h3>
+                            <p className="text-white/30 text-sm font-mono mt-1">
+                                {agent.phone || 'No phone configured'}
+                            </p>
                         </Link>
                     )
                 })}
             </div>
 
+            {/* Empty State */}
+            {agents.length === 0 && (
+                <div className="glass rounded-2xl p-12 text-center">
+                    <div className="w-16 h-16 rounded-full bg-white/[0.04] flex items-center justify-center mx-auto mb-4">
+                        <Plus className="h-6 w-6 text-white/20" />
+                    </div>
+                    <p className="text-white font-medium mb-2">No agents yet</p>
+                    <p className="text-white/40 text-sm mb-6">Create your first AI agent to get started</p>
+                    <Button
+                        onClick={() => setIsCreateOpen(true)}
+                        className="bg-white text-black hover:bg-white/90"
+                    >
+                        Create Agent
+                    </Button>
+                </div>
+            )}
+
+            {/* Create Dialog */}
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                <DialogContent>
+                <DialogContent className="bg-[#141414] border-white/[0.08]">
                     <DialogHeader>
-                        <DialogTitle>Hire a New Agent</DialogTitle>
+                        <DialogTitle className="text-white">Create Agent</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
                         <div className="space-y-2">
-                            <Label>Name</Label>
-                            <Input value={newAgent.name} onChange={(e) => setNewAgent({ ...newAgent, name: e.target.value })} placeholder="Agent Name" />
+                            <label className="text-white/60 text-sm">Name</label>
+                            <Input
+                                value={newAgent.name}
+                                onChange={(e) => setNewAgent({ ...newAgent, name: e.target.value })}
+                                placeholder="Agent name"
+                                className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/30"
+                            />
                         </div>
                         <div className="space-y-2">
-                            <Label>Color</Label>
-                            <div className="flex gap-2">
-                                <Input type="color" value={newAgent.color} onChange={(e) => setNewAgent({ ...newAgent, color: e.target.value })} className="w-12 h-10 p-1" />
-                            </div>
-                        </div>
-                        <div className="space-y-2">
-                            <Label>WhatsApp Number (Optional)</Label>
-                            <Input value={newAgent.phone} onChange={(e) => setNewAgent({ ...newAgent, phone: e.target.value })} placeholder="e.g. 336..." />
+                            <label className="text-white/60 text-sm">Phone Number (Optional)</label>
+                            <Input
+                                value={newAgent.phone}
+                                onChange={(e) => setNewAgent({ ...newAgent, phone: e.target.value })}
+                                placeholder="+33..."
+                                className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/30"
+                            />
                         </div>
                     </div>
                     <DialogFooter>
-                        <Button onClick={handleCreate}>Create Agent</Button>
+                        <Button
+                            onClick={handleCreate}
+                            className="bg-white text-black hover:bg-white/90"
+                        >
+                            Create
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
