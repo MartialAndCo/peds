@@ -788,8 +788,8 @@ const ADMIN_KEY = process.env.ADMIN_KEY || AUTH_TOKEN // Fallback to AUTH_TOKEN 
 
 // GET /api/admin/logs - Returns last N lines of docker logs
 server.get('/api/admin/logs', async (request: any, reply: any) => {
-    const adminKey = request.headers['x-admin-key']
-    if (adminKey !== ADMIN_KEY) {
+    const apiKey = request.headers['x-api-key']
+    if (apiKey !== AUTH_TOKEN) {
         return reply.code(401).send({ error: 'Unauthorized' })
     }
 
@@ -811,8 +811,8 @@ server.get('/api/admin/logs', async (request: any, reply: any) => {
 
 // GET /api/admin/status - Detailed system status
 server.get('/api/admin/status', async (request: any, reply: any) => {
-    const adminKey = request.headers['x-admin-key']
-    if (adminKey !== ADMIN_KEY) {
+    const apiKey = request.headers['x-api-key']
+    if (apiKey !== AUTH_TOKEN) {
         return reply.code(401).send({ error: 'Unauthorized' })
     }
 
@@ -841,8 +841,8 @@ server.get('/api/admin/status', async (request: any, reply: any) => {
 
 // POST /api/admin/action - Execute predefined actions
 server.post('/api/admin/action', async (request: any, reply: any) => {
-    const adminKey = request.headers['x-admin-key']
-    if (adminKey !== ADMIN_KEY) {
+    const apiKey = request.headers['x-api-key']
+    if (apiKey !== AUTH_TOKEN) {
         return reply.code(401).send({ error: 'Unauthorized' })
     }
 

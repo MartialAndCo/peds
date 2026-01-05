@@ -192,7 +192,7 @@ export const whatsapp = {
         const { endpoint, apiKey } = await getConfig()
         try {
             const response = await axios.get(`${endpoint}/api/admin/status`, {
-                headers: { 'X-Admin-Key': apiKey },
+                headers: { 'X-Api-Key': apiKey },
                 timeout: 5000
             })
             return response.data
@@ -206,7 +206,7 @@ export const whatsapp = {
         const { endpoint, apiKey } = await getConfig()
         try {
             const response = await axios.get(`${endpoint}/api/admin/logs?lines=${lines}`, {
-                headers: { 'X-Admin-Key': apiKey },
+                headers: { 'X-Api-Key': apiKey },
                 timeout: 5000
             })
             return response.data
@@ -223,7 +223,7 @@ export const whatsapp = {
                 { action },
                 {
                     headers: {
-                        'X-Admin-Key': apiKey,
+                        'X-Api-Key': apiKey,
                         'Content-Type': 'application/json'
                     },
                     timeout: 30000 // 30s for actions like git pull
