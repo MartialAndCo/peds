@@ -99,14 +99,16 @@ export default function AgentOverviewPage() {
                     <div className="flex items-center justify-between mb-3">
                         <span className="text-white/40 text-sm">WhatsApp</span>
                         {wahaStatus === 'ONLINE' ? (
-                            <Wifi className="h-4 w-4 text-green-500" />
+                            <Wifi className="h-4 w-4 text-emerald-400" />
+                        ) : wahaStatus === 'SCANNING' ? (
+                            <Wifi className="h-4 w-4 text-amber-400" />
                         ) : (
-                            <WifiOff className="h-4 w-4 text-white/20" />
+                            <WifiOff className="h-4 w-4 text-red-400" />
                         )}
                     </div>
-                    <p className={`text-xl font-medium ${wahaStatus === 'ONLINE' ? 'text-green-500' :
-                        wahaStatus === 'SCANNING' ? 'text-yellow-500' :
-                            'text-white/40'
+                    <p className={`text-xl font-medium ${wahaStatus === 'ONLINE' ? 'text-emerald-400' :
+                            wahaStatus === 'SCANNING' ? 'text-amber-400' :
+                                'text-red-400'
                         }`}>
                         {wahaStatus === 'ONLINE' ? 'Connected' :
                             wahaStatus === 'SCANNING' ? 'Awaiting Scan' :

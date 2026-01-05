@@ -108,16 +108,20 @@ export default function AgentConnectionPage() {
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         {status === 'CONNECTED' ? (
-                            <Wifi className="h-5 w-5 text-green-500" />
+                            <Wifi className="h-5 w-5 text-emerald-400" />
+                        ) : status === 'SCAN_QR' ? (
+                            <Wifi className="h-5 w-5 text-amber-400" />
+                        ) : status === 'STARTING' ? (
+                            <Wifi className="h-5 w-5 text-blue-400" />
                         ) : (
-                            <WifiOff className="h-5 w-5 text-white/40" />
+                            <WifiOff className="h-5 w-5 text-red-400" />
                         )}
                         <span className="text-white font-medium">WhatsApp</span>
                     </div>
-                    <div className={`px-3 py-1.5 rounded-full text-xs font-medium ${status === 'CONNECTED' ? 'bg-green-500/10 text-green-500' :
-                        status === 'SCAN_QR' ? 'bg-yellow-500/10 text-yellow-500' :
-                            status === 'STARTING' ? 'bg-blue-500/10 text-blue-500' :
-                                'bg-white/[0.06] text-white/60'
+                    <div className={`px-3 py-1.5 rounded-full text-xs font-medium border ${status === 'CONNECTED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                        status === 'SCAN_QR' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                            status === 'STARTING' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+                                'bg-red-500/10 text-red-400 border-red-500/20'
                         }`}>
                         {status === 'CONNECTED' ? 'Connected' :
                             status === 'SCAN_QR' ? 'Awaiting Scan' :
@@ -129,14 +133,14 @@ export default function AgentConnectionPage() {
                 {/* Connected State */}
                 {status === 'CONNECTED' && (
                     <div className="text-center py-8">
-                        <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-4">
-                            <div className="w-4 h-4 rounded-full bg-green-500 animate-pulse" />
+                        <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-4">
+                            <div className="w-4 h-4 rounded-full bg-emerald-400 animate-pulse" />
                         </div>
-                        <p className="text-white font-medium mb-1">Session Active</p>
+                        <p className="text-emerald-400 font-medium mb-1">Session Active</p>
                         <p className="text-white/40 text-sm mb-6">Ready to send and receive messages</p>
                         <Button
                             variant="ghost"
-                            className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                            className="text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-red-500/20"
                             onClick={stopSession}
                         >
                             <Power className="h-4 w-4 mr-2" />

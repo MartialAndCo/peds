@@ -1,7 +1,6 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowDown, ArrowUp, DollarSign, Users, Activity, MessageSquare, Zap, Clock, ShieldCheck, HeartCrack, BrainCircuit } from "lucide-react"
+import { ArrowDown, ArrowUp, DollarSign, Users, Activity, MessageSquare, Zap, BrainCircuit } from "lucide-react"
 import { Bar, BarChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 
 export function AnalyticsGrid({ data }: { data: any }) {
@@ -13,9 +12,22 @@ export function AnalyticsGrid({ data }: { data: any }) {
         dailyActivity
     } = data
 
+    // Trust score color
+    const getTrustColor = (score: number) => {
+        if (score > 70) return 'text-emerald-400'
+        if (score > 40) return 'text-amber-400'
+        return 'text-red-400'
+    }
+
+    const getTrustLabel = (score: number) => {
+        if (score > 70) return 'Excellent'
+        if (score > 40) return 'Neutral'
+        return 'Caution'
+    }
+
     return (
-        <div className="space-y-8">
-            {/* ROW 1: KEY FINANCIALS (The "Board" view) */}
+        <div className="space-y-6">
+            {/* ROW 1: KEY FINANCIALS */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <StatsCard
                     title="Total Revenue"
@@ -47,46 +59,47 @@ export function AnalyticsGrid({ data }: { data: any }) {
 
             {/* ROW 2: PSYCHOLOGY & FUNNEL */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-                {/* Trust Score Gauge (Visual) */}
-                <Card className="col-span-3 border-border/50">
-                    <CardHeader>
-                        <CardTitle className="text-sm font-medium">Average Trust Score</CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex flex-col items-center justify-center pt-4">
-                        <div className="relative flex items-center justify-center">
-                            <div className="text-5xl font-bold tracking-tighter">{trustScoreAvg}</div>
+                {/* Trust Score Gauge */}
+                <div className="col-span-3 glass rounded-2xl p-6">
+                    <h3 className="text-sm font-medium text-white/60 mb-4">Average Trust Score</h3>
+                    <div className="flex flex-col items-center justify-center py-4">
+                        <div className={`text-5xl font-bold tracking-tighter ${getTrustColor(trustScoreAvg)}`}>
+                            {trustScoreAvg}
                         </div>
-                        <p className="text-muted-foreground mt-4 text-xs text-center uppercase tracking-widest">
-                            {trustScoreAvg > 70 ? "Excellent" : trustScoreAvg > 40 ? "Neutral" : "Caution"}
+                        <p className={`mt-4 text-xs uppercase tracking-widest ${getTrustColor(trustScoreAvg)}`}>
+                            {getTrustLabel(trustScoreAvg)}
                         </p>
-                    </CardContent>
-                </Card>
+                    </div>
+                </div>
 
                 {/* Funnel Phase Chart */}
-                <Card className="col-span-4 border-border/50">
-                    <CardHeader>
-                        <CardTitle className="text-sm font-medium">Funnel Distribution</CardTitle>
-                    </CardHeader>
-                    <CardContent className="h-[200px]">
+                <div className="col-span-4 glass rounded-2xl p-6">
+                    <h3 className="text-sm font-medium text-white/60 mb-4">Funnel Distribution</h3>
+                    <div className="h-[200px]">
                         {phaseDistribution && phaseDistribution.length > 0 ? (
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={phaseDistribution}>
-                                    <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                                    <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}`} />
+                                    <XAxis dataKey="name" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
+                                    <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
                                     <Tooltip
-                                        cursor={{ fill: 'transparent' }}
-                                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                                        cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                                        contentStyle={{
+                                            background: '#1e293b',
+                                            border: '1px solid rgba(255,255,255,0.1)',
+                                            borderRadius: '8px',
+                                            color: '#fff'
+                                        }}
                                     />
-                                    <Bar dataKey="value" fill="currentColor" radius={[4, 4, 0, 0]} className="fill-primary/80" />
+                                    <Bar dataKey="value" fill="#ffffff" radius={[4, 4, 0, 0]} fillOpacity={0.8} />
                                 </BarChart>
                             </ResponsiveContainer>
                         ) : (
-                            <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                            <div className="flex items-center justify-center h-full text-white/30 text-sm">
                                 Not enough data
                             </div>
                         )}
-                    </CardContent>
-                </Card>
+                    </div>
+                </div>
             </div>
 
             {/* ROW 3: ENGAGEMENT & ACTIVITY */}
@@ -112,51 +125,53 @@ export function AnalyticsGrid({ data }: { data: any }) {
             </div>
 
             {/* ROW 4: ACTIVITY CHART */}
-            <Card className="col-span-4 bg-white/50 dark:bg-gray-900/50">
-                <CardHeader>
-                    <CardTitle>Daily Activity (Last 7 Days)</CardTitle>
-                </CardHeader>
-                <CardContent className="pl-2 h-[300px]">
+            <div className="glass rounded-2xl p-6">
+                <h3 className="text-sm font-medium text-white/60 mb-4">Daily Activity (Last 7 Days)</h3>
+                <div className="h-[300px]">
                     {dailyActivity && dailyActivity.length > 0 ? (
                         <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={dailyActivity}>
-                                <XAxis dataKey="date" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                                <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}`} />
-                                <Tooltip />
-                                <Line type="monotone" dataKey="count" stroke="#8884d8" strokeWidth={2} activeDot={{ r: 8 }} />
+                                <XAxis dataKey="date" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
+                                <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
+                                <Tooltip
+                                    contentStyle={{
+                                        background: '#1e293b',
+                                        border: '1px solid rgba(255,255,255,0.1)',
+                                        borderRadius: '8px',
+                                        color: '#fff'
+                                    }}
+                                />
+                                <Line type="monotone" dataKey="count" stroke="#22c55e" strokeWidth={2} dot={false} />
                             </LineChart>
                         </ResponsiveContainer>
                     ) : (
-                        <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                        <div className="flex items-center justify-center h-full text-white/30 text-sm">
                             No activity data available
                         </div>
                     )}
-                </CardContent>
-            </Card>
-
+                </div>
+            </div>
         </div>
     )
 }
 
 function StatsCard({ title, value, icon: Icon, sub, trend, trendUp }: any) {
     return (
-        <Card className="hover:shadow-md transition-shadow duration-200 cursor-default bg-card dark:bg-card/50 border-border/50">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-                <Icon className="h-4 w-4 text-muted-foreground/70" />
-            </CardHeader>
-            <CardContent>
-                <div className="text-2xl font-bold tracking-tight">{value}</div>
-                <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1 h-4">
-                    {trend ? (
-                        <span className={`flex items-center font-medium ${trendUp ? 'text-emerald-500' : 'text-rose-500'}`}>
-                            {trendUp ? <ArrowUp className="h-3 w-3 mr-1" /> : <ArrowDown className="h-3 w-3 mr-1" />} {trend}
-                        </span>
-                    ) : (
-                        <span>{sub}</span>
-                    )}
-                </p>
-            </CardContent>
-        </Card>
+        <div className="glass rounded-2xl p-5">
+            <div className="flex items-center justify-between mb-3">
+                <span className="text-white/40 text-sm">{title}</span>
+                <Icon className="h-4 w-4 text-white/20" />
+            </div>
+            <div className="text-2xl font-semibold text-white">{value}</div>
+            <p className="text-xs text-white/40 mt-1 flex items-center gap-1 h-4">
+                {trend ? (
+                    <span className={`flex items-center font-medium ${trendUp ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {trendUp ? <ArrowUp className="h-3 w-3 mr-1" /> : <ArrowDown className="h-3 w-3 mr-1" />} {trend}
+                    </span>
+                ) : (
+                    <span>{sub}</span>
+                )}
+            </p>
+        </div>
     )
 }
