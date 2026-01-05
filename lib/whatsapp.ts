@@ -2,8 +2,6 @@ import axios from 'axios'
 import { prisma } from '@/lib/prisma'
 
 // Helper to get config from DB or Env
-// Reusing same setting keys (waha_*) to avoid DB migration friction for the user,
-// but treating them as 'whatsapp_service' config.
 export async function getConfig() {
     try {
         const settingsList = await prisma.setting.findMany()
@@ -12,13 +10,10 @@ export async function getConfig() {
             return acc
         }, {})
 
-        // Endpoint: URL of our new whatsapp-server container (e.g. http://localhost:3001)
-        // Using 127.0.0.1 to avoid IPv6 issues with 'localhost'
         const defaultEndpoint = 'http://127.0.0.1:3001'
 
         return {
             endpoint: settings.waha_endpoint || process.env.WAHA_ENDPOINT || defaultEndpoint,
-            // Prefer AUTH_TOKEN (new), fallback to WAHA_API_KEY (old/settings), default to 'secret'
             apiKey: process.env.AUTH_TOKEN || settings.waha_api_key || process.env.WAHA_API_KEY || 'secret',
             webhookSecret: process.env.WEBHOOK_SECRET
         }
@@ -33,7 +28,7 @@ export async function getConfig() {
 }
 
 export const whatsapp = {
-    async sendText(chatId: string, text: string, replyTo?: string) {
+    async sendText(chatId: string, text: string, replyTo?: string, agentId?: number) {
         console.log(`[WhatsApp] Sending Text to ${chatId}: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`)
         const { endpoint, apiKey } = await getConfig()
 
@@ -47,6 +42,7 @@ export const whatsapp = {
 
             // Call our new microservice
             const response = await axios.post(`${endpoint}/api/sendText`, {
+                sessionId: agentId?.toString(), // Pass Agent ID as Session ID
                 chatId: formattedChatId,
                 text,
                 replyTo
@@ -62,18 +58,16 @@ export const whatsapp = {
         }
     },
 
-    async sendVoice(chatId: string, audioDataUrl: string, replyTo?: string) {
+    async sendVoice(chatId: string, audioDataUrl: string, replyTo?: string, agentId?: number) {
         console.log(`[WhatsApp] Sending Voice to ${chatId}`)
         const { endpoint, apiKey } = await getConfig()
 
         try {
             const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
-
-            // Extract base64
             const base64Data = audioDataUrl.split(',')[1] || audioDataUrl
 
-            // Call our new microservice's sendVoice endpoint (which handles PTT)
             await axios.post(`${endpoint}/api/sendVoice`, {
+                sessionId: agentId?.toString(),
                 chatId: formattedChatId,
                 file: {
                     mimetype: 'audio/mpeg',
@@ -90,8 +84,7 @@ export const whatsapp = {
         }
     },
 
-    // For compatibility if we need to send images/files later
-    async sendFile(chatId: string, fileDataUrl: string, filename: string, caption?: string) {
+    async sendFile(chatId: string, fileDataUrl: string, filename: string, caption?: string, agentId?: number) {
         console.log(`[WhatsApp] Sending File to ${chatId}: ${filename}`)
         const { endpoint, apiKey } = await getConfig()
         try {
@@ -99,9 +92,10 @@ export const whatsapp = {
             const base64Data = fileDataUrl.split(',')[1] || fileDataUrl
 
             await axios.post(`${endpoint}/api/sendFile`, {
+                sessionId: agentId?.toString(),
                 chatId: formattedChatId,
                 file: {
-                    mimetype: 'application/octet-stream', // Auto-detect in service or pass correct one
+                    mimetype: 'application/octet-stream',
                     data: base64Data,
                     filename: filename
                 },
@@ -115,32 +109,30 @@ export const whatsapp = {
         }
     },
 
-    async sendImage(chatId: string, dataUrl: string, caption?: string) {
-        // Wrapper for sendFile but simpler
-        return this.sendFile(chatId, dataUrl, 'image.jpg', caption)
+    async sendImage(chatId: string, dataUrl: string, caption?: string, agentId?: number) {
+        return this.sendFile(chatId, dataUrl, 'image.jpg', caption, agentId)
     },
 
-    async sendVideo(chatId: string, dataUrl: string, caption?: string) {
-        // Wrapper for sendFile
-        return this.sendFile(chatId, dataUrl, 'video.mp4', caption)
+    async sendVideo(chatId: string, dataUrl: string, caption?: string, agentId?: number) {
+        return this.sendFile(chatId, dataUrl, 'video.mp4', caption, agentId)
     },
 
     // Get Status (replaces getSessionStatus)
-    async getStatus() {
+    async getStatus(agentId?: number) {
         const { endpoint } = await getConfig()
         try {
-            const response = await axios.get(`${endpoint}/status`)
-            return response.data // { status: 'CONNECTED', qr: '...' }
+            const url = agentId ? `${endpoint}/api/sessions/${agentId}/status` : `${endpoint}/status`
+            const response = await axios.get(url)
+            return response.data
         } catch (e) {
             return { status: 'UNREACHABLE', error: 'Could not connect to WhatsApp Service' }
         }
     },
 
-    // Download Media
+    // Download Media (No agentId needed usually, cached global or by ID)
     async downloadMedia(messageId: string) {
         const { endpoint, apiKey } = await getConfig()
         try {
-            // New Service Endpoint: GET /api/messages/:msgId/media
             const url = `${endpoint}/api/messages/${messageId}/media`
             console.log(`[WhatsAppClient] Downloading media from: ${url}`)
 
@@ -160,11 +152,14 @@ export const whatsapp = {
         }
     },
 
-    async markAsRead(chatId: string) {
+    async markAsRead(chatId: string, agentId?: number) {
         const { endpoint, apiKey } = await getConfig()
         try {
             const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
-            await axios.post(`${endpoint}/api/markSeen`, { chatId: formattedChatId }, {
+            await axios.post(`${endpoint}/api/markSeen`, {
+                sessionId: agentId?.toString(),
+                chatId: formattedChatId
+            }, {
                 headers: { 'X-Api-Key': apiKey }
             })
         } catch (error: any) {
@@ -172,11 +167,12 @@ export const whatsapp = {
         }
     },
 
-    async sendTypingState(chatId: string, isTyping: boolean) {
+    async sendTypingState(chatId: string, isTyping: boolean, agentId?: number) {
         const { endpoint, apiKey } = await getConfig()
         try {
             const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
             await axios.post(`${endpoint}/api/sendStateTyping`, {
+                sessionId: agentId?.toString(),
                 chatId: formattedChatId,
                 isTyping
             }, {
@@ -187,7 +183,6 @@ export const whatsapp = {
         }
     },
 
-    // --- Admin API Methods ---
     async adminStatus() {
         const { endpoint, apiKey } = await getConfig()
         try {
@@ -222,16 +217,38 @@ export const whatsapp = {
             const response = await axios.post(`${endpoint}/api/admin/action`,
                 { action },
                 {
-                    headers: {
-                        'X-Api-Key': apiKey,
-                        'Content-Type': 'application/json'
-                    },
-                    timeout: 30000 // 30s for actions like git pull
+                    headers: { 'X-Api-Key': apiKey, 'Content-Type': 'application/json' },
+                    timeout: 30000
                 }
             )
             return response.data
         } catch (error: any) {
             console.error('WhatsApp Admin Action Error:', error.message)
+            return { success: false, error: error.message }
+        }
+    },
+
+    // NEW: Session Management
+    async startSession(agentId: string) {
+        const { endpoint, apiKey } = await getConfig()
+        try {
+            await axios.post(`${endpoint}/api/sessions/start`, { sessionId: agentId }, {
+                headers: { 'X-Api-Key': apiKey }
+            })
+            return { success: true }
+        } catch (error: any) {
+            return { success: false, error: error.message }
+        }
+    },
+
+    async stopSession(agentId: string) {
+        const { endpoint, apiKey } = await getConfig()
+        try {
+            await axios.post(`${endpoint}/api/sessions/stop`, { sessionId: agentId }, {
+                headers: { 'X-Api-Key': apiKey }
+            })
+            return { success: true }
+        } catch (error: any) {
             return { success: false, error: error.message }
         }
     }

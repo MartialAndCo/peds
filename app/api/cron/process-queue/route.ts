@@ -29,7 +29,8 @@ export async function GET(req: Request) {
                 }
             },
             include: {
-                contact: true
+                contact: true,
+                conversation: true
             },
             take: 50 // Process in batches to avoid timeout
         })
@@ -60,8 +61,9 @@ export async function GET(req: Request) {
                 // Or update to 'PROCESSING' first if we worry about parallel crons (Vercel cron is usually unique if schedule is sparse)
 
                 // 2. Processing
-                const { content, contact } = queueItem
+                const { content, contact, conversation } = queueItem
                 const phone = contact.phone_whatsapp
+                const agentId = conversation?.agentId || undefined // Multi-Session Support (null -> undefined)
 
                 console.log(`[Cron] Sending to ${phone} (ID: ${queueItem.id})`)
 
@@ -77,11 +79,11 @@ export async function GET(req: Request) {
                 }
 
                 // Mark Read if not already (Just in case logic: Ensure it's read before reply)
-                await whatsapp.markAsRead(phone).catch(e => { })
+                await whatsapp.markAsRead(phone, agentId).catch(e => { })
 
                 // Typing Logic (Simulated)
                 // Non-blocking simulated typing state (just fire and forget, don't await long duration)
-                await whatsapp.sendTypingState(phone, true).catch(e => { })
+                await whatsapp.sendTypingState(phone, true, agentId).catch(e => { })
 
                 // REALISTIC Typing (Cron can afford a few seconds now that batch is 50 and we process efficiently)
                 // 50-80ms per char is human-like.
@@ -100,7 +102,7 @@ export async function GET(req: Request) {
                 }
 
                 for (const part of parts) {
-                    await whatsapp.sendText(phone, part.trim())
+                    await whatsapp.sendText(phone, part.trim(), undefined, agentId)
                     if (parts.indexOf(part) < parts.length - 1) {
                         await new Promise(r => setTimeout(r, 1000)) // Short pause
                     }

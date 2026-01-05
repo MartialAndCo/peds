@@ -8,12 +8,15 @@ import { TimingManager } from '@/lib/timing'
 // import { messageQueue } from '@/lib/queue' // Deprecated
 import { NextResponse } from 'next/server'
 
+
+
 export async function handleChat(
     payload: any,
     contact: any,
     conversation: any,
     settings: any,
-    messageTextInput: string // The initial text (or transcribed voice from caller)
+    messageTextInput: string, // The initial text (or transcribed voice from caller)
+    agentId?: number // Added: Agent Context
 ) {
     let messageText = messageTextInput
 
@@ -22,7 +25,7 @@ export async function handleChat(
     if (isViewOnce) {
         console.log('[Chat] ViewOnce Detected. Rejecting.')
         await new Promise(r => setTimeout(r, 2000))
-        await whatsapp.sendText(contact.phone_whatsapp, "Mince ça bug mon tel, j'arrive pas à ouvrir les photos éphémères (View Once) 😕\n\nTu peux me la renvoyer en normal stp ?")
+        await whatsapp.sendText(contact.phone_whatsapp, "Mince ça bug mon tel, j'arrive pas à ouvrir les photos éphémères (View Once) 😕\n\nTu peux me la renvoyer en normal stp ?", undefined, agentId)
         return { handled: true, result: 'view_once_rejected' }
     }
 
@@ -38,6 +41,9 @@ export async function handleChat(
         try {
             const apiKey = settings.cartesia_api_key
             if (apiKey) {
+                // TODO: downloadMedia needs agentId? Ideally yes but it works via URL usually or cache. 
+                // whatsapp.downloadMedia signature does not take agentId, but we might need it later if cache is segmented. 
+                // For now, download is global/cached.
                 const media = await whatsapp.downloadMedia(payload.id)
                 if (media && media.data) {
                     const { cartesia } = require('@/lib/cartesia')
@@ -97,7 +103,7 @@ export async function handleChat(
         return { handled: true, result: 'paused' }
     }
     if (messageText.startsWith('[Voice Message -')) {
-        await whatsapp.sendText(contact.phone_whatsapp, "Désolé, je ne peux pas écouter les messages vocaux pour le moment.")
+        await whatsapp.sendText(contact.phone_whatsapp, "Désolé, je ne peux pas écouter les messages vocaux pour le moment.", undefined, agentId)
         return { handled: true, result: 'voice_error' }
     }
 
@@ -129,7 +135,7 @@ export async function handleChat(
 
     try {
         // AI GENERATION LOGIC
-        return await generateAndSendAI(conversation, contact, settings, messageText, payload)
+        return await generateAndSendAI(conversation, contact, settings, messageText, payload, agentId)
     } finally {
         await releaseLock(conversation.id)
     }
@@ -156,7 +162,7 @@ async function releaseLock(convId: number) {
     await prisma.conversation.update({ where: { id: convId }, data: { processingLock: null } })
 }
 
-async function generateAndSendAI(conversation: any, contact: any, settings: any, lastMessageText: string, payload: any) {
+async function generateAndSendAI(conversation: any, contact: any, settings: any, lastMessageText: string, payload: any, agentId?: number) {
     // 1. Fetch History
     const historyDesc = await prisma.message.findMany({
         where: { conversationId: conversation.id },
@@ -218,7 +224,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
                 status: 'PENDING'
             }
         })
-        if (timing.shouldGhost) whatsapp.markAsRead(contact.phone_whatsapp).catch(() => { })
+        if (timing.shouldGhost) whatsapp.markAsRead(contact.phone_whatsapp, agentId).catch(() => { })
         return { handled: true, result: 'queued', scheduledAt }
     }
 
@@ -267,15 +273,15 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         const voiceText = responseText.replace(/\|\|\|/g, '. ')
         const existing = await voiceService.findReusableVoice(voiceText)
         if (existing) {
-            whatsapp.markAsRead(contact.phone_whatsapp).catch(() => { })
-            await whatsapp.sendVoice(contact.phone_whatsapp, existing.url, payload.id)
+            whatsapp.markAsRead(contact.phone_whatsapp, agentId).catch(() => { })
+            await whatsapp.sendVoice(contact.phone_whatsapp, existing.url, payload.id, agentId)
         } else {
             await voiceService.requestVoice(contact.phone_whatsapp, voiceText, lastContent)
             return { handled: true, result: 'voice_requested' }
         }
     } else {
         // Text Send -> Via DB Queue (Reliable)
-        whatsapp.markAsRead(contact.phone_whatsapp).catch(() => { })
+        whatsapp.markAsRead(contact.phone_whatsapp, agentId).catch(() => { })
 
         // We push the raw responseText (with |||) to DB. The Cron/Worker handles splitting.
         await prisma.messageQueue.create({

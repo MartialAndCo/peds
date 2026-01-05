@@ -26,6 +26,9 @@ export async function POST(req: Request) {
         }
 
         const payload = body.payload
+        // Extract Agent ID (Session ID)
+        const agentId = body.sessionId ? parseInt(body.sessionId) : 1 // Default to 1 (Lena) if missing
+        console.log(`[Webhook] Processing for Agent ID: ${agentId}`)
 
         // Ignore own messages
         if (payload.fromMe) {
@@ -117,7 +120,7 @@ export async function POST(req: Request) {
 
             // 1. Admin Commands (Problem, Cancel, etc.)
             const { handleAdminCommand } = require('@/lib/handlers/admin')
-            const adminResult = await handleAdminCommand(text, sourcePhone, settings)
+            const adminResult = await handleAdminCommand(text, sourcePhone, settings, agentId)
             if (adminResult.handled) {
                 return NextResponse.json({ success: true, handler: adminResult.type })
             }
@@ -383,12 +386,11 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
 
         // Find existing Conversation (Active OR Paused)
         // Fix: Do not filter by 'active' only, otherwise 'paused' conversations are ignored and duplicated.
+        // Find existing Conversation (Active OR Paused) FOR THIS AGENT
         let conversation = await prisma.conversation.findFirst({
             where: {
                 contactId: contact.id,
-                // We want the latest open conversation. 
-                // Assuming 'closed' is the only terminal state we ignore? 
-                // Or maybe just find the last created one.
+                agentId: agentId, // <--- Filter by Agent
                 status: { in: ['active', 'paused'] }
             },
             orderBy: { createdAt: 'desc' }, // Get the latest one
@@ -410,7 +412,8 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
                 data: {
                     contactId: contact.id,
                     promptId: defaultPrompt.id,
-                    status: 'paused', // <--- FIXED: Paused by default (Wait for Context)
+                    agentId: agentId, // <--- Assign to Agent
+                    status: 'paused',
                     ai_enabled: true
                 },
                 include: { prompt: true }
@@ -419,7 +422,7 @@ IMPORTANT: REMAIN IN CHARACTER. Do NOT admit to being an AI. Use "|||" to split 
 
         // 3. Delegate to Chat Handler (Includes: ViewOnce, Voice/Vision, Debounce, Spinlock, AI)
         const { handleChat } = require('@/lib/handlers/chat')
-        const chatResult = await handleChat(payload, contact, conversation, settings, messageText)
+        const chatResult = await handleChat(payload, contact, conversation, settings, messageText, agentId)
 
         console.log(`[Webhook] Chat Result: ${chatResult.result}`)
         return NextResponse.json({ success: true, handler: chatResult.result })
