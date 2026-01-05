@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import axios from 'axios'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,8 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/componen
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Send, Bot, User, Pause, Play, RefreshCw } from 'lucide-react'
+import { Send, Bot, User, Pause, Play, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface ConversationViewProps {
@@ -17,39 +16,133 @@ interface ConversationViewProps {
     initialData: any
 }
 
+interface Message {
+    id: number
+    sender: string
+    message_text: string
+    timestamp: string
+}
+
 export function ConversationView({ conversationId, initialData }: ConversationViewProps) {
     const [conversation, setConversation] = useState(initialData)
-    const [messages, setMessages] = useState<any[]>([])
+    const [messages, setMessages] = useState<Message[]>([])
     const [inputText, setInputText] = useState('')
     const [sending, setSending] = useState(false)
+    const [loadingMore, setLoadingMore] = useState(false)
+    const [hasMore, setHasMore] = useState(true)
+    const [oldestId, setOldestId] = useState<number | null>(null)
+    const [initialLoad, setInitialLoad] = useState(true)
     const scrollRef = useRef<HTMLDivElement>(null)
+    const prevScrollHeight = useRef<number>(0)
 
-    // Polling for messages
+    // Initial load - get latest messages
     useEffect(() => {
-        fetchMessages()
-        const interval = setInterval(fetchMessages, 3000) // Poll every 3s
-        return () => clearInterval(interval)
+        loadInitialMessages()
     }, [conversationId])
 
-    // Scroll to bottom on new messages
+    // Poll for new messages (only newest ones)
     useEffect(() => {
-        if (scrollRef.current) {
+        const interval = setInterval(pollNewMessages, 3000)
+        return () => clearInterval(interval)
+    }, [conversationId, messages])
+
+    // Scroll to bottom on initial load
+    useEffect(() => {
+        if (initialLoad && messages.length > 0 && scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+            setInitialLoad(false)
         }
-    }, [messages])
+    }, [messages, initialLoad])
 
-    const fetchMessages = async () => {
+    const loadInitialMessages = async () => {
         try {
-            const res = await axios.get(`/api/conversations/${conversationId}/messages`)
-            setMessages(res.data)
+            const res = await axios.get(`/api/conversations/${conversationId}/messages?limit=50`)
+            setMessages(res.data.messages || [])
+            setHasMore(res.data.hasMore)
+            setOldestId(res.data.oldestId)
 
-            // Also refresh conversation status if needed
+            // Also refresh conversation status
+            const convRes = await axios.get(`/api/conversations/${conversationId}`)
+            setConversation(convRes.data)
+        } catch (error) {
+            console.error('Initial load error', error)
+        }
+    }
+
+    const pollNewMessages = async () => {
+        if (messages.length === 0) return
+
+        try {
+            // Get latest messages and merge any new ones
+            const res = await axios.get(`/api/conversations/${conversationId}/messages?limit=20`)
+            const newMessages = res.data.messages || []
+
+            // Find messages that are newer than our newest
+            const newestId = messages.length > 0 ? Math.max(...messages.map(m => m.id)) : 0
+            const trulyNew = newMessages.filter((m: Message) => m.id > newestId)
+
+            if (trulyNew.length > 0) {
+                setMessages(prev => [...prev, ...trulyNew])
+                // Auto-scroll to bottom for new messages if already near bottom
+                if (scrollRef.current) {
+                    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
+                    const isNearBottom = scrollHeight - scrollTop - clientHeight < 100
+                    if (isNearBottom) {
+                        setTimeout(() => {
+                            scrollRef.current!.scrollTop = scrollRef.current!.scrollHeight
+                        }, 50)
+                    }
+                }
+            }
+
+            // Also refresh conversation status
             const convRes = await axios.get(`/api/conversations/${conversationId}`)
             setConversation(convRes.data)
         } catch (error) {
             console.error('Polling error', error)
         }
     }
+
+    const loadOlderMessages = async () => {
+        if (!hasMore || loadingMore || !oldestId) return
+
+        setLoadingMore(true)
+        prevScrollHeight.current = scrollRef.current?.scrollHeight || 0
+
+        try {
+            const res = await axios.get(`/api/conversations/${conversationId}/messages?limit=30&before=${oldestId}`)
+            const olderMessages = res.data.messages || []
+
+            if (olderMessages.length > 0) {
+                setMessages(prev => [...olderMessages, ...prev])
+                setHasMore(res.data.hasMore)
+                setOldestId(res.data.oldestId)
+
+                // Maintain scroll position after prepending
+                setTimeout(() => {
+                    if (scrollRef.current) {
+                        const newScrollHeight = scrollRef.current.scrollHeight
+                        scrollRef.current.scrollTop = newScrollHeight - prevScrollHeight.current
+                    }
+                }, 10)
+            } else {
+                setHasMore(false)
+            }
+        } catch (error) {
+            console.error('Load more error', error)
+        } finally {
+            setLoadingMore(false)
+        }
+    }
+
+    // Handle scroll to detect when user scrolls near top
+    const handleScroll = useCallback(() => {
+        if (!scrollRef.current || loadingMore || !hasMore) return
+
+        if (scrollRef.current.scrollTop < 100) {
+            loadOlderMessages()
+        }
+    }, [loadingMore, hasMore, oldestId])
 
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -62,7 +155,8 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
                 sender: 'admin'
             })
             setInputText('')
-            fetchMessages()
+            // Immediate refresh to show sent message
+            pollNewMessages()
         } catch (error) {
             console.error(error)
             alert('Failed to send')
@@ -107,8 +201,35 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
                     </div>
                 </CardHeader>
                 <CardContent className="flex-1 p-0 overflow-hidden relative">
-                    <div className="h-full overflow-y-auto p-4 space-y-4" ref={scrollRef}>
-                        {messages.length === 0 && <p className="text-center text-gray-400">No messages yet</p>}
+                    <div
+                        className="h-full overflow-y-auto p-4 space-y-4"
+                        ref={scrollRef}
+                        onScroll={handleScroll}
+                    >
+                        {/* Loading indicator at top */}
+                        {loadingMore && (
+                            <div className="flex justify-center py-2">
+                                <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                            </div>
+                        )}
+
+                        {/* "Load more" hint */}
+                        {hasMore && !loadingMore && messages.length > 0 && (
+                            <div className="text-center text-xs text-gray-400 py-2">
+                                ↑ Scroll up for older messages
+                            </div>
+                        )}
+
+                        {!hasMore && messages.length > 0 && (
+                            <div className="text-center text-xs text-gray-400 py-2">
+                                — Beginning of conversation —
+                            </div>
+                        )}
+
+                        {messages.length === 0 && !loadingMore && (
+                            <p className="text-center text-gray-400">No messages yet</p>
+                        )}
+
                         {messages.map((m) => {
                             const isMe = m.sender === 'admin'
                             const isAi = m.sender === 'ai'
@@ -203,7 +324,6 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
                         </div>
                         <div>
                             <span className="font-semibold block">Days Active:</span>
-                            {/* Simple calc: Now - createdAt */}
                             {Math.ceil(Math.abs(new Date().getTime() - new Date(conversation.contact.createdAt).getTime()) / (1000 * 60 * 60 * 24))} Days
                         </div>
                         <div className="border-t pt-2 mt-2">
