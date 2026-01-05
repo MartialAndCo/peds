@@ -27,6 +27,14 @@ if (!AUTH_TOKEN) {
     process.exit(1)
 }
 
+// Global Error Handlers to prevent crash
+process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception:', err)
+})
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason)
+})
+
 const BASE_AUTH_DIR = 'auth_info_baileys'
 if (!fs.existsSync(BASE_AUTH_DIR)) {
     fs.mkdirSync(BASE_AUTH_DIR, { recursive: true })
