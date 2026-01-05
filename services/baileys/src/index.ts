@@ -315,6 +315,21 @@ server.get('/api/sessions/:sessionId/status', async (req: any, reply) => {
     return { status: session.status, qr: session.qr }
 })
 
+// Global Status (Fallback for single-session legacy calls)
+server.get('/status', async (req, reply) => {
+    // Return the status of the first available session or 'default'
+    let targetSession = sessions.get('default')
+    if (!targetSession && sessions.size > 0) {
+        targetSession = sessions.values().next().value
+    }
+
+    if (!targetSession) {
+        return { status: 'DISCONNECTED', qr: null, message: 'No active sessions' }
+    }
+
+    return { status: targetSession.status, qr: targetSession.qr }
+})
+
 // Send Text (Must include sessionId)
 server.post('/api/sendText', async (req: any, reply) => {
     const { sessionId, chatId, text } = req.body

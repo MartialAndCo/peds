@@ -10,7 +10,11 @@ export async function GET(req: Request) {
     }
 
     try {
-        const status = await whatsapp.getStatus()
+        // Extract agentId from query params if present
+        const { searchParams } = new URL(req.url)
+        const agentId = searchParams.get('agentId')
+
+        const status = await whatsapp.getStatus(agentId ? parseInt(agentId) : undefined)
 
         // Map Baileys status to what Frontend expects
         // Baileys returns: { status: 'CONNECTED' | 'SCAN_QR_CODE' | 'DISCONNECTED', qr: '...' }
@@ -19,7 +23,7 @@ export async function GET(req: Request) {
         let mappedStatus = 'UNKNOWN'
         if (status.status === 'CONNECTED') mappedStatus = 'WORKING'
         else if (status.status === 'SCAN_QR_CODE') mappedStatus = 'SCAN_QR_CODE'
-        else if (status.status === 'DISCONNECTED' || status.status === 'STARTING') mappedStatus = 'STOPPED' // or STARTING
+        else if (status.status === 'DISCONNECTED' || status.status === 'STARTING') mappedStatus = 'STOPPED'
 
         return NextResponse.json({
             status: mappedStatus,
@@ -27,7 +31,7 @@ export async function GET(req: Request) {
             me: {
                 id: 'baileys-user',
                 pushName: 'Baileys User'
-            } // Baileys doesn't return detailed "Me" info in status yet, mocking for UI safety
+            }
         })
     } catch (e: any) {
         return NextResponse.json({ status: 'UNREACHABLE', error: e.message })

@@ -47,12 +47,15 @@ export default function AgentConnectionPage() {
     useEffect(() => {
         const checkStatus = async () => {
             try {
-                const res = await axios.get('/api/waha/status')
+                // Pass agentId to get agent-specific status
+                const res = await axios.get(`/api/waha/status?agentId=${agentId}`)
                 let s = res.data.status || 'UNREACHABLE'
-                if (s === 'WORKING' && res.data.me && agent && res.data.me.id.includes(agent.phone)) {
+                if (s === 'WORKING') {
                     setStatus('CONNECTED')
                 } else if (s === 'SCAN_QR_CODE') {
                     setStatus('SCAN_QR')
+                } else if (s === 'STOPPED' || s === 'DISCONNECTED') {
+                    setStatus('STOPPED')
                 } else {
                     setStatus(s)
                 }
@@ -61,7 +64,7 @@ export default function AgentConnectionPage() {
         if (agent) checkStatus()
         const interval = setInterval(() => { if (agent) checkStatus() }, 5000)
         return () => clearInterval(interval)
-    }, [agent])
+    }, [agent, agentId])
 
     const handleSaveSettings = async () => {
         setSaving(true)
@@ -79,15 +82,19 @@ export default function AgentConnectionPage() {
     }
 
     const startSession = async () => {
-        if (!confirm('Start WAHA Session? This uses the Global Server config.')) return
+        if (!confirm('Start WhatsApp Session for this agent?')) return
         try {
-            await axios.post('/api/session/start')
-        } catch (e) { alert('Error starting') }
+            await axios.post('/api/session/start', { agentId })
+            setStatus('STARTING')
+        } catch (e) { alert('Error starting session') }
     }
 
     const stopSession = async () => {
         if (!confirm('Stop Session? This disconnects the agent.')) return
-        try { await axios.post('/api/session/stop') } catch (e) { alert('Error stopping') }
+        try {
+            await axios.post('/api/session/stop', { agentId })
+            setStatus('STOPPED')
+        } catch (e) { alert('Error stopping') }
     }
 
     if (loading) return <div className="flex items-center justify-center p-20"><Loader2 className="animate-spin h-8 w-8 text-slate-400" /></div>
