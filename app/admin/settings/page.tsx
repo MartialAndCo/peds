@@ -4,10 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import axios from 'axios'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-
+import { Loader2, Brain, Shield, Server } from 'lucide-react'
 
 export default function SettingsPage() {
     const [settings, setSettings] = useState<any>({
@@ -20,13 +17,12 @@ export default function SettingsPage() {
         anthropic_model: 'claude-3-haiku-20240307',
         openrouter_api_key: '',
         openrouter_model: 'cognitivecomputations/dolphin-mistral-24b-venice-edition:free',
-        ai_provider: 'venice'
+        ai_provider: 'venice',
+        mem0_api_key: ''
     })
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
-    const [wahaStatus, setWahaStatus] = useState<string>('UNKNOWN')
-    const [wahaMe, setWahaMe] = useState<any>(null)
-    const [activeTab, setActiveTab] = useState('connections')
+    const [activeTab, setActiveTab] = useState('infrastructure')
 
     const fetchSettings = useCallback(() => {
         axios.get('/api/settings').then(res => {
@@ -39,228 +35,251 @@ export default function SettingsPage() {
         fetchSettings()
     }, [fetchSettings])
 
-    useEffect(() => {
-        const checkStatus = async () => {
-            try {
-                const res = await axios.get('/api/waha/status')
-                let status = res.data.status || 'UNREACHABLE'
-                if (status === 'SCAN_QR_CODE') status = 'SCAN_QR'
-                setWahaStatus(status)
-                setWahaMe(res.data.me)
-            } catch (e: any) {
-                setWahaStatus('UNREACHABLE')
-            }
-        }
-        checkStatus()
-        const interval = setInterval(checkStatus, 5000)
-        return () => clearInterval(interval)
-    }, [])
-
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault()
         setSaving(true)
         try {
             await axios.put('/api/settings', settings)
-            alert('Settings saved')
         } catch (error) {
-            alert('Error saving settings')
+            console.error('Error saving settings')
         } finally {
             setSaving(false)
         }
     }
 
-    if (loading) return <div className="p-10 text-center">Loading settings...</div>
-
-    const TabButton = ({ id, label, icon }: any) => (
-        <button
-            type="button"
-            onClick={() => setActiveTab(id)}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-md transition-all ${activeTab === id
-                ? 'bg-slate-900 text-white font-medium shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                }`}
-        >
-            {icon}
-            <span>{label}</span>
-        </button>
+    if (loading) return (
+        <div className="flex items-center justify-center h-64">
+            <Loader2 className="animate-spin h-6 w-6 text-white/40" />
+        </div>
     )
 
+    const tabs = [
+        { id: 'infrastructure', label: 'Infrastructure', icon: Server },
+        { id: 'intelligence', label: 'Intelligence', icon: Brain },
+        { id: 'moderation', label: 'Moderation', icon: Shield },
+    ]
+
     return (
-        <div className="max-w-4xl mx-auto space-y-8 pb-20">
-            <div className="flex flex-col space-y-2">
-                <h2 className="text-3xl font-bold tracking-tight">System Settings</h2>
-                <p className="text-muted-foreground">Manage your AI agent's brain, connections, and behavior.</p>
+        <div className="space-y-8 pb-24">
+            {/* Header */}
+            <div>
+                <h1 className="text-2xl font-semibold text-white">Settings</h1>
+                <p className="text-white/40 text-sm mt-1">
+                    Configure system-wide settings
+                </p>
             </div>
 
-            <form onSubmit={handleSave} className="space-y-8">
-                {/* Custom Tab Navigation */}
-                <div className="flex space-x-1 border-b pb-2 overflow-x-auto">
-                    <TabButton id="connections" label="Connections" icon={<span className="text-lg">🔌</span>} />
-                    <TabButton id="intelligence" label="Intelligence" icon={<span className="text-lg">🧠</span>} />
-                    <TabButton id="moderation" label="Moderation" icon={<span className="text-lg">🛡️</span>} />
+            <form onSubmit={handleSave} className="space-y-6">
+                {/* Tab Navigation */}
+                <div className="flex gap-2 border-b border-white/[0.06] pb-4">
+                    {tabs.map((tab) => (
+                        <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab.id
+                                    ? 'bg-white/[0.08] text-white'
+                                    : 'text-white/40 hover:text-white hover:bg-white/[0.04]'
+                                }`}
+                        >
+                            <tab.icon className="h-4 w-4" />
+                            {tab.label}
+                        </button>
+                    ))}
                 </div>
 
-                {/* --- TAB: CONNECTIONS --- */}
-                {activeTab === 'connections' && (
-                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                        {/* WAHA Status */}
-                        <Card className="border-2 border-blue-50 overflow-hidden">
-                            <CardHeader className="bg-blue-50/50">
-                                <div className="flex justify-between items-center">
-                                    <div className="flex items-center space-x-3">
-                                        <div className="p-2 bg-green-500 text-white rounded-full">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
-                                        </div>
-                                        <CardTitle>WhatsApp Status</CardTitle>
-                                    </div>
-                                    <Badge variant={wahaStatus === 'WORKING' ? 'default' : 'destructive'} className="text-sm px-3 py-1">
-                                        {wahaStatus}
-                                    </Badge>
+                {/* Infrastructure Tab */}
+                {activeTab === 'infrastructure' && (
+                    <div className="space-y-6">
+                        <div className="glass rounded-2xl p-6">
+                            <h3 className="text-white font-medium mb-4">WAHA Server (Baileys)</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-white/60 text-xs font-medium uppercase tracking-wider">
+                                        Endpoint URL
+                                    </label>
+                                    <Input
+                                        value={settings.waha_endpoint}
+                                        onChange={(e) => setSettings({ ...settings, waha_endpoint: e.target.value })}
+                                        placeholder="http://localhost:3005"
+                                        className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/30"
+                                    />
                                 </div>
-                            </CardHeader>
-                            <CardContent className="space-y-4 pt-6 flex flex-col items-center justify-center min-h-[150px]">
-                                {wahaStatus === 'SCAN_QR' && (
-                                    <div className="text-center space-y-4">
-                                        <p className="font-medium animate-pulse">Scan this QR Code with WhatsApp</p>
-                                        <img src="/api/waha/qr" alt="WhatsApp QR Code" className="w-64 h-64 border-4 border-slate-200 rounded-xl shadow-lg" />
-                                        <Button type="button" variant="destructive" onClick={async () => {
-                                            setWahaStatus('STOPPING'); try { await axios.post('/api/session/stop'); setWahaStatus('STOPPED') } catch (e) { alert('Failed') }
-                                        }}>Stop Session</Button>
-                                    </div>
-                                )}
-                                {wahaStatus === 'WORKING' && wahaMe && (
-                                    <div className="text-center text-green-700 space-y-2">
-                                        <p className="text-2xl font-bold">Connected as {wahaMe.pushName || 'User'}</p>
-                                        <p className="opacity-70 font-mono">{wahaMe.id}</p>
-                                        <Button type="button" variant="destructive" onClick={async () => {
-                                            setWahaStatus('STOPPING'); try { await axios.post('/api/session/stop'); setWahaStatus('STOPPED') } catch (e) { alert('Failed') }
-                                        }}>Stop Session</Button>
-                                    </div>
-                                )}
-                                {(wahaStatus === 'UNREACHABLE' || wahaStatus === 'UNKNOWN') && (
-                                    <div className="text-center text-red-500">
-                                        <p>Cannot connect to WAHA Server.</p>
-                                    </div>
-                                )}
-                                {wahaStatus === 'STOPPED' && (
-                                    <div className="text-center">
-                                        <Button type="button" onClick={async () => {
-                                            setWahaStatus('STARTING'); try { await axios.post('/api/session/start') } catch (e: any) { alert(e.message) }
-                                        }}>Start Session</Button>
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <Card className="md:col-span-2">
-                                <CardHeader><CardTitle>WAHA Server Details</CardTitle></CardHeader>
-                                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-1">
-                                        <Label>Endpoint URL</Label>
-                                        <Input value={settings.waha_endpoint} onChange={(e) => setSettings({ ...settings, waha_endpoint: e.target.value })} />
-                                        <p className="text-[10px] text-muted-foreground">URL of your WAHA instance (e.g. http://localhost:3000)</p>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label>API Key</Label>
-                                        <Input type="password" value={settings.waha_api_key} onChange={(e) => setSettings({ ...settings, waha_api_key: e.target.value })} />
-                                        <p className="text-[10px] text-muted-foreground">Security key for WAHA API.</p>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label>Default Session</Label>
-                                        <Input value={settings.waha_session} onChange={(e) => setSettings({ ...settings, waha_session: e.target.value })} />
-                                        <p className="text-[10px] text-muted-foreground">Default session name used for connections.</p>
-                                    </div>
-                                </CardContent>
-                            </Card>
+                                <div className="space-y-2">
+                                    <label className="text-white/60 text-xs font-medium uppercase tracking-wider">
+                                        API Key
+                                    </label>
+                                    <Input
+                                        type="password"
+                                        value={settings.waha_api_key}
+                                        onChange={(e) => setSettings({ ...settings, waha_api_key: e.target.value })}
+                                        placeholder="••••••••"
+                                        className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/30"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-white/60 text-xs font-medium uppercase tracking-wider">
+                                        Default Session
+                                    </label>
+                                    <Input
+                                        value={settings.waha_session}
+                                        onChange={(e) => setSettings({ ...settings, waha_session: e.target.value })}
+                                        placeholder="default"
+                                        className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/30"
+                                    />
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}
 
-                {/* --- TAB: INTELLIGENCE --- */}
+                {/* Intelligence Tab */}
                 {activeTab === 'intelligence' && (
-                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                        <Card>
-                            <CardHeader><CardTitle>AI Provider</CardTitle></CardHeader>
-                            <CardContent className="space-y-6">
-                                <div className="grid grid-cols-3 gap-4">
-                                    <Button type="button" variant={settings.ai_provider === 'venice' ? 'default' : 'outline'} onClick={() => setSettings({ ...settings, ai_provider: 'venice' })} className="w-full">Venice AI</Button>
-                                    <Button type="button" variant={settings.ai_provider === 'anthropic' ? 'default' : 'outline'} onClick={() => setSettings({ ...settings, ai_provider: 'anthropic' })} className="w-full">Anthropic</Button>
-                                    <Button type="button" variant={settings.ai_provider === 'openrouter' ? 'default' : 'outline'} onClick={() => setSettings({ ...settings, ai_provider: 'openrouter' })} className="w-full">OpenRouter</Button>
-                                </div>
+                    <div className="space-y-6">
+                        {/* AI Provider Selection */}
+                        <div className="glass rounded-2xl p-6">
+                            <h3 className="text-white font-medium mb-4">AI Provider</h3>
+                            <div className="grid grid-cols-3 gap-3 mb-6">
+                                {['venice', 'anthropic', 'openrouter'].map((provider) => (
+                                    <button
+                                        key={provider}
+                                        type="button"
+                                        onClick={() => setSettings({ ...settings, ai_provider: provider })}
+                                        className={`px-4 py-3 rounded-xl text-sm font-medium transition-all border ${settings.ai_provider === provider
+                                                ? 'bg-white text-black border-white'
+                                                : 'bg-white/[0.04] text-white/60 border-white/[0.08] hover:bg-white/[0.08]'
+                                            }`}
+                                    >
+                                        {provider === 'venice' ? 'Venice AI' :
+                                            provider === 'anthropic' ? 'Anthropic' : 'OpenRouter'}
+                                    </button>
+                                ))}
+                            </div>
 
+                            {/* Provider-specific settings */}
+                            <div className="space-y-4 p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
                                 {settings.ai_provider === 'venice' && (
-                                    <div className="space-y-4 border rounded p-4 bg-slate-50">
-                                        <div className="space-y-1">
-                                            <Label>Venice API Key</Label>
-                                            <Input type="password" value={settings.venice_api_key} onChange={(e) => setSettings({ ...settings, venice_api_key: e.target.value })} />
+                                    <>
+                                        <div className="space-y-2">
+                                            <label className="text-white/60 text-xs font-medium uppercase tracking-wider">
+                                                Venice API Key
+                                            </label>
+                                            <Input
+                                                type="password"
+                                                value={settings.venice_api_key}
+                                                onChange={(e) => setSettings({ ...settings, venice_api_key: e.target.value })}
+                                                placeholder="••••••••"
+                                                className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/30"
+                                            />
                                         </div>
-                                        <div className="space-y-1">
-                                            <Label>Model</Label>
-                                            <Input value={settings.venice_model} onChange={(e) => setSettings({ ...settings, venice_model: e.target.value })} />
+                                        <div className="space-y-2">
+                                            <label className="text-white/60 text-xs font-medium uppercase tracking-wider">
+                                                Model
+                                            </label>
+                                            <Input
+                                                value={settings.venice_model}
+                                                onChange={(e) => setSettings({ ...settings, venice_model: e.target.value })}
+                                                className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/30"
+                                            />
                                         </div>
-                                    </div>
+                                    </>
                                 )}
                                 {settings.ai_provider === 'anthropic' && (
-                                    <div className="space-y-4 border rounded p-4 bg-slate-50">
-                                        <div className="space-y-1">
-                                            <Label>Anthropic API Key</Label>
-                                            <Input type="password" value={settings.anthropic_api_key} onChange={(e) => setSettings({ ...settings, anthropic_api_key: e.target.value })} />
+                                    <>
+                                        <div className="space-y-2">
+                                            <label className="text-white/60 text-xs font-medium uppercase tracking-wider">
+                                                Anthropic API Key
+                                            </label>
+                                            <Input
+                                                type="password"
+                                                value={settings.anthropic_api_key}
+                                                onChange={(e) => setSettings({ ...settings, anthropic_api_key: e.target.value })}
+                                                placeholder="••••••••"
+                                                className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/30"
+                                            />
                                         </div>
-                                        <div className="space-y-1">
-                                            <Label>Model</Label>
-                                            <Input value={settings.anthropic_model} onChange={(e) => setSettings({ ...settings, anthropic_model: e.target.value })} />
+                                        <div className="space-y-2">
+                                            <label className="text-white/60 text-xs font-medium uppercase tracking-wider">
+                                                Model
+                                            </label>
+                                            <Input
+                                                value={settings.anthropic_model}
+                                                onChange={(e) => setSettings({ ...settings, anthropic_model: e.target.value })}
+                                                className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/30"
+                                            />
                                         </div>
-                                    </div>
+                                    </>
                                 )}
                                 {settings.ai_provider === 'openrouter' && (
-                                    <div className="space-y-4 border rounded p-4 bg-slate-50">
-                                        <div className="space-y-1">
-                                            <Label>OpenRouter API Key</Label>
-                                            <Input type="password" value={settings.openrouter_api_key} onChange={(e) => setSettings({ ...settings, openrouter_api_key: e.target.value })} />
+                                    <>
+                                        <div className="space-y-2">
+                                            <label className="text-white/60 text-xs font-medium uppercase tracking-wider">
+                                                OpenRouter API Key
+                                            </label>
+                                            <Input
+                                                type="password"
+                                                value={settings.openrouter_api_key}
+                                                onChange={(e) => setSettings({ ...settings, openrouter_api_key: e.target.value })}
+                                                placeholder="••••••••"
+                                                className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/30"
+                                            />
                                         </div>
-                                        <div className="space-y-1">
-                                            <Label>Model</Label>
-                                            <Input value={settings.openrouter_model} onChange={(e) => setSettings({ ...settings, openrouter_model: e.target.value })} />
+                                        <div className="space-y-2">
+                                            <label className="text-white/60 text-xs font-medium uppercase tracking-wider">
+                                                Model
+                                            </label>
+                                            <Input
+                                                value={settings.openrouter_model}
+                                                onChange={(e) => setSettings({ ...settings, openrouter_model: e.target.value })}
+                                                className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/30"
+                                            />
                                         </div>
-                                    </div>
+                                    </>
                                 )}
-                            </CardContent>
-                        </Card>
+                            </div>
+                        </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <Card>
-                                <CardHeader><CardTitle>Long-Term Memory (Mem0)</CardTitle></CardHeader>
-                                <CardContent className="space-y-4">
-                                    <div className="space-y-1">
-                                        <Label>Mem0 API Key</Label>
-                                        <Input type="password" placeholder="m0-..." value={settings.mem0_api_key || ''} onChange={(e) => setSettings({ ...settings, mem0_api_key: e.target.value })} />
-                                        <p className="text-xs text-muted-foreground">Required for long-term memory.</p>
-                                    </div>
-                                </CardContent>
-                            </Card>
+                        {/* Long-term Memory */}
+                        <div className="glass rounded-2xl p-6">
+                            <h3 className="text-white font-medium mb-4">Long-Term Memory (Mem0)</h3>
+                            <div className="space-y-2">
+                                <label className="text-white/60 text-xs font-medium uppercase tracking-wider">
+                                    Mem0 API Key
+                                </label>
+                                <Input
+                                    type="password"
+                                    value={settings.mem0_api_key || ''}
+                                    onChange={(e) => setSettings({ ...settings, mem0_api_key: e.target.value })}
+                                    placeholder="m0-..."
+                                    className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/30"
+                                />
+                                <p className="text-white/30 text-xs">Required for persistent memory across conversations</p>
+                            </div>
                         </div>
                     </div>
                 )}
 
-
-
-                {/* --- TAB: MODERATION --- */}
+                {/* Moderation Tab */}
                 {activeTab === 'moderation' && (
-                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                        <Card>
-                            <CardHeader><CardTitle>Blacklist Management</CardTitle></CardHeader>
-                            <CardContent>
-                                <BlacklistManager />
-                            </CardContent>
-                        </Card>
+                    <div className="space-y-6">
+                        <div className="glass rounded-2xl p-6">
+                            <h3 className="text-white font-medium mb-4">Content Blacklist</h3>
+                            <BlacklistManager />
+                        </div>
                     </div>
                 )}
 
-                <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-md border-t flex justify-center z-50">
-                    <Button type="submit" size="lg" disabled={saving || loading} className="w-full max-w-md shadow-xl transition-all hover:scale-105">
-                        {saving ? 'Saving...' : '💾 Save All Settings'}
-                    </Button>
+                {/* Save Button */}
+                <div className="fixed bottom-0 left-0 right-0 p-4 bg-[#0f172a]/90 backdrop-blur-xl border-t border-white/[0.06] z-50">
+                    <div className="max-w-4xl mx-auto md:pl-64">
+                        <Button
+                            type="submit"
+                            disabled={saving}
+                            className="w-full bg-white text-black hover:bg-white/90"
+                        >
+                            {saving ? <Loader2 className="animate-spin h-4 w-4" /> : 'Save Settings'}
+                        </Button>
+                    </div>
                 </div>
             </form>
         </div>
@@ -274,7 +293,7 @@ function BlacklistManager() {
     const fetchRules = useCallback(() => {
         axios.get('/api/blacklist').then(res => {
             setRules(res.data)
-        })
+        }).catch(() => { })
     }, [])
 
     useEffect(() => {
@@ -298,35 +317,66 @@ function BlacklistManager() {
 
     return (
         <div className="space-y-4">
-            <div className="flex space-x-2">
+            <div className="flex gap-2">
                 <Input
-                    placeholder="Forbidden term (e.g. nudity, face, street)"
+                    placeholder="Forbidden term (e.g. nudity, face)"
                     value={newItem}
                     onChange={(e) => setNewItem(e.target.value)}
+                    className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/30"
                 />
-                <Button type="button" variant="destructive" onClick={() => addRule('image')}>Block Photo</Button>
-                <Button type="button" variant="destructive" onClick={() => addRule('video')}>Block Video</Button>
+                <Button
+                    type="button"
+                    onClick={() => addRule('image')}
+                    className="bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20"
+                >
+                    + Photo
+                </Button>
+                <Button
+                    type="button"
+                    onClick={() => addRule('video')}
+                    className="bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20"
+                >
+                    + Video
+                </Button>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-                <div className="border rounded p-4 bg-red-50">
-                    <h4 className="font-bold text-red-800 mb-2">Forbidden in Photos 🚫📸</h4>
-                    <ul className="space-y-1">
+                <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/10">
+                    <h4 className="font-medium text-red-400 mb-3 text-sm">Blocked for Photos</h4>
+                    <ul className="space-y-2">
+                        {photoRules.length === 0 && (
+                            <p className="text-white/30 text-sm">No rules</p>
+                        )}
                         {photoRules.map(rule => (
-                            <li key={rule.id} className="flex justify-between items-center text-sm bg-white p-2 rounded shadow-sm">
-                                <span>{rule.term}</span>
-                                <button type="button" onClick={() => deleteRule(rule.id)} className="text-red-500 hover:text-red-700">×</button>
+                            <li key={rule.id} className="flex justify-between items-center text-sm bg-white/[0.04] p-2 rounded-lg">
+                                <span className="text-white/80">{rule.term}</span>
+                                <button
+                                    type="button"
+                                    onClick={() => deleteRule(rule.id)}
+                                    className="text-red-400 hover:text-red-300 text-lg"
+                                >
+                                    ×
+                                </button>
                             </li>
                         ))}
                     </ul>
                 </div>
-                <div className="border rounded p-4 bg-red-50">
-                    <h4 className="font-bold text-red-800 mb-2">Forbidden in Videos 🚫🎥</h4>
-                    <ul className="space-y-1">
+                <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/10">
+                    <h4 className="font-medium text-red-400 mb-3 text-sm">Blocked for Videos</h4>
+                    <ul className="space-y-2">
+                        {videoRules.length === 0 && (
+                            <p className="text-white/30 text-sm">No rules</p>
+                        )}
                         {videoRules.map(rule => (
-                            <li key={rule.id} className="flex justify-between items-center text-sm bg-white p-2 rounded shadow-sm">
-                                <span>{rule.term}</span>
-                                <button type="button" onClick={() => deleteRule(rule.id)} className="text-red-500 hover:text-red-700">×</button>
+                            <li key={rule.id} className="flex justify-between items-center text-sm bg-white/[0.04] p-2 rounded-lg">
+                                <span className="text-white/80">{rule.term}</span>
+                                <button
+                                    type="button"
+                                    onClick={() => deleteRule(rule.id)}
+                                    className="text-red-400 hover:text-red-300 text-lg"
+                                >
+                                    ×
+                                </button>
                             </li>
                         ))}
                     </ul>
