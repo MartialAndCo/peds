@@ -63,21 +63,33 @@ export function Sidebar() {
     return (
         <div className="space-y-4 py-4 flex flex-col h-full bg-[#111827] text-white">
             <div className="px-3 py-2 flex-1 overflow-y-auto">
-                <Link href="/dashboard" className="flex items-center pl-3 mb-10">
-                    <div className="relative w-8 h-8 mr-4">
-                        <div className="absolute inset-0 bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 rounded-full blur opacity-75 animate-pulse"></div>
+                <Link href="/dashboard" className="flex items-center pl-3 mb-10 group">
+                    <div className="relative w-10 h-10 mr-4">
+                        <div className={cn(
+                            "absolute inset-0 rounded-full blur opacity-75 animate-pulse transition-all group-hover:opacity-100",
+                            selectedAgent ? "bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500" : "bg-gradient-to-r from-cyan-500 to-blue-600"
+                        )}></div>
                         <div
-                            className="relative rounded-full w-full h-full flex items-center justify-center border border-white/10 overflow-hidden"
-                            style={{ backgroundColor: selectedAgent?.color || '#000000' }}
+                            className="relative rounded-full w-full h-full flex items-center justify-center border border-white/20 overflow-hidden shadow-inner"
+                            style={{ backgroundColor: selectedAgent?.color || '#0f172a' }}
                         >
-                            <span className="text-sm font-bold">
-                                {selectedAgent?.name?.substring(0, 2).toUpperCase() || 'P'}
-                            </span>
+                            {selectedAgent ? (
+                                <span className="text-sm font-bold text-white">
+                                    {selectedAgent.name.substring(0, 2).toUpperCase()}
+                                </span>
+                            ) : (
+                                <Server className="h-5 w-5 text-cyan-400" />
+                            )}
                         </div>
                     </div>
-                    <h1 className="text-xl font-bold text-white truncate max-w-[150px]">
-                        {selectedAgent?.name || 'PedsAI'}
-                    </h1>
+                    <div className="flex flex-col">
+                        <h1 className="text-lg font-bold text-white truncate max-w-[150px]">
+                            {selectedAgent?.name || 'PedsAI Global'}
+                        </h1>
+                        {!selectedAgent && (
+                            <span className="text-[10px] uppercase tracking-widest text-cyan-500 font-bold">System Admin</span>
+                        )}
+                    </div>
                 </Link>
 
                 <div className="space-y-6">

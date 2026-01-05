@@ -51,6 +51,16 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
             return acc
         }, {})
 
+        // Fetch Agent-Specific Settings (Overrides Global)
+        const agentWithSettings = await prisma.agent.findUnique({
+            where: { id: Number(agentId) },
+            include: { settings: true }
+        })
+
+        agentWithSettings?.settings.forEach((s: any) => {
+            settings[s.key] = s.value
+        })
+
         // Detect Intent (Smart Logic)
         let messageText = payload.body || ""
 

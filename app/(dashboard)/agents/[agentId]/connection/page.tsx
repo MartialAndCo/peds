@@ -9,16 +9,31 @@ import { Loader2, QrCode, Power } from 'lucide-react'
 export default function AgentConnectionPage({ params }: { params: { agentId: string } }) {
     const [agent, setAgent] = useState<any>(null)
     const [status, setStatus] = useState('UNKNOWN')
-    const [qrCode, setQrCode] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
+    const [saving, setSaving] = useState(false)
 
-    // Poll status (Simplified global check for now, can be specific later)
+    // Settings state
+    const [settings, setSettings] = useState({
+        source_phone_number: '',
+        media_source_number: '',
+        voice_source_number: '',
+        lead_provider_number: '',
+    })
+
     useEffect(() => {
         const fetchAgent = async () => {
             try {
                 const res = await axios.get('/api/agents')
                 const found = res.data.find((a: any) => a.id.toString() === params.agentId)
-                setAgent(found)
+                if (found) {
+                    setAgent(found)
+                    // Map settings array to state
+                    const s = { ...settings }
+                    found.settings?.forEach((item: any) => {
+                        if (item.key in s) s[item.key as keyof typeof s] = item.value
+                    })
+                    setSettings(s)
+                }
                 setLoading(false)
             } catch (e) { setLoading(false) }
         }
@@ -30,13 +45,12 @@ export default function AgentConnectionPage({ params }: { params: { agentId: str
             try {
                 const res = await axios.get('/api/waha/status')
                 let s = res.data.status || 'UNREACHABLE'
-                // Check if session user matches agent phone
                 if (s === 'WORKING' && res.data.me && agent && res.data.me.id.includes(agent.phone)) {
                     setStatus('CONNECTED')
                 } else if (s === 'SCAN_QR_CODE') {
                     setStatus('SCAN_QR')
                 } else {
-                    setStatus(s) // STOPPED, etc.
+                    setStatus(s)
                 }
             } catch (e) { setStatus('ERROR') }
         }
@@ -45,12 +59,25 @@ export default function AgentConnectionPage({ params }: { params: { agentId: str
         return () => clearInterval(interval)
     }, [agent])
 
+    const handleSaveSettings = async () => {
+        setSaving(true)
+        try {
+            await axios.put(`/api/agents/${params.agentId}`, {
+                ...agent,
+                settings
+            })
+            alert('Phone configurations saved for this agent.')
+        } catch (e) {
+            alert('Error saving settings')
+        } finally {
+            setSaving(false)
+        }
+    }
+
     const startSession = async () => {
         if (!confirm('Start WAHA Session? This uses the Global Server config.')) return
         try {
             await axios.post('/api/session/start')
-            // Show QR
-            setQrCode('/api/waha/qr')
         } catch (e) { alert('Error starting') }
     }
 
@@ -59,62 +86,126 @@ export default function AgentConnectionPage({ params }: { params: { agentId: str
         try { await axios.post('/api/session/stop') } catch (e) { alert('Error stopping') }
     }
 
-    if (loading) return <Loader2 className="animate-spin" />
+    if (loading) return <div className="flex items-center justify-center p-20"><Loader2 className="animate-spin h-8 w-8 text-slate-400" /></div>
     if (!agent) return <div>Agent not found</div>
 
     return (
-        <div className="max-w-2xl space-y-8">
+        <div className="max-w-4xl space-y-8">
             <div>
-                <h1 className="text-3xl font-bold tracking-tight">Connectivity</h1>
-                <p className="text-slate-500">Manage WhatsApp connection for {agent.name}.</p>
+                <h1 className="text-3xl font-bold tracking-tight">Connectivity & Ingestion</h1>
+                <p className="text-slate-500">Manage WhatsApp connection and ingestion phones for {agent.name}.</p>
             </div>
 
-            <Card className={status === 'CONNECTED' ? 'border-emerald-500 border-2' : ''}>
-                <CardHeader>
-                    <CardTitle>Connection Status</CardTitle>
-                    <CardDescription>
-                        Target Phone: <span className="font-mono font-bold text-slate-800">{agent.phone}</span>
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-                        <span className="font-medium text-slate-700">System Status</span>
-                        <span className={`px-3 py-1 rounded-full text-sm font-bold ${status === 'CONNECTED' ? 'bg-emerald-100 text-emerald-700' :
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* WHATSAPP CONNECTION */}
+                <Card className={status === 'CONNECTED' ? 'border-emerald-500 border-2 shadow-md' : 'shadow-sm'}>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Radio className="h-5 w-5 text-emerald-600" />
+                            WhatsApp Status
+                        </CardTitle>
+                        <CardDescription>
+                            Session: <span className="font-mono font-bold text-slate-800">{agent.phone}</span>
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-100">
+                            <span className="font-medium text-slate-700">Status</span>
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${status === 'CONNECTED' ? 'bg-emerald-100 text-emerald-700' :
                                 status === 'SCAN_QR' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'
-                            }`}>
-                            {status}
-                        </span>
-                    </div>
+                                }`}>
+                                {status}
+                            </span>
+                        </div>
 
-                    {status === 'CONNECTED' && (
-                        <div className="text-center py-6">
-                            <div className="h-16 w-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <QrCode className="h-8 w-8 text-emerald-600" />
+                        {status === 'CONNECTED' && (
+                            <div className="text-center py-4">
+                                <div className="h-16 w-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <div className="h-8 w-8 rounded-full bg-emerald-500 animate-pulse" />
+                                </div>
+                                <h3 className="text-lg font-bold text-emerald-800">Agent is Online</h3>
+                                <p className="text-sm text-emerald-600 mb-6">Device linked successfully.</p>
+                                <Button variant="destructive" size="sm" onClick={stopSession}>
+                                    <Power className="mr-2 h-4 w-4" /> Disconnect Session
+                                </Button>
                             </div>
-                            <h3 className="text-lg font-bold text-emerald-800">Agent is Online</h3>
-                            <p className="text-sm text-emerald-600 mb-6">WhatsApp is actively connected.</p>
-                            <Button variant="destructive" onClick={stopSession}>
-                                <Power className="mr-2 h-4 w-4" /> Disconnect
-                            </Button>
-                        </div>
-                    )}
+                        )}
 
-                    {(status === 'STOPPED' || status === 'ERROR' || status === 'UNREACHABLE') && (
-                        <div className="text-center py-6">
-                            <p className="text-slate-500 mb-6">Session is currently stopped.</p>
-                            <Button onClick={startSession}>Start Session & Scan QR</Button>
-                        </div>
-                    )}
+                        {(status === 'STOPPED' || status === 'ERROR' || status === 'UNREACHABLE') && (
+                            <div className="text-center py-6">
+                                <p className="text-slate-500 mb-6">Session is currently stopped.</p>
+                                <Button onClick={startSession} className="w-full">Initialize Session</Button>
+                            </div>
+                        )}
 
-                    {status === 'SCAN_QR' && (
-                        <div className="text-center py-6 space-y-4">
-                            <p className="font-bold text-orange-600 animate-pulse">Scan Now with WhatsApp (Linked Devices)</p>
-                            <img src="/api/waha/qr" className="w-64 h-64 border-4 border-slate-900 rounded-xl mx-auto shadow-xl" />
-                            <Button variant="outline" onClick={stopSession} className="mt-4">Cancel / Abort</Button>
+                        {status === 'SCAN_QR' && (
+                            <div className="text-center py-4 space-y-4">
+                                <p className="font-bold text-orange-600 animate-pulse text-sm uppercase tracking-wider">Scan QR Code</p>
+                                <img src="/api/waha/qr" className="w-56 h-56 border-4 border-slate-900 rounded-xl mx-auto shadow-xl" />
+                                <Button variant="ghost" size="sm" onClick={stopSession} className="text-slate-500">Abort Initialization</Button>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+
+                {/* INGESTION PHONES */}
+                <Card className="shadow-sm border-2 border-blue-50">
+                    <CardHeader className="bg-blue-50/30">
+                        <CardTitle className="text-blue-900 border-none">Ingestion Phones</CardTitle>
+                        <CardDescription className="text-blue-700/60">Define who can interact with {agent.name} for admin/media/leads.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-6 space-y-4">
+                        <div className="space-y-1">
+                            <Label className="text-xs uppercase text-slate-500 font-bold">Admin Number</Label>
+                            <Input
+                                value={settings.source_phone_number}
+                                onChange={e => setSettings({ ...settings, source_phone_number: e.target.value })}
+                                placeholder="+336..."
+                            />
+                            <p className="text-[10px] text-slate-400">Can send system commands (reset, stats).</p>
                         </div>
-                    )}
-                </CardContent>
-            </Card>
+                        <div className="space-y-1">
+                            <Label className="text-xs uppercase text-slate-500 font-bold">Lead Provider</Label>
+                            <Input
+                                value={settings.lead_provider_number}
+                                onChange={e => setSettings({ ...settings, lead_provider_number: e.target.value })}
+                                placeholder="+336..."
+                            />
+                            <p className="text-[10px] text-slate-400">Authorized to inject new leads/context.</p>
+                        </div>
+                        <div className="space-y-1">
+                            <Label className="text-xs uppercase text-slate-500 font-bold">Media Source</Label>
+                            <Input
+                                value={settings.media_source_number}
+                                onChange={e => setSettings({ ...settings, media_source_number: e.target.value })}
+                                placeholder="+336..."
+                            />
+                            <p className="text-[10px] text-slate-400">Receives photo/video requests from {agent.name}.</p>
+                        </div>
+                        <div className="space-y-1">
+                            <Label className="text-xs uppercase text-slate-500 font-bold">Voice Source</Label>
+                            <Input
+                                value={settings.voice_source_number}
+                                onChange={e => setSettings({ ...settings, voice_source_number: e.target.value })}
+                                placeholder="+336..."
+                            />
+                            <p className="text-[10px] text-slate-400">Receives audio recording requests.</p>
+                        </div>
+
+                        <Button
+                            className="w-full mt-4 bg-blue-600 hover:bg-blue-700"
+                            onClick={handleSaveSettings}
+                            disabled={saving}
+                        >
+                            {saving ? <Loader2 className="animate-spin h-4 w-4" /> : 'Save Phone Config'}
+                        </Button>
+                    </CardContent>
+                </Card>
+            </div>
         </div>
     )
 }
+
+import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
+import { Radio } from 'lucide-react'

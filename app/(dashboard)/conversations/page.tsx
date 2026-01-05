@@ -20,14 +20,16 @@ export default function ConversationsPage() {
     const [showNeedsContext, setShowNeedsContext] = useState(false)
 
     useEffect(() => {
-        if (selectedAgent) {
-            fetchConversations()
-        }
+        fetchConversations()
     }, [selectedAgent])
 
     const fetchConversations = async () => {
+        setLoading(true)
         try {
-            const res = await axios.get(`/api/conversations?agentId=${selectedAgent?.id}`)
+            const url = selectedAgent
+                ? `/api/conversations?agentId=${selectedAgent.id}`
+                : `/api/conversations`
+            const res = await axios.get(url)
             setConversations(res.data)
         } catch (error) {
             console.error(error)

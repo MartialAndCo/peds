@@ -153,46 +153,23 @@ export default function SettingsPage() {
                         </Card>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <Card>
-                                <CardHeader><CardTitle>WAHA Details</CardTitle></CardHeader>
-                                <CardContent className="space-y-4">
+                            <Card className="md:col-span-2">
+                                <CardHeader><CardTitle>WAHA Server Details</CardTitle></CardHeader>
+                                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-1">
                                         <Label>Endpoint URL</Label>
                                         <Input value={settings.waha_endpoint} onChange={(e) => setSettings({ ...settings, waha_endpoint: e.target.value })} />
+                                        <p className="text-[10px] text-muted-foreground">URL of your WAHA instance (e.g. http://localhost:3000)</p>
                                     </div>
                                     <div className="space-y-1">
                                         <Label>API Key</Label>
                                         <Input type="password" value={settings.waha_api_key} onChange={(e) => setSettings({ ...settings, waha_api_key: e.target.value })} />
+                                        <p className="text-[10px] text-muted-foreground">Security key for WAHA API.</p>
                                     </div>
                                     <div className="space-y-1">
-                                        <Label>Session Name</Label>
+                                        <Label>Default Session</Label>
                                         <Input value={settings.waha_session} onChange={(e) => setSettings({ ...settings, waha_session: e.target.value })} />
-                                    </div>
-                                </CardContent>
-                            </Card>
-
-                            <Card>
-                                <CardHeader><CardTitle>Phone Numbers</CardTitle></CardHeader>
-                                <CardContent className="space-y-4">
-                                    <div className="space-y-1">
-                                        <Label>Admin Number (Notifications)</Label>
-                                        <Input value={settings.source_phone_number || ''} onChange={(e) => setSettings({ ...settings, source_phone_number: e.target.value })} placeholder="+33..." />
-                                        <p className="text-xs text-muted-foreground">Admin number for system alerts.</p>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label>Media Source Number (Content)</Label>
-                                        <Input value={settings.media_source_number || ''} onChange={(e) => setSettings({ ...settings, media_source_number: e.target.value })} placeholder="+33..." />
-                                        <p className="text-xs text-muted-foreground">Number that receives media requests.</p>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label>Voice Source Number (Human Audio)</Label>
-                                        <Input value={settings.voice_source_number || ''} onChange={(e) => setSettings({ ...settings, voice_source_number: e.target.value })} placeholder="+33..." />
-                                        <p className="text-xs text-muted-foreground">Number that receives voice requests to record.</p>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label>Lead Provider Number (Data Input)</Label>
-                                        <Input value={settings.lead_provider_number || ''} onChange={(e) => setSettings({ ...settings, lead_provider_number: e.target.value })} placeholder="+33..." />
-                                        <p className="text-xs text-muted-foreground">Number authorized to send new leads (Phone + Context).</p>
+                                        <p className="text-[10px] text-muted-foreground">Default session name used for connections.</p>
                                     </div>
                                 </CardContent>
                             </Card>

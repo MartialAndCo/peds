@@ -53,10 +53,6 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
                 toSelect = fetchedAgents.find((a: Agent) => a.id === parseInt(storedId))
             }
 
-            if (!toSelect && fetchedAgents.length > 0) {
-                toSelect = fetchedAgents[0]
-            }
-
             if (toSelect) {
                 setSelectedAgentState(toSelect)
             }
