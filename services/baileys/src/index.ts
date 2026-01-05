@@ -781,6 +781,150 @@ const saveLastKeys = () => {
 
 // ... (existing helper function could go here)
 
+// --- ADMIN KEY for protected endpoints ---
+const ADMIN_KEY = process.env.ADMIN_KEY || AUTH_TOKEN // Fallback to AUTH_TOKEN if no separate admin key
+
+// --- Admin Endpoints ---
+
+// GET /api/admin/logs - Returns last N lines of docker logs
+server.get('/api/admin/logs', async (request: any, reply: any) => {
+    const adminKey = request.headers['x-admin-key']
+    if (adminKey !== ADMIN_KEY) {
+        return reply.code(401).send({ error: 'Unauthorized' })
+    }
+
+    const lines = Number(request.query.lines) || 100
+
+    try {
+        const { execSync } = await import('child_process')
+        // Get last N lines from docker logs
+        const logs = execSync(`tail -n ${Math.min(lines, 500)} /proc/1/fd/1 2>/dev/null || echo "Log access not available"`, {
+            encoding: 'utf8',
+            timeout: 5000
+        }).trim()
+
+        return { success: true, lines: logs.split('\n'), count: logs.split('\n').length }
+    } catch (e: any) {
+        return { success: false, error: e.message, logs: [] }
+    }
+})
+
+// GET /api/admin/status - Detailed system status
+server.get('/api/admin/status', async (request: any, reply: any) => {
+    const adminKey = request.headers['x-admin-key']
+    if (adminKey !== ADMIN_KEY) {
+        return reply.code(401).send({ error: 'Unauthorized' })
+    }
+
+    const memUsage = process.memoryUsage()
+    const uptime = process.uptime()
+
+    return {
+        success: true,
+        status: {
+            connected: !!sock && sock.user,
+            user: sock?.user?.id || null,
+            uptime: `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m ${Math.floor(uptime % 60)}s`,
+            uptimeSeconds: uptime,
+            memory: {
+                heapUsed: `${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`,
+                heapTotal: `${Math.round(memUsage.heapTotal / 1024 / 1024)}MB`,
+                rss: `${Math.round(memUsage.rss / 1024 / 1024)}MB`
+            },
+            chatsLoaded: store.messages?.size || 0,
+            lidMappings: lidToPnMap.size,
+            nodeVersion: process.version,
+            timestamp: new Date().toISOString()
+        }
+    }
+})
+
+// POST /api/admin/action - Execute predefined actions
+server.post('/api/admin/action', async (request: any, reply: any) => {
+    const adminKey = request.headers['x-admin-key']
+    if (adminKey !== ADMIN_KEY) {
+        return reply.code(401).send({ error: 'Unauthorized' })
+    }
+
+    const body = request.body as { action: string }
+    const action = body.action
+
+    server.log.info({ action }, 'Admin action requested')
+
+    try {
+        const { exec } = await import('child_process')
+        const util = await import('util')
+        const execAsync = util.promisify(exec)
+
+        let result: any = { success: false, message: 'Unknown action' }
+
+        switch (action) {
+            case 'git_pull':
+                // Execute git pull in the peds directory
+                const gitResult = await execAsync('cd /app && git pull 2>&1', { timeout: 30000 })
+                result = { success: true, output: gitResult.stdout + gitResult.stderr }
+                break
+
+            case 'rebuild':
+                // This is tricky from inside the container. We'll write a flag file that a watcher can pick up.
+                // For now, just return instructions
+                result = {
+                    success: false,
+                    message: 'Rebuild must be triggered from host. SSH to EC2 and run: docker-compose up -d --build'
+                }
+                break
+
+            case 'restart':
+                // Graceful restart by exiting - Docker will restart the container
+                result = { success: true, message: 'Container will restart in 2 seconds...' }
+                setTimeout(() => process.exit(0), 2000)
+                break
+
+            case 'clear_sessions':
+                // Delete auth folder contents (will require re-scan of QR)
+                const authPath = 'auth_info_baileys'
+                if (fs.existsSync(authPath)) {
+                    const files = fs.readdirSync(authPath)
+                    for (const file of files) {
+                        fs.unlinkSync(`${authPath}/${file}`)
+                    }
+                    result = { success: true, message: `Cleared ${files.length} session files. Restarting...` }
+                    setTimeout(() => process.exit(0), 2000)
+                } else {
+                    result = { success: false, message: 'Auth folder not found' }
+                }
+                break
+
+            default:
+                result = { success: false, message: `Unknown action: ${action}` }
+        }
+
+        return result
+    } catch (e: any) {
+        server.log.error({ error: e.message }, 'Admin action failed')
+        return { success: false, error: e.message }
+    }
+})
+
+
+// --- Recovery Cron Pinger (Every 30 seconds, but recovery runs less frequently server-side) ---
+const RECOVERY_URL = CRON_URL ? CRON_URL.replace('/process-queue', '/recovery') : null
+
+if (RECOVERY_URL) {
+    server.log.info({ recoveryUrl: RECOVERY_URL }, 'Initializing Recovery Pinger')
+    // Ping every 30 seconds - the server-side logic will decide if it should actually run
+    setInterval(async () => {
+        try {
+            const response = await axios.get(RECOVERY_URL, { timeout: 10000 })
+            if (response.data?.recovered > 0) {
+                server.log.info({ data: response.data }, 'Recovery: Conversations recovered!')
+            }
+        } catch (e: any) {
+            // Silent - recovery is best-effort
+        }
+    }, 30000) // 30 seconds
+}
+
 const start = async () => {
     try {
         await server.listen({ port: PORT, host: '0.0.0.0' })
