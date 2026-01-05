@@ -44,7 +44,7 @@ export default function AgentOverviewPage() {
 
     const fetchWahaStatus = async () => {
         try {
-            const res = await axios.get('/api/waha/status')
+            const res = await axios.get(`/api/waha/status?agentId=${agentId}`)
             const status = res.data.status
             if (status === 'WORKING') setWahaStatus('ONLINE')
             else if (status === 'SCAN_QR_CODE') setWahaStatus('SCANNING')
@@ -107,8 +107,8 @@ export default function AgentOverviewPage() {
                         )}
                     </div>
                     <p className={`text-xl font-medium ${wahaStatus === 'ONLINE' ? 'text-emerald-400' :
-                            wahaStatus === 'SCANNING' ? 'text-amber-400' :
-                                'text-red-400'
+                        wahaStatus === 'SCANNING' ? 'text-amber-400' :
+                            'text-red-400'
                         }`}>
                         {wahaStatus === 'ONLINE' ? 'Connected' :
                             wahaStatus === 'SCANNING' ? 'Awaiting Scan' :
