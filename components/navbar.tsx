@@ -23,7 +23,7 @@ const Navbar = () => {
             <MobileSidebar />
 
             <div className="flex items-center gap-2 ml-4 overflow-hidden">
-                <Link href="/admin/dashboard" className="text-slate-400 hover:text-slate-600 transition">
+                <Link href="/admin" className="text-slate-400 hover:text-slate-600 transition">
                     <Home className="h-4 w-4" />
                 </Link>
 

@@ -20,7 +20,7 @@ const adminRoutes = [
     {
         title: "Platform",
         routes: [
-            { label: 'Global Overview', icon: LayoutDashboard, href: '/admin/dashboard', color: 'text-sky-500' },
+            { label: 'Global Overview', icon: LayoutDashboard, href: '/admin', color: 'text-sky-500' },
             { label: 'Agent Lobby', icon: Bot, href: '/admin/agents', color: 'text-emerald-500' },
         ]
     },
@@ -47,7 +47,7 @@ export function SidebarAdmin() {
     return (
         <div className="space-y-4 py-4 flex flex-col h-full bg-[#0f172a] text-white border-r border-slate-800">
             <div className="px-3 py-2 flex-1 overflow-y-auto">
-                <Link href="/admin/dashboard" className="flex items-center pl-3 mb-10 group">
+                <Link href="/admin" className="flex items-center pl-3 mb-10 group">
                     <div className="relative w-10 h-10 mr-4">
                         <div className="absolute inset-0 rounded-full blur opacity-75 bg-gradient-to-r from-cyan-500 to-blue-600 animate-pulse"></div>
                         <div className="relative rounded-full w-full h-full flex items-center justify-center border border-white/10 overflow-hidden bg-slate-900 shadow-inner">

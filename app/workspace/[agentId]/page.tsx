@@ -1,27 +1,28 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useParams } from 'next/navigation'
 import axios from 'axios'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2, MessageSquare, Users, Eye } from 'lucide-react'
 
-export default function AgentOverviewPage({ params }: { params: { agentId: string } }) {
+export default function AgentOverviewPage() {
+    const { agentId } = useParams()
     const [agent, setAgent] = useState<any>(null)
     const [stats, setStats] = useState({ conversations: 0, messages: 0 })
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
-        const id = params.agentId
         // Fetch agent info
         axios.get('/api/agents').then(res => {
-            const found = res.data.find((a: any) => a.id.toString() === id)
+            const found = res.data.find((a: any) => a.id.toString() === agentId)
             setAgent(found)
             setLoading(false)
         }).catch(e => setLoading(false))
 
         // TODO: Fetch real stats (mock for now because we don't have a specific stats endpoint per agent yet)
         setStats({ conversations: 12, messages: 342 })
-    }, [params.agentId])
+    }, [agentId])
 
     if (loading) return <Loader2 className="animate-spin text-slate-400" />
     if (!agent) return <div>Agent not found</div>

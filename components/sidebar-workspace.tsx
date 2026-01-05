@@ -28,7 +28,7 @@ export function SidebarWorkspace() {
         {
             title: "Performance",
             routes: [
-                { label: 'Overview', icon: LayoutDashboard, href: `${baseUrl}/overview`, color: 'text-sky-500' },
+                { label: 'Overview', icon: LayoutDashboard, href: `${baseUrl}`, color: 'text-sky-500' },
                 { label: 'Conversation Hub', icon: MessageSquare, href: `${baseUrl}/conversations`, color: 'text-green-500' },
             ]
         },
