@@ -33,13 +33,18 @@ export default function AgentsLobbyPage() {
 
     const fetchStatuses = async (agentsList: any[]) => {
         try {
-            const res = await axios.get('/api/waha/status')
-            const globalStatus = res.data.status
             const statuses: Record<string, string> = {}
-            agentsList.forEach(a => {
-                statuses[a.id] = globalStatus === 'WORKING' ? 'ONLINE' :
-                    globalStatus === 'SCAN_QR_CODE' ? 'PENDING' : 'OFFLINE'
-            })
+            // Fetch status for each agent individually
+            await Promise.all(agentsList.map(async (agent) => {
+                try {
+                    const res = await axios.get(`/api/waha/status?agentId=${agent.id}`)
+                    const status = res.data.status
+                    statuses[agent.id] = status === 'WORKING' ? 'ONLINE' :
+                        status === 'SCAN_QR_CODE' ? 'PENDING' : 'OFFLINE'
+                } catch {
+                    statuses[agent.id] = 'OFFLINE'
+                }
+            }))
             setAgentStatuses(statuses)
         } catch (e) {
             console.error('Failed to fetch statuses:', e)
