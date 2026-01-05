@@ -167,18 +167,7 @@ const lidToPnMap = new Map<string, string>()
 const LID_MAP_FILE = 'auth_info_baileys/lid_map.json'
 
 const server = fastify({
-    logger: {
-        level: 'info',
-        hooks: {
-            // Capture all logs into the in-memory buffer
-            logMethod(inputArgs: any[], method: any, level: number) {
-                const timestamp = new Date().toISOString()
-                const logLine = `${timestamp} [${method.toUpperCase()}] ${inputArgs.map((a: any) => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}`
-                addToLogBuffer(logLine)
-                return method.apply(this, inputArgs)
-            }
-        }
-    },
+    logger: { level: 'info' },
     disableRequestLogging: true // Disable automatic request/response logging
 })
 
@@ -189,6 +178,11 @@ server.addHook('onResponse', async (request, reply) => {
     if (urlPath === '/status' || urlPath === '/api/status') {
         return
     }
+
+    // Add to log buffer
+    const logLine = `${new Date().toISOString()} [${request.method}] ${request.url} - ${reply.statusCode} (${reply.elapsedTime?.toFixed(0) || 0}ms)`
+    addToLogBuffer(logLine)
+
     // Log only important requests
     server.log.info({
         reqId: request.id,
