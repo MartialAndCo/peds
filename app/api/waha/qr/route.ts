@@ -11,7 +11,12 @@ export async function GET(req: Request) {
     }
 
     try {
-        const { qr } = await whatsapp.getStatus()
+        // Extract agentId from query params
+        const { searchParams } = new URL(req.url)
+        const agentId = searchParams.get('agentId')
+
+        const status = await whatsapp.getStatus(agentId ? parseInt(agentId) : undefined)
+        const qr = status.qr
 
         if (!qr) {
             return new NextResponse('No QR Code available (Connected?)', { status: 404 })

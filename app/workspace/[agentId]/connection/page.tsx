@@ -196,10 +196,10 @@ export default function AgentConnectionPage() {
                 {/* QR Code State */}
                 {status === 'SCAN_QR' && (
                     <div className="text-center py-6 space-y-4">
-                        <p className="text-yellow-500 text-sm font-medium">Scan QR Code with WhatsApp</p>
+                        <p className="text-amber-400 text-sm font-medium">Scan QR Code with WhatsApp</p>
                         <div className="inline-block p-3 bg-white rounded-2xl">
                             <img
-                                src={`/api/waha/qr?t=${Date.now()}`}
+                                src={`/api/waha/qr?agentId=${agentId}&t=${Date.now()}`}
                                 alt="QR Code"
                                 className="w-48 h-48"
                                 onError={(e) => {
