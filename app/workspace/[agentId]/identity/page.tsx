@@ -3,9 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { useParams } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
 import { Loader2, Save } from 'lucide-react'
 
 export default function AgentIdentityPage() {
@@ -48,122 +46,114 @@ export default function AgentIdentityPage() {
         }
     }
 
-    if (loading) return <div className="p-10"><Loader2 className="animate-spin" /></div>
-    if (!agent) return <div>Agent not found</div>
+    if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="animate-spin h-6 w-6 text-white/40" /></div>
+    if (!agent) return <div className="text-white">Agent not found</div>
+
+    const textareaClass = "w-full p-3 rounded-xl border border-white/[0.08] text-sm font-mono bg-white/[0.04] text-white placeholder:text-white/30 focus:ring-2 focus:ring-white/20 focus:border-transparent outline-none transition-all resize-none"
 
     return (
-        <div className="max-w-4xl space-y-8 pb-20">
+        <div className="space-y-8 pb-20">
             <div className="flex justify-between items-start">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Identity & Mind</h1>
-                    <p className="text-slate-500">Define who {agent.name} is and how they behave.</p>
+                    <h1 className="text-2xl font-semibold text-white">Identity & Mind</h1>
+                    <p className="text-white/40 text-sm mt-1">Define who {agent.name} is and how they behave.</p>
                 </div>
-                <Button onClick={handleSave} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
+                <Button onClick={handleSave} disabled={saving} className="bg-emerald-500 hover:bg-emerald-600 text-white">
                     {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                     Save Changes
                 </Button>
             </div>
 
             {/* SECTION 1: CORE IDENTITY */}
-            <Card className="border-l-4 border-l-indigo-500 shadow-sm">
-                <CardHeader>
-                    <CardTitle>Core Identity</CardTitle>
-                    <CardDescription>The fundamental persona and system instructions.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                            <Label className="font-bold text-indigo-900">1. Identity Template</Label>
-                            <p className="text-xs text-muted-foreground">Who is the agent? (Role, Age, Style)</p>
-                            <textarea
-                                className="w-full h-48 p-3 rounded-md border text-sm font-mono bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                                value={settings.prompt_identity_template || ''}
-                                onChange={(e) => setSettings({ ...settings, prompt_identity_template: e.target.value })}
-                                placeholder="**IDENTITY**\nRole: You are Lena..."
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label className="font-bold text-indigo-900">2. Context Template</Label>
-                            <p className="text-xs text-muted-foreground">How does the agent perceive the user?</p>
-                            <textarea
-                                className="w-full h-48 p-3 rounded-md border text-sm font-mono bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                                value={settings.prompt_context_template || ''}
-                                onChange={(e) => setSettings({ ...settings, prompt_context_template: e.target.value })}
-                                placeholder="**CONTEXT**\nUser: {{USER_NAME}}..."
-                            />
-                        </div>
+            <div className="glass rounded-2xl p-6 border-l-4 border-l-indigo-500">
+                <h2 className="text-white font-medium mb-1">Core Identity</h2>
+                <p className="text-white/40 text-sm mb-6">The fundamental persona and system instructions.</p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                        <label className="text-indigo-400 text-sm font-medium">1. Identity Template</label>
+                        <p className="text-white/30 text-xs">Who is the agent? (Role, Age, Style)</p>
+                        <textarea
+                            className={`${textareaClass} h-48`}
+                            value={settings.prompt_identity_template || ''}
+                            onChange={(e) => setSettings({ ...settings, prompt_identity_template: e.target.value })}
+                            placeholder="**IDENTITY**\nRole: You are Lena..."
+                        />
                     </div>
-                </CardContent>
-            </Card>
+                    <div className="space-y-2">
+                        <label className="text-indigo-400 text-sm font-medium">2. Context Template</label>
+                        <p className="text-white/30 text-xs">How does the agent perceive the user?</p>
+                        <textarea
+                            className={`${textareaClass} h-48`}
+                            value={settings.prompt_context_template || ''}
+                            onChange={(e) => setSettings({ ...settings, prompt_context_template: e.target.value })}
+                            placeholder="**CONTEXT**\nUser: {{USER_NAME}}..."
+                        />
+                    </div>
+                </div>
+            </div>
 
             {/* SECTION 2: MISSION PHASES */}
-            <Card className="border-l-4 border-l-orange-500 shadow-sm">
-                <CardHeader>
-                    <CardTitle>Mission Phases</CardTitle>
-                    <CardDescription>How the agent's goal evolves over time.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                            <Label className="font-semibold text-green-700">Phase A: Connection</Label>
-                            <textarea
-                                className="w-full h-32 p-3 rounded border text-sm bg-white focus:border-green-500 outline-none"
-                                value={settings.phase_prompt_connection || ''}
-                                onChange={(e) => setSettings({ ...settings, phase_prompt_connection: e.target.value })}
-                                placeholder="Goal: Build trust..."
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label className="font-semibold text-yellow-700">Phase B: Vulnerability</Label>
-                            <textarea
-                                className="w-full h-32 p-3 rounded border text-sm bg-white focus:border-yellow-500 outline-none"
-                                value={settings.phase_prompt_vulnerability || ''}
-                                onChange={(e) => setSettings({ ...settings, phase_prompt_vulnerability: e.target.value })}
-                                placeholder="Goal: Share secrets..."
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label className="font-semibold text-red-700">Phase C: Crisis</Label>
-                            <textarea
-                                className="w-full h-32 p-3 rounded border text-sm bg-white focus:border-red-500 outline-none"
-                                value={settings.phase_prompt_crisis || ''}
-                                onChange={(e) => setSettings({ ...settings, phase_prompt_crisis: e.target.value })}
-                                placeholder="Goal: Create urgency..."
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label className="font-semibold text-purple-700">Phase D: Money Pot</Label>
-                            <textarea
-                                className="w-full h-32 p-3 rounded border text-sm bg-white focus:border-purple-500 outline-none"
-                                value={settings.phase_prompt_moneypot || ''}
-                                onChange={(e) => setSettings({ ...settings, phase_prompt_moneypot: e.target.value })}
-                                placeholder="Goal: Closing..."
-                            />
-                        </div>
+            <div className="glass rounded-2xl p-6 border-l-4 border-l-amber-500">
+                <h2 className="text-white font-medium mb-1">Mission Phases</h2>
+                <p className="text-white/40 text-sm mb-6">How the agent's goal evolves over time.</p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                        <label className="text-emerald-400 text-sm font-medium">Phase A: Connection</label>
+                        <textarea
+                            className={`${textareaClass} h-32`}
+                            value={settings.phase_prompt_connection || ''}
+                            onChange={(e) => setSettings({ ...settings, phase_prompt_connection: e.target.value })}
+                            placeholder="Goal: Build trust..."
+                        />
                     </div>
-                </CardContent>
-            </Card>
+                    <div className="space-y-2">
+                        <label className="text-amber-400 text-sm font-medium">Phase B: Vulnerability</label>
+                        <textarea
+                            className={`${textareaClass} h-32`}
+                            value={settings.phase_prompt_vulnerability || ''}
+                            onChange={(e) => setSettings({ ...settings, phase_prompt_vulnerability: e.target.value })}
+                            placeholder="Goal: Share secrets..."
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-red-400 text-sm font-medium">Phase C: Crisis</label>
+                        <textarea
+                            className={`${textareaClass} h-32`}
+                            value={settings.phase_prompt_crisis || ''}
+                            onChange={(e) => setSettings({ ...settings, phase_prompt_crisis: e.target.value })}
+                            placeholder="Goal: Create urgency..."
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-purple-400 text-sm font-medium">Phase D: Money Pot</label>
+                        <textarea
+                            className={`${textareaClass} h-32`}
+                            value={settings.phase_prompt_moneypot || ''}
+                            onChange={(e) => setSettings({ ...settings, phase_prompt_moneypot: e.target.value })}
+                            placeholder="Goal: Closing..."
+                        />
+                    </div>
+                </div>
+            </div>
 
             {/* SECTION 3: RULES */}
-            <Card className="border-l-4 border-l-slate-500 shadow-sm">
-                <CardHeader>
-                    <CardTitle>Guardrails & Rules</CardTitle>
-                    <CardDescription>Hard constraints for the AI.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    <div className="grid grid-cols-1 gap-6">
-                        <div className="space-y-2">
-                            <Label>Global Rules</Label>
-                            <textarea
-                                className="w-full h-32 p-3 rounded-md border text-sm"
-                                value={settings.prompt_global_rules || ''}
-                                onChange={(e) => setSettings({ ...settings, prompt_global_rules: e.target.value })}
-                                placeholder="Never say you are an AI..."
-                            />
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
+            <div className="glass rounded-2xl p-6 border-l-4 border-l-slate-500">
+                <h2 className="text-white font-medium mb-1">Guardrails & Rules</h2>
+                <p className="text-white/40 text-sm mb-6">Hard constraints for the AI.</p>
+
+                <div className="space-y-2">
+                    <label className="text-white/60 text-sm font-medium">Global Rules</label>
+                    <textarea
+                        className={`${textareaClass} h-32`}
+                        value={settings.prompt_global_rules || ''}
+                        onChange={(e) => setSettings({ ...settings, prompt_global_rules: e.target.value })}
+                        placeholder="Never say you are an AI..."
+                    />
+                </div>
+            </div>
         </div>
     )
 }
+
