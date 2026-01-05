@@ -36,6 +36,16 @@ if (!WEBHOOK_SECRET) {
     console.warn('WARNING: WEBHOOK_SECRET is not defined. Webhook calls will likely fail authentication.')
 }
 
+// --- IN-MEMORY LOG BUFFER ---
+const LOG_BUFFER_SIZE = 500
+const logBuffer: string[] = []
+function addToLogBuffer(line: string) {
+    logBuffer.push(line)
+    if (logBuffer.length > LOG_BUFFER_SIZE) {
+        logBuffer.shift() // Remove oldest
+    }
+}
+
 // --- CUSTOM STORE IMPLEMENTATION ---
 // Replaces makeInMemoryStore to enable message retries without import issues
 function makeSimpleStore() {
@@ -157,7 +167,18 @@ const lidToPnMap = new Map<string, string>()
 const LID_MAP_FILE = 'auth_info_baileys/lid_map.json'
 
 const server = fastify({
-    logger: { level: 'info' },
+    logger: {
+        level: 'info',
+        hooks: {
+            // Capture all logs into the in-memory buffer
+            logMethod(inputArgs: any[], method: any, level: number) {
+                const timestamp = new Date().toISOString()
+                const logLine = `${timestamp} [${method.toUpperCase()}] ${inputArgs.map((a: any) => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}`
+                addToLogBuffer(logLine)
+                return method.apply(this, inputArgs)
+            }
+        }
+    },
     disableRequestLogging: true // Disable automatic request/response logging
 })
 
@@ -786,27 +807,17 @@ const ADMIN_KEY = process.env.ADMIN_KEY || AUTH_TOKEN // Fallback to AUTH_TOKEN 
 
 // --- Admin Endpoints ---
 
-// GET /api/admin/logs - Returns last N lines of docker logs
+// GET /api/admin/logs - Returns last N lines from in-memory buffer
 server.get('/api/admin/logs', async (request: any, reply: any) => {
     const apiKey = request.headers['x-api-key']
     if (apiKey !== AUTH_TOKEN) {
         return reply.code(401).send({ error: 'Unauthorized' })
     }
 
-    const lines = Number(request.query.lines) || 100
+    const lines = Math.min(Number(request.query.lines) || 100, LOG_BUFFER_SIZE)
+    const logsSlice = logBuffer.slice(-lines)
 
-    try {
-        const { execSync } = await import('child_process')
-        // Get last N lines from docker logs
-        const logs = execSync(`tail -n ${Math.min(lines, 500)} /proc/1/fd/1 2>/dev/null || echo "Log access not available"`, {
-            encoding: 'utf8',
-            timeout: 5000
-        }).trim()
-
-        return { success: true, lines: logs.split('\n'), count: logs.split('\n').length }
-    } catch (e: any) {
-        return { success: false, error: e.message, logs: [] }
-    }
+    return { success: true, lines: logsSlice, count: logsSlice.length }
 })
 
 // GET /api/admin/status - Detailed system status
