@@ -81,23 +81,32 @@ const routes = [
 ]
 
 import { useWahaStatus } from "@/components/waha-status-provider";
+import { useAgent } from "@/components/agent-provider";
 
 export function Sidebar() {
     const pathname = usePathname()
     const { isDisconnected } = useWahaStatus()
+
+
+    const { selectedAgent } = useAgent()
 
     return (
         <div className="space-y-4 py-4 flex flex-col h-full bg-[#111827] text-white">
             <div className="px-3 py-2 flex-1">
                 <Link href="/dashboard" className="flex items-center pl-3 mb-14">
                     <div className="relative w-8 h-8 mr-4">
-                        <div className="absolute inset-0 bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 rounded-lg blur opacity-75 animate-pulse"></div>
-                        <div className="relative bg-black rounded-lg w-full h-full flex items-center justify-center border border-white/10">
-                            <span className="text-lg font-bold">P</span>
+                        <div className="absolute inset-0 bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 rounded-full blur opacity-75 animate-pulse"></div>
+                        <div
+                            className="relative rounded-full w-full h-full flex items-center justify-center border border-white/10 overflow-hidden"
+                            style={{ backgroundColor: selectedAgent?.color || '#000000' }}
+                        >
+                            <span className="text-sm font-bold">
+                                {selectedAgent?.name?.substring(0, 2).toUpperCase() || 'P'}
+                            </span>
                         </div>
                     </div>
-                    <h1 className="text-2xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-                        PedsAI
+                    <h1 className="text-xl font-bold text-white truncate max-w-[150px]">
+                        {selectedAgent?.name || 'PedsAI'}
                     </h1>
                 </Link>
                 <div className="space-y-1">

@@ -62,9 +62,26 @@ model Contact {
   @@map("contacts")
 }
 
+
+model Agent {
+  id        Int      @id @default(autoincrement())
+  name      String   // e.g. "Lena", "Maxime"
+  phone     String   @unique // The WhatsApp number connected to this agent
+  color     String   @default("#000000") // For UI distinction
+  promptId  Int?     // Default prompt ID for this agent
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  conversations Conversation[]
+  
+  @@map("agents")
+}
+
 model Conversation {
   id              Int       @id @default(autoincrement())
   contactId       String
+  agentId         Int?      // The agent handling this conversation
   promptId        Int
   waha_session_id String?
   status          String    @default("active") // active, paused, closed
@@ -75,12 +92,14 @@ model Conversation {
   closedAt        DateTime?
   
   contact         Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  agent           Agent?    @relation(fields: [agentId], references: [id])
   prompt          Prompt    @relation(fields: [promptId], references: [id])
   messages        Message[]
   messageQueue    MessageQueue[]
 
   @@index([status])
   @@index([contactId, status])
+  @@index([agentId])
   @@index([processingLock])
   @@map("conversations")
 }
