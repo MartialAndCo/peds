@@ -171,11 +171,12 @@ const server = fastify({
     disableRequestLogging: true // Disable automatic request/response logging
 })
 
-// Manual request logging (skip /status health checks)
+// Manual request logging (skip /status health checks and admin polling)
 server.addHook('onResponse', async (request, reply) => {
     const urlPath = request.url.split('?')[0]
-    // Skip logging for health check routes
-    if (urlPath === '/status' || urlPath === '/api/status') {
+    // Skip logging for health check routes and admin polling (too noisy)
+    if (urlPath === '/status' || urlPath === '/api/status' ||
+        urlPath === '/api/admin/status' || urlPath === '/api/admin/logs') {
         return
     }
 
