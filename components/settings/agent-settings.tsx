@@ -1,5 +1,6 @@
 // ... imports
 import { Plus, Trash, Pencil, Smartphone, Loader2, QrCode, Power, Brain } from 'lucide-react'
+import { useState } from 'react'
 import { AgentConfigEditor } from '@/components/settings/agent-config-editor'
 // ...
 
