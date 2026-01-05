@@ -37,28 +37,8 @@ export async function handleChat(
 
     const isVoiceMessage = payload.type === 'ptt' || payload.type === 'audio' || payload._data?.mimetype?.startsWith('audio')
     if (isVoiceMessage && !messageText.startsWith('[Voice Message -')) {
-        console.log('Chat: Voice Message Detected. Transcribing...')
-        try {
-            const apiKey = settings.cartesia_api_key
-            if (apiKey) {
-                // TODO: downloadMedia needs agentId? Ideally yes but it works via URL usually or cache. 
-                // whatsapp.downloadMedia signature does not take agentId, but we might need it later if cache is segmented. 
-                // For now, download is global/cached.
-                const media = await whatsapp.downloadMedia(payload.id)
-                if (media && media.data) {
-                    const { cartesia } = require('@/lib/cartesia')
-                    const transcript = await cartesia.transcribeAudio(media.data, { apiKey })
-                    if (transcript) {
-                        messageText = `[Voice Message Transcribed]: ${transcript}`
-                    } else {
-                        messageText = "[Voice Message - Transcription Empty]"
-                    }
-                } else messageText = "[Voice Message - Download Failed]"
-            } else messageText = "[Voice Message - Transcription Disabled]"
-        } catch (err: any) {
-            console.error('Transcription Failed:', err)
-            messageText = `[Voice Message - Transcription Error: ${err.message}]`
-        }
+        console.log('Chat: Voice Message Detected. Transcription disabled (Cartesia removed).')
+        messageText = "[Voice Message - Transcription Disabled]"
     }
 
     // 3. Vision Logic

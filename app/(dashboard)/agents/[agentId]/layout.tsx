@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useParams } from 'next/navigation'
 import {
     LayoutDashboard,
     Fingerprint, // Identity
@@ -16,18 +16,18 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
 export default function AgentLayout({
-    children,
-    params
+    children
 }: {
     children: React.ReactNode
-    params: { agentId: string }
 }) {
     const [agent, setAgent] = useState<any>(null)
     const pathname = usePathname()
     const router = useRouter()
-    const id = params.agentId
+    const params = useParams()
+    const id = params?.agentId as string
 
     useEffect(() => {
+        if (!id) return
         // Fetch minimal agent info for the sidebar
         axios.get('/api/agents').then(res => {
             const found = res.data.find((a: any) => a.id.toString() === id)

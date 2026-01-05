@@ -89,16 +89,8 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
                 let content = messageText
                 const isAudio = payload.type === 'ptt' || payload.type === 'audio' || payload._data?.mimetype?.startsWith('audio')
                 if (isAudio) {
-                    console.log('[LeadProvider] Voice detected. Transcribing...')
-                    let mediaData = payload.body
-                    if (!mediaData || mediaData.length < 100) {
-                        mediaData = await whatsapp.downloadMedia(payload.id)
-                    }
-                    if (mediaData && mediaData.data && settings.cartesia_api_key) {
-                        const { cartesia } = require('@/lib/cartesia')
-                        content = await cartesia.transcribeAudio(mediaData.data, settings.cartesia_api_key)
-                        console.log(`[LeadProvider] Transcribed: "${content}"`)
-                    }
+                    console.log('[LeadProvider] Voice detected but transcription is disabled (Cartesia removed).')
+                    // Logic to handle audio without transcription or skip
                 }
 
                 if (content) {

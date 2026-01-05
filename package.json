@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
-    "@cartesia/cartesia-js": "^2.2.9",
     "@hookform/resolvers": "^5.2.2",
     "@openrouter/sdk": "^0.3.11",
     "@prisma/client": "^5.22.0",
