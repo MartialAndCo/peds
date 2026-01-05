@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { Separator } from "@/components/ui/separator"
 import { AnalyticsGrid } from "@/components/dashboard/analytics-grid"
-import { startOfMonth, subDays, format } from "date-fns"
+import { startOfMonth, subDays, format, startOfDay, endOfDay } from "date-fns"
 
 import { cookies } from 'next/headers'
 
@@ -13,7 +13,6 @@ export default async function DashboardPage() {
     const activeAgentId = activeAgentIdRaw ? parseInt(activeAgentIdRaw) : undefined
 
     // Filters
-    // Filters (typed as any to bypass strict checks)
     const agentFilter: any = activeAgentId ? { agentId: activeAgentId } : {}
     const msgFilter: any = activeAgentId ? { conversation: { agentId: activeAgentId } } : {}
     const contactFilter: any = activeAgentId ? { conversations: { some: { agentId: activeAgentId } } } : {}
@@ -34,6 +33,22 @@ export default async function DashboardPage() {
     }
 
     try {
+        // OPTIMIZATION: Prepare Daily Activity Promises (7 lightweight counts)
+        const dailyActivityPromises = []
+        for (let i = 0; i < 7; i++) {
+            const date = subDays(new Date(), i)
+            const start = startOfDay(date)
+            const end = endOfDay(date)
+            dailyActivityPromises.push(
+                prisma.message.count({
+                    where: {
+                        timestamp: { gte: start, lte: end },
+                        ...msgFilter
+                    }
+                }).then(count => ({ date: format(date, 'MMM dd'), count }))
+            )
+        }
+
         // 1. Fetch Raw Data in Parallel
         const [
             totalRevenueAgg,
@@ -82,11 +97,8 @@ export default async function DashboardPage() {
                 _count: { agentPhase: true },
                 where: contactFilter as any
             }),
-            // Daily Activity (Last 7 days) 
-            prisma.message.findMany({
-                where: { timestamp: { gte: subDays(new Date(), 7) }, ...msgFilter },
-                select: { timestamp: true }
-            })
+            // Daily Activity (Last 7 days) - NOW OPTIMIZED
+            Promise.all(dailyActivityPromises)
         ])
 
         // 2. Process Data
@@ -111,19 +123,8 @@ export default async function DashboardPage() {
         ]
 
         // Format Daily Activity
-        const activityMap: Record<string, number> = {}
-        for (let i = 0; i < 7; i++) {
-            const dateKey = format(subDays(new Date(), i), 'MMM dd')
-            activityMap[dateKey] = 0
-        }
-        dailyActivityRaw.forEach(m => {
-            const dateKey = format(m.timestamp, 'MMM dd')
-            if (activityMap[dateKey] !== undefined) activityMap[dateKey]++
-        })
-        const dailyActivity = Object.keys(activityMap).reverse().map(key => ({
-            date: key,
-            count: activityMap[key]
-        }))
+        // dailyActivityRaw is already array of { date, count } from our loop
+        const dailyActivity = dailyActivityRaw.reverse()
 
         statsData = {
             revenue,
@@ -156,9 +157,6 @@ export default async function DashboardPage() {
                 </p>
             </div>
             <Separator />
-
-
-
             <AnalyticsGrid data={statsData} />
         </div>
     )

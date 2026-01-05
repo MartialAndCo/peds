@@ -235,3 +235,16 @@ model Payment {
 
   @@map("payments")
 }
+
+model WebhookEvent {
+  id        String   @id @default(uuid())
+  source    String   // 'whatsapp', 'paypal'
+  payload   Json
+  status    String   @default("PENDING") // PENDING, PROCESSING, PROCESSED, FAILED
+  error     String?
+  createdAt DateTime @default(now())
+  processedAt DateTime?
+
+  @@index([status])
+  @@map("webhook_events")
+}

@@ -9,3 +9,6 @@
 
 # Every 1 minute: Remind Lead Provider (Urgent)
 * * * * * curl -s "https://main.die6qcz48fek8.amplifyapp.com/api/cron/remind-leads" > /dev/null
+
+# Every 2 minutes: Recover Failed Webhooks
+*/2 * * * * curl -s "https://main.die6qcz48fek8.amplifyapp.com/api/cron/recovery" > /dev/null
