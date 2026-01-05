@@ -4,8 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { RefreshCw, Terminal, Play, Trash2, GitBranch, Power, AlertTriangle, CheckCircle, XCircle, Loader2 } from 'lucide-react'
-import { AdminNav } from '@/components/admin-nav'
+import { RefreshCw, Terminal, Play, Trash2, GitBranch, Power, AlertTriangle, CheckCircle, XCircle, Loader2, ArrowLeft } from 'lucide-react'
+import Link from 'next/link'
 
 interface SystemStatus {
     connected: boolean
@@ -117,7 +117,17 @@ export default function AdminSystemPage() {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-            <AdminNav />
+            {/* Simple navigation */}
+            <nav className="border-b border-slate-700 bg-slate-800/50">
+                <div className="container mx-auto px-4 py-3 flex items-center gap-4">
+                    <Link href="/admin" className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors">
+                        <ArrowLeft className="h-4 w-4" />
+                        Back to Admin
+                    </Link>
+                    <span className="text-slate-600">|</span>
+                    <span className="text-white font-semibold">System Control</span>
+                </div>
+            </nav>
             <main className="container mx-auto px-4 py-8">
                 <div className="flex items-center justify-between mb-8">
                     <h1 className="text-3xl font-bold text-white">System Administration</h1>
