@@ -4,7 +4,8 @@ WORKDIR /app
 
 # Install system dependencies
 # git is often needed for some npm packages
-RUN apk add --no-cache git
+RUN apk add --no-cache git && \
+    git config --global --add safe.directory /repo
 
 COPY package*.json ./
 RUN npm install
