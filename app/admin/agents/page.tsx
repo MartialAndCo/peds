@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label'
 
 export default function AgentsLobbyPage() {
     const [agents, setAgents] = useState<any[]>([])
+    const [agentStatuses, setAgentStatuses] = useState<Record<string, string>>({})
     const [loading, setLoading] = useState(true)
     const [isCreateOpen, setIsCreateOpen] = useState(false)
     const [newAgent, setNewAgent] = useState({ name: '', phone: '', color: '#10b981' })
@@ -26,10 +27,29 @@ export default function AgentsLobbyPage() {
         try {
             const res = await axios.get('/api/agents')
             setAgents(res.data)
+            // After fetching agents, get their statuses
+            fetchStatuses(res.data)
         } catch (e) {
             console.error(e)
         } finally {
             setLoading(false)
+        }
+    }
+
+    const fetchStatuses = async (agentsList: any[]) => {
+        // For now, check the global WAHA status since multi-session might not be set up
+        try {
+            const res = await axios.get('/api/waha/status')
+            const globalStatus = res.data.status
+            // Apply global status to all agents for now
+            const statuses: Record<string, string> = {}
+            agentsList.forEach(a => {
+                statuses[a.id] = globalStatus === 'WORKING' ? 'ONLINE' :
+                    globalStatus === 'SCAN_QR_CODE' ? 'PENDING' : 'OFFLINE'
+            })
+            setAgentStatuses(statuses)
+        } catch (e) {
+            console.error('Failed to fetch statuses:', e)
         }
     }
 
@@ -43,6 +63,17 @@ export default function AgentsLobbyPage() {
         } catch (e) {
             alert('Error creating agent')
         }
+    }
+
+    const getStatusBadge = (agentId: string) => {
+        const status = agentStatuses[agentId] || 'UNKNOWN'
+        const config = {
+            ONLINE: { bg: 'bg-emerald-500', text: 'text-white', label: '🟢 Online', glow: 'shadow-emerald-500/50' },
+            PENDING: { bg: 'bg-amber-500', text: 'text-white', label: '🟠 Scanning', glow: '' },
+            OFFLINE: { bg: 'bg-slate-400', text: 'text-white', label: '🔴 Offline', glow: '' },
+            UNKNOWN: { bg: 'bg-slate-300', text: 'text-slate-600', label: '⚪ Unknown', glow: '' }
+        }[status] || { bg: 'bg-slate-300', text: 'text-slate-600', label: status, glow: '' }
+        return config
     }
 
     if (loading) return <div className="p-10 flex justify-center"><Loader2 className="animate-spin h-8 w-8 text-slate-400" /></div>
@@ -67,31 +98,43 @@ export default function AgentsLobbyPage() {
                 </button>
 
                 {/* AGENT CARDS */}
-                {agents.map((agent) => (
-                    <Link key={agent.id} href={`/workspace/${agent.id}`} className="block">
-                        <Card className="h-64 relative overflow-hidden group hover:shadow-xl transition-all border-slate-200 hover:border-slate-300">
-                            <div className="absolute top-0 left-0 w-full h-2" style={{ backgroundColor: agent.color }} />
+                {agents.map((agent) => {
+                    const statusConfig = getStatusBadge(agent.id)
+                    const isOnline = agentStatuses[agent.id] === 'ONLINE'
 
-                            <CardContent className="h-full flex flex-col items-center justify-center p-6 space-y-4">
-                                <div
-                                    className="h-20 w-20 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-md transition-transform group-hover:scale-110"
-                                    style={{ backgroundColor: agent.color }}
-                                >
-                                    {agent.name.substring(0, 2).toUpperCase()}
+                    return (
+                        <Link key={agent.id} href={`/workspace/${agent.id}`} className="block">
+                            <Card className={`h-64 relative overflow-hidden group hover:shadow-xl transition-all border-slate-200 hover:border-slate-300 ${isOnline ? 'ring-2 ring-emerald-400 ring-offset-2' : ''}`}>
+                                <div className="absolute top-0 left-0 w-full h-2" style={{ backgroundColor: agent.color }} />
+
+                                {/* Status Badge */}
+                                <div className="absolute top-4 right-4 z-10">
+                                    <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${statusConfig.bg} ${statusConfig.text}`}>
+                                        {statusConfig.label}
+                                    </span>
                                 </div>
 
-                                <div className="text-center space-y-1">
-                                    <h3 className="text-xl font-bold text-slate-800 group-hover:text-emerald-600 transition-colors">{agent.name}</h3>
-                                    <p className="text-sm text-slate-400 font-mono">{agent.phone || 'No Phone'}</p>
-                                </div>
+                                <CardContent className="h-full flex flex-col items-center justify-center p-6 space-y-4">
+                                    <div
+                                        className={`h-20 w-20 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-md transition-transform group-hover:scale-110 ${isOnline ? 'shadow-lg ' + statusConfig.glow : ''}`}
+                                        style={{ backgroundColor: agent.color }}
+                                    >
+                                        {agent.name.substring(0, 2).toUpperCase()}
+                                    </div>
 
-                                <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <span className="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-full font-medium">Enter Workspace &rarr;</span>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </Link>
-                ))}
+                                    <div className="text-center space-y-1">
+                                        <h3 className="text-xl font-bold text-slate-800 group-hover:text-emerald-600 transition-colors">{agent.name}</h3>
+                                        <p className="text-sm text-slate-400 font-mono">{agent.phone || 'No Phone'}</p>
+                                    </div>
+
+                                    <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <span className="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-full font-medium">Enter Workspace &rarr;</span>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </Link>
+                    )
+                })}
             </div>
 
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>

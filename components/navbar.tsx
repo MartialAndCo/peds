@@ -15,8 +15,26 @@ const Navbar = () => {
     const isWorkspace = pathname.startsWith('/workspace');
     const currentAgent = agents.find(a => a.id.toString() === agentId);
 
+    // Path to readable label mapping
+    const PATH_LABELS: Record<string, string> = {
+        'connection': 'Connectivity',
+        'identity': 'Identity & Persona',
+        'settings': 'Settings',
+        'conversations': 'Conversation Hub',
+        'agents': 'Agent Lobby',
+        'contacts': 'Contacts',
+        'media': 'Media Gallery',
+        'prompts': 'Prompts',
+        'queue': 'Message Queue',
+        'sandbox': 'Sandbox',
+        'system': 'System Settings'
+    }
+
     // Breadcrumb logic
     const segments = pathname.split('/').filter(Boolean);
+    const lastSegment = segments[segments.length - 1]
+    const isAgentId = lastSegment === agentId
+    const displayLabel = isAgentId ? 'Overview' : (PATH_LABELS[lastSegment] || lastSegment)
 
     return (
         <div className="flex items-center p-4 bg-white/50 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40">
@@ -41,14 +59,16 @@ const Navbar = () => {
                         </div>
                     </>
                 ) : (
-                    <span className="text-xs font-bold text-sky-600 uppercase tracking-widest">Portal Admin</span>
+                    <span className="text-xs font-bold text-sky-600 uppercase tracking-widest">
+                        {segments.length > 1 ? PATH_LABELS[segments[1]] || segments[1] : 'Dashboard'}
+                    </span>
                 )}
 
                 {segments.length > 2 && (
                     <>
                         <ChevronRight className="h-4 w-4 text-slate-300" />
                         <span className="text-xs font-medium text-slate-500 capitalize">
-                            {segments[segments.length - 1]}
+                            {displayLabel}
                         </span>
                     </>
                 )}

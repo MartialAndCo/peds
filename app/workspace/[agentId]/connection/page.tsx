@@ -124,28 +124,53 @@ export default function AgentConnectionPage() {
 
                         {status === 'CONNECTED' && (
                             <div className="text-center py-4">
-                                <div className="h-16 w-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <div className="h-16 w-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4 ring-4 ring-emerald-200">
                                     <div className="h-8 w-8 rounded-full bg-emerald-500 animate-pulse" />
                                 </div>
-                                <h3 className="text-lg font-bold text-emerald-800">Agent is Online</h3>
-                                <p className="text-sm text-emerald-600 mb-6">Device linked successfully.</p>
+                                <h3 className="text-lg font-bold text-emerald-800">🎉 Agent is Online!</h3>
+                                <p className="text-sm text-emerald-600 mb-6">Device linked successfully. Ready to send and receive messages.</p>
                                 <Button variant="destructive" size="sm" onClick={stopSession}>
                                     <Power className="mr-2 h-4 w-4" /> Disconnect Session
                                 </Button>
                             </div>
                         )}
 
-                        {(status === 'STOPPED' || status === 'ERROR' || status === 'UNREACHABLE') && (
+                        {(status === 'STOPPED' || status === 'ERROR' || status === 'UNREACHABLE' || status === 'UNKNOWN') && (
                             <div className="text-center py-6">
-                                <p className="text-slate-500 mb-6">Session is currently stopped.</p>
+                                <div className="h-16 w-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <Power className="h-8 w-8 text-slate-400" />
+                                </div>
+                                <p className="text-slate-600 font-medium mb-2">Session is not active</p>
+                                <p className="text-slate-400 text-sm mb-6">Click below to initialize the WhatsApp connection.</p>
                                 <Button onClick={startSession} className="w-full">Initialize Session</Button>
+                            </div>
+                        )}
+
+                        {status === 'STARTING' && (
+                            <div className="text-center py-6">
+                                <Loader2 className="h-12 w-12 animate-spin text-blue-500 mx-auto mb-4" />
+                                <p className="text-blue-700 font-bold">Starting Session...</p>
+                                <p className="text-slate-500 text-sm">Please wait while the WhatsApp service initializes.</p>
                             </div>
                         )}
 
                         {status === 'SCAN_QR' && (
                             <div className="text-center py-4 space-y-4">
-                                <p className="font-bold text-orange-600 animate-pulse text-sm uppercase tracking-wider">Scan QR Code</p>
-                                <img src="/api/waha/qr" className="w-56 h-56 border-4 border-slate-900 rounded-xl mx-auto shadow-xl" />
+                                <p className="font-bold text-orange-600 animate-pulse text-sm uppercase tracking-wider">📱 Scan QR Code with WhatsApp</p>
+                                <div className="relative inline-block">
+                                    <img
+                                        src={`/api/waha/qr?t=${Date.now()}`}
+                                        alt="WhatsApp QR Code"
+                                        className="w-56 h-56 border-4 border-slate-900 rounded-xl shadow-xl"
+                                        onError={(e) => {
+                                            (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect fill="%23f1f5f9" width="200" height="200"/><text fill="%2394a3b8" font-family="sans-serif" font-size="14" x="50%" y="50%" text-anchor="middle" dy=".3em">Loading QR...</text></svg>'
+                                        }}
+                                    />
+                                    <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-orange-500 text-white text-[10px] px-2 py-1 rounded-full font-bold">
+                                        Auto-refresh every 5s
+                                    </div>
+                                </div>
+                                <p className="text-xs text-slate-500">Open WhatsApp on your phone → Menu → Linked Devices → Link a Device</p>
                                 <Button variant="ghost" size="sm" onClick={stopSession} className="text-slate-500">Abort Initialization</Button>
                             </div>
                         )}
