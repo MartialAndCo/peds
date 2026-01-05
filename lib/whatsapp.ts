@@ -135,6 +135,22 @@ export const whatsapp = {
         }
     },
 
+    // Reset Session (Clear auth data and restart fresh)
+    async resetSession(sessionId: string) {
+        const { endpoint, apiKey } = await getConfig()
+        try {
+            console.log(`[WhatsApp] Resetting session: ${sessionId}`)
+            const response = await axios.post(`${endpoint}/api/sessions/reset`,
+                { sessionId },
+                { headers: { 'X-Api-Key': apiKey }, timeout: 10000 }
+            )
+            return response.data
+        } catch (e: any) {
+            console.error(`[WhatsApp] Reset Failed:`, e.message)
+            throw new Error(e.response?.data?.error || e.message)
+        }
+    },
+
     // Download Media (No agentId needed usually, cached global or by ID)
     async downloadMedia(messageId: string) {
         const { endpoint, apiKey } = await getConfig()

@@ -307,6 +307,33 @@ server.post('/api/sessions/stop', async (req: any, reply) => {
     return reply.code(404).send({ error: 'Session not found' })
 })
 
+// Reset Session (Clear all auth data and restart fresh)
+server.post('/api/sessions/reset', async (req: any, reply) => {
+    const { sessionId } = req.body
+    if (!sessionId) return reply.code(400).send({ error: 'Missing sessionId' })
+
+    server.log.info({ sessionId }, 'Resetting session (clearing auth data)...')
+
+    // 1. Stop existing session if running
+    const session = sessions.get(sessionId)
+    if (session) {
+        try { session.sock.end(undefined) } catch (e) { }
+        sessions.delete(sessionId)
+    }
+
+    // 2. Delete auth folder
+    const authPath = path.join(BASE_AUTH_DIR, `session_${sessionId}`)
+    if (fs.existsSync(authPath)) {
+        fs.rmSync(authPath, { recursive: true, force: true })
+        server.log.info({ sessionId, authPath }, 'Auth data deleted')
+    }
+
+    // 3. Start fresh session
+    await startSession(sessionId)
+
+    return { success: true, message: 'Session reset. Scan new QR code.' }
+})
+
 // Get Status (Compat with multiple)
 server.get('/api/sessions/:sessionId/status', async (req: any, reply) => {
     const { sessionId } = req.params

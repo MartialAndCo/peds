@@ -83,6 +83,14 @@ export default function AgentConnectionPage() {
         } catch (e) { console.error('Error stopping') }
     }
 
+    const resetSession = async () => {
+        if (!confirm('Reset Session? This will clear all auth data and require a new QR scan.')) return
+        try {
+            setStatus('STARTING')
+            await axios.post('/api/session/reset', { sessionId: agentId.toString() })
+        } catch (e) { console.error('Error resetting session') }
+    }
+
     if (loading) return (
         <div className="flex items-center justify-center h-64">
             <Loader2 className="animate-spin h-6 w-6 text-white/40" />
@@ -152,17 +160,26 @@ export default function AgentConnectionPage() {
                 {/* Disconnected State */}
                 {(status === 'STOPPED' || status === 'ERROR' || status === 'UNREACHABLE' || status === 'UNKNOWN') && (
                     <div className="text-center py-8">
-                        <div className="w-16 h-16 rounded-full bg-white/[0.04] flex items-center justify-center mx-auto mb-4">
-                            <Power className="h-6 w-6 text-white/30" />
+                        <div className="w-16 h-16 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-4">
+                            <Power className="h-6 w-6 text-red-400" />
                         </div>
                         <p className="text-white font-medium mb-1">Session Inactive</p>
-                        <p className="text-white/40 text-sm mb-6">Click below to start WhatsApp</p>
-                        <Button
-                            className="bg-white text-black hover:bg-white/90"
-                            onClick={startSession}
-                        >
-                            Initialize Session
-                        </Button>
+                        <p className="text-white/40 text-sm mb-6">Click below to start or reset WhatsApp</p>
+                        <div className="flex gap-3 justify-center">
+                            <Button
+                                className="bg-white text-black hover:bg-white/90"
+                                onClick={startSession}
+                            >
+                                Initialize Session
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 border border-amber-500/20"
+                                onClick={resetSession}
+                            >
+                                Reset & Clear Data
+                            </Button>
+                        </div>
                     </div>
                 )}
 
