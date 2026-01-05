@@ -26,6 +26,7 @@ model Prompt {
   isActive      Boolean  @default(false)
   createdAt     DateTime @default(now())
   conversations Conversation[]
+  agentPrompts  AgentPrompt[]
 
   @@map("prompts")
 }
@@ -68,14 +69,44 @@ model Agent {
   name      String   // e.g. "Lena", "Maxime"
   phone     String   @unique // The WhatsApp number connected to this agent
   color     String   @default("#000000") // For UI distinction
-  promptId  Int?     // Default prompt ID for this agent
   isActive  Boolean  @default(true)
+  
+  // Legacy field, helpful for migration or default fallback
+  promptId  Int?     
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   conversations Conversation[]
+  agentPrompts  AgentPrompt[]
+  settings      AgentSetting[]
   
   @@map("agents")
+}
+
+model AgentPrompt {
+  id        Int      @id @default(autoincrement())
+  agentId   Int
+  promptId  Int
+  type      String   // 'CORE', 'ONBOARDING', 'REFUSAL', 'SALES'
+  
+  agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  prompt    Prompt   @relation(fields: [promptId], references: [id])
+
+  @@unique([agentId, type]) // One prompt per type per agent
+  @@map("agent_prompts")
+}
+
+model AgentSetting {
+  id        Int      @id @default(autoincrement())
+  agentId   Int
+  key       String   // 'voice_id', 'welcome_message', 'timezone'
+  value     String
+
+  agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, key])
+  @@map("agent_settings")
 }
 
 model Conversation {

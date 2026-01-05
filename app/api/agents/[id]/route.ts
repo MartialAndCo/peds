@@ -13,16 +13,26 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const { name, phone, color, promptId, isActive } = body
 
     try {
-        const agent = await prisma.agent.update({
-            where: { id: parseInt(id) },
-            data: {
-                name,
-                phone,
-                color,
-                promptId: promptId ? parseInt(promptId) : null,
-                isActive
-            }
-        })
+        // Transaction to update basic fields AND upsert settings
+        const [agent] = await prisma.$transaction([
+            prisma.agent.update({
+                where: { id: parseInt(id) },
+                data: {
+                    name,
+                    phone,
+                    color,
+                    promptId: promptId ? parseInt(promptId) : null,
+                    isActive
+                }
+            }),
+            ...(body.settings ? Object.entries(body.settings).map(([key, value]) =>
+                prisma.agentSetting.upsert({
+                    where: { agentId_key: { agentId: parseInt(id), key } },
+                    update: { value: String(value) },
+                    create: { agentId: parseInt(id), key, value: String(value) }
+                })
+            ) : [])
+        ])
         return NextResponse.json(agent)
     } catch (e) {
         console.error('Failed to update agent', e)

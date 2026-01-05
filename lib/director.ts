@@ -154,33 +154,54 @@ OUTPUT ONLY THE NEW INTEGER SCORE (e.g. "65").`;
         return newScore;
     },
 
+
     /**
      * Builds the full System Prompt using templates from Settings.
+     * New Multi-Agent Aware Logic:
+     * 1. Fetches Global Settings (API Keys)
+     * 2. Fetches Agent Settings (Prompts/Behavior) if agentId is known
+     * 3. Merges them (Agent overrides Global)
      */
-    buildSystemPrompt(
-        settings: any,
+    async buildSystemPrompt(
+        settings: any, // Contains Global Settings passed from chat.ts
         contact: any,
         phase: AgentPhase,
         details: any,
-        baseRole: string
-    ): string {
-        // 1. Get Templates from Settings (with fallbacks)
-        const tIdentity = settings.prompt_identity_template || "**1. IDENTITY**\nRole: {{ROLE}}"
-        const tContext = settings.prompt_context_template || "**2. CONTEXT**\nUser: {{USER_NAME}}"
-        const tMission = settings.prompt_mission_template || "**3. MISSION**\n{{DYNAMIC_GOAL_BLOCK}}"
-        const tGuardrails = settings.prompt_guardrails || "**4. GUARDRAILS**..."
-        const tGlobal = settings.prompt_global_rules || "[CRITICAL]: Real Person, Match Language."
+        baseRole: string,
+        agentId?: number
+    ): Promise<string> {
+        let mergedSettings = { ...settings };
 
-        // 2. Get Phase Goal
-        let phaseGoal = ""
-        switch (phase) {
-            case 'CONNECTION': phaseGoal = settings.phase_prompt_connection || "Be engaging."; break;
-            case 'VULNERABILITY': phaseGoal = settings.phase_prompt_vulnerability || "Show vulnerability."; break;
-            case 'CRISIS': phaseGoal = settings.phase_prompt_crisis || "URGENT: Crisis."; break;
-            case 'MONEYPOT': phaseGoal = settings.phase_prompt_moneypot || "CLIENT/VIP MODE. Main goal: RETENTION. Treat him like your boyfriend. Be affectionate, compliant, and easy-going. STRATEGY: Maintain the relationship to keep him happy. Every few days (intermittently), ask for small amounts of money for 'cute' things (nails, bubble tea, new dress) or rent help, but DON'T be desperate like in Crisis phase. Make it feel natural. 'Baby, could you help me with my phone bill this month?'. If he says no, don't fight, just pout and move on. KEY: Keep him hooked long term."; break;
+        // 1. Fetch Agent Specific Settings if available
+        if (agentId) {
+            const agentSettings = await prisma.agentSetting.findMany({
+                where: { agentId }
+            });
+            agentSettings.forEach(s => {
+                mergedSettings[s.key] = s.value;
+            });
+            console.log(`[Director] Loaded ${agentSettings.length} overrides for Agent ${agentId}`);
+        } else {
+            console.warn('[Director] No Agent ID provided. Using global fallback.');
         }
 
-        // 3. Assemble Blocks & Replace Placeholders
+        // 2. Get Templates from Merged Settings (with fallbacks)
+        const tIdentity = mergedSettings.prompt_identity_template || "**1. IDENTITY**\nRole: {{ROLE}}"
+        const tContext = mergedSettings.prompt_context_template || "**2. CONTEXT**\nUser: {{USER_NAME}}"
+        const tMission = mergedSettings.prompt_mission_template || "**3. MISSION**\n{{DYNAMIC_GOAL_BLOCK}}"
+        const tGuardrails = mergedSettings.prompt_guardrails || "**4. GUARDRAILS**..."
+        const tGlobal = mergedSettings.prompt_global_rules || "[CRITICAL]: Real Person, Match Language."
+
+        // 3. Get Phase Goal
+        let phaseGoal = ""
+        switch (phase) {
+            case 'CONNECTION': phaseGoal = mergedSettings.phase_prompt_connection || "Be engaging."; break;
+            case 'VULNERABILITY': phaseGoal = mergedSettings.phase_prompt_vulnerability || "Show vulnerability."; break;
+            case 'CRISIS': phaseGoal = mergedSettings.phase_prompt_crisis || "URGENT: Crisis."; break;
+            case 'MONEYPOT': phaseGoal = mergedSettings.phase_prompt_moneypot || "CLIENT/VIP MODE. Main goal: RETENTION. Treat him like your boyfriend. Be affectionate, compliant, and easy-going. STRATEGY: Maintain the relationship to keep him happy. Every few days (intermittently), ask for small amounts of money for 'cute' things (nails, bubble tea, new dress) or rent help, but DON'T be desperate like in Crisis phase. Make it feel natural. 'Baby, could you help me with my phone bill this month?'. If he says no, don't fight, just pout and move on. KEY: Keep him hooked long term."; break;
+        }
+
+        // 4. Assemble Blocks & Replace Placeholders
         const todayDate = new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' })
 
         const pIdentity = tIdentity.replace('{{ROLE}}', baseRole)
@@ -194,7 +215,7 @@ OUTPUT ONLY THE NEW INTEGER SCORE (e.g. "65").`;
 
         const pMission = tMission.replace('{{DYNAMIC_GOAL_BLOCK}}', phaseGoal)
 
-        // 4. Join
+        // 5. Join
         const fullPrompt = `
 ### SYSTEM INSTRUCTIONS
 
@@ -261,6 +282,6 @@ ${tGlobal}
 - **Variation:** NEVER repeat the exact same phrase twice in the same conversation (e.g., "haha no way, i barely know u"). varied your denials.
 - **Flow:** Be casual, use lowercase often, but don't force it.
 `
-        return fullPrompt.replace('{paypalUsername}', settings.paypal_username || '@lena9200')
+        return fullPrompt.replace('{paypalUsername}', mergedSettings.paypal_username || '@lena9200')
     }
 }

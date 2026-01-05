@@ -199,7 +199,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
     director.performDailyTrustAnalysis(contact.phone_whatsapp).catch(console.error)
     const { phase, details } = await director.determinePhase(contact.phone_whatsapp)
-    let systemPrompt = director.buildSystemPrompt(settings, contact, phase, details, conversation.prompt.system_prompt)
+    let systemPrompt = await director.buildSystemPrompt(settings, contact, phase, details, conversation.prompt.system_prompt, agentId)
     if (memories.length > 0) systemPrompt += `\n\n[MEMORY]:\n${memories.map((m: any) => `- ${m.memory}`).join('\n')}`
 
     // 3. Timing

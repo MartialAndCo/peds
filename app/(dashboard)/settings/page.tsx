@@ -98,7 +98,6 @@ export default function SettingsPage() {
                     <TabButton id="agents" label="Agents" icon={<span className="text-lg">👥</span>} />
                     <TabButton id="connections" label="Connections" icon={<span className="text-lg">🔌</span>} />
                     <TabButton id="intelligence" label="Intelligence" icon={<span className="text-lg">🧠</span>} />
-                    <TabButton id="persona" label="Persona & Roles" icon={<span className="text-lg">🎭</span>} />
                     <TabButton id="moderation" label="Moderation" icon={<span className="text-lg">🛡️</span>} />
                 </div>
 
@@ -304,61 +303,7 @@ export default function SettingsPage() {
                     </div>
                 )}
 
-                {/* --- TAB: PERSONA --- */}
-                {activeTab === 'persona' && (
-                    <Card className="border-indigo-100 shadow-md">
-                        <CardHeader className="bg-indigo-50/50">
-                            <CardTitle>Agent Soul & Architecture</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-6 pt-6">
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                    <Label className="font-bold text-indigo-900">1. Identity Template</Label>
-                                    <textarea className="w-full h-32 p-3 rounded-md border text-sm font-mono bg-slate-50" value={settings.prompt_identity_template || ''} onChange={(e) => setSettings({ ...settings, prompt_identity_template: e.target.value })} />
-                                    <p className="text-xs text-muted-foreground">Vars: {'{{ROLE}}'}</p>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="font-bold text-indigo-900">2. Context Template</Label>
-                                    <textarea className="w-full h-32 p-3 rounded-md border text-sm font-mono bg-slate-50" value={settings.prompt_context_template || ''} onChange={(e) => setSettings({ ...settings, prompt_context_template: e.target.value })} />
-                                    <p className="text-xs text-muted-foreground">Vars: {'{{USER_NAME}}, {{DAYS_ACTIVE}}, {{TRUST_SCORE}}'}</p>
-                                </div>
-                            </div>
 
-                            <div className="border-t pt-6">
-                                <Label className="text-lg font-bold text-indigo-900 mb-4 block">3. Phase Goals (The "Mission")</Label>
-                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                                    <div className="space-y-2 p-4 border rounded-lg bg-green-50/50 border-green-100">
-                                        <Label className="text-green-800 font-semibold">Phase A: Connection</Label>
-                                        <textarea className="w-full h-40 p-2 rounded border text-sm" value={settings.phase_prompt_connection || ''} onChange={(e) => setSettings({ ...settings, phase_prompt_connection: e.target.value })} />
-                                    </div>
-                                    <div className="space-y-2 p-4 border rounded-lg bg-yellow-50/50 border-yellow-100">
-                                        <Label className="text-yellow-800 font-semibold">Phase B: Vulnerability</Label>
-                                        <textarea className="w-full h-40 p-2 rounded border text-sm" value={settings.phase_prompt_vulnerability || ''} onChange={(e) => setSettings({ ...settings, phase_prompt_vulnerability: e.target.value })} />
-                                    </div>
-                                    <div className="space-y-2 p-4 border rounded-lg bg-red-50/50 border-red-100">
-                                        <Label className="text-red-800 font-semibold">Phase C: Crisis</Label>
-                                        <textarea className="w-full h-40 p-2 rounded border text-sm" value={settings.phase_prompt_crisis || ''} onChange={(e) => setSettings({ ...settings, phase_prompt_crisis: e.target.value })} />
-                                    </div>
-                                    <div className="space-y-2 p-4 border rounded-lg bg-purple-50/50 border-purple-100">
-                                        <Label className="text-purple-800 font-semibold">Phase D: Money Pot 💰</Label>
-                                        <textarea className="w-full h-40 p-2 rounded border text-sm" value={settings.phase_prompt_moneypot || ''} onChange={(e) => setSettings({ ...settings, phase_prompt_moneypot: e.target.value })} placeholder="Prompt for clients who have already paid..." />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 border-t pt-6">
-                                <div className="space-y-2">
-                                    <Label className="font-bold text-indigo-900">4. Guardrails</Label>
-                                    <textarea className="w-full h-32 p-3 rounded-md border text-sm" value={settings.prompt_guardrails || ''} onChange={(e) => setSettings({ ...settings, prompt_guardrails: e.target.value })} />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="font-bold text-indigo-900">5. Global Rules</Label>
-                                    <textarea className="w-full h-32 p-3 rounded-md border text-sm" value={settings.prompt_global_rules || ''} onChange={(e) => setSettings({ ...settings, prompt_global_rules: e.target.value })} />
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
 
                 {/* --- TAB: MODERATION --- */}
                 {activeTab === 'moderation' && (
