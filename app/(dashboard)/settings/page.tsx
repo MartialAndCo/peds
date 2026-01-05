@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { AgentSettings } from '@/components/settings/agent-settings'
+
 
 export default function SettingsPage() {
     const [settings, setSettings] = useState<any>({
@@ -26,7 +26,7 @@ export default function SettingsPage() {
     const [saving, setSaving] = useState(false)
     const [wahaStatus, setWahaStatus] = useState<string>('UNKNOWN')
     const [wahaMe, setWahaMe] = useState<any>(null)
-    const [activeTab, setActiveTab] = useState('agents')
+    const [activeTab, setActiveTab] = useState('connections')
 
     const fetchSettings = useCallback(() => {
         axios.get('/api/settings').then(res => {
@@ -95,25 +95,10 @@ export default function SettingsPage() {
             <form onSubmit={handleSave} className="space-y-8">
                 {/* Custom Tab Navigation */}
                 <div className="flex space-x-1 border-b pb-2 overflow-x-auto">
-                    <TabButton id="agents" label="Agents" icon={<span className="text-lg">👥</span>} />
                     <TabButton id="connections" label="Connections" icon={<span className="text-lg">🔌</span>} />
                     <TabButton id="intelligence" label="Intelligence" icon={<span className="text-lg">🧠</span>} />
                     <TabButton id="moderation" label="Moderation" icon={<span className="text-lg">🛡️</span>} />
                 </div>
-
-                {/* --- TAB: AGENTS --- */}
-                {activeTab === 'agents' && (
-                    <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                        <Card className="border-emerald-100 shadow-sm">
-                            <CardHeader className="bg-emerald-50/50">
-                                <CardTitle>Agency & Personas</CardTitle>
-                            </CardHeader>
-                            <CardContent className="pt-6">
-                                <AgentSettings />
-                            </CardContent>
-                        </Card>
-                    </div>
-                )}
 
                 {/* --- TAB: CONNECTIONS --- */}
                 {activeTab === 'connections' && (
@@ -187,7 +172,7 @@ export default function SettingsPage() {
                             </Card>
 
                             <Card>
-                                <CardHeader><CardTitle>Phone Numbers</CardTitle></CardHeader>{/* UI Updated for Media Separation */}
+                                <CardHeader><CardTitle>Phone Numbers</CardTitle></CardHeader>
                                 <CardContent className="space-y-4">
                                     <div className="space-y-1">
                                         <Label>Admin Number (Notifications)</Label>
@@ -267,28 +252,6 @@ export default function SettingsPage() {
                         </Card>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <Card>
-                                <CardHeader><CardTitle>Voice (Cartesia)</CardTitle></CardHeader>
-                                <CardContent className="space-y-4">
-                                    <div className="space-y-1">
-                                        <Label>Cartesia API Key</Label>
-                                        <Input type="password" value={settings.cartesia_api_key || ''} onChange={(e) => setSettings({ ...settings, cartesia_api_key: e.target.value })} />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label>Voice ID</Label>
-                                        <Input value={settings.cartesia_voice_id || ''} onChange={(e) => setSettings({ ...settings, cartesia_voice_id: e.target.value })} />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label>Model ID</Label>
-                                        <Input value={settings.cartesia_model_id || 'sonic-english'} onChange={(e) => setSettings({ ...settings, cartesia_model_id: e.target.value })} placeholder="sonic-english" />
-                                    </div>
-                                    <div className="flex items-center space-x-2 pt-2">
-                                        <input type="checkbox" id="voice_enabled" className="h-4 w-4" checked={settings.voice_response_enabled === 'true' || settings.voice_response_enabled === true} onChange={(e) => setSettings({ ...settings, voice_response_enabled: e.target.checked })} />
-                                        <Label htmlFor="voice_enabled">Enable Voice Replies</Label>
-                                    </div>
-                                </CardContent>
-                            </Card>
-
                             <Card>
                                 <CardHeader><CardTitle>Long-Term Memory (Mem0)</CardTitle></CardHeader>
                                 <CardContent className="space-y-4">
