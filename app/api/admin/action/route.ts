@@ -5,7 +5,7 @@ import { whatsapp } from '@/lib/whatsapp'
 export async function POST(req: Request) {
     try {
         const body = await req.json()
-        const result = await whatsapp.adminAction(body.action)
+        const result = await whatsapp.adminAction(body.action, body.agentId)
         return NextResponse.json(result)
     } catch (error: any) {
         console.error('[Admin Proxy] Action error:', error.message)

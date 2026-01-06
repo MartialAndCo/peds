@@ -53,19 +53,20 @@ export async function sendQueueItemNow(id: string) {
     try {
         const item = await prisma.messageQueue.findUnique({
             where: { id },
-            include: { contact: true }
+            include: { contact: true, conversation: true }
         })
 
         if (!item || item.status !== 'PENDING') {
             return { success: false, error: 'Item not found or already processed' }
         }
 
-        const { content, contact } = item
+        const { content, contact, conversation } = item
         const phone = contact.phone_whatsapp
+        const agentId = conversation?.agentId || undefined
 
         // 1. Send Immediately
         // Fix: Mark Read to avoid ghosting blue ticks
-        await whatsapp.markAsRead(phone).catch(() => { })
+        await whatsapp.markAsRead(phone, agentId).catch(() => { })
 
         const fullLength = content.length
         // Realistic Typing for "Send Now" (User wants it faster than natural, but not instant)
@@ -73,7 +74,7 @@ export async function sendQueueItemNow(id: string) {
         const typingDuration = Math.min(Math.max(fullLength * 40, 2500), 8000)
 
         // Typing State
-        await whatsapp.sendTypingState(phone, true).catch(() => { })
+        await whatsapp.sendTypingState(phone, true, agentId).catch(() => { })
 
         // ACTUALLY WAIT for the typing duration
         await new Promise(r => setTimeout(r, typingDuration))
@@ -90,10 +91,10 @@ export async function sendQueueItemNow(id: string) {
         }
 
         for (const part of parts) {
-            await whatsapp.sendText(phone, part.trim())
+            await whatsapp.sendText(phone, part.trim(), undefined, agentId)
             // Pause between bubbles (Realism)
             if (parts.indexOf(part) < parts.length - 1) {
-                await whatsapp.sendTypingState(phone, true).catch(() => { }) // Typings again for next bubble
+                await whatsapp.sendTypingState(phone, true, agentId).catch(() => { }) // Typings again for next bubble
                 await new Promise(r => setTimeout(r, 2000)) // 2s pause
             }
         }

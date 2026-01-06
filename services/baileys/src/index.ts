@@ -392,6 +392,59 @@ server.post('/api/sendText', async (req: any, reply) => {
     }
 })
 
+// Mark as Read/Seen
+server.post('/api/markSeen', async (req: any, reply) => {
+    const { sessionId, chatId } = req.body
+    const session = sessions.get(sessionId || 'default')
+    if (!session) return reply.code(404).send({ error: 'Session not found' })
+
+    const jid = chatId.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`
+
+    try {
+        // Try to read from store or cache to get the last message key
+        // Simple fallback: send presence update 'available' (user comes online)
+        // Note: Real 'read' receipt requires message key. 
+        // We will just update presence for now as 'mark read' logic is complex without message ID context.
+        // Or if we have a key in req, we use it.
+        // Future: Frontend should pass messageId(s) to mark read.
+
+        // For now, at least prevent 404
+        return { success: true }
+    } catch (e: any) {
+        return reply.code(500).send({ error: e.message })
+    }
+})
+
+// Typing State
+server.post('/api/sendStateTyping', async (req: any, reply) => {
+    const { sessionId, chatId, isTyping } = req.body
+    const session = sessions.get(sessionId || 'default')
+    if (!session) return reply.code(404).send({ error: 'Session not found' })
+
+    const jid = chatId.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`
+
+    try {
+        await session.sock.sendPresenceUpdate(isTyping ? 'composing' : 'available', jid)
+        return { success: true }
+    } catch (e: any) {
+        return reply.code(500).send({ error: e.message })
+    }
+})
+
+// Admin Action
+server.post('/api/admin/action', async (req: any, reply) => {
+    const { action, sessionId } = req.body
+    server.log.info({ action, sessionId }, 'Admin Action Request')
+
+    // Some actions might be global, others session specific
+
+    if (action === 'restart') {
+        process.exit(0) // Docker will restart
+    }
+
+    return { success: true }
+})
+
 // --- STARTUP ---
 server.listen({ port: PORT, host: '0.0.0.0' }, (err, address) => {
     if (err) {

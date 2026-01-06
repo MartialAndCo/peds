@@ -233,11 +233,11 @@ export const whatsapp = {
         }
     },
 
-    async adminAction(action: string) {
+    async adminAction(action: string, agentId?: number) {
         const { endpoint, apiKey } = await getConfig()
         try {
             const response = await axios.post(`${endpoint}/api/admin/action`,
-                { action },
+                { action, sessionId: agentId?.toString() },
                 {
                     headers: { 'X-Api-Key': apiKey, 'Content-Type': 'application/json' },
                     timeout: 30000
