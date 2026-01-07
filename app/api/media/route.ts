@@ -23,7 +23,8 @@ export async function GET() {
 
         return NextResponse.json(mediaTypes)
     } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        console.error('Media API Error:', error)
+        return NextResponse.json({ error: error.message, stack: error.stack }, { status: 500 })
     }
 }
 
