@@ -2,8 +2,6 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { writeFile, mkdir } from 'fs/promises'
-import path from 'path'
 
 export async function POST(req: Request) {
     const session = await getServerSession(authOptions)
@@ -18,22 +16,17 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'File and categoryId required' }, { status: 400 })
         }
 
-        const buffer = Buffer.from(await file.arrayBuffer())
-        const filename = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
-        const uploadDir = path.join(process.cwd(), 'public', 'media')
-
-        // Ensure dir exists
-        await mkdir(uploadDir, { recursive: true })
-
-        const filepath = path.join(uploadDir, filename)
-        await writeFile(filepath, buffer)
-
-        const url = `/media/${filename}`
+        // Convert file to Base64 to avoid filesystem issues in serverless (Amplify/Vercel)
+        const bytes = await file.arrayBuffer()
+        const buffer = Buffer.from(bytes)
+        const mimeType = file.type || 'application/octet-stream'
+        const base64Data = buffer.toString('base64')
+        const dataUrl = `data:${mimeType};base64,${base64Data}`
 
         const media = await prisma.media.create({
             data: {
                 typeId: categoryId,
-                url: url,
+                url: dataUrl,
                 sentTo: []
             }
         })
@@ -41,6 +34,6 @@ export async function POST(req: Request) {
         return NextResponse.json(media)
     } catch (error: any) {
         console.error('Upload error:', error)
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        return NextResponse.json({ error: error.message, stack: error.stack }, { status: 500 })
     }
 }

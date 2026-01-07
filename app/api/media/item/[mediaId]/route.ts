@@ -2,8 +2,6 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { unlink } from 'fs/promises'
-import path from 'path'
 
 export async function DELETE(
     request: Request,
@@ -26,19 +24,8 @@ export async function DELETE(
             where: { id }
         })
 
-        // Attempt to delete file if it's local
-        if (media.url.startsWith('/media/')) {
-            try {
-                const filename = media.url.split('/').pop()
-                if (filename) {
-                    const filepath = path.join(process.cwd(), 'public', 'media', filename)
-                    await unlink(filepath).catch(() => console.log('File not found or could not be deleted:', filepath))
-                }
-            } catch (e) {
-                // ignore file deletion errors
-                console.error('Error deleting file', e)
-            }
-        }
+        // No file deletion needed as we are using Base64 in URL column or external URLs.
+        // If we switch back to S3/File later, we'd add logic here.
 
         return NextResponse.json({ success: true })
     } catch (error: any) {
