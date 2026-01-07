@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
-import { useDropzone } from 'react-dropzone' // Need to check if installed or implement custom
+
 import { cn } from '@/lib/utils'
 
 // Simple custom dropzone if lib missing, but let's assume standard drag events for now to avoid dep hell if not installed.
