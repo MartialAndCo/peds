@@ -9,7 +9,8 @@ import {
     Fingerprint,
     Zap,
     Settings,
-    ArrowLeft
+    ArrowLeft,
+    Image as ImageIcon
 } from 'lucide-react'
 import { useAgent } from '@/components/agent-provider'
 
@@ -35,6 +36,12 @@ export function SidebarWorkspace() {
                 { label: 'Identity', icon: Fingerprint, href: `${baseUrl}/identity` },
                 { label: 'Connectivity', icon: Zap, href: `${baseUrl}/connection` },
                 { label: 'Settings', icon: Settings, href: `${baseUrl}/settings` },
+            ]
+        },
+        {
+            title: "Content",
+            routes: [
+                { label: 'Media Gallery', icon: ImageIcon, href: `${baseUrl}/media` },
             ]
         }
     ]
