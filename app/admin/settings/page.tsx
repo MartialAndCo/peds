@@ -131,6 +131,49 @@ export default function SettingsPage() {
                                 </div>
                             </div>
                         </div>
+
+                        {/* RVC / RunPod Serverless */}
+                        <div className="glass rounded-2xl p-6">
+                            <h3 className="text-white font-medium mb-4">Voice Synthesis (RVC / RunPod)</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-white/60 text-xs font-medium uppercase tracking-wider">
+                                        RVC / RunPod URL
+                                    </label>
+                                    <Input
+                                        value={settings.rvc_api_url || ''}
+                                        onChange={(e) => setSettings({ ...settings, rvc_api_url: e.target.value })}
+                                        placeholder="https://api.runpod.ai/v2/..."
+                                        className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/30"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-white/60 text-xs font-medium uppercase tracking-wider">
+                                        RunPod API Key
+                                    </label>
+                                    <Input
+                                        type="password"
+                                        value={settings.runpod_api_key || ''}
+                                        onChange={(e) => setSettings({ ...settings, runpod_api_key: e.target.value })}
+                                        placeholder="rpa_..."
+                                        className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/30"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-white/60 text-xs font-medium uppercase tracking-wider">
+                                        Native Pitch (f0)
+                                    </label>
+                                    <Input
+                                        value={settings.rvc_f0_up_key || '0'}
+                                        onChange={(e) => setSettings({ ...settings, rvc_f0_up_key: e.target.value })}
+                                        placeholder="0"
+                                        type="number"
+                                        className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/30"
+                                    />
+                                    <p className="text-white/30 text-xs">Default pitch shift logic</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 )}
 
@@ -545,8 +588,9 @@ function VoiceTester({ voices }: { voices: any[] }) {
                 })
                 setResultAudio(response.data.audio)
             }
-        } catch (e) {
-            alert('Conversion failed')
+        } catch (e: any) {
+            const msg = e.response?.data?.error || 'Conversion failed'
+            alert(msg)
         } finally {
             setProcessing(false)
         }

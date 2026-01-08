@@ -19,7 +19,8 @@ export async function POST(req: Request) {
         const converted = await rvcService.convertVoice(audio, { voiceId: parseInt(voiceId) })
 
         if (!converted) {
-            return NextResponse.json({ error: 'Conversion failed' }, { status: 500 })
+            console.error('RVC Conversion returned null/failed')
+            return NextResponse.json({ error: 'Conversion failed (Check RunPod logs or Settings)' }, { status: 500 })
         }
 
         return NextResponse.json({ audio: converted })
