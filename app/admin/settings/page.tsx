@@ -491,7 +491,7 @@ function VoiceManager() {
                         onChange={e => setNewUrl(e.target.value)}
                         className="bg-white/[0.04] border-white/[0.08] text-white flex-1"
                     />
-                    <Button onClick={handleAdd} disabled={loading} className="bg-white text-black">
+                    <Button type="button" onClick={handleAdd} disabled={loading} className="bg-white text-black">
                         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Add'}
                     </Button>
                 </div>
@@ -504,7 +504,9 @@ function VoiceManager() {
                             <div className="text-sm font-medium text-white">{voice.name}</div>
                             <div className="text-xs text-white/40 truncate max-w-md">{voice.url}</div>
                         </div>
+
                         <Button
+                            type="button"
                             variant="ghost"
                             size="sm"
                             className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
@@ -524,7 +526,7 @@ function VoiceManager() {
                 </div>
                 <VoiceTester voices={voices} />
             </div>
-        </div>
+        </div >
     )
 }
 
@@ -617,12 +619,12 @@ function VoiceTester({ voices }: { voices: any[] }) {
                 <div className="p-4 rounded-lg bg-black/20 border border-white/[0.04] flex flex-col items-center justify-center gap-2 h-32">
                     <div className="text-xs font-medium text-white/40 uppercase">Input Source</div>
                     {recording ? (
-                        <Button variant="destructive" onClick={stopRecording} className="animate-pulse">
+                        <Button type="button" variant="destructive" onClick={stopRecording} className="animate-pulse">
                             Stop Recording
                         </Button>
                     ) : (
                         <div className="flex flex-col items-center gap-2 w-full">
-                            <Button variant="secondary" onClick={startRecording} className="w-full bg-white/10 hover:bg-white/20 text-white border-0">
+                            <Button type="button" variant="secondary" onClick={startRecording} className="w-full bg-white/10 hover:bg-white/20 text-white border-0">
                                 🎤 Record
                             </Button>
                             <span className="text-xs text-white/20">- OR -</span>
@@ -637,16 +639,20 @@ function VoiceTester({ voices }: { voices: any[] }) {
                     {processing ? (
                         <div className="flex flex-col items-center gap-2 text-white/50">
                             <Loader2 className="animate-spin h-6 w-6" />
-                            <span className="text-xs">Processing...</span>
+                            <span className="text-xs">Processing... (this may take 10-20s)</span>
                         </div>
                     ) : resultAudio ? (
-                        <audio controls src={resultAudio} className="w-full h-8" />
+                        <div className="w-full flex flex-col items-center gap-2">
+                            <audio controls src={resultAudio} className="w-full h-8" />
+                            <a href={resultAudio} download="test_voice.mp3" className="text-xs text-blue-400 hover:underline">Download</a>
+                        </div>
                     ) : (
                         <span className="text-xs text-white/20">Ready to convert</span>
                     )}
 
                     <div className="absolute bottom-2 right-2">
                         <Button
+                            type="button"
                             disabled={!audioBlob || !selectedVoice || processing}
                             onClick={processAudio}
                             size="sm"
