@@ -83,7 +83,7 @@ export const voiceService = {
             console.log(`[Voice] Ingesting for Contact ${pending.requesterPhone}. Found Agent ID: ${agentId}`)
 
             const { rvcService } = require('@/lib/rvc')
-            const converted = await rvcService.convertVoice(mediaData, agentId)
+            const converted = await rvcService.convertVoice(mediaData, { agentId })
 
             if (converted) {
                 console.log('[Voice] RVC Transformation Successful.')

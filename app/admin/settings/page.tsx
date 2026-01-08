@@ -473,6 +473,146 @@ function VoiceManager() {
                 ))}
                 {voices.length === 0 && <div className="text-white/30 text-center py-4 text-sm">No voices found</div>}
             </div>
+
+            <div className="mt-8 pt-8 border-t border-white/[0.06]">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-white font-medium">Voice Playground</h3>
+                    <div className="text-xs text-white/40">Test and preview voice models</div>
+                </div>
+                <VoiceTester voices={voices} />
+            </div>
+        </div>
+    )
+}
+
+function VoiceTester({ voices }: { voices: any[] }) {
+    const [selectedVoice, setSelectedVoice] = useState('')
+    const [recording, setRecording] = useState(false)
+    const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
+    const [resultAudio, setResultAudio] = useState<string | null>(null)
+    const [processing, setProcessing] = useState(false)
+    const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
+
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+            const recorder = new MediaRecorder(stream)
+            const chunks: BlobPart[] = []
+
+            recorder.ondataavailable = (e) => chunks.push(e.data)
+            recorder.onstop = () => {
+                const blob = new Blob(chunks, { type: 'audio/ogg; codecs=opus' })
+                setAudioBlob(blob)
+                setResultAudio(null)
+            }
+
+            recorder.start()
+            setMediaRecorder(recorder)
+            setRecording(true)
+        } catch (e) {
+            alert('Microphone access denied')
+        }
+    }
+
+    const stopRecording = () => {
+        if (mediaRecorder) {
+            mediaRecorder.stop()
+            setRecording(false)
+            mediaRecorder.stream.getTracks().forEach(t => t.stop()) // Stop stream
+        }
+    }
+
+    const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files?.[0]) {
+            setAudioBlob(e.target.files[0])
+            setResultAudio(null)
+        }
+    }
+
+    const processAudio = async () => {
+        if (!audioBlob || !selectedVoice) return
+        setProcessing(true)
+        setResultAudio(null)
+
+        try {
+            const reader = new FileReader()
+            reader.readAsDataURL(audioBlob)
+            reader.onloadend = async () => {
+                const base64 = reader.result as string
+                const response = await axios.post('/api/voices/test', {
+                    audio: base64,
+                    voiceId: selectedVoice
+                })
+                setResultAudio(response.data.audio)
+            }
+        } catch (e) {
+            alert('Conversion failed')
+        } finally {
+            setProcessing(false)
+        }
+    }
+
+    return (
+        <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.06] space-y-4">
+            <div className="flex gap-4">
+                <div className="flex-1">
+                    <select
+                        className="w-full h-10 px-3 rounded-md bg-white/[0.04] border border-white/[0.08] text-white text-sm focus:outline-none"
+                        value={selectedVoice}
+                        onChange={e => setSelectedVoice(e.target.value)}
+                    >
+                        <option value="">Select a Voice Model...</option>
+                        {voices.map(v => (
+                            <option key={v.id} value={v.id}>{v.name}</option>
+                        ))}
+                    </select>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 rounded-lg bg-black/20 border border-white/[0.04] flex flex-col items-center justify-center gap-2 h-32">
+                    <div className="text-xs font-medium text-white/40 uppercase">Input Source</div>
+                    {recording ? (
+                        <Button variant="destructive" onClick={stopRecording} className="animate-pulse">
+                            Stop Recording
+                        </Button>
+                    ) : (
+                        <div className="flex flex-col items-center gap-2 w-full">
+                            <Button variant="secondary" onClick={startRecording} className="w-full bg-white/10 hover:bg-white/20 text-white border-0">
+                                🎤 Record
+                            </Button>
+                            <span className="text-xs text-white/20">- OR -</span>
+                            <Input type="file" accept="audio/*" onChange={handleFile} className="bg-transparent border-0 text-white/60 text-xs file:bg-white/10 file:text-white file:border-0 file:rounded-md" />
+                        </div>
+                    )}
+                    {audioBlob && !recording && <span className="text-xs text-green-400">Audio Ready ({Math.round(audioBlob.size / 1024)} KB)</span>}
+                </div>
+
+                <div className="p-4 rounded-lg bg-black/20 border border-white/[0.04] flex flex-col items-center justify-center gap-2 h-32 relative">
+                    <div className="text-xs font-medium text-white/40 uppercase">Output</div>
+                    {processing ? (
+                        <div className="flex flex-col items-center gap-2 text-white/50">
+                            <Loader2 className="animate-spin h-6 w-6" />
+                            <span className="text-xs">Processing...</span>
+                        </div>
+                    ) : resultAudio ? (
+                        <audio controls src={resultAudio} className="w-full h-8" />
+                    ) : (
+                        <span className="text-xs text-white/20">Ready to convert</span>
+                    )}
+
+                    <div className="absolute bottom-2 right-2">
+                        <Button
+                            disabled={!audioBlob || !selectedVoice || processing}
+                            onClick={processAudio}
+                            size="sm"
+                            className="bg-white text-black hover:bg-white/90"
+                        >
+                            Generate
+                        </Button>
+                    </div>
+                </div>
+            </div>
         </div>
     )
 }

@@ -10,7 +10,7 @@ export const rvcService = {
      * @param agentId The ID of the agent to use the voice of.
      * @returns The converted audio in Base64 format.
      */
-    async convertVoice(audioBase64: string, agentId?: number): Promise<string | null> {
+    async convertVoice(audioBase64: string, options: { agentId?: number, voiceId?: number } = {}): Promise<string | null> {
         // 1. Get Settings & Agent Voice
         const settingsList = await prisma.setting.findMany()
         const settings = settingsList.reduce((acc: any, curr: any) => {
@@ -22,9 +22,15 @@ export const rvcService = {
         let selectedModel = "default"
         let modelUrl = ""
 
-        if (agentId) {
+        if (options.voiceId) {
+            const voice = await prisma.voiceModel.findUnique({ where: { id: options.voiceId } })
+            if (voice) {
+                selectedModel = voice.name
+                modelUrl = voice.url
+            }
+        } else if (options.agentId) {
             const agent = await prisma.agent.findUnique({
-                where: { id: agentId },
+                where: { id: options.agentId },
                 include: { voiceModel: true }
             })
 
@@ -32,7 +38,7 @@ export const rvcService = {
                 selectedModel = agent.voiceModel.name
                 modelUrl = agent.voiceModel.url
             } else {
-                console.warn(`[RVC] Agent ${agentId} has no VoiceModel assigned.Using default/fallback.`)
+                console.warn(`[RVC] Agent ${options.agentId} has no VoiceModel assigned.Using default/fallback.`)
             }
         }
 
@@ -55,7 +61,7 @@ export const rvcService = {
             cleanBase64 = audioBase64.split('base64,')[1]
         }
 
-        console.log(`[RVC] Connecting to ${rvcUrl} for voice conversion (Agent: ${agentId}, Model: ${selectedModel})...`)
+        console.log(`[RVC] Connecting to ${rvcUrl} for voice conversion (Agent: ${options.agentId || 'N/A'}, Model: ${selectedModel})...`)
 
         try {
             // Check if we are using RunPod Serverless (URL contains runpod.ai)
