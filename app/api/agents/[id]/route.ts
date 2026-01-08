@@ -10,7 +10,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     const { id } = await params
     const body = await req.json()
-    const { name, phone, color, promptId, isActive } = body
+    const { name, phone, color, promptId, isActive, voiceModelId } = body
 
     try {
         // Transaction to update basic fields AND upsert settings
@@ -22,6 +22,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                     phone,
                     color,
                     promptId: promptId ? parseInt(promptId) : null,
+                    voiceModelId: voiceModelId ? parseInt(voiceModelId) : null,
                     isActive
                 }
             }),

@@ -74,6 +74,9 @@ model Agent {
   // Legacy field, helpful for migration or default fallback
   promptId  Int?     
 
+  voiceModelId Int?
+  voiceModel   VoiceModel? @relation(fields: [voiceModelId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -82,6 +85,18 @@ model Agent {
   settings      AgentSetting[]
   
   @@map("agents")
+}
+
+model VoiceModel {
+  id        Int      @id @default(autoincrement())
+  name      String   // e.g. "Homer", "American 1"
+  url       String   // HuggingFace URL
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  agents    Agent[]
+
+  @@map("voice_models")
 }
 
 model AgentPrompt {

@@ -68,26 +68,51 @@ export const voiceService = {
         // Use base64 data uri for now
         const audioUrl = mediaData.startsWith('data:') ? mediaData : `data:audio/ogg;base64,${mediaData}`
 
+        // --- RVC TRANSFORMATION ---
+        let finalUrl = audioUrl
+        try {
+            // Resolve Agent ID from Requester (Contact)
+            // We assume the contact has an active conversation with an agent, or we look for the last agent they spoke with.
+            const contact = await prisma.contact.findUnique({
+                where: { phone_whatsapp: pending.requesterPhone },
+                include: { conversations: { orderBy: { createdAt: 'desc' }, take: 1, select: { agentId: true } } }
+            })
+
+            const agentId = contact?.conversations?.[0]?.agentId || undefined
+
+            console.log(`[Voice] Ingesting for Contact ${pending.requesterPhone}. Found Agent ID: ${agentId}`)
+
+            const { rvcService } = require('@/lib/rvc')
+            const converted = await rvcService.convertVoice(mediaData, agentId)
+
+            if (converted) {
+                console.log('[Voice] RVC Transformation Successful.')
+                finalUrl = converted
+            } else {
+                console.warn('[Voice] RVC Transformation returned null. Using original.')
+            }
+        } catch (rvcErr) {
+            console.error('[Voice] Failed to transform voice:', rvcErr)
+        }
+        // --------------------------
+
         const clip = await prisma.voiceClip.create({
             data: {
                 categoryId: category.id,
-                url: audioUrl,
+                url: finalUrl,
                 transcript: transcript,
                 sourcePhone: sourcePhone,
                 sentTo: [] // Not sent yet
             }
         })
 
-        // 3. Update Pending Request to CONFIRMING (Link via description hack or just assume order?)
-        // Ideally we should link the clip to the request. But schema is rigid.
-        // We'll trust the order. We mark it as 'confirming'.
-        // We need to store WHICH clip is waiting. Detailed status?
-        // Let's use `typeId` field in PendingRequest to store the clip ID temporarily? It's a string.
+        // 3. Update Pending Request to CONFIRMING
+        // We link via the transcript (description).
         await prisma.pendingRequest.update({
             where: { id: pending.id },
             data: {
                 status: 'confirming',
-                typeId: clip.id.toString() // Link the clip
+                // typeId: clip.id.toString() // REMOVED: Violates FK constraint with MediaType
             }
         })
 
@@ -114,8 +139,11 @@ export const voiceService = {
 
         if (cleanText === 'OK' || cleanText === 'YES') {
             // SEND IT
-            const clipId = parseInt(request.typeId || '0')
-            const clip = await prisma.voiceClip.findUnique({ where: { id: clipId } })
+            // Find the clip by transcript (most recent)
+            const clip = await prisma.voiceClip.findFirst({
+                where: { transcript: request.description },
+                orderBy: { createdAt: 'desc' }
+            })
 
             if (clip) {
                 // Determine target
@@ -156,7 +184,7 @@ export const voiceService = {
             // Reset request to 'pending'
             await prisma.pendingRequest.update({
                 where: { id: request.id },
-                data: { status: 'pending', typeId: null }
+                data: { status: 'pending' }
             })
 
             return { status: 'retry', transcript: request.description }

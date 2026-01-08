@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import axios from 'axios'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Loader2, Brain, Shield, Server } from 'lucide-react'
+import { Loader2, Brain, Shield, Server, Trash } from 'lucide-react'
 
 export default function SettingsPage() {
     const [settings, setSettings] = useState<any>({
@@ -57,6 +57,7 @@ export default function SettingsPage() {
         { id: 'infrastructure', label: 'Infrastructure', icon: Server },
         { id: 'intelligence', label: 'Intelligence', icon: Brain },
         { id: 'moderation', label: 'Moderation', icon: Shield },
+        { id: 'voices', label: 'Voices', icon: Brain }, // Using Brain icon as placeholder or Speech if available
     ]
 
     return (
@@ -78,8 +79,8 @@ export default function SettingsPage() {
                             type="button"
                             onClick={() => setActiveTab(tab.id)}
                             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab.id
-                                    ? 'bg-white/[0.08] text-white'
-                                    : 'text-white/40 hover:text-white hover:bg-white/[0.04]'
+                                ? 'bg-white/[0.08] text-white'
+                                : 'text-white/40 hover:text-white hover:bg-white/[0.04]'
                                 }`}
                         >
                             <tab.icon className="h-4 w-4" />
@@ -146,8 +147,8 @@ export default function SettingsPage() {
                                         type="button"
                                         onClick={() => setSettings({ ...settings, ai_provider: provider })}
                                         className={`px-4 py-3 rounded-xl text-sm font-medium transition-all border ${settings.ai_provider === provider
-                                                ? 'bg-white text-black border-white'
-                                                : 'bg-white/[0.04] text-white/60 border-white/[0.08] hover:bg-white/[0.08]'
+                                            ? 'bg-white text-black border-white'
+                                            : 'bg-white/[0.04] text-white/60 border-white/[0.08] hover:bg-white/[0.08]'
                                             }`}
                                     >
                                         {provider === 'venice' ? 'Venice AI' :
@@ -269,9 +270,23 @@ export default function SettingsPage() {
                     </div>
                 )}
 
+                {/* Voices Tab */}
+                {activeTab === 'voices' && (
+                    <div className="space-y-6">
+                        <div className="glass rounded-2xl p-6">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-white font-medium">Voice Library (RVC)</h3>
+                                <div className="text-xs text-white/40">Manage global voice models available to agents</div>
+                            </div>
+                            <VoiceManager />
+                        </div>
+                    </div>
+                )}
+
                 {/* Save Button */}
                 <div className="fixed bottom-0 left-0 right-0 p-4 bg-[#0f172a]/90 backdrop-blur-xl border-t border-white/[0.06] z-50">
                     <div className="max-w-4xl mx-auto md:pl-64">
+                        {/* Save only applies to global settings, Voices/Blacklist are auto-saved via API calls in components */}
                         <Button
                             type="submit"
                             disabled={saving}
@@ -381,6 +396,82 @@ function BlacklistManager() {
                         ))}
                     </ul>
                 </div>
+            </div>
+        </div>
+    )
+}
+
+function VoiceManager() {
+    const [voices, setVoices] = useState<any[]>([])
+    const [newName, setNewName] = useState('')
+    const [newUrl, setNewUrl] = useState('')
+    const [loading, setLoading] = useState(false)
+
+    const fetchVoices = useCallback(() => {
+        axios.get('/api/voices').then(res => setVoices(res.data)).catch(() => { })
+    }, [])
+
+    useEffect(() => { fetchVoices() }, [fetchVoices])
+
+    const handleAdd = async () => {
+        if (!newName || !newUrl) return
+        setLoading(true)
+        try {
+            await axios.post('/api/voices', { name: newName, url: newUrl })
+            setNewName('')
+            setNewUrl('')
+            fetchVoices()
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const handleDelete = async (id: number) => {
+        if (!confirm('Start deletion?')) return
+        await axios.delete(`/api/voices/${id}`)
+        fetchVoices()
+    }
+
+    return (
+        <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <Input
+                    placeholder="Model Name (e.g. Homer)"
+                    value={newName}
+                    onChange={e => setNewName(e.target.value)}
+                    className="bg-white/[0.04] border-white/[0.08] text-white"
+                />
+                <div className="flex gap-2">
+                    <Input
+                        placeholder="HuggingFace Zip URL"
+                        value={newUrl}
+                        onChange={e => setNewUrl(e.target.value)}
+                        className="bg-white/[0.04] border-white/[0.08] text-white flex-1"
+                    />
+                    <Button onClick={handleAdd} disabled={loading} className="bg-white text-black">
+                        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Add'}
+                    </Button>
+                </div>
+            </div>
+
+            <div className="space-y-2">
+                {voices.map(voice => (
+                    <div key={voice.id} className="flex justify-between items-center p-3 rounded-lg bg-white/[0.04] border border-white/[0.06]">
+                        <div>
+                            <div className="text-sm font-medium text-white">{voice.name}</div>
+                            <div className="text-xs text-white/40 truncate max-w-md">{voice.url}</div>
+                        </div>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                            onClick={() => handleDelete(voice.id)}
+                        >
+                            <Trash className="h-4 w-4" />
+                        </Button>
+                    </div>
+                ))}
+                {voices.length === 0 && <div className="text-white/30 text-center py-4 text-sm">No voices found</div>}
             </div>
         </div>
     )
