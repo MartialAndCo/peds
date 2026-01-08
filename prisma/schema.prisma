@@ -76,6 +76,7 @@ model Agent {
 
   voiceModelId Int?
   voiceModel   VoiceModel? @relation(fields: [voiceModelId], references: [id])
+  operatorGender String   @default("MALE") // 'MALE', 'FEMALE'
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -91,12 +92,24 @@ model VoiceModel {
   id        Int      @id @default(autoincrement())
   name      String   // e.g. "Homer", "American 1"
   url       String   // HuggingFace URL
+  gender    String   @default("FEMALE") // 'MALE', 'FEMALE'
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   
   agents    Agent[]
+  generations VoiceGeneration[]
 
   @@map("voice_models")
+}
+
+model VoiceGeneration {
+  id           Int        @id @default(autoincrement())
+  voiceModelId Int
+  voiceModel   VoiceModel @relation(fields: [voiceModelId], references: [id], onDelete: Cascade)
+  audioUrl     String     @db.Text
+  createdAt    DateTime   @default(now())
+
+  @@map("voice_generations")
 }
 
 model AgentPrompt {

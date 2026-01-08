@@ -10,13 +10,17 @@ export const rvcService = {
      * @param agentId The ID of the agent to use the voice of.
      * @returns The converted audio in Base64 format.
      */
-    async convertVoice(audioBase64: string, options: { agentId?: number, voiceId?: number } = {}): Promise<string | null> {
+    async convertVoice(audioBase64: string, options: { agentId?: number, voiceId?: number, sourceGender?: string } = {}): Promise<string | null> {
         // 1. Get Settings & Agent Voice
         const settingsList = await prisma.setting.findMany()
         const settings = settingsList.reduce((acc: any, curr: any) => {
             acc[curr.key] = curr.value
             return acc
         }, {})
+
+        // 2. Determine Source and Target Gender
+        let sourceGender = options.sourceGender || 'MALE' // Default to MALE source (admin/dev)
+        let targetGender = 'FEMALE' // Default to FEMALE target (most common)
 
         // Fetch Agent's assigned Voice Model
         let selectedModel = "default"
@@ -27,6 +31,7 @@ export const rvcService = {
             if (voice) {
                 selectedModel = voice.name
                 modelUrl = voice.url
+                targetGender = voice.gender
             }
         } else if (options.agentId) {
             const agent = await prisma.agent.findUnique({
@@ -34,20 +39,49 @@ export const rvcService = {
                 include: { voiceModel: true }
             })
 
-            if (agent?.voiceModel) {
-                selectedModel = agent.voiceModel.name
-                modelUrl = agent.voiceModel.url
-            } else {
-                console.warn(`[RVC] Agent ${options.agentId} has no VoiceModel assigned.Using default/fallback.`)
+            if (agent) {
+                if (agent.operatorGender) sourceGender = agent.operatorGender
+
+                if (agent.voiceModel) {
+                    selectedModel = agent.voiceModel.name
+                    modelUrl = agent.voiceModel.url
+                    targetGender = agent.voiceModel.gender
+                } else {
+                    console.warn(`[RVC] Agent ${options.agentId} has no VoiceModel assigned. Using default/fallback.`)
+                }
             }
         }
 
+        // 3. The "Rule Book" Logic (Source -> Target)
+        // MALE -> FEMALE = +12
+        // FEMALE -> MALE = -12
+        // MALE -> MALE / FEMALE -> FEMALE = 0
+
+        let pitch = 0
+        let indexRate = 0.75
+        let protect = 0.33
+
+        if (sourceGender === 'MALE' && targetGender === 'FEMALE') {
+            pitch = 12
+            // Gender Swap Profiles
+            indexRate = 0.8
+            protect = 0.40
+        } else if (sourceGender === 'FEMALE' && targetGender === 'MALE') {
+            pitch = -12
+            // Gender Swap Profiles
+            indexRate = 0.8
+            protect = 0.40
+        } else {
+            pitch = 0
+            // Standard Profile
+            indexRate = 0.75
+            protect = 0.33
+        }
+
+        console.log(`[RVC] Logic: ${sourceGender} -> ${targetGender} | Pitch: ${pitch} | Model: ${selectedModel}`)
+
         // Fallback or System Default if Agent has no voice? 
-        // For now, if no URL is found, we might want to default to something or let RunPod handle it (if logic exists there).
-        // But user provided list implies we should probably be stricter.
         if (!modelUrl) {
-            // Check if there is a default voice model in DB?
-            // Or use a hardcoded fallback just in case to prevent crash
             console.warn('[RVC] No model URL found. Using fallback American 1.')
             selectedModel = "American 1"
             modelUrl = "https://huggingface.co/Razer112/Public_Models/resolve/main/ProbMelody.zip?download=true"
@@ -75,7 +109,11 @@ export const rvcService = {
                         audio_base64: cleanBase64,
                         model_name: selectedModel,
                         model_url: modelUrl,
-                        pitch: settings.rvc_f0_up_key ? parseInt(settings.rvc_f0_up_key) : 0,
+                        pitch: pitch,
+                        f0_method: 'crepe', // Forcing CREPE as requested
+                        index_rate: indexRate,
+                        protect: protect,
+                        filter_radius: 3
                     }
                 }
 
@@ -123,6 +161,9 @@ export const rvcService = {
                 const formData = new FormData()
                 formData.append('file', blob, 'input.ogg')
                 if (selectedModel) formData.append('model_name', selectedModel)
+                formData.append('f0_up_key', pitch.toString())
+                formData.append('f0_method', 'crepe')
+                formData.append('index_rate', indexRate.toString())
 
                 const response = await fetch(`${rvcUrl}/convert`, {
                     method: 'POST',

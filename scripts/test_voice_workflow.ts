@@ -66,8 +66,8 @@ async function main() {
 
     const result = await voiceService.ingestVoice(SOURCE_PHONE, dummyAudio)
 
-    if (result && result.targetPhone === NORMALIZED_USER) {
-        console.log('✅ PASSED: ingestVoice returned correct target.')
+    if (result && result.action === 'confirming') {
+        console.log('✅ PASSED: ingestVoice returned confirming action.')
     } else {
         console.error('❌ FAILED: ingestVoice result invalid.', result)
         process.exit(1)

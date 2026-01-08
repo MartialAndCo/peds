@@ -21,14 +21,14 @@ export async function POST(req: Request) {
 
     try {
         const body = await req.json()
-        const { name, url } = body
+        const { name, url, gender } = body
 
         if (!name || !url) {
             return NextResponse.json({ error: 'Name and URL required' }, { status: 400 })
         }
 
         const voice = await prisma.voiceModel.create({
-            data: { name, url }
+            data: { name, url, gender: gender || 'FEMALE' }
         })
         return NextResponse.json(voice)
     } catch (e) {

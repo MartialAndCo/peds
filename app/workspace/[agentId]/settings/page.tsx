@@ -87,6 +87,7 @@ export default function AgentSettingsPage() {
 function VoiceSelector({ agent }: { agent: any }) {
     const [voices, setVoices] = useState<any[]>([])
     const [selectedVoice, setSelectedVoice] = useState(agent.voiceModelId || '')
+    const [operatorGender, setOperatorGender] = useState(agent.operatorGender || 'MALE')
     const [loading, setLoading] = useState(false)
 
     useEffect(() => {
@@ -96,8 +97,11 @@ function VoiceSelector({ agent }: { agent: any }) {
     const handleSave = async () => {
         setLoading(true)
         try {
-            await axios.put(`/api/agents/${agent.id}`, { voiceModelId: selectedVoice })
-            alert('Voice updated!')
+            await axios.put(`/api/agents/${agent.id}`, {
+                voiceModelId: selectedVoice,
+                operatorGender
+            })
+            alert('Voice settings updated!')
         } catch (e) {
             alert('Error updating voice')
         } finally {
@@ -109,24 +113,38 @@ function VoiceSelector({ agent }: { agent: any }) {
         <Card>
             <CardHeader>
                 <CardTitle>Voice Identity</CardTitle>
-                <CardDescription>Select the voice model used for audio generation.</CardDescription>
+                <CardDescription>Configure how the agent speaks and who is operating it.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-                <div className="space-y-2">
-                    <Label>RVC Model</Label>
-                    <select
-                        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        value={selectedVoice}
-                        onChange={e => setSelectedVoice(e.target.value)}
-                    >
-                        <option value="">-- No Voice (Use Default) --</option>
-                        {voices.map(v => (
-                            <option key={v.id} value={v.id}>{v.name}</option>
-                        ))}
-                    </select>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label>Operator Gender (Source)</Label>
+                        <select
+                            className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            value={operatorGender}
+                            onChange={e => setOperatorGender(e.target.value)}
+                        >
+                            <option value="MALE">Male (Homme)</option>
+                            <option value="FEMALE">Female (Femme)</option>
+                        </select>
+                        <p className="text-[10px] text-slate-500">Helps RVC calculate pitch correction (e.g. Male -&gt; Female needs +12 pitch).</p>
+                    </div>
+                    <div className="space-y-2">
+                        <Label>RVC Model (Target)</Label>
+                        <select
+                            className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            value={selectedVoice}
+                            onChange={e => setSelectedVoice(e.target.value)}
+                        >
+                            <option value="">-- No Voice (Use Default) --</option>
+                            {voices.map(v => (
+                                <option key={v.id} value={v.id}>{v.name} ({v.gender || 'FEMALE'})</option>
+                            ))}
+                        </select>
+                    </div>
                 </div>
                 <Button onClick={handleSave} disabled={loading}>
-                    {loading ? <Loader2 className="animate-spin h-4 w-4" /> : 'Save Voice'}
+                    {loading ? <Loader2 className="animate-spin h-4 w-4" /> : 'Save Voice Settings'}
                 </Button>
             </CardContent>
         </Card>
