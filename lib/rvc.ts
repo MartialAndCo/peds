@@ -88,7 +88,7 @@ export const rvcService = {
                 model_name: config.selectedModel,
                 model_url: config.modelUrl,
                 pitch: config.pitch,
-                f0_method: 'crepe',
+                f0_method: 'rmvpe', // Use RMVPE as requested
                 index_rate: config.indexRate,
                 protect: config.protect,
                 filter_radius: 3
@@ -167,7 +167,7 @@ export const rvcService = {
                     model_name: config.selectedModel,
                     model_url: config.modelUrl,
                     pitch: config.pitch,
-                    f0_method: 'crepe',
+                    f0_method: 'rmvpe',
                     index_rate: config.indexRate,
                     protect: config.protect,
                     filter_radius: 3
@@ -195,7 +195,7 @@ export const rvcService = {
             const formData = new FormData()
             formData.append('file', blob, 'input.ogg')
             formData.append('f0_up_key', config.pitch.toString())
-            formData.append('f0_method', 'crepe')
+            formData.append('f0_method', 'rmvpe')
             formData.append('index_rate', config.indexRate.toString())
             if (config.selectedModel) formData.append('model_name', config.selectedModel)
 
