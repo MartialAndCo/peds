@@ -602,10 +602,36 @@ function VoiceTester({ voices }: { voices: any[] }) {
         fetchHistory()
     }
 
+    const [statusMessage, setStatusMessage] = useState('')
+
+    const checkStatus = async (generationId: number) => {
+        try {
+            const res = await axios.get(`/api/voices/generations/${generationId}`)
+            if (res.data.status === 'COMPLETED') {
+                setResultAudio(res.data.audioUrl)
+                setProcessing(false)
+                setStatusMessage('')
+                fetchHistory()
+            } else if (res.data.status === 'FAILED') {
+                setProcessing(false)
+                setStatusMessage('Conversion Failed')
+                alert('Conversion Failed')
+            } else {
+                // Still pending
+                setStatusMessage(`Processing... (${res.data.status})`)
+                setTimeout(() => checkStatus(generationId), 3000)
+            }
+        } catch (e) {
+            setProcessing(false)
+            alert('Error checking status')
+        }
+    }
+
     const processAudio = async () => {
         if (!audioBlob || !selectedVoice) return
         setProcessing(true)
         setResultAudio(null)
+        setStatusMessage('Uploading & Starting Job...')
 
         try {
             const reader = new FileReader()
@@ -617,13 +643,20 @@ function VoiceTester({ voices }: { voices: any[] }) {
                     voiceId: selectedVoice,
                     sourceGender
                 })
-                setResultAudio(response.data.audio)
-                fetchHistory()
+
+                if (response.data.generationId) {
+                    setStatusMessage('Job Started. Waiting for GPU...')
+                    setTimeout(() => checkStatus(response.data.generationId), 2000)
+                } else {
+                    // Fallback for sync
+                    setResultAudio(response.data.audio)
+                    setProcessing(false)
+                    fetchHistory()
+                }
             }
         } catch (e: any) {
             const msg = e.response?.data?.error || 'Conversion failed'
             alert(msg)
-        } finally {
             setProcessing(false)
         }
     }
@@ -701,17 +734,20 @@ function VoiceTester({ voices }: { voices: any[] }) {
                             <span className="text-xs text-white/20">Ready to convert</span>
                         )}
 
-                        <div className="absolute bottom-2 right-2">
-                            <Button
-                                type="button"
-                                disabled={!audioBlob || !selectedVoice || processing}
-                                onClick={processAudio}
-                                size="sm"
-                                className="bg-white text-black hover:bg-white/90"
-                            >
-                                Generate
-                            </Button>
-                        </div>
+                        <Button
+                            onClick={processAudio}
+                            disabled={!audioBlob || !selectedVoice || processing}
+                            className="w-full h-12 text-sm font-medium bg-white text-black hover:bg-white/90 disabled:opacity-50"
+                        >
+                            {processing ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    {statusMessage || 'Processing (may take ~60s for cold start)...'}
+                                </>
+                            ) : (
+                                'Generate Voice (RVC)'
+                            )}
+                        </Button>
                     </div>
                 </div>
             </div>

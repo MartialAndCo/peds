@@ -10,19 +10,20 @@ export const rvcService = {
      * @param agentId The ID of the agent to use the voice of.
      * @returns The converted audio in Base64 format.
      */
-    async convertVoice(audioBase64: string, options: { agentId?: number, voiceId?: number, sourceGender?: string } = {}): Promise<string | null> {
-        // 1. Get Settings & Agent Voice
+    /**
+     * Internal helper to determine RVC parameters (Source/Target/Pitch)
+     */
+    async _getConfig(options: { agentId?: number, voiceId?: number, sourceGender?: string }) {
+        // 1. Get Settings
         const settingsList = await prisma.setting.findMany()
         const settings = settingsList.reduce((acc: any, curr: any) => {
             acc[curr.key] = curr.value
             return acc
         }, {})
 
-        // 2. Determine Source and Target Gender
-        let sourceGender = options.sourceGender || 'MALE' // Default to MALE source (admin/dev)
-        let targetGender = 'FEMALE' // Default to FEMALE target (most common)
-
-        // Fetch Agent's assigned Voice Model
+        // 2. Determine Genders
+        let sourceGender = options.sourceGender || 'MALE'
+        let targetGender = 'FEMALE'
         let selectedModel = "default"
         let modelUrl = ""
 
@@ -38,153 +39,170 @@ export const rvcService = {
                 where: { id: options.agentId },
                 include: { voiceModel: true }
             })
-
             if (agent) {
                 if (agent.operatorGender) sourceGender = agent.operatorGender
-
                 if (agent.voiceModel) {
                     selectedModel = agent.voiceModel.name
                     modelUrl = agent.voiceModel.url
                     targetGender = agent.voiceModel.gender
-                } else {
-                    console.warn(`[RVC] Agent ${options.agentId} has no VoiceModel assigned. Using default/fallback.`)
                 }
             }
         }
 
-        // 3. The "Rule Book" Logic (Source -> Target)
-        // MALE -> FEMALE = +12
-        // FEMALE -> MALE = -12
-        // MALE -> MALE / FEMALE -> FEMALE = 0
-
+        // 3. Rule Book
         let pitch = 0
         let indexRate = 0.75
         let protect = 0.33
 
         if (sourceGender === 'MALE' && targetGender === 'FEMALE') {
             pitch = 12
-            // Gender Swap Profiles
-            indexRate = 0.8
-            protect = 0.40
+            indexRate = 0.8; protect = 0.40
         } else if (sourceGender === 'FEMALE' && targetGender === 'MALE') {
             pitch = -12
-            // Gender Swap Profiles
-            indexRate = 0.8
-            protect = 0.40
-        } else {
-            pitch = 0
-            // Standard Profile
-            indexRate = 0.75
-            protect = 0.33
+            indexRate = 0.8; protect = 0.40
         }
 
-        console.log(`[RVC] Logic: ${sourceGender} -> ${targetGender} | Pitch: ${pitch} | Model: ${selectedModel}`)
-
-        // Fallback or System Default if Agent has no voice? 
         if (!modelUrl) {
-            console.warn('[RVC] No model URL found. Using fallback American 1.')
             selectedModel = "American 1"
             modelUrl = "https://huggingface.co/Razer112/Public_Models/resolve/main/ProbMelody.zip?download=true"
         }
 
         const rvcUrl = process.env.RVC_API_URL || settings.rvc_api_url || process.env.LIGHTNING_API_URL || settings.lightning_api_url || 'http://localhost:8000'
+        const runpodKey = process.env.RUNPOD_API_KEY || settings.runpod_api_key
 
-        // Ensure clean base64
+        return { rvcUrl, runpodKey, selectedModel, modelUrl, pitch, indexRate, protect }
+    },
+
+    /**
+     * Starts an Async RVC Job (RunPod Only)
+     */
+    async startJob(audioBase64: string, options: { agentId?: number, voiceId?: number, sourceGender?: string }) {
+        const config = await this._getConfig(options)
+
         let cleanBase64 = audioBase64
-        if (audioBase64.includes('base64,')) {
-            cleanBase64 = audioBase64.split('base64,')[1]
+        if (audioBase64.includes('base64,')) cleanBase64 = audioBase64.split('base64,')[1]
+
+        const payload = {
+            input: {
+                audio_base64: cleanBase64,
+                model_name: config.selectedModel,
+                model_url: config.modelUrl,
+                pitch: config.pitch,
+                f0_method: 'crepe',
+                index_rate: config.indexRate,
+                protect: config.protect,
+                filter_radius: 3
+            }
         }
 
-        console.log(`[RVC] Connecting to ${rvcUrl} for voice conversion (Agent: ${options.agentId || 'N/A'}, Model: ${selectedModel})...`)
+        // Use /run endpoint
+        let endpoint = config.rvcUrl
+        if (!endpoint.includes('/run') && !endpoint.includes('/submit')) {
+            // If it ends with /runsync, strip it
+            endpoint = endpoint.replace(/\/runsync$/, '')
+            endpoint = `${endpoint.replace(/\/$/, '')}/run`
+        }
 
-        try {
-            // Check if we are using RunPod Serverless (URL contains runpod.ai)
-            const isRunPodServerless = rvcUrl.includes('runpod.ai')
+        console.log(`[RVC-Async] Starting Job at ${endpoint}...`)
 
-            if (isRunPodServerless) {
-                // --- RunPod Serverless (Strict JSON Schema with Model URL) ---
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${config.runpodKey}`
+            },
+            body: JSON.stringify(payload)
+        })
 
-                const payload = {
-                    input: {
-                        audio_base64: cleanBase64,
-                        model_name: selectedModel,
-                        model_url: modelUrl,
-                        pitch: pitch,
-                        f0_method: 'crepe', // Forcing CREPE as requested
-                        index_rate: indexRate,
-                        protect: protect,
-                        filter_radius: 3
-                    }
+        if (!response.ok) return null
+        const data = await response.json()
+        return data.id // Returns the Job ID
+    },
+
+    /**
+     * Checks the status of a RunPod Job
+     */
+    async checkJob(jobId: string) {
+        // We need the API Key/URL again. Ideally we store this or fetch it.
+        // For simplicity, we re-fetch settings.
+        const settingsList = await prisma.setting.findMany()
+        const settings = settingsList.reduce((acc: any, curr: any) => { acc[curr.key] = curr.value; return acc }, {})
+        const rvcUrl = process.env.RVC_API_URL || settings.rvc_api_url
+        const runpodKey = process.env.RUNPOD_API_KEY || settings.runpod_api_key
+
+        // Endpoint: /status/{id}
+        // Base URL assumption: https://api.runpod.ai/v2/{endpoint_id}
+        // But our rvcUrl might be the full endpoint like https://api.runpod.ai/v2/{id}/runsync
+        // We need to construct https://api.runpod.ai/v2/{id}/status/{jobId}
+
+        // Clean URL
+        let baseUrl = rvcUrl.replace(/\/runsync$/, '').replace(/\/run$/, '').replace(/\/$/, '')
+        const statusUrl = `${baseUrl}/status/${jobId}`
+
+        const response = await fetch(statusUrl, {
+            headers: { 'Authorization': `Bearer ${runpodKey}` }
+        })
+
+        if (!response.ok) return { status: 'FAILED' }
+        const data = await response.json()
+        return data // { status: "COMPLETED", output: { ... } }
+    },
+
+    /**
+     * Legacy Sync Conversion
+     */
+    async convertVoice(audioBase64: string, options: { agentId?: number, voiceId?: number, sourceGender?: string } = {}): Promise<string | null> {
+        const config = await this._getConfig(options)
+
+        let cleanBase64 = audioBase64
+        if (audioBase64.includes('base64,')) cleanBase64 = audioBase64.split('base64,')[1]
+
+        console.log(`[RVC] Connecting to ${config.rvcUrl} (Sync)...`)
+        const isRunPodServerless = config.rvcUrl.includes('runpod.ai')
+
+        if (isRunPodServerless) {
+            const payload = {
+                input: {
+                    audio_base64: cleanBase64,
+                    model_name: config.selectedModel,
+                    model_url: config.modelUrl,
+                    pitch: config.pitch,
+                    f0_method: 'crepe',
+                    index_rate: config.indexRate,
+                    protect: config.protect,
+                    filter_radius: 3
                 }
-
-                // Append /runsync if needed
-                let endpoint = rvcUrl
-                if (!endpoint.includes('/run') && !endpoint.includes('/submit')) {
-                    endpoint = `${endpoint.replace(/\/$/, '')}/runsync`
-                }
-
-                console.log(`[RVC] Sending JSON payload to RunPod Serverless: ${endpoint}`)
-
-                const response = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${process.env.RUNPOD_API_KEY || settings.runpod_api_key}`
-                    },
-                    body: JSON.stringify(payload)
-                })
-
-                if (!response.ok) {
-                    const errText = await response.text()
-                    console.error(`[RVC] RunPod API Request failed: ${response.status} - ${errText}`)
-                    return null
-                }
-
-                const data = await response.json()
-
-                // RunPod Output: { output: { audio_base64: "..." } }
-                if (data.status === 'COMPLETED' && data.output && data.output.audio_base64) {
-                    return `data:audio/mpeg;base64,${data.output.audio_base64}`
-                } else if (data.status === 'IN_QUEUE' || data.status === 'IN_PROGRESS') {
-                    console.error('[RVC] RunPod job timed out or is async. Status:', data.status)
-                    return null
-                } else {
-                    console.error('[RVC] RunPod Error or unexpected response:', data)
-                    return null
-                }
-
-            } else {
-                // Classic FastAPI Server handling... unchanged
-                const buffer = Buffer.from(cleanBase64, 'base64')
-                const blob = new Blob([buffer], { type: 'audio/ogg' })
-
-                const formData = new FormData()
-                formData.append('file', blob, 'input.ogg')
-                if (selectedModel) formData.append('model_name', selectedModel)
-                formData.append('f0_up_key', pitch.toString())
-                formData.append('f0_method', 'crepe')
-                formData.append('index_rate', indexRate.toString())
-
-                const response = await fetch(`${rvcUrl}/convert`, {
-                    method: 'POST',
-                    body: formData
-                })
-
-                if (!response.ok) {
-                    const errText = await response.text()
-                    console.error(`[RVC] Conversion failed: ${response.status} - ${errText}`)
-                    return null
-                }
-
-                const arrayBuffer = await response.arrayBuffer()
-                const outputBuffer = Buffer.from(arrayBuffer)
-                const outputBase64 = outputBuffer.toString('base64')
-                return `data:audio/mpeg;base64,${outputBase64}`
             }
+            let endpoint = config.rvcUrl
+            if (!endpoint.includes('/runsync')) endpoint = `${endpoint.replace(/\/$/, '')}/runsync`
 
-        } catch (error) {
-            console.error('[RVC] Network/Processing Error:', error)
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${config.runpodKey}` },
+                body: JSON.stringify(payload)
+            })
+
+            if (!response.ok) return null
+            const data = await response.json()
+            if (data.status === 'COMPLETED' && data.output?.audio_base64) {
+                return `data:audio/mpeg;base64,${data.output.audio_base64}`
+            }
             return null
+        } else {
+            // Local fallback
+            const buffer = Buffer.from(cleanBase64, 'base64')
+            const blob = new Blob([buffer], { type: 'audio/ogg' })
+            const formData = new FormData()
+            formData.append('file', blob, 'input.ogg')
+            formData.append('f0_up_key', config.pitch.toString())
+            formData.append('f0_method', 'crepe')
+            formData.append('index_rate', config.indexRate.toString())
+            if (config.selectedModel) formData.append('model_name', config.selectedModel)
+
+            const response = await fetch(`${config.rvcUrl}/convert`, { method: 'POST', body: formData })
+            if (!response.ok) return null
+            const ab = await response.arrayBuffer()
+            return `data:audio/mpeg;base64,${Buffer.from(ab).toString('base64')}`
         }
     }
 }

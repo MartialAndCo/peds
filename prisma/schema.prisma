@@ -106,7 +106,10 @@ model VoiceGeneration {
   id           Int        @id @default(autoincrement())
   voiceModelId Int
   voiceModel   VoiceModel @relation(fields: [voiceModelId], references: [id], onDelete: Cascade)
-  audioUrl     String     @db.Text
+  audioUrl     String?    @db.Text
+  status       String     @default("COMPLETED") // PENDING, PROCESSING, COMPLETED, FAILED
+  jobId        String?
+  error        String?
   createdAt    DateTime   @default(now())
 
   @@map("voice_generations")

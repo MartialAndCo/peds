@@ -17,26 +17,31 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Audio and Voice ID required' }, { status: 400 })
         }
 
-        const converted = await rvcService.convertVoice(audio, {
+        console.log(`[VoiceTest] Starting Async Job for Voice ${voiceId}`)
+        const jobId = await rvcService.startJob(audio, {
             voiceId: parseInt(voiceId),
             sourceGender
         })
 
-        if (!converted) {
-            console.error('RVC Conversion returned null/failed')
-            return NextResponse.json({ error: 'Conversion failed (Check RunPod logs or Settings)' }, { status: 500 })
+        if (!jobId) {
+            return NextResponse.json({ error: 'Failed to start RVC Job' }, { status: 500 })
         }
 
-        // Save to History
-        // Save to History
-        await prisma.voiceGeneration.create({
+        // Save PENDING State
+        const generation = await prisma.voiceGeneration.create({
             data: {
                 voiceModelId: parseInt(voiceId),
-                audioUrl: converted
+                status: 'PENDING',
+                jobId: jobId
             }
         })
 
-        return NextResponse.json({ audio: converted })
+        return NextResponse.json({
+            status: 'PENDING',
+            jobId,
+            generationId: generation.id
+        })
+
     } catch (e) {
         console.error(e)
         return NextResponse.json({ error: 'Server error' }, { status: 500 })
