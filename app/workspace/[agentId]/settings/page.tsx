@@ -1,482 +1,469 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, ReactNode } from 'react'
 import axios from 'axios'
 import { useParams, useRouter } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Loader2, Trash, Sparkles, BookOpen, Scale, Palette, RefreshCcw } from 'lucide-react'
+import { Loader2, Trash, Sparkles, User, Mic2, Shield, Fingerprint, Save, Eye, Palette, Layers, AlertOctagon } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { cn } from '@/lib/utils'
+
+// Types
+type Agent = {
+    id: number
+    name: string
+    color: string
+    voiceModelId: number | null
+    operatorGender: string
+}
+
+type TabId = 'general' | 'personality' | 'voice' | 'danger'
 
 export default function AgentSettingsPage() {
     const { agentId } = useParams()
-    const [agent, setAgent] = useState<any>(null)
-    const [loading, setLoading] = useState(true)
     const router = useRouter()
-    const [formData, setFormData] = useState({ name: '', color: '' })
-
-    useEffect(() => {
-        axios.get('/api/agents').then(res => {
-            const found = res.data.find((a: any) => a.id.toString() === agentId)
-            setAgent(found)
-            if (found) setFormData({ name: found.name, color: found.color })
-            setLoading(false)
-        }).catch(e => setLoading(false))
-    }, [agentId])
-
-    const handleUpdate = async () => {
-        await axios.put(`/api/agents/${agentId}`, formData)
-        alert('Updated')
-        window.location.reload()
-    }
-
-    const handleDelete = async () => {
-        if (!confirm('EXTREME DANGER: Deleting an agent will orphan their conversations. Continue?')) return
-        await axios.delete(`/api/agents/${agentId}`)
-        router.push('/admin/agents')
-    }
-
-    if (loading) return <Loader2 className="animate-spin" />
-    if (!agent) return <div>Agent not found</div>
-
-    return (
-        <div className="max-w-4xl space-y-8 pb-32">
-            <div>
-                <h1 className="text-3xl font-bold tracking-tight text-white mb-2">Agent Settings</h1>
-                <p className="text-white/60">Configure personality, voice, and behavior for {agent.name}.</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                {/* Left Column: Core Identity */}
-                <div className="space-y-8">
-                    <Card className="glass h-fit">
-                        <CardHeader>
-                            <CardTitle>Appearance</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="space-y-2">
-                                <Label>Agent Name</Label>
-                                <Input
-                                    value={formData.name}
-                                    onChange={e => setFormData({ ...formData, name: e.target.value })}
-                                    className="glass-input"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Brand Color</Label>
-                                <div className="flex gap-2">
-                                    <Input
-                                        type="color"
-                                        value={formData.color}
-                                        onChange={e => setFormData({ ...formData, color: e.target.value })}
-                                        className="w-12 h-10 p-1 glass-input cursor-pointer"
-                                    />
-                                    <Input
-                                        value={formData.color}
-                                        onChange={e => setFormData({ ...formData, color: e.target.value })}
-                                        className="glass-input uppercase"
-                                    />
-                                </div>
-                            </div>
-                            <Button onClick={handleUpdate} className="w-full glass-btn">
-                                Save Appearance
-                            </Button>
-                        </CardContent>
-                    </Card>
-
-                    <VoiceSelector agent={agent} />
-
-                    <Card className="border-red-900/30 bg-red-950/10">
-                        <CardHeader>
-                            <CardTitle className="text-red-400 text-sm">Danger Zone</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <Button variant="destructive" onClick={handleDelete} className="w-full text-xs">
-                                <Trash className="mr-2 h-3 w-3" /> Delete Agent
-                            </Button>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* Right Column: Prompt Engineering */}
-                <div className="md:col-span-2">
-                    <PromptManager agentId={String(agentId)} />
-                </div>
-            </div>
-        </div>
-    )
-}
-
-function VoiceSelector({ agent }: { agent: any }) {
-    const [voices, setVoices] = useState<any[]>([])
-    const [selectedVoice, setSelectedVoice] = useState(agent.voiceModelId?.toString() || 'default')
-    const [operatorGender, setOperatorGender] = useState(agent.operatorGender || 'MALE')
-    const [loading, setLoading] = useState(false)
-
-    useEffect(() => {
-        axios.get('/api/voices').then(res => setVoices(res.data)).catch(() => { })
-    }, [])
-
-    const handleSave = async () => {
-        setLoading(true)
-        try {
-            await axios.put(`/api/agents/${agent.id}`, {
-                voiceModelId: selectedVoice === 'default' ? null : parseInt(selectedVoice),
-                operatorGender
-            })
-            alert('Voice settings updated!')
-        } catch (e) {
-            alert('Error updating voice')
-        } finally {
-            setLoading(false)
-        }
-    }
-
-    return (
-        <Card className="glass">
-            <CardHeader>
-                <CardTitle>Voice Identity</CardTitle>
-                <CardDescription>RVC Model & Source Gender</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="space-y-3">
-                    <Label className="text-xs text-white/60 uppercase">Operator Gender</Label>
-                    <Select value={operatorGender} onValueChange={setOperatorGender}>
-                        <SelectTrigger className="glass-input">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="glass-popover">
-                            <SelectItem value="MALE">Male (Homme)</SelectItem>
-                            <SelectItem value="FEMALE">Female (Femme)</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-
-                <div className="space-y-3">
-                    <Label className="text-xs text-white/60 uppercase">Target Voice Model</Label>
-                    <Select value={selectedVoice} onValueChange={setSelectedVoice}>
-                        <SelectTrigger className="glass-input">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="glass-popover max-h-60 overflow-y-auto">
-                            <SelectItem value="default" className="italic opacity-50">-- Use Default --</SelectItem>
-                            {voices.map(v => (
-                                <SelectItem key={v.id} value={v.id.toString()}>
-                                    {v.name} <span className="text-[10px] opacity-50 ml-1">({v.gender})</span>
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-
-                <Button onClick={handleSave} disabled={loading} className="w-full glass-btn">
-                    {loading ? <Loader2 className="animate-spin h-4 w-4" /> : 'Save Voice'}
-                </Button>
-            </CardContent>
-        </Card>
-    )
-}
-
-function PromptManager({ agentId }: { agentId: string }) {
-    const [agentSettings, setAgentSettings] = useState<Record<string, string>>({})
-    const [globalSettings, setGlobalSettings] = useState<Record<string, string>>({})
+    const [agent, setAgent] = useState<Agent | null>(null)
     const [loading, setLoading] = useState(true)
+    const [activeTab, setActiveTab] = useState<TabId>('general')
+
+    // Data States
+    const [formData, setFormData] = useState({ name: '', color: '' })
+    const [promptSettings, setPromptSettings] = useState<Record<string, string>>({})
+    const [globalSettings, setGlobalSettings] = useState<Record<string, string>>({})
+
+    // Voice State
+    const [voices, setVoices] = useState<any[]>([])
+    const [voiceState, setVoiceState] = useState({ modelId: 'default', gender: 'MALE' })
+
     const [saving, setSaving] = useState(false)
 
-    // Fetch Setup
+    // Init Data
     useEffect(() => {
-        axios.get(`/api/agents/${agentId}/settings`)
-            .then(res => {
-                setAgentSettings(res.data.agentSettings)
-                setGlobalSettings(res.data.globalSettings)
+        const fetchData = async () => {
+            try {
+                const [agentRes, promptsRes, voicesRes] = await Promise.all([
+                    axios.get('/api/agents'),
+                    axios.get(`/api/agents/${agentId}/settings`),
+                    axios.get('/api/voices')
+                ])
+
+                const found = agentRes.data.find((a: any) => a.id.toString() === agentId)
+                if (found) {
+                    setAgent(found)
+                    setFormData({ name: found.name, color: found.color })
+                    setVoiceState({
+                        modelId: found.voiceModelId?.toString() || 'default',
+                        gender: found.operatorGender || 'MALE'
+                    })
+                }
+
+                setPromptSettings(promptsRes.data.agentSettings)
+                setGlobalSettings(promptsRes.data.globalSettings)
+                setVoices(voicesRes.data)
+            } catch (e) {
+                console.error("Init Error", e)
+            } finally {
                 setLoading(false)
-            })
-            .catch(err => {
-                console.error("Failed to load prompt settings", err)
-                setLoading(false)
-            })
+            }
+        }
+        fetchData()
     }, [agentId])
 
-    const handleChange = (key: string, val: string) => {
-        setAgentSettings(prev => ({ ...prev, [key]: val }))
-    }
 
-    const handleReset = (key: string) => {
-        setAgentSettings(prev => {
-            const next = { ...prev }
-            delete next[key]
-            return next
-        })
-    }
-
-    const handleSave = async () => {
+    // Handlers
+    const handleSaveAll = async () => {
         setSaving(true)
-        // Convert empty strings to null/undefined/empty to trigger delete on backend if needed,
-        // but backend logic handles "value: String(value)".
-        // Backend handles empty strings by DELETING if value === ''
-        // wait, let's verify my backend logic. 
-        // Logic: if (value === null || value === '' || value === undefined) -> deleteMany
-        // So sending '' is correct to remove override.
-
         try {
-            await axios.put(`/api/agents/${agentId}/settings`, agentSettings)
-            alert('Prompt settings saved successfully!') // Or use a toast
+            // 1. Save Core Agent Data (Name, Color, Voice)
+            await axios.put(`/api/agents/${agentId}`, {
+                ...formData,
+                voiceModelId: voiceState.modelId === 'default' ? null : parseInt(voiceState.modelId),
+                operatorGender: voiceState.gender
+            })
+
+            // 2. Save Prompts
+            await axios.put(`/api/agents/${agentId}/settings`, promptSettings)
+
+            // toast.success("Agent saved successfully")
         } catch (e) {
-            alert('Failed to save settings')
+            console.error(e)
+            alert("Error saving settings")
         } finally {
             setSaving(false)
         }
     }
 
-    if (loading) return <div className="p-8 flex justify-center"><Loader2 className="animate-spin text-white/30" /></div>
+    const handleDelete = async () => {
+        if (!confirm('This will permanently delete the agent. Are you sure?')) return
+        await axios.delete(`/api/agents/${agentId}`)
+        router.push('/admin/agents')
+    }
+
+    if (loading) return <div className="h-full flex items-center justify-center"><Loader2 className="animate-spin text-white/20" /></div>
+    if (!agent) return <div className="text-white">Agent not found</div>
 
     return (
-        <Card className="glass relative overflow-hidden min-h-[600px]">
-            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 opacity-50" />
-            <CardHeader>
-                <div className="flex justify-between items-center">
-                    <div>
-                        <CardTitle className="text-xl">Personality & Behavior</CardTitle>
-                        <CardDescription>Override global prompts to customize this agent.</CardDescription>
-                    </div>
-                    <Button onClick={handleSave} disabled={saving} className="bg-white text-black hover:bg-white/90 font-semibold shadow-lg shadow-white/10">
-                        {saving ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
+        <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-[#0f1115]">
+            {/* SIDEBAR NAVIGATION */}
+            <div className="w-64 border-r border-white/[0.06] bg-[#0f1115] flex flex-col">
+                <div className="p-6 pb-2">
+                    <h1 className="text-xl font-semibold text-white tracking-tight">Agent Builder</h1>
+                    <p className="text-xs text-white/40 mt-1">Configure {agent.name}</p>
+                </div>
+
+                <nav className="flex-1 px-3 py-4 space-y-1">
+                    <NavButton
+                        active={activeTab === 'general'}
+                        onClick={() => setActiveTab('general')}
+                        icon={User}
+                        label="General & Identity"
+                    />
+                    <NavButton
+                        active={activeTab === 'personality'}
+                        onClick={() => setActiveTab('personality')}
+                        icon={Fingerprint}
+                        label="Personality Matrix"
+                    />
+                    <NavButton
+                        active={activeTab === 'voice'}
+                        onClick={() => setActiveTab('voice')}
+                        icon={Mic2}
+                        label="Voice Engine"
+                    />
+                    <NavButton
+                        active={activeTab === 'danger'}
+                        onClick={() => setActiveTab('danger')}
+                        icon={AlertOctagon}
+                        label="Danger Zone"
+                        variant="danger"
+                    />
+                </nav>
+
+                <div className="p-4 border-t border-white/[0.06] bg-black/20">
+                    <Button
+                        onClick={handleSaveAll}
+                        disabled={saving}
+                        className="w-full bg-white text-black hover:bg-white/90 transition-all font-medium"
+                    >
+                        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
                         Save Changes
                     </Button>
                 </div>
-            </CardHeader>
-            <CardContent>
-                <Tabs defaultValue="identity" className="w-full">
-                    <TabsList className="bg-white/5 border border-white/10 w-full justify-start p-1 mb-6">
-                        <TabsTrigger value="identity" className="data-[state=active]:bg-white/10"><UserIcon className="w-4 h-4 mr-2" /> Identity</TabsTrigger>
-                        <TabsTrigger value="phases" className="data-[state=active]:bg-white/10"><BookOpen className="w-4 h-4 mr-2" /> Phases</TabsTrigger>
-                        <TabsTrigger value="rules" className="data-[state=active]:bg-white/10"><Scale className="w-4 h-4 mr-2" /> Rules</TabsTrigger>
-                        <TabsTrigger value="style" className="data-[state=active]:bg-white/10"><Palette className="w-4 h-4 mr-2" /> Style</TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent value="identity" className="space-y-6">
-                        <PromptField
-                            label="Identity Template"
-                            description="Who is the agent? (Name, Age, Backstory). Use {{ROLE}} to include base role."
-                            objKey="prompt_identity_template"
-                            agentVal={agentSettings['prompt_identity_template']}
-                            globalVal={globalSettings['prompt_identity_template']}
-                            onChange={handleChange}
-                            onReset={handleReset}
-                            rows={8}
-                        />
-                        <PromptField
-                            label="Context Template"
-                            description="How the agent sees the user. Use {{USER_NAME}}, {{DAYS_ACTIVE}}."
-                            objKey="prompt_context_template"
-                            agentVal={agentSettings['prompt_context_template']}
-                            globalVal={globalSettings['prompt_context_template']}
-                            onChange={handleChange}
-                            onReset={handleReset}
-                            rows={6}
-                        />
-                        <PromptField
-                            label="Mission Template"
-                            description="The high-level goal structure. Usually contains {{DYNAMIC_GOAL_BLOCK}}."
-                            objKey="prompt_mission_template"
-                            agentVal={agentSettings['prompt_mission_template']}
-                            globalVal={globalSettings['prompt_mission_template']}
-                            onChange={handleChange}
-                            onReset={handleReset}
-                            rows={6}
-                        />
-                    </TabsContent>
-
-                    <TabsContent value="phases" className="space-y-6">
-                        <div className="grid grid-cols-1 gap-6">
-                            <PromptField
-                                label="Phase A: Connection (Seduction)"
-                                description="Initial phase. Goal: Hook the user, be engaging."
-                                objKey="phase_prompt_connection"
-                                agentVal={agentSettings['phase_prompt_connection']}
-                                globalVal={globalSettings['phase_prompt_connection']}
-                                onChange={handleChange}
-                                onReset={handleReset}
-                                rows={4}
-                            />
-                            <PromptField
-                                label="Phase B: Vulnerability (Confidences)"
-                                description="After ~3 days. Goal: Share secrets, create emotional bond."
-                                objKey="phase_prompt_vulnerability"
-                                agentVal={agentSettings['phase_prompt_vulnerability']}
-                                globalVal={globalSettings['phase_prompt_vulnerability']}
-                                onChange={handleChange}
-                                onReset={handleReset}
-                                rows={4}
-                            />
-                            <PromptField
-                                label="Phase C: Crisis (Urgent Help)"
-                                description="High Trust. Goal: Create urgency for a specific problem."
-                                objKey="phase_prompt_crisis"
-                                agentVal={agentSettings['phase_prompt_crisis']}
-                                globalVal={globalSettings['phase_prompt_crisis']}
-                                onChange={handleChange}
-                                onReset={handleReset}
-                                rows={4}
-                            />
-                            <PromptField
-                                label="Phase D: MoneyPot (Retention)"
-                                description="Paid users. Goal: Long-term relationship maintenance."
-                                objKey="phase_prompt_moneypot"
-                                agentVal={agentSettings['phase_prompt_moneypot']}
-                                globalVal={globalSettings['phase_prompt_moneypot']}
-                                onChange={handleChange}
-                                onReset={handleReset}
-                                rows={4}
-                            />
-                        </div>
-                    </TabsContent>
-
-                    <TabsContent value="rules" className="space-y-6">
-                        <PromptField
-                            label="Global Rules"
-                            description="Critical instructions that apply everywhere."
-                            objKey="prompt_global_rules"
-                            agentVal={agentSettings['prompt_global_rules']}
-                            globalVal={globalSettings['prompt_global_rules']}
-                            onChange={handleChange}
-                            onReset={handleReset}
-                            rows={5}
-                        />
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <PromptField
-                                label="Social Media Rules"
-                                objKey="prompt_social_media_rules"
-                                agentVal={agentSettings['prompt_social_media_rules']}
-                                globalVal={globalSettings['prompt_social_media_rules']}
-                                onChange={handleChange}
-                                onReset={handleReset}
-                                rows={4}
-                            />
-                            <PromptField
-                                label="Image Handling Rules"
-                                objKey="prompt_image_handling_rules"
-                                agentVal={agentSettings['prompt_image_handling_rules']}
-                                globalVal={globalSettings['prompt_image_handling_rules']}
-                                onChange={handleChange}
-                                onReset={handleReset}
-                                rows={4}
-                            />
-                            <PromptField
-                                label="Payment Rules"
-                                objKey="prompt_payment_rules"
-                                agentVal={agentSettings['prompt_payment_rules']}
-                                globalVal={globalSettings['prompt_payment_rules']}
-                                onChange={handleChange}
-                                onReset={handleReset}
-                                rows={4}
-                            />
-                            <PromptField
-                                label="Voice Note Policy"
-                                objKey="prompt_voice_note_policy"
-                                agentVal={agentSettings['prompt_voice_note_policy']}
-                                globalVal={globalSettings['prompt_voice_note_policy']}
-                                onChange={handleChange}
-                                onReset={handleReset}
-                                rows={4}
-                            />
-                        </div>
-                    </TabsContent>
-
-                    <TabsContent value="style" className="space-y-6">
-                        <PromptField
-                            label="Style Instructions"
-                            description="Language, tone, emojis, length constraints."
-                            objKey="prompt_style_instructions"
-                            agentVal={agentSettings['prompt_style_instructions']}
-                            globalVal={globalSettings['prompt_style_instructions']}
-                            onChange={handleChange}
-                            onReset={handleReset}
-                            rows={8}
-                        />
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <PromptField
-                                label="View Once Refusal"
-                                objKey="msg_view_once_refusal"
-                                agentVal={agentSettings['msg_view_once_refusal']}
-                                globalVal={globalSettings['msg_view_once_refusal']}
-                                onChange={handleChange}
-                                onReset={handleReset}
-                                rows={3}
-                            />
-                            <PromptField
-                                label="Voice Refusal"
-                                objKey="msg_voice_refusal"
-                                agentVal={agentSettings['msg_voice_refusal']}
-                                globalVal={globalSettings['msg_voice_refusal']}
-                                onChange={handleChange}
-                                onReset={handleReset}
-                                rows={3}
-                            />
-                        </div>
-                    </TabsContent>
-                </Tabs>
-            </CardContent>
-        </Card>
-    )
-}
-
-function PromptField({ label, description, objKey, agentVal, globalVal, onChange, onReset, rows = 3 }: any) {
-    const isOverridden = agentVal !== undefined && agentVal !== null && agentVal !== ''
-    // If agentVal exists, show it. If not, show empty string (controlled input). 
-    // Placeholder handles global val.
-    const currentValue = agentVal || ''
-
-    return (
-        <div className="space-y-2 p-4 rounded-xl transition-all duration-300 border border-white/5 hover:border-white/10 bg-white/[0.02]">
-            <div className="flex justify-between items-start">
-                <div>
-                    <Label className={`text-sm font-medium ${isOverridden ? 'text-blue-300' : 'text-white/70'}`}>
-                        {label} {isOverridden && <span className="ml-2 text-[10px] bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded-full uppercase tracking-wider">Overridden</span>}
-                    </Label>
-                    {description && <p className="text-[11px] text-white/40 mt-0.5">{description}</p>}
-                </div>
-                {isOverridden && (
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onReset(objKey)}
-                        title="Reset to global default"
-                        className="h-6 w-6 p-0 hover:bg-white/10 text-white/40 hover:text-red-400"
-                    >
-                        <RefreshCcw className="h-3.5 w-3.5" />
-                    </Button>
-                )}
             </div>
 
-            <div className="relative group">
-                <Textarea
-                    value={currentValue}
-                    onChange={(e) => onChange(objKey, e.target.value)}
-                    placeholder={globalVal || "(No global default set)"}
-                    rows={rows}
-                    className={`glass-input text-sm font-light leading-relaxed resize-y min-h-[${rows * 1.5}rem] 
-                        ${isOverridden ? 'border-l-2 border-l-blue-500/50 pl-3' : 'opacity-80'}`}
-                />
-                {!isOverridden && globalVal && (
-                    <div className="absolute top-2 right-2 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-                        <span className="text-[10px] text-white/20 bg-black/40 px-2 py-1 rounded">Using Global Default</span>
-                    </div>
-                )}
+            {/* MAIN CONTENT AREA */}
+            <div className="flex-1 overflow-y-auto bg-gradient-to-br from-[#0f1115] to-[#1a1d24]">
+                <div className="max-w-4xl mx-auto p-8 py-10">
+
+                    {/* --- TAB: GENERAL --- */}
+                    {activeTab === 'general' && (
+                        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                            <SectionHeader title="Core Identity" description="Basic appearance and fundamental role instruction." />
+
+                            {/* Cosmetic Card */}
+                            <div className="glass-panel p-6 rounded-2xl space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <Label className="text-xs uppercase text-white/50 tracking-wider">Agent Name</Label>
+                                        <Input
+                                            value={formData.name}
+                                            onChange={e => setFormData({ ...formData, name: e.target.value })}
+                                            className="glass-input h-11 text-lg"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="text-xs uppercase text-white/50 tracking-wider">Brand Color</Label>
+                                        <div className="flex gap-3">
+                                            <div
+                                                className="w-11 h-11 rounded-lg border border-white/10 shadow-inner"
+                                                style={{ backgroundColor: formData.color }}
+                                            />
+                                            <Input
+                                                value={formData.color}
+                                                onChange={e => setFormData({ ...formData, color: e.target.value })}
+                                                className="glass-input h-11 font-mono uppercase"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Main Identity Prompt */}
+                            <div className="glass-panel p-1 rounded-2xl">
+                                <PromptEditor
+                                    label="Identity Template"
+                                    description="Who is this agent? Define name, age, backstory, and core traits."
+                                    value={promptSettings['prompt_identity_template']}
+                                    globalValue={globalSettings['prompt_identity_template']}
+                                    onChange={(v) => setPromptSettings({ ...promptSettings, prompt_identity_template: v })}
+                                    minHeight="min-h-[200px]"
+                                />
+                            </div>
+
+                            <div className="glass-panel p-1 rounded-2xl">
+                                <PromptEditor
+                                    label="Context Awareness"
+                                    description="How the agent perceives the user and current situation."
+                                    value={promptSettings['prompt_context_template']}
+                                    globalValue={globalSettings['prompt_context_template']}
+                                    onChange={(v) => setPromptSettings({ ...promptSettings, prompt_context_template: v })}
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* --- TAB: PERSONALITY (Phases et Rules) --- */}
+                    {activeTab === 'personality' && (
+                        <div className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-500">
+
+                            {/* Phases Section */}
+                            <div>
+                                <SectionHeader title="Relationship Phases" description="How the agent evolves over time." />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+                                    <PhaseCard
+                                        title="Phase A: Connection"
+                                        subtitle="Seduction & Discovery"
+                                        color="border-blue-500/30 bg-blue-500/5"
+                                        value={promptSettings['phase_prompt_connection']}
+                                        globalValue={globalSettings['phase_prompt_connection']}
+                                        onChange={(v) => setPromptSettings({ ...promptSettings, phase_prompt_connection: v })}
+                                    />
+                                    <PhaseCard
+                                        title="Phase B: Vulnerability"
+                                        subtitle="Confidences & Bonding"
+                                        color="border-purple-500/30 bg-purple-500/5"
+                                        value={promptSettings['phase_prompt_vulnerability']}
+                                        globalValue={globalSettings['phase_prompt_vulnerability']}
+                                        onChange={(v) => setPromptSettings({ ...promptSettings, phase_prompt_vulnerability: v })}
+                                    />
+                                    <PhaseCard
+                                        title="Phase C: Crisis"
+                                        subtitle="Urgency & Help"
+                                        color="border-amber-500/30 bg-amber-500/5"
+                                        value={promptSettings['phase_prompt_crisis']}
+                                        globalValue={globalSettings['phase_prompt_crisis']}
+                                        onChange={(v) => setPromptSettings({ ...promptSettings, phase_prompt_crisis: v })}
+                                    />
+                                    <PhaseCard
+                                        title="Phase D: MoneyPot"
+                                        subtitle="Retention & Maintenance"
+                                        color="border-emerald-500/30 bg-emerald-500/5"
+                                        value={promptSettings['phase_prompt_moneypot']}
+                                        globalValue={globalSettings['phase_prompt_moneypot']}
+                                        onChange={(v) => setPromptSettings({ ...promptSettings, phase_prompt_moneypot: v })}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Rules & Style Section */}
+                            <div>
+                                <SectionHeader title="Rules & Style" description="Constraints, tone, and safety guardrails." />
+                                <div className="space-y-4 mt-6">
+                                    <PromptEditor
+                                        label="Global Rules"
+                                        value={promptSettings['prompt_global_rules']}
+                                        globalValue={globalSettings['prompt_global_rules']}
+                                        onChange={(v) => setPromptSettings({ ...promptSettings, prompt_global_rules: v })}
+                                    />
+                                    <PromptEditor
+                                        label="Style & Tone Instructions"
+                                        value={promptSettings['prompt_style_instructions']}
+                                        globalValue={globalSettings['prompt_style_instructions']}
+                                        onChange={(v) => setPromptSettings({ ...promptSettings, prompt_style_instructions: v })}
+                                    />
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <PromptEditor
+                                            label="Image Handling"
+                                            value={promptSettings['prompt_image_handling_rules']}
+                                            globalValue={globalSettings['prompt_image_handling_rules']}
+                                            onChange={(v) => setPromptSettings({ ...promptSettings, prompt_image_handling_rules: v })}
+                                        />
+                                        <PromptEditor
+                                            label="Payment Handling"
+                                            value={promptSettings['prompt_payment_rules']}
+                                            globalValue={globalSettings['prompt_payment_rules']}
+                                            onChange={(v) => setPromptSettings({ ...promptSettings, prompt_payment_rules: v })}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* --- TAB: VOICE --- */}
+                    {activeTab === 'voice' && (
+                        <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 space-y-8">
+                            <SectionHeader title="Voice Engine" description="Configure RVC model and operator settings." />
+                            <div className="glass-panel p-8 rounded-2xl max-w-2xl">
+                                <div className="space-y-6">
+                                    <div className="space-y-3">
+                                        <Label className="text-xs uppercase text-white/50 tracking-wider">Operator Gender (Source)</Label>
+                                        <Select value={voiceState.gender} onValueChange={(v) => setVoiceState({ ...voiceState, gender: v })}>
+                                            <SelectTrigger className="glass-input h-12">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent className="glass-popover">
+                                                <SelectItem value="MALE">Male (Homme)</SelectItem>
+                                                <SelectItem value="FEMALE">Female (Femme)</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <p className="text-xs text-white/30">Used for pitch calculation.</p>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <Label className="text-xs uppercase text-white/50 tracking-wider">Target Voice Model (RVC)</Label>
+                                        <Select value={voiceState.modelId} onValueChange={(v) => setVoiceState({ ...voiceState, modelId: v })}>
+                                            <SelectTrigger className="glass-input h-12">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent className="glass-popover max-h-60 overflow-y-auto">
+                                                <SelectItem value="default" className="italic opacity-50">-- Use Default --</SelectItem>
+                                                {voices.map(v => (
+                                                    <SelectItem key={v.id} value={v.id.toString()}>
+                                                        {v.name} <span className="text-[10px] opacity-50 ml-1">({v.gender})</span>
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="glass-panel p-1 rounded-2xl">
+                                <PromptEditor
+                                    label="Voice Note Policy"
+                                    description="Rules for when to send voice notes."
+                                    value={promptSettings['prompt_voice_note_policy']}
+                                    globalValue={globalSettings['prompt_voice_note_policy']}
+                                    onChange={(v) => setPromptSettings({ ...promptSettings, prompt_voice_note_policy: v })}
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* --- TAB: DANGER --- */}
+                    {activeTab === 'danger' && (
+                        <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                            <div className="border border-red-500/20 bg-red-500/5 rounded-2xl p-8 space-y-6">
+                                <div>
+                                    <h3 className="text-lg font-semibold text-red-400">Delete Agent</h3>
+                                    <p className="text-sm text-red-200/60 mt-1">This action cannot be undone. All conversations will be orphaned.</p>
+                                </div>
+                                <Button variant="destructive" onClick={handleDelete} className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20">
+                                    <Trash className="w-4 h-4 mr-2" /> Permanently Delete
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     )
 }
 
-function UserIcon({ className }: { className?: string }) {
+// --- SUBCOMPONENTS ---
+
+function NavButton({ icon: Icon, label, active, onClick, variant = 'default' }: any) {
+    const isDanger = variant === 'danger';
     return (
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-            <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-            <circle cx="12" cy="7" r="4" />
-        </svg>
+        <button
+            onClick={onClick}
+            className={cn(
+                "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group",
+                active
+                    ? (isDanger ? "bg-red-500/10 text-red-400" : "bg-white/10 text-white")
+                    : (isDanger ? "text-red-400/60 hover:text-red-400 hover:bg-red-500/5" : "text-white/40 hover:text-white hover:bg-white/5")
+            )}
+        >
+            <Icon className={cn("w-4 h-4", active ? "opacity-100" : "opacity-70")} />
+            {label}
+            {active && !isDanger && <div className="ml-auto w-1 h-1 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.8)]" />}
+        </button>
+    )
+}
+
+function SectionHeader({ title, description }: { title: string, description: string }) {
+    return (
+        <div className="mb-6">
+            <h2 className="text-2xl font-light text-white tracking-wide">{title}</h2>
+            <p className="text-white/40 mt-1">{description}</p>
+        </div>
+    )
+}
+
+function PromptEditor({ label, description, value, globalValue, onChange, minHeight = "min-h-[120px]" }: any) {
+    const isOverridden = value !== undefined && value !== null && value !== ''
+
+    return (
+        <div className="bg-black/20 hover:bg-black/30 transition-colors p-5 rounded-xl group relative border border-white/5 hover:border-white/10">
+            <div className="flex justify-between items-start mb-3">
+                <div>
+                    <h4 className={cn("text-sm font-medium tracking-wide", isOverridden ? "text-blue-300" : "text-white/70")}>
+                        {label}
+                    </h4>
+                    {description && <p className="text-[11px] text-white/30 mt-0.5">{description}</p>}
+                </div>
+                {isOverridden && (
+                    <div className="flex items-center gap-2">
+                        <span className="text-[9px] uppercase tracking-wider bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20">
+                            Custom
+                        </span>
+                        <button
+                            onClick={() => onChange('')}
+                            className="text-white/20 hover:text-red-400 transition-colors"
+                            title="Reset to Global"
+                        >
+                            <Trash className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            <div className="relative">
+                <Textarea
+                    value={value || ''}
+                    onChange={e => onChange(e.target.value)}
+                    placeholder={globalValue || "(No global default)"}
+                    className={cn(
+                        "w-full bg-transparent border-0 p-0 text-sm font-light leading-relaxed resize-y focus:ring-0 placeholder:text-white/20",
+                        minHeight,
+                        !isOverridden && "opacity-60"
+                    )}
+                />
+            </div>
+        </div>
+    )
+}
+
+function PhaseCard({ title, subtitle, color, value, globalValue, onChange }: any) {
+    const isOverridden = value !== undefined && value !== null && value !== ''
+
+    return (
+        <div className={cn("relative p-5 rounded-xl border transition-all duration-300 group",
+            isOverridden ? "border-white/20 bg-white/[0.03]" : "border-white/5 bg-white/[0.01] hover:border-white/10"
+        )}>
+            <div className="flex justify-between items-start mb-3">
+                <div>
+                    <span className={cn("text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border mb-1.5 inline-block", color)}>
+                        {title}
+                    </span>
+                    <p className="text-xs text-white/50">{subtitle}</p>
+                </div>
+                {isOverridden && (
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-glow" />
+                )}
+            </div>
+            <Textarea
+                value={value || ''}
+                onChange={e => onChange(e.target.value)}
+                placeholder={globalValue}
+                className={cn(
+                    "w-full bg-transparent border-0 p-0 text-xs font-light resize-none h-24 focus:ring-0 focus:text-white placeholder:text-white/10",
+                    !isOverridden && "opacity-50"
+                )}
+            />
+        </div>
     )
 }
