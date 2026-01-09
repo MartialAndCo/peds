@@ -754,7 +754,7 @@ function VoiceTester({ voices }: { voices: any[] }) {
 
             {/* History Section */}
             <div className="space-y-3">
-                <h4 className="text-white font-medium text-sm">Past Generations</h4>
+                <h4 className="text-white font-medium text-sm">Past Generations (Polling Enabled)</h4>
                 <div className="space-y-2">
                     {history.map(gen => (
                         <div key={gen.id} className="flex items-center justify-between p-3 rounded-lg bg-white/[0.04] border border-white/[0.06]">
@@ -762,10 +762,35 @@ function VoiceTester({ voices }: { voices: any[] }) {
                                 <div className="text-xs text-white/40">
                                     {new Date(gen.createdAt).toLocaleTimeString()}
                                 </div>
-                                <div className="text-sm font-medium text-white">{gen.voiceModel?.name || 'Unknown Voice'}</div>
+                                <div className="text-sm font-medium text-white">
+                                    {gen.voiceModel?.name || 'Unknown Voice'}
+                                    {gen.status && gen.status !== 'COMPLETED' && (
+                                        <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${gen.status === 'PENDING' ? 'bg-yellow-500/20 text-yellow-300' :
+                                            gen.status === 'FAILED' ? 'bg-red-500/20 text-red-300' : 'bg-blue-500/20 text-blue-300'}`}>
+                                            {gen.status}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                             <div className="flex items-center gap-3">
-                                <audio controls src={gen.audioUrl} className="h-6 w-32" />
+                                {gen.audioUrl ? (
+                                    <audio controls src={gen.audioUrl} className="h-6 w-32" />
+                                ) : gen.status === 'COMPLETED' ? (
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-6 text-xs bg-transparent border-white/20 text-white hover:bg-white/10"
+                                        onClick={async () => {
+                                            const res = await axios.get(`/api/voices/generations/${gen.id}`)
+                                            const updated = res.data
+                                            setHistory(prev => prev.map(p => p.id === updated.id ? updated : p))
+                                        }}
+                                    >
+                                        Load Audio
+                                    </Button>
+                                ) : (
+                                    <span className="text-xs text-white/20">Processing...</span>
+                                )}
 
                                 <Button
                                     type="button"

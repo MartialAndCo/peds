@@ -12,7 +12,14 @@ export async function GET() {
         const generations = await prisma.voiceGeneration.findMany({
             orderBy: { createdAt: 'desc' },
             take: 20,
-            include: {
+            select: {
+                id: true,
+                status: true,
+                createdAt: true,
+                jobId: true,
+                error: true,
+                voiceModelId: true,
+                // audioUrl: false // Exclude for list view
                 voiceModel: {
                     select: { name: true }
                 }
