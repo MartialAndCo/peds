@@ -277,6 +277,55 @@ async function startSession(sessionId: string) {
 
             server.log.info({ sessionId, from: msg.key.remoteJid, type, fromMe: msg.key.fromMe, bodyPreview: body.substring(0, 50) }, 'Processing message')
 
+            // LID to Phone Number Resolution
+            let resolvedPhoneNumber: string | null = null
+            const remoteJid = msg.key.remoteJid || ''
+
+            if (remoteJid.includes('@lid')) {
+                server.log.info({ sessionId, lid: remoteJid }, 'Attempting LID resolution...')
+
+                // Method 1: Check if participant contains phone number (for some message types)
+                const participant = msg.key.participant
+                if (participant && participant.includes('@s.whatsapp.net')) {
+                    resolvedPhoneNumber = participant.replace('@s.whatsapp.net', '')
+                    server.log.info({ sessionId, method: 'participant', pn: resolvedPhoneNumber }, 'LID resolved via participant')
+                }
+
+                // Method 2: Check remoteJidAlt if available (newer Baileys versions)
+                if (!resolvedPhoneNumber && (msg.key as any).remoteJidAlt) {
+                    const alt = (msg.key as any).remoteJidAlt
+                    if (alt.includes('@s.whatsapp.net')) {
+                        resolvedPhoneNumber = alt.replace('@s.whatsapp.net', '')
+                        server.log.info({ sessionId, method: 'remoteJidAlt', pn: resolvedPhoneNumber }, 'LID resolved via remoteJidAlt')
+                    }
+                }
+
+                // Method 3: Check signal repository lid mapping
+                if (!resolvedPhoneNumber && sock.signalRepository?.lidMapping) {
+                    const lidKey = remoteJid.split('@')[0]
+                    const mapping = sock.signalRepository.lidMapping
+                    if (mapping && typeof mapping.get === 'function') {
+                        resolvedPhoneNumber = mapping.get(lidKey) || null
+                        if (resolvedPhoneNumber) {
+                            server.log.info({ sessionId, method: 'signalRepository.lidMapping', pn: resolvedPhoneNumber }, 'LID resolved via signal repo')
+                        }
+                    }
+                }
+
+                // Method 4: Check session's lidToPnMap (our custom cache)
+                if (!resolvedPhoneNumber) {
+                    const lidKey = remoteJid.split('@')[0]
+                    resolvedPhoneNumber = sessionData.lidToPnMap.get(lidKey) || null
+                    if (resolvedPhoneNumber) {
+                        server.log.info({ sessionId, method: 'lidToPnMap', pn: resolvedPhoneNumber }, 'LID resolved via local cache')
+                    }
+                }
+
+                if (!resolvedPhoneNumber) {
+                    server.log.warn({ sessionId, lid: remoteJid }, 'Could not resolve LID - sending to webhook anyway with LID')
+                }
+            }
+
             // Prepare Payload
             const payload = {
                 sessionId, // IMPORTANT: Inject Agent ID
@@ -288,7 +337,8 @@ async function startSession(sessionId: string) {
                     fromMe: msg.key.fromMe,
                     type,
                     _data: {
-                        notifyName: msg.pushName
+                        notifyName: msg.pushName,
+                        phoneNumber: resolvedPhoneNumber // Include resolved phone number for LID messages
                     }
                 }
             }
