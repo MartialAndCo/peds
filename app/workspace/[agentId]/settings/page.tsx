@@ -198,7 +198,7 @@ export default function AgentSettingsPage() {
                                     description="Who is this agent? Define name, age, backstory, and core traits."
                                     value={promptSettings['prompt_identity_template']}
                                     globalValue={globalSettings['prompt_identity_template']}
-                                    onChange={(v) => setPromptSettings({ ...promptSettings, prompt_identity_template: v })}
+                                    onChange={(v: string) => setPromptSettings({ ...promptSettings, prompt_identity_template: v })}
                                     minHeight="min-h-[200px]"
                                 />
                             </div>
@@ -209,7 +209,7 @@ export default function AgentSettingsPage() {
                                     description="How the agent perceives the user and current situation."
                                     value={promptSettings['prompt_context_template']}
                                     globalValue={globalSettings['prompt_context_template']}
-                                    onChange={(v) => setPromptSettings({ ...promptSettings, prompt_context_template: v })}
+                                    onChange={(v: string) => setPromptSettings({ ...promptSettings, prompt_context_template: v })}
                                 />
                             </div>
                         </div>
@@ -229,7 +229,7 @@ export default function AgentSettingsPage() {
                                         color="border-blue-500/30 bg-blue-500/5"
                                         value={promptSettings['phase_prompt_connection']}
                                         globalValue={globalSettings['phase_prompt_connection']}
-                                        onChange={(v) => setPromptSettings({ ...promptSettings, phase_prompt_connection: v })}
+                                        onChange={(v: string) => setPromptSettings({ ...promptSettings, phase_prompt_connection: v })}
                                     />
                                     <PhaseCard
                                         title="Phase B: Vulnerability"
@@ -237,7 +237,7 @@ export default function AgentSettingsPage() {
                                         color="border-purple-500/30 bg-purple-500/5"
                                         value={promptSettings['phase_prompt_vulnerability']}
                                         globalValue={globalSettings['phase_prompt_vulnerability']}
-                                        onChange={(v) => setPromptSettings({ ...promptSettings, phase_prompt_vulnerability: v })}
+                                        onChange={(v: string) => setPromptSettings({ ...promptSettings, phase_prompt_vulnerability: v })}
                                     />
                                     <PhaseCard
                                         title="Phase C: Crisis"
@@ -245,7 +245,7 @@ export default function AgentSettingsPage() {
                                         color="border-amber-500/30 bg-amber-500/5"
                                         value={promptSettings['phase_prompt_crisis']}
                                         globalValue={globalSettings['phase_prompt_crisis']}
-                                        onChange={(v) => setPromptSettings({ ...promptSettings, phase_prompt_crisis: v })}
+                                        onChange={(v: string) => setPromptSettings({ ...promptSettings, phase_prompt_crisis: v })}
                                     />
                                     <PhaseCard
                                         title="Phase D: MoneyPot"
@@ -253,7 +253,7 @@ export default function AgentSettingsPage() {
                                         color="border-emerald-500/30 bg-emerald-500/5"
                                         value={promptSettings['phase_prompt_moneypot']}
                                         globalValue={globalSettings['phase_prompt_moneypot']}
-                                        onChange={(v) => setPromptSettings({ ...promptSettings, phase_prompt_moneypot: v })}
+                                        onChange={(v: string) => setPromptSettings({ ...promptSettings, phase_prompt_moneypot: v })}
                                     />
                                 </div>
                             </div>
@@ -266,26 +266,26 @@ export default function AgentSettingsPage() {
                                         label="Global Rules"
                                         value={promptSettings['prompt_global_rules']}
                                         globalValue={globalSettings['prompt_global_rules']}
-                                        onChange={(v) => setPromptSettings({ ...promptSettings, prompt_global_rules: v })}
+                                        onChange={(v: string) => setPromptSettings({ ...promptSettings, prompt_global_rules: v })}
                                     />
                                     <PromptEditor
                                         label="Style & Tone Instructions"
                                         value={promptSettings['prompt_style_instructions']}
                                         globalValue={globalSettings['prompt_style_instructions']}
-                                        onChange={(v) => setPromptSettings({ ...promptSettings, prompt_style_instructions: v })}
+                                        onChange={(v: string) => setPromptSettings({ ...promptSettings, prompt_style_instructions: v })}
                                     />
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <PromptEditor
                                             label="Image Handling"
                                             value={promptSettings['prompt_image_handling_rules']}
                                             globalValue={globalSettings['prompt_image_handling_rules']}
-                                            onChange={(v) => setPromptSettings({ ...promptSettings, prompt_image_handling_rules: v })}
+                                            onChange={(v: string) => setPromptSettings({ ...promptSettings, prompt_image_handling_rules: v })}
                                         />
                                         <PromptEditor
                                             label="Payment Handling"
                                             value={promptSettings['prompt_payment_rules']}
                                             globalValue={globalSettings['prompt_payment_rules']}
-                                            onChange={(v) => setPromptSettings({ ...promptSettings, prompt_payment_rules: v })}
+                                            onChange={(v: string) => setPromptSettings({ ...promptSettings, prompt_payment_rules: v })}
                                         />
                                     </div>
                                 </div>
@@ -337,7 +337,7 @@ export default function AgentSettingsPage() {
                                     description="Rules for when to send voice notes."
                                     value={promptSettings['prompt_voice_note_policy']}
                                     globalValue={globalSettings['prompt_voice_note_policy']}
-                                    onChange={(v) => setPromptSettings({ ...promptSettings, prompt_voice_note_policy: v })}
+                                    onChange={(v: string) => setPromptSettings({ ...promptSettings, prompt_voice_note_policy: v })}
                                 />
                             </div>
                         </div>
