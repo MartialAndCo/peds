@@ -300,14 +300,17 @@ async function startSession(sessionId: string) {
                     }
                 }
 
-                // Method 3: Check signal repository lid mapping
-                if (!resolvedPhoneNumber && sock.signalRepository?.lidMapping) {
-                    const lidKey = remoteJid.split('@')[0]
-                    const mapping = sock.signalRepository.lidMapping
-                    if (mapping && typeof mapping.get === 'function') {
-                        resolvedPhoneNumber = mapping.get(lidKey) || null
-                        if (resolvedPhoneNumber) {
-                            server.log.info({ sessionId, method: 'signalRepository.lidMapping', pn: resolvedPhoneNumber }, 'LID resolved via signal repo')
+                // Method 3: Check signal repository lid mapping (cast to any for newer Baileys features)
+                if (!resolvedPhoneNumber) {
+                    const signalRepo = sock.signalRepository as any
+                    if (signalRepo?.lidMapping) {
+                        const lidKey = remoteJid.split('@')[0]
+                        const mapping = signalRepo.lidMapping
+                        if (mapping && typeof mapping.get === 'function') {
+                            resolvedPhoneNumber = mapping.get(lidKey) || null
+                            if (resolvedPhoneNumber) {
+                                server.log.info({ sessionId, method: 'signalRepository.lidMapping', pn: resolvedPhoneNumber }, 'LID resolved via signal repo')
+                            }
                         }
                     }
                 }
