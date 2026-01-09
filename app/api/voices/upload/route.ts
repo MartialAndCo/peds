@@ -55,31 +55,44 @@ export async function POST(req: Request) {
 
             if (reassembledString.length > SIZE_LIMIT_B64) {
                 console.log(`[Upload] File is large (${reassembledString.length} chars). Uploading to Storage...`)
+
                 try {
                     const { createClient } = require('@supabase/supabase-js')
                     const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
                     const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-                    if (url && key) {
-                        const supabase = createClient(url, key)
-                        const base64Data = reassembledString.includes('base64,') ? reassembledString.split('base64,')[1] : reassembledString
-                        const buffer = Buffer.from(base64Data, 'base64')
-                        const fileName = `${uploadId}.mp3` // Assume mp3/wav
+                    if (!url || !key) {
+                        throw new Error('Missing Supabase Environment Variables (NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY). Cannot upload large file.')
+                    }
 
-                        // Ensure bucket exists or use generic one
-                        const { error: uploadError } = await supabase.storage
-                            .from('voice-uploads')
-                            .upload(fileName, buffer, { contentType: 'audio/mpeg', upsert: true })
+                    const supabase = createClient(url, key)
+                    const base64Data = reassembledString.includes('base64,') ? reassembledString.split('base64,')[1] : reassembledString
+                    const buffer = Buffer.from(base64Data, 'base64')
+                    const fileName = `${uploadId}.mp3` // Assume mp3/wav
 
-                        if (!uploadError) {
-                            const { data: publicData } = supabase.storage.from('voice-uploads').getPublicUrl(fileName)
-                            if (publicData?.publicUrl) {
-                                console.log(`[Upload] Storage URL: ${publicData.publicUrl}`)
-                                finalInput = publicData.publicUrl
-                            }
-                        } else { console.error('[Upload] Storage Upload Failed:', uploadError) }
-                    } else { console.warn('[Upload] Supabase Env Vars missing.') }
-                } catch (storageErr) { console.error('[Upload] Storage logic failed:', storageErr) }
+                    // Ensure bucket exists or use generic one
+                    const { error: uploadError } = await supabase.storage
+                        .from('voice-uploads')
+                        .upload(fileName, buffer, { contentType: 'audio/mpeg', upsert: true })
+
+                    if (uploadError) {
+                        console.error('[Upload] Storage Upload Failed:', uploadError)
+                        throw new Error(`Supabase Storage Upload Failed: ${uploadError.message}`)
+                    }
+
+                    const { data: publicData } = supabase.storage.from('voice-uploads').getPublicUrl(fileName)
+                    if (publicData?.publicUrl) {
+                        console.log(`[Upload] Storage URL: ${publicData.publicUrl}`)
+                        finalInput = publicData.publicUrl
+                    } else {
+                        throw new Error('Supabase Storage: Could not retrieve Public URL.')
+                    }
+
+                } catch (storageErr: any) {
+                    console.error('[Upload] Storage logic failed:', storageErr)
+                    // CRITICAL: Do not fallback for large files, it will just fail later.
+                    return NextResponse.json({ error: storageErr.message || "Storage Error" }, { status: 500 })
+                }
             }
 
             // 5. Start RVC Job properly
