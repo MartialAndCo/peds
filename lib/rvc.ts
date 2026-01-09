@@ -76,23 +76,30 @@ export const rvcService = {
     /**
      * Starts an Async RVC Job (RunPod Only)
      */
-    async startJob(audioBase64: string, options: { agentId?: number, voiceId?: number, sourceGender?: string }) {
+    async startJob(audioInput: string, options: { agentId?: number, voiceId?: number, sourceGender?: string }) {
         const config = await this._getConfig(options)
 
-        let cleanBase64 = audioBase64
-        if (audioBase64.includes('base64,')) cleanBase64 = audioBase64.split('base64,')[1]
-
-        const payload = {
+        let payload: any = {
             input: {
-                audio_base64: cleanBase64,
                 model_name: config.selectedModel,
                 model_url: config.modelUrl,
                 pitch: config.pitch,
-                f0_method: 'rmvpe', // Use RMVPE as requested
+                f0_method: 'rmvpe',
                 index_rate: config.indexRate,
                 protect: config.protect,
                 filter_radius: 3
             }
+        }
+
+        // Check if input is URL or Base64
+        if (audioInput.startsWith('http://') || audioInput.startsWith('https://')) {
+            console.log(`[RVC] Using Audio URL: ${audioInput}`)
+            payload.input.audio_url = audioInput
+        } else {
+            // Handle Base64
+            let cleanBase64 = audioInput
+            if (audioInput.includes('base64,')) cleanBase64 = audioInput.split('base64,')[1]
+            payload.input.audio_base64 = cleanBase64
         }
 
         // Use /run endpoint

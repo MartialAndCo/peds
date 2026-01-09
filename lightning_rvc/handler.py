@@ -47,11 +47,12 @@ def train_or_infer(job):
     
     # Extract params
     audio_b64 = job_input.get("audio_base64")
+    audio_url = job_input.get("audio_url")
     model_name = job_input.get("model_name")
     model_url = job_input.get("model_url")
-    f0_up_key = int(job_input.get("pitch", 0)) # Mapped 'pitch' to 'f0_up_key'
+    f0_up_key = int(job_input.get("pitch", 0)) 
     
-    # Optional advanced params (keeping defaults if not provided, though user JSON didn't show them)
+    # Optional advanced params
     index_rate = float(job_input.get("index_rate", 0.75))
     filter_radius = int(job_input.get("filter_radius", 3))
     protect = float(job_input.get("protect", 0.33))
@@ -59,8 +60,8 @@ def train_or_infer(job):
     if not model_name:
         return {"error": "Missing 'model_name' in input."}
     
-    if not audio_b64:
-        return {"error": "Missing 'audio_base64' in input."}
+    if not audio_b64 and not audio_url:
+        return {"error": "Missing 'audio_base64' or 'audio_url' in input."}
     
     # Paths
     model_path = MODELS_DIR / f"{model_name}.pth"
@@ -86,7 +87,11 @@ def train_or_infer(job):
     try:
         # Save Audio
         # Save Audio
-        input_path = download_audio(audio_b64)
+        if audio_url:
+            print(f"Downloading Input from {audio_url}...")
+            input_path = download_file(audio_url)
+        else:
+            input_path = download_audio(audio_b64)
         
         # Build Command (using rvc-python CLI or library)
         # Note: We assume 'rvc-python' is installed in the container
