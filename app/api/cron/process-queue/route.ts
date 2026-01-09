@@ -61,51 +61,87 @@ export async function GET(req: Request) {
                 // Or update to 'PROCESSING' first if we worry about parallel crons (Vercel cron is usually unique if schedule is sparse)
 
                 // 2. Processing
-                const { content, contact, conversation } = queueItem
+                const { content, contact, conversation, mediaUrl, mediaType, duration } = queueItem
                 const phone = contact.phone_whatsapp
-                const agentId = conversation?.agentId || undefined // Multi-Session Support (null -> undefined)
+                const agentId = conversation?.agentId || undefined
 
-                console.log(`[Cron] Sending to ${phone} (ID: ${queueItem.id})`)
+                console.log(`[Cron] Sending to ${phone} (ID: ${queueItem.id}), media: ${!!mediaUrl}`)
 
-                // GUARD: Check for empty content (prevent empty bubbles)
-                if (!content || content.trim().length === 0) {
-                    console.warn(`[Cron] Validation Error: Empty content for QueueItem ${queueItem.id}. Skipping.`)
-                    await prisma.messageQueue.update({
-                        where: { id: queueItem.id },
-                        data: { status: 'INVALID_EMPTY' } // Custom status or FAILED
-                    })
-                    results.push({ id: queueItem.id, status: 'skipped_empty' })
-                    continue
-                }
+                // A. HANDLE AUDIO (Voice Notes)
+                if (mediaUrl && (mediaType?.startsWith('audio') || mediaUrl.includes('audio/'))) {
+                    // Recording Logic
+                    await whatsapp.sendRecordingState(phone, true, agentId).catch(e => { })
 
-                // Mark Read if not already (Just in case logic: Ensure it's read before reply)
-                await whatsapp.markAsRead(phone, agentId).catch(e => { })
-
-                // Typing Logic (Simulated)
-                // Non-blocking simulated typing state (just fire and forget, don't await long duration)
-                await whatsapp.sendTypingState(phone, true, agentId).catch(e => { })
-
-                // REALISTIC Typing (Cron can afford a few seconds now that batch is 50 and we process efficiently)
-                // 50-80ms per char is human-like.
-                // Cap at 8-10s to avoid holding the worker too long.
-                const typingMs = Math.min(content.length * 60, 8000)
-                await new Promise(r => setTimeout(r, typingMs + 500)) // +500ms base delay
-
-                // Send Text
-                // Check if we need to split (cron splits if needed, but webhook usually generated clean text or |||)
-                let parts = content.split('|||').filter(p => p.trim().length > 0)
-
-                // Fallback: Splitting by newlines if big block
-                if (parts.length === 1 && content.length > 50) {
-                    const paragraphs = content.split(/\n+/).filter(p => p.trim().length > 0)
-                    if (paragraphs.length > 1) parts = paragraphs
-                }
-
-                for (const part of parts) {
-                    await whatsapp.sendText(phone, part.trim(), undefined, agentId)
-                    if (parts.indexOf(part) < parts.length - 1) {
-                        await new Promise(r => setTimeout(r, 1000)) // Short pause
+                    // Use Real Duration (or fallback to heuristic)
+                    let audioDurationMs = duration || 5000;
+                    if (!duration) {
+                        console.warn('[Cron] No duration in DB, using fallback heuristic');
+                        if (mediaUrl.startsWith('data:')) {
+                            const base64Len = mediaUrl.split(',')[1]?.length || 0;
+                            const bytes = base64Len * 0.75;
+                            audioDurationMs = Math.min(Math.round(bytes / 12000) * 1000, 20000);
+                        } else if (mediaUrl.startsWith('http')) {
+                            audioDurationMs = 12000;
+                        }
                     }
+
+                    console.log(`[Cron] Audio detected. Mimicking recording for ${audioDurationMs}ms...`)
+                    await new Promise(r => setTimeout(r, Math.max(2000, audioDurationMs)))
+
+                    // Send Voice Note
+                    await whatsapp.sendVoice(phone, mediaUrl, undefined, agentId)
+
+                    // Stop Recording State
+                    await whatsapp.sendRecordingState(phone, false, agentId).catch(e => { })
+
+                    // If there's content (caption), send as follow-up text
+                    if (content && content.trim().length > 0) {
+                        await new Promise(r => setTimeout(r, 2000))
+                        await whatsapp.sendText(phone, content.trim(), undefined, agentId)
+                    }
+                }
+                // B. HANDLE MEDIA (Images/Videos)
+                else if (mediaUrl) {
+                    await whatsapp.sendTypingState(phone, true, agentId).catch(e => { })
+                    const typingMs = Math.min((content?.length || 10) * 60, 5000)
+                    await new Promise(r => setTimeout(r, typingMs + 1000))
+
+                    if (mediaType?.includes('video')) {
+                        await whatsapp.sendVideo(phone, mediaUrl, content || "", agentId)
+                    } else {
+                        await whatsapp.sendImage(phone, mediaUrl, content || "", agentId)
+                    }
+                    await whatsapp.sendTypingState(phone, false, agentId).catch(e => { })
+                }
+                // C. HANDLE TEXT ONLY
+                else {
+                    if (!content || content.trim().length === 0) {
+                        console.warn(`[Cron] Validation Error: Empty content for QueueItem ${queueItem.id}. Skipping.`)
+                        await prisma.messageQueue.update({
+                            where: { id: queueItem.id },
+                            data: { status: 'INVALID_EMPTY' }
+                        })
+                        results.push({ id: queueItem.id, status: 'skipped_empty' })
+                        continue
+                    }
+
+                    await whatsapp.sendTypingState(phone, true, agentId).catch(e => { })
+                    const typingMs = Math.min(content.length * 60, 8000)
+                    await new Promise(r => setTimeout(r, typingMs + 500))
+
+                    let parts = content.split('|||').filter(p => p.trim().length > 0)
+                    if (parts.length === 1 && content.length > 50) {
+                        const paragraphs = content.split(/\n+/).filter(p => p.trim().length > 0)
+                        if (paragraphs.length > 1) parts = paragraphs
+                    }
+
+                    for (const part of parts) {
+                        await whatsapp.sendText(phone, part.trim(), undefined, agentId)
+                        if (parts.indexOf(part) < parts.length - 1) {
+                            await new Promise(r => setTimeout(r, 1000))
+                        }
+                    }
+                    await whatsapp.sendTypingState(phone, false, agentId).catch(e => { })
                 }
 
                 // NOTE: Message is already saved to Message table by the chat handler

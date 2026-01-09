@@ -151,6 +151,7 @@ export const mediaService = {
     // 4. Ingest Media
     async ingestMedia(sourcePhone: string, mediaData: string, mimeType: string) {
         console.log(`[MediaService] Ingesting from ${sourcePhone}, mime: ${mimeType}`)
+
         // Find most recent pending request
         const latestPending = await prisma.pendingRequest.findFirst({
             where: { status: 'pending' },
@@ -159,6 +160,98 @@ export const mediaService = {
         console.log(`[MediaService] Latest Pending: ${latestPending?.id}, typeId: ${latestPending?.typeId}`)
 
         if (!latestPending) return null;
+
+        // --- RVC INTERCEPTION ---
+        const isAudio = mimeType.startsWith('audio') || latestPending.typeId === 'audio' || latestPending.typeId === 'voice_note';
+
+        if (isAudio && latestPending) {
+            console.log('[MediaService] Audio detected. Intercepting for RVC Processing...');
+
+            try {
+                const { rvcService } = require('@/lib/rvc');
+
+                // 1. Get Target Voice ID
+                // Try to find via Contact -> Conversation -> Agent
+                const contact = await prisma.contact.findUnique({ where: { phone_whatsapp: latestPending.requesterPhone } });
+                let voiceId = null;
+
+                if (contact) {
+                    const conv = await prisma.conversation.findFirst({ where: { contactId: contact.id }, orderBy: { createdAt: 'desc' } });
+                    if (conv && conv.agentId) {
+                        const settings = await prisma.agentSetting.findFirst({ where: { agentId: conv.agentId, key: 'voice_id' } });
+                        if (settings) voiceId = settings.value;
+                    }
+                }
+
+                // Fallback to Global Defaults or Agent 1
+                if (!voiceId) {
+                    const s = await prisma.setting.findUnique({ where: { key: 'voice_id' } }); // Global fallback
+                    voiceId = s?.value || process.env.RVC_DEFAULT_VOICE_ID;
+                }
+
+                if (!voiceId) {
+                    console.warn('[MediaService] No Voice ID found. Uploading raw audio or failing?');
+                    // If no voice ID, maybe just send raw audio? For now, fail safe.
+                    // voiceId = 'default'; 
+                }
+
+                console.log(`[MediaService] Using Voice ID: ${voiceId}`);
+
+                // 2. Prepare Source Audio (Supabase logic for large files)
+                let finalAudioInput = mediaData;
+                let sourceUrl = null;
+
+                // Clean base64 header if present for length check
+                const base64Content = mediaData.includes('base64,') ? mediaData.split('base64,')[1] : mediaData;
+                const buffer = Buffer.from(base64Content, 'base64');
+
+                // Reuse 8MB Limit logic
+                if (buffer.length > 8 * 1024 * 1024) {
+                    console.log('[MediaService] Source Audio > 8MB. Uploading to Supabase...');
+                    const { createClient } = require('@supabase/supabase-js');
+                    const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+                    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+                    if (url && key) {
+                        const supabase = createClient(url, key);
+                        const fileName = `source_${latestPending.id}_${Date.now()}.mp3`;
+                        const { error: upErr } = await supabase.storage.from('voice-uploads').upload(fileName, buffer, { contentType: mimeType || 'audio/mpeg' });
+
+                        if (!upErr) {
+                            const { data } = supabase.storage.from('voice-uploads').getPublicUrl(fileName);
+                            if (data?.publicUrl) {
+                                finalAudioInput = data.publicUrl; // URL Input for RunPod
+                                sourceUrl = data.publicUrl;
+                            }
+                        } else {
+                            console.error('[MediaService] Supabase Upload failed', upErr);
+                        }
+                    }
+                }
+
+                // 3. Start RVC Job
+                const jobId = await rvcService.startJob(finalAudioInput, { voiceId: voiceId ? Number(voiceId) : undefined }); // AI Context check handled by Cron
+
+                // 4. Update Pending Request
+                await prisma.pendingRequest.update({
+                    where: { id: latestPending.id },
+                    data: {
+                        status: 'processing',
+                        jobId: jobId,
+                        voiceId: voiceId,
+                        sourceAudioUrl: sourceUrl
+                    }
+                });
+
+                console.log(`[MediaService] RVC Job Started: ${jobId}. Returning Async.`);
+                return null; // STOP HERE. Don't fulfill yet.
+
+            } catch (err) {
+                console.error('[MediaService] RVC Interception Failed:', err);
+                // Fallback to normal ingestion (send raw)?
+            }
+        }
+        // --- END INTERCEPTION ---
 
         if (!latestPending.typeId) {
             console.error("[MediaService] Pending Request missing typeId, cannot ingest media.");
@@ -200,7 +293,7 @@ export const mediaService = {
     },
 
     // 5. Logic: Process Admin Media & Schedule
-    async processAdminMedia(sourcePhone: string, ingestionResult: { sentTo: string, type: string, mediaUrl: string, mediaType: string }) {
+    async processAdminMedia(sourcePhone: string, ingestionResult: { sentTo: string, type: string, mediaUrl: string, mediaType: string, duration?: number | null }) {
         const { TimingManager } = require('@/lib/timing');
 
         const contactPhone = ingestionResult.sentTo;
@@ -255,6 +348,7 @@ export const mediaService = {
                 content: sched.caption || "Sent.",
                 mediaUrl: ingestionResult.mediaUrl,
                 mediaType: ingestionResult.mediaType,
+                duration: ingestionResult.duration,
                 scheduledAt: scheduledAt,
                 status: 'PENDING'
             }

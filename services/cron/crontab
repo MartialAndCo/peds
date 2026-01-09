@@ -12,3 +12,6 @@
 
 # Every 2 minutes: Recover Failed Webhooks
 */2 * * * * curl -s "https://main.die6qcz48fek8.amplifyapp.com/api/cron/recovery" > /dev/null
+
+# Every 1 minute: Process RVC Voice Conversion Jobs
+* * * * * curl -s "https://main.die6qcz48fek8.amplifyapp.com/api/cron/process-voice" > /dev/null

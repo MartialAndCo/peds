@@ -205,6 +205,22 @@ export const whatsapp = {
         }
     },
 
+    async sendRecordingState(chatId: string, isRecording: boolean, agentId?: number) {
+        const { endpoint, apiKey } = await getConfig()
+        try {
+            const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
+            await axios.post(`${endpoint}/api/sendStateRecording`, {
+                sessionId: agentId?.toString(),
+                chatId: formattedChatId,
+                isRecording
+            }, {
+                headers: { 'X-Api-Key': apiKey }
+            })
+        } catch (error: any) {
+            console.error('WhatsApp Service RecordingStatus Error:', error.message)
+        }
+    },
+
     async adminStatus() {
         const { endpoint, apiKey } = await getConfig()
         try {

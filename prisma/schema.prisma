@@ -93,6 +93,12 @@ model VoiceModel {
   name      String   // e.g. "Homer", "American 1"
   url       String   // HuggingFace URL
   gender    String   @default("FEMALE") // 'MALE', 'FEMALE'
+  
+  // RVC Parameters
+  indexRate   Decimal  @default(0.75)
+  protect     Decimal  @default(0.33)
+  rmsMixRate  Decimal  @default(0.25)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   
@@ -237,6 +243,10 @@ model PendingRequest {
 
   typeId          String?
   type            MediaType? @relation(fields: [typeId], references: [id])
+  
+  jobId           String?    // RVC Job ID
+  voiceId         String?    // Target Voice
+  sourceAudioUrl  String?    // Supabase URL of source audio if any
 
   @@index([status])
   @@index([requesterPhone])
@@ -251,6 +261,7 @@ model MessageQueue {
   content        String      @db.Text
   mediaUrl       String?     @db.Text
   mediaType      String?     // 'image', 'video', 'audio', 'document'
+  duration       Int?        // Audio duration in ms
   scheduledAt    DateTime
   status         String      @default("PENDING") // PENDING, SENT, FAILED
   attempts       Int         @default(0)
@@ -286,6 +297,7 @@ model VoiceClip {
   transcript  String?        // "Hello friend"
   sentTo      String[]       @default([]) // Array of phone numbers
   sourcePhone String?        // Who recorded it
+  duration    Int?           // Audio duration in ms
   createdAt   DateTime       @default(now())
   
   category    VoiceCategory  @relation(fields: [categoryId], references: [id])

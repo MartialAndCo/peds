@@ -58,68 +58,65 @@ export const voiceService = {
             return { action: 'saved_no_request' }
         }
 
-        // 2. Save Voice Clip
-        const transcript = pending.description
-        let category = await prisma.voiceCategory.findFirst({ where: { id: 'general' } })
-        if (!category) {
-            category = await prisma.voiceCategory.create({ data: { id: 'general', description: 'General replies' } })
-        }
-
-        // Use base64 data uri for now
-        const audioUrl = mediaData.startsWith('data:') ? mediaData : `data:audio/ogg;base64,${mediaData}`
-
-        // --- RVC TRANSFORMATION ---
-        let finalUrl = audioUrl
+        // 2. Prepare Source Audio and Start Job
         try {
-            // Resolve Agent ID from Requester (Contact)
-            // We assume the contact has an active conversation with an agent, or we look for the last agent they spoke with.
+            // Resolve Agent ID from Requester
             const contact = await prisma.contact.findUnique({
                 where: { phone_whatsapp: pending.requesterPhone },
                 include: { conversations: { orderBy: { createdAt: 'desc' }, take: 1, select: { agentId: true } } }
             })
-
             const agentId = contact?.conversations?.[0]?.agentId || undefined
-
             console.log(`[Voice] Ingesting for Contact ${pending.requesterPhone}. Found Agent ID: ${agentId}`)
 
+            // Prepare Input (Supabase Check)
+            let finalAudioInput = mediaData;
+            let sourceUrl = null;
+
+            // Simple check for base64 length (approx 6MB check)
+            if (mediaData.length > 8 * 1024 * 1024) {
+                console.log('[Voice] Source Audio > 8MB. Uploading to Supabase...');
+                const { createClient } = require('@supabase/supabase-js');
+                const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+                const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+                if (url && key) {
+                    const supabase = createClient(url, key);
+                    const buffer = Buffer.from(mediaData.includes('base64,') ? mediaData.split('base64,')[1] : mediaData, 'base64');
+                    const fileName = `source_voice_${pending.id}_${Date.now()}.mp3`;
+                    const { error: upErr } = await supabase.storage.from('voice-uploads').upload(fileName, buffer, { contentType: 'audio/mpeg' });
+
+                    if (!upErr) {
+                        const { data } = supabase.storage.from('voice-uploads').getPublicUrl(fileName);
+                        if (data?.publicUrl) {
+                            finalAudioInput = data.publicUrl;
+                            sourceUrl = data.publicUrl;
+                        }
+                    }
+                }
+            }
+
+            // Start Async Job
             const { rvcService } = require('@/lib/rvc')
-            const converted = await rvcService.convertVoice(mediaData, { agentId })
+            const jobId = await rvcService.startJob(finalAudioInput, { agentId })
 
-            if (converted) {
-                console.log('[Voice] RVC Transformation Successful.')
-                finalUrl = converted
+            if (jobId) {
+                // Update Request to PROCESSING
+                await prisma.pendingRequest.update({
+                    where: { id: pending.id },
+                    data: {
+                        status: 'processing',
+                        jobId: jobId,
+                        sourceAudioUrl: sourceUrl
+                    }
+                })
+                return { action: 'processing', message: 'Converting voice...', jobId }
             } else {
-                console.warn('[Voice] RVC Transformation returned null. Using original.')
+                throw new Error("Failed to start RVC Job");
             }
+
         } catch (rvcErr) {
-            console.error('[Voice] Failed to transform voice:', rvcErr)
-        }
-        // --------------------------
-
-        const clip = await prisma.voiceClip.create({
-            data: {
-                categoryId: category.id,
-                url: finalUrl,
-                transcript: transcript,
-                sourcePhone: sourcePhone,
-                sentTo: [] // Not sent yet
-            }
-        })
-
-        // 3. Update Pending Request to CONFIRMING
-        // We link via the transcript (description).
-        await prisma.pendingRequest.update({
-            where: { id: pending.id },
-            data: {
-                status: 'confirming',
-                // typeId: clip.id.toString() // REMOVED: Violates FK constraint with MediaType
-            }
-        })
-
-        return {
-            action: 'confirming',
-            clipId: clip.id,
-            transcript: transcript
+            console.error('[Voice] Failed to start transformation:', rvcErr)
+            return { action: 'error' }
         }
     },
 

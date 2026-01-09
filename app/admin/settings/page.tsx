@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import axios from 'axios'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Loader2, Brain, Shield, Server, Trash } from 'lucide-react'
+import { Loader2, Brain, Shield, Server, Trash, Settings2, Check, X } from 'lucide-react'
 
 export default function SettingsPage() {
     const [settings, setSettings] = useState<any>({
@@ -449,7 +449,12 @@ function VoiceManager() {
     const [newName, setNewName] = useState('')
     const [newUrl, setNewUrl] = useState('')
     const [newGender, setNewGender] = useState('FEMALE')
+    const [newIndexRate, setNewIndexRate] = useState('0.75')
+    const [newProtect, setNewProtect] = useState('0.33')
+    const [newRmsMixRate, setNewRmsMixRate] = useState('0.25')
     const [loading, setLoading] = useState(false)
+    const [editingId, setEditingId] = useState<number | null>(null)
+    const [editForm, setEditForm] = useState<any>(null)
 
     const fetchVoices = useCallback(() => {
         axios.get('/api/voices').then(res => setVoices(res.data)).catch(() => { })
@@ -461,9 +466,39 @@ function VoiceManager() {
         if (!newName || !newUrl) return
         setLoading(true)
         try {
-            await axios.post('/api/voices', { name: newName, url: newUrl, gender: newGender })
+            await axios.post('/api/voices', {
+                name: newName,
+                url: newUrl,
+                gender: newGender,
+                indexRate: parseFloat(newIndexRate),
+                protect: parseFloat(newProtect),
+                rmsMixRate: parseFloat(newRmsMixRate)
+            })
             setNewName('')
             setNewUrl('')
+            setNewIndexRate('0.75')
+            setNewProtect('0.33')
+            setNewRmsMixRate('0.25')
+            fetchVoices()
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const handleUpdate = async () => {
+        if (!editForm) return
+        setLoading(true)
+        try {
+            await axios.patch(`/api/voices/${editForm.id}`, {
+                name: editForm.name,
+                url: editForm.url,
+                gender: editForm.gender,
+                indexRate: parseFloat(editForm.indexRate),
+                protect: parseFloat(editForm.protect),
+                rmsMixRate: parseFloat(editForm.rmsMixRate)
+            })
+            setEditingId(null)
+            setEditForm(null)
             fetchVoices()
         } finally {
             setLoading(false)
@@ -478,56 +513,197 @@ function VoiceManager() {
 
     return (
         <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                <Input
-                    placeholder="Model Name (e.g. Homer)"
-                    value={newName}
-                    onChange={e => setNewName(e.target.value)}
-                    className="bg-white/[0.04] border-white/[0.08] text-white"
-                />
-                <div className="flex gap-2">
-                    <select
-                        value={newGender}
-                        onChange={e => setNewGender(e.target.value)}
-                        className="h-10 px-3 rounded-md bg-white/[0.04] border border-white/[0.08] text-white text-xs focus:outline-none"
-                    >
-                        <option value="MALE">Male</option>
-                        <option value="FEMALE">Female</option>
-                    </select>
+            <div className="space-y-4 p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                        <label className="text-[10px] text-white/40 uppercase font-medium">Model Name</label>
+                        <Input
+                            placeholder="e.g. Homer"
+                            value={newName}
+                            onChange={e => setNewName(e.target.value)}
+                            className="bg-white/[0.04] border-white/[0.08] text-white"
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[10px] text-white/40 uppercase font-medium">Gender</label>
+                        <select
+                            value={newGender}
+                            onChange={e => setNewGender(e.target.value)}
+                            className="w-full h-10 px-3 rounded-md bg-white/[0.04] border border-white/[0.08] text-white text-sm focus:outline-none"
+                        >
+                            <option value="MALE">Male</option>
+                            <option value="FEMALE">Female</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div className="space-y-1">
+                    <label className="text-[10px] text-white/40 uppercase font-medium">HuggingFace Zip URL</label>
                     <Input
-                        placeholder="HuggingFace Zip URL"
+                        placeholder="https://huggingface.co/..."
                         value={newUrl}
                         onChange={e => setNewUrl(e.target.value)}
-                        className="bg-white/[0.04] border-white/[0.08] text-white flex-1"
+                        className="bg-white/[0.04] border-white/[0.08] text-white"
                     />
-                    <Button type="button" onClick={handleAdd} disabled={loading} className="bg-white text-black">
-                        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Add'}
-                    </Button>
                 </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                        <label className="text-[10px] text-white/40 uppercase font-medium">Index Rate</label>
+                        <Input
+                            type="number"
+                            step="0.05"
+                            value={newIndexRate}
+                            onChange={e => setNewIndexRate(e.target.value)}
+                            className="bg-white/[0.04] border-white/[0.08] text-white"
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[10px] text-white/40 uppercase font-medium">Protect</label>
+                        <Input
+                            type="number"
+                            step="0.05"
+                            value={newProtect}
+                            onChange={e => setNewProtect(e.target.value)}
+                            className="bg-white/[0.04] border-white/[0.08] text-white"
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[10px] text-white/40 uppercase font-medium">RMS Mix</label>
+                        <Input
+                            type="number"
+                            step="0.05"
+                            value={newRmsMixRate}
+                            onChange={e => setNewRmsMixRate(e.target.value)}
+                            className="bg-white/[0.04] border-white/[0.08] text-white"
+                        />
+                    </div>
+                </div>
+
+                <Button type="button" onClick={handleAdd} disabled={loading} className="w-full bg-white text-black hover:bg-white/90">
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Add Voice to Library'}
+                </Button>
             </div>
 
             <div className="space-y-2">
                 {voices.map(voice => (
-                    <div key={voice.id} className="flex justify-between items-center p-3 rounded-lg bg-white/[0.04] border border-white/[0.06]">
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium text-white">{voice.name}</span>
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded border ${voice.gender === 'MALE' ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' : 'bg-pink-500/10 border-pink-500/20 text-pink-400'}`}>
-                                    {voice.gender || 'FEMALE'}
-                                </span>
+                    <div key={voice.id} className="p-3 rounded-lg bg-white/[0.04] border border-white/[0.06] transition-all">
+                        {editingId === voice.id ? (
+                            <div className="space-y-3">
+                                <div className="grid grid-cols-2 gap-2">
+                                    <Input
+                                        value={editForm.name}
+                                        onChange={e => setEditForm({ ...editForm, name: e.target.value })}
+                                        className="bg-white/[0.04] border-white/[0.08] text-white h-8 text-xs"
+                                        placeholder="Name"
+                                    />
+                                    <select
+                                        value={editForm.gender}
+                                        onChange={e => setEditForm({ ...editForm, gender: e.target.value })}
+                                        className="h-8 px-2 rounded-md bg-white/[0.04] border border-white/[0.08] text-white text-[10px] focus:outline-none"
+                                    >
+                                        <option value="MALE">Male</option>
+                                        <option value="FEMALE">Female</option>
+                                    </select>
+                                </div>
+                                <Input
+                                    value={editForm.url}
+                                    onChange={e => setEditForm({ ...editForm, url: e.target.value })}
+                                    className="bg-white/[0.04] border-white/[0.08] text-white h-8 text-xs"
+                                    placeholder="URL"
+                                />
+                                <div className="grid grid-cols-3 gap-2">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] text-white/40 uppercase">Index</label>
+                                        <Input
+                                            type="number"
+                                            step="0.05"
+                                            value={editForm.indexRate}
+                                            onChange={e => setEditForm({ ...editForm, indexRate: e.target.value })}
+                                            className="bg-white/[0.04] border-white/[0.08] text-white h-8 text-xs"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] text-white/40 uppercase">Protect</label>
+                                        <Input
+                                            type="number"
+                                            step="0.05"
+                                            value={editForm.protect}
+                                            onChange={e => setEditForm({ ...editForm, protect: e.target.value })}
+                                            className="bg-white/[0.04] border-white/[0.08] text-white h-8 text-xs"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] text-white/40 uppercase">RMS Mix</label>
+                                        <Input
+                                            type="number"
+                                            step="0.05"
+                                            value={editForm.rmsMixRate}
+                                            onChange={e => setEditForm({ ...editForm, rmsMixRate: e.target.value })}
+                                            className="bg-white/[0.04] border-white/[0.08] text-white h-8 text-xs"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="flex gap-2 justify-end pt-1">
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => { setEditingId(null); setEditForm(null); }}
+                                        className="h-8 text-[10px] text-white/40 hover:text-white"
+                                    >
+                                        <X className="h-3 w-3 mr-1" /> Cancel
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        onClick={handleUpdate}
+                                        className="h-8 text-[10px] bg-white text-black hover:bg-white/90"
+                                    >
+                                        <Check className="h-3 w-3 mr-1" /> Save
+                                    </Button>
+                                </div>
                             </div>
-                            <div className="text-xs text-white/40 truncate max-w-md">{voice.url}</div>
-                        </div>
+                        ) : (
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-medium text-white">{voice.name}</span>
+                                        <span className={`text-[10px] px-1.5 py-0.5 rounded border ${voice.gender === 'MALE' ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' : 'bg-pink-500/10 border-pink-500/20 text-pink-400'}`}>
+                                            {voice.gender || 'FEMALE'}
+                                        </span>
+                                        <div className="flex gap-2 ml-2">
+                                            <span className="text-[10px] text-white/30">Index: {Number(voice.indexRate).toFixed(2)}</span>
+                                            <span className="text-[10px] text-white/30">Prot: {Number(voice.protect).toFixed(2)}</span>
+                                            <span className="text-[10px] text-white/30">RMS: {Number(voice.rmsMixRate).toFixed(2)}</span>
+                                        </div>
+                                    </div>
+                                    <div className="text-xs text-white/40 truncate max-w-md">{voice.url}</div>
+                                </div>
 
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                            onClick={() => handleDelete(voice.id)}
-                        >
-                            <Trash className="h-4 w-4" />
-                        </Button>
+                                <div className="flex gap-1">
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="text-white/40 hover:text-white"
+                                        onClick={() => {
+                                            setEditingId(voice.id);
+                                            setEditForm({ ...voice });
+                                        }}
+                                    >
+                                        <Settings2 className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="text-red-400/60 hover:text-red-400"
+                                        onClick={() => handleDelete(voice.id)}
+                                    >
+                                        <Trash className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 ))}
                 {voices.length === 0 && <div className="text-white/30 text-center py-4 text-sm">No voices found</div>}
@@ -709,7 +885,7 @@ function VoiceTester({ voices }: { voices: any[] }) {
                 <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
                     <div className="flex items-center justify-between">
                         <div className="text-xs text-blue-200">
-                            <strong>Smart RVC Rule:</strong> Pitch/Index will be auto-calculated based on your gender and target voice.
+                            <strong>Custom RVC Settings:</strong> Pitch is auto-calculated, but Index/Protect/RMS are now pulled from the voice model settings.
                         </div>
                         <div className="flex items-center gap-2">
                             <span className="text-xs text-white/60">I am:</span>

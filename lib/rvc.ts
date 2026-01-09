@@ -49,17 +49,29 @@ export const rvcService = {
             }
         }
 
-        // 3. Rule Book
+        // 3. Defaults & Custom Params
         let pitch = 0
         let indexRate = 0.75
         let protect = 0.33
+        let rmsMixRate = 0.25
 
+        if (options.voiceId || options.agentId) {
+            const voice = options.voiceId
+                ? await prisma.voiceModel.findUnique({ where: { id: options.voiceId } })
+                : (await prisma.agent.findUnique({ where: { id: options.agentId }, include: { voiceModel: true } }))?.voiceModel
+
+            if (voice) {
+                indexRate = Number(voice.indexRate) || 0.75
+                protect = Number(voice.protect) || 0.33
+                rmsMixRate = Number(voice.rmsMixRate) || 0.25
+            }
+        }
+
+        // Gender-based pitch adjustment (remains as default logic)
         if (sourceGender === 'MALE' && targetGender === 'FEMALE') {
             pitch = 12
-            indexRate = 0.8; protect = 0.40
         } else if (sourceGender === 'FEMALE' && targetGender === 'MALE') {
             pitch = -12
-            indexRate = 0.8; protect = 0.40
         }
 
         if (!modelUrl) {
@@ -70,7 +82,7 @@ export const rvcService = {
         const rvcUrl = process.env.RVC_API_URL || settings.rvc_api_url || process.env.LIGHTNING_API_URL || settings.lightning_api_url || 'http://localhost:8000'
         const runpodKey = process.env.RUNPOD_API_KEY || settings.runpod_api_key
 
-        return { rvcUrl, runpodKey, selectedModel, modelUrl, pitch, indexRate, protect }
+        return { rvcUrl, runpodKey, selectedModel, modelUrl, pitch, indexRate, protect, rmsMixRate }
     },
 
     /**
@@ -87,6 +99,7 @@ export const rvcService = {
                 f0_method: 'rmvpe',
                 index_rate: config.indexRate,
                 protect: config.protect,
+                rms_mix_rate: config.rmsMixRate,
                 filter_radius: 3
             }
         }
