@@ -15,7 +15,17 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
     try {
         const generation = await prisma.voiceGeneration.findUnique({
-            where: { id: generationId }
+            where: { id: generationId },
+            select: {
+                id: true,
+                status: true,
+                createdAt: true,
+                jobId: true,
+                error: true,
+                voiceModelId: true,
+                voiceModel: { select: { name: true } }
+                // audioUrl: false // Exclude!
+            }
         })
 
         if (!generation) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -40,12 +50,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
                     }
                 })
 
-                return NextResponse.json({ ...generation, status: 'COMPLETED', audioUrl })
+                // Return WITHOUT the massive audioUrl
+                return NextResponse.json({ ...generation, status: 'COMPLETED', audioUrl: null })
             }
-            else if (check.status === 'FAILED' || check.status === 'TIMED_OUT') {
+            else if (check.status === 'FAILED' || check.status === 'TIMED_OUT' || check.status === 'error') {
                 await prisma.voiceGeneration.update({
                     where: { id: generationId },
-                    data: { status: 'FAILED', error: 'RunPod Job Failed' }
+                    data: { status: 'FAILED', error: check.error || 'RunPod Job Failed' }
                 })
                 return NextResponse.json({ ...generation, status: 'FAILED' })
             }
