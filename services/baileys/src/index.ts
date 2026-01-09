@@ -352,7 +352,7 @@ async function startSession(sessionId: string) {
                     resolvedPhoneNumber = senderPn.replace('@s.whatsapp.net', '')
                     // Self-heal: Save to map for future lookups
                     const lidKey = remoteJid.split('@')[0]
-                    sessionData.lidToPnMap.set(lidKey, resolvedPhoneNumber)
+                    sessionData.lidToPnMap.set(lidKey, resolvedPhoneNumber!)
                     server.log.info({ sessionId, method: 'senderPn', pn: resolvedPhoneNumber }, 'LID resolved via senderPn (self-healed)')
                 }
 
