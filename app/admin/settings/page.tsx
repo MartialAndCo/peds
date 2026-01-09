@@ -631,31 +631,57 @@ function VoiceTester({ voices }: { voices: any[] }) {
         if (!audioBlob || !selectedVoice) return
         setProcessing(true)
         setResultAudio(null)
-        setStatusMessage('Uploading & Starting Job...')
+        setStatusMessage('Reading Audio...')
 
         try {
             const reader = new FileReader()
             reader.readAsDataURL(audioBlob)
             reader.onloadend = async () => {
                 const base64 = reader.result as string
-                const response = await axios.post('/api/voices/test', {
-                    audio: base64,
-                    voiceId: selectedVoice,
-                    sourceGender
-                })
+                // Split base64 content only (remove data:audio... prefix for calculation, but keeping it for reassembly might be safer server side? 
+                // Our API expects partial chunks. Let's send raw base64 string including header, server reassembles string.
 
-                if (response.data.generationId) {
+                const CHUNK_SIZE = 1024 * 1024 // 1MB chunks
+                const totalLength = base64.length
+                const totalChunks = Math.ceil(totalLength / CHUNK_SIZE)
+                // Generate a random Upload ID
+                const uploadId = Math.random().toString(36).substring(7) + Date.now().toString()
+
+                setStatusMessage(`Uploading Chunk 1/${totalChunks}...`)
+
+                let finalResponse = null;
+
+                for (let i = 0; i < totalChunks; i++) {
+                    const start = i * CHUNK_SIZE
+                    const end = Math.min(start + CHUNK_SIZE, totalLength)
+                    const chunk = base64.substring(start, end)
+
+                    setStatusMessage(`Uploading Chunk ${i + 1}/${totalChunks}...`)
+
+                    const res = await axios.post('/api/voices/upload', {
+                        uploadId,
+                        index: i,
+                        total: totalChunks,
+                        chunk,
+                        voiceId: selectedVoice,
+                        sourceGender
+                    })
+
+                    if (res.data.generationId) {
+                        finalResponse = res.data
+                    }
+                }
+
+                if (finalResponse?.generationId) {
                     setStatusMessage('Job Started. Waiting for GPU...')
-                    setTimeout(() => checkStatus(response.data.generationId), 2000)
+                    setTimeout(() => checkStatus(finalResponse.generationId), 2000)
                 } else {
-                    // Fallback for sync
-                    setResultAudio(response.data.audio)
-                    setProcessing(false)
-                    fetchHistory()
+                    throw new Error("Upload completed but no Job ID returned.")
                 }
             }
         } catch (e: any) {
-            const msg = e.response?.data?.error || 'Conversion failed'
+            console.error(e)
+            const msg = e.response?.data?.error || 'Conversion or Upload failed'
             alert(msg)
             setProcessing(false)
         }

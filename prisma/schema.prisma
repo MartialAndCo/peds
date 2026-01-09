@@ -115,6 +115,18 @@ model VoiceGeneration {
   @@map("voice_generations")
 }
 
+model VoiceUploadChunk {
+  id        Int      @id @default(autoincrement())
+  uploadId  String   @db.VarChar(100)
+  index     Int
+  total     Int
+  data      String   @db.Text // Base64 chunk
+  createdAt DateTime @default(now())
+
+  @@index([uploadId])
+  @@map("voice_upload_chunks")
+}
+
 model AgentPrompt {
   id        Int      @id @default(autoincrement())
   agentId   Int
