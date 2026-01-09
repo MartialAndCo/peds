@@ -249,10 +249,20 @@ async function startSession(sessionId: string) {
     })
 
     sock.ev.on('messages.upsert', async (m) => {
-        if (!WEBHOOK_URL) return
+        // DEBUG: Log ALL incoming messages
+        server.log.info({ sessionId, type: m.type, count: m.messages.length }, 'messages.upsert event received')
+
+        if (!WEBHOOK_URL) {
+            server.log.warn({ sessionId }, 'WEBHOOK_URL not configured - messages will NOT be forwarded!')
+            return
+        }
+
         try {
             const msg = m.messages[0]
-            if (!msg.message) return
+            if (!msg.message) {
+                server.log.info({ sessionId, msgId: msg.key.id }, 'Message has no content (status update/receipt)')
+                return
+            }
 
             // Determine Body
             let body = msg.message.conversation ||
@@ -264,6 +274,8 @@ async function startSession(sessionId: string) {
             let type = 'chat'
             if (msg.message.imageMessage) type = 'image'
             if (msg.message.audioMessage) type = 'ptt'
+
+            server.log.info({ sessionId, from: msg.key.remoteJid, type, fromMe: msg.key.fromMe, bodyPreview: body.substring(0, 50) }, 'Processing message')
 
             // Prepare Payload
             const payload = {
@@ -281,7 +293,9 @@ async function startSession(sessionId: string) {
                 }
             }
 
-            await axios.post(WEBHOOK_URL, payload, { headers: { 'x-internal-secret': WEBHOOK_SECRET || '' } })
+            server.log.info({ sessionId, webhookUrl: WEBHOOK_URL }, 'Sending to webhook...')
+            const response = await axios.post(WEBHOOK_URL, payload, { headers: { 'x-internal-secret': WEBHOOK_SECRET || '' } })
+            server.log.info({ sessionId, status: response.status }, 'Webhook call successful')
 
             // Cache for media retrieval
             if (msg.key.id) {
@@ -290,7 +304,7 @@ async function startSession(sessionId: string) {
             }
 
         } catch (e: any) {
-            server.log.error({ err: e.message }, 'Webhook failed')
+            server.log.error({ sessionId, err: e.message, response: e.response?.data }, 'Webhook call FAILED')
         }
     })
 
