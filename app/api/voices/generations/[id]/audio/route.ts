@@ -5,6 +5,10 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+    // Note: We bypass session check for <audio> src sometimes because browsers handle cookies weirdly
+    // BUT since we are on same domain, cookies *should* pass. 
+    // If user says it fails, we might need to allow public access via token query param.
+    // Keeping auth for now.
     const session = await getServerSession(authOptions)
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -18,20 +22,42 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         })
 
         if (!generation || !generation.audioUrl) {
-            return NextResponse.json({ error: 'Not found or processing' }, { status: 404 })
+            return NextResponse.json({ error: 'Not found' }, { status: 404 })
         }
 
-        // Convert Base64 to Buffer
         const base64Data = generation.audioUrl.split('base64,')[1] || generation.audioUrl
         const buffer = Buffer.from(base64Data, 'base64')
+        const totalSize = buffer.length
 
-        // Return as proper Audio Stream
-        return new NextResponse(buffer, {
-            headers: {
-                'Content-Type': 'audio/mpeg',
-                'Content-Length': buffer.length.toString(),
-            }
-        })
+        // Handle Range Requests (Critical for Amplify 6MB Limit)
+        const range = req.headers.get('range')
+
+        if (range) {
+            const parts = range.replace(/bytes=/, '').split('-')
+            const start = parseInt(parts[0], 10)
+            const end = parts[1] ? parseInt(parts[1], 10) : totalSize - 1
+            const chunksize = (end - start) + 1
+
+            const slicedBuffer = buffer.subarray(start, end + 1)
+
+            return new NextResponse(slicedBuffer, {
+                status: 206,
+                headers: {
+                    'Content-Range': `bytes ${start}-${end}/${totalSize}`,
+                    'Accept-Ranges': 'bytes',
+                    'Content-Length': chunksize.toString(),
+                    'Content-Type': 'audio/mpeg',
+                }
+            })
+        } else {
+            // Full content (Might fail if > 6MB on Amplify)
+            return new NextResponse(buffer, {
+                headers: {
+                    'Content-Length': totalSize.toString(),
+                    'Content-Type': 'audio/mpeg',
+                }
+            })
+        }
 
     } catch (e) {
         console.error(e)
