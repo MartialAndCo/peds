@@ -773,21 +773,8 @@ function VoiceTester({ voices }: { voices: any[] }) {
                                 </div>
                             </div>
                             <div className="flex items-center gap-3">
-                                {gen.audioUrl ? (
-                                    <audio controls src={gen.audioUrl} className="h-6 w-32" />
-                                ) : gen.status === 'COMPLETED' ? (
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="h-6 text-xs bg-transparent border-white/20 text-white hover:bg-white/10"
-                                        onClick={async () => {
-                                            const res = await axios.get(`/api/voices/generations/${gen.id}`)
-                                            const updated = res.data
-                                            setHistory(prev => prev.map(p => p.id === updated.id ? updated : p))
-                                        }}
-                                    >
-                                        Load Audio
-                                    </Button>
+                                {gen.status === 'COMPLETED' ? (
+                                    <audio controls src={`/api/voices/generations/${gen.id}/audio`} className="h-6 w-32" />
                                 ) : (
                                     <span className="text-xs text-white/20">Processing...</span>
                                 )}
