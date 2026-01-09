@@ -46,7 +46,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
                     'Content-Range': `bytes ${start}-${end}/${totalSize}`,
                     'Accept-Ranges': 'bytes',
                     'Content-Length': chunksize.toString(),
-                    'Content-Type': 'audio/mpeg',
+                    'Content-Type': 'audio/wav',
                 }
             })
         } else {
@@ -54,7 +54,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
             return new NextResponse(buffer, {
                 headers: {
                     'Content-Length': totalSize.toString(),
-                    'Content-Type': 'audio/mpeg',
+                    'Content-Type': 'audio/wav',
                 }
             })
         }
