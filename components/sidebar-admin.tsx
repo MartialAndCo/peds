@@ -13,7 +13,8 @@ import {
     LogOut,
     Server,
     ShieldCheck,
-    Globe
+    Globe,
+    ListTodo
 } from 'lucide-react'
 
 const adminRoutes = [
@@ -34,6 +35,7 @@ const adminRoutes = [
     {
         title: "System",
         routes: [
+            { label: 'Queue', icon: ListTodo, href: '/admin/queue' },
             { label: 'Infrastructure', icon: Server, href: '/admin/system' },
             { label: 'Settings', icon: Settings, href: '/admin/settings' },
             { label: 'Moderation', icon: ShieldCheck, href: '/admin/moderation' },
