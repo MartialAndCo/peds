@@ -248,6 +248,28 @@ async function startSession(sessionId: string) {
         }
     })
 
+    // Listen for Contact Updates to build LID->PN Map
+    sock.ev.on('contacts.upsert', (contacts: any) => {
+        for (const c of contacts) {
+            // Check if contact has both LID and phone number
+            if (c.lid && c.id && c.id.endsWith('@s.whatsapp.net')) {
+                const pn = c.id.replace('@s.whatsapp.net', '')
+                sessionData.lidToPnMap.set(c.lid, pn)
+                server.log.info({ sessionId, lid: c.lid, pn }, 'Mapped LID to PN from contacts.upsert')
+            }
+        }
+    })
+
+    sock.ev.on('contacts.update', (updates: any) => {
+        for (const c of updates) {
+            if (c.lid && c.id && c.id.endsWith('@s.whatsapp.net')) {
+                const pn = c.id.replace('@s.whatsapp.net', '')
+                sessionData.lidToPnMap.set(c.lid, pn)
+                server.log.info({ sessionId, lid: c.lid, pn }, 'Updated LID to PN mapping from contacts.update')
+            }
+        }
+    })
+
     sock.ev.on('messages.upsert', async (m) => {
         // DEBUG: Log ALL incoming messages
         server.log.info({ sessionId, type: m.type, count: m.messages.length }, 'messages.upsert event received')
@@ -322,6 +344,16 @@ async function startSession(sessionId: string) {
                     if (resolvedPhoneNumber) {
                         server.log.info({ sessionId, method: 'lidToPnMap', pn: resolvedPhoneNumber }, 'LID resolved via local cache')
                     }
+                }
+
+                // Method 5: Check senderPn in message key (Baileys v6.7+ feature)
+                if (!resolvedPhoneNumber && (msg.key as any).senderPn) {
+                    const senderPn = (msg.key as any).senderPn
+                    resolvedPhoneNumber = senderPn.replace('@s.whatsapp.net', '')
+                    // Self-heal: Save to map for future lookups
+                    const lidKey = remoteJid.split('@')[0]
+                    sessionData.lidToPnMap.set(lidKey, resolvedPhoneNumber)
+                    server.log.info({ sessionId, method: 'senderPn', pn: resolvedPhoneNumber }, 'LID resolved via senderPn (self-healed)')
                 }
 
                 if (!resolvedPhoneNumber) {
