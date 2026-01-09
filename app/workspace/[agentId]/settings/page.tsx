@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Loader2, Trash } from 'lucide-react'
 
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+
 export default function AgentSettingsPage() {
     const { agentId } = useParams()
     const [agent, setAgent] = useState<any>(null)
@@ -86,7 +88,7 @@ export default function AgentSettingsPage() {
 
 function VoiceSelector({ agent }: { agent: any }) {
     const [voices, setVoices] = useState<any[]>([])
-    const [selectedVoice, setSelectedVoice] = useState(agent.voiceModelId || '')
+    const [selectedVoice, setSelectedVoice] = useState(agent.voiceModelId?.toString() || 'default')
     const [operatorGender, setOperatorGender] = useState(agent.operatorGender || 'MALE')
     const [loading, setLoading] = useState(false)
 
@@ -98,7 +100,7 @@ function VoiceSelector({ agent }: { agent: any }) {
         setLoading(true)
         try {
             await axios.put(`/api/agents/${agent.id}`, {
-                voiceModelId: selectedVoice,
+                voiceModelId: selectedVoice === 'default' ? null : parseInt(selectedVoice),
                 operatorGender
             })
             alert('Voice settings updated!')
@@ -110,42 +112,53 @@ function VoiceSelector({ agent }: { agent: any }) {
     }
 
     return (
-        <Card>
+        <Card className="glass overflow-visible">
             <CardHeader>
                 <CardTitle>Voice Identity</CardTitle>
                 <CardDescription>Configure how the agent speaks and who is operating it.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label>Operator Gender (Source)</Label>
-                        <select
-                            className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                            value={operatorGender}
-                            onChange={e => setOperatorGender(e.target.value)}
-                        >
-                            <option value="MALE">Male (Homme)</option>
-                            <option value="FEMALE">Female (Femme)</option>
-                        </select>
-                        <p className="text-[10px] text-slate-500">Helps RVC calculate pitch correction (e.g. Male -&gt; Female needs +12 pitch).</p>
+            <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                        <Label className="text-sm font-medium opacity-70">Operator Gender (Source)</Label>
+                        <Select value={operatorGender} onValueChange={setOperatorGender}>
+                            <SelectTrigger className="glass w-full border-white/10 hover:bg-white/5 transition-colors">
+                                <SelectValue placeholder="Select Gender" />
+                            </SelectTrigger>
+                            <SelectContent className="glass-strong border-white/10 text-white">
+                                <SelectItem value="MALE">Male (Homme)</SelectItem>
+                                <SelectItem value="FEMALE">Female (Femme)</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <p className="text-[10px] text-slate-500 leading-relaxed italic">Helps RVC calculate pitch correction (e.g. Male -&gt; Female needs +12 pitch).</p>
                     </div>
-                    <div className="space-y-2">
-                        <Label>RVC Model (Target)</Label>
-                        <select
-                            className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                            value={selectedVoice}
-                            onChange={e => setSelectedVoice(e.target.value)}
-                        >
-                            <option value="">-- No Voice (Use Default) --</option>
-                            {voices.map(v => (
-                                <option key={v.id} value={v.id}>{v.name} ({v.gender || 'FEMALE'})</option>
-                            ))}
-                        </select>
+
+                    <div className="space-y-3">
+                        <Label className="text-sm font-medium opacity-70">RVC Model (Target)</Label>
+                        <Select value={selectedVoice} onValueChange={setSelectedVoice}>
+                            <SelectTrigger className="glass w-full border-white/10 hover:bg-white/5 transition-colors">
+                                <SelectValue placeholder="Select Voice Model" />
+                            </SelectTrigger>
+                            <SelectContent className="glass-strong border-white/10 text-white max-h-60 overflow-y-auto">
+                                <SelectItem value="default" className="italic opacity-70 text-xs">-- No Voice (Use Default) --</SelectItem>
+                                {voices.map(v => (
+                                    <SelectItem key={v.id} value={v.id.toString()}>
+                                        <div className="flex items-center gap-2">
+                                            <span>{v.name}</span>
+                                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/10 opacity-50 uppercase">{v.gender || 'FEMALE'}</span>
+                                        </div>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
                 </div>
-                <Button onClick={handleSave} disabled={loading}>
-                    {loading ? <Loader2 className="animate-spin h-4 w-4" /> : 'Save Voice Settings'}
-                </Button>
+
+                <div className="pt-2 border-t border-white/5">
+                    <Button onClick={handleSave} disabled={loading} className="w-full md:w-auto glass-strong hover:bg-white/10 border-white/10 transition-all font-semibold">
+                        {loading ? <Loader2 className="animate-spin h-4 w-4" /> : 'Apply Voice Settings'}
+                    </Button>
+                </div>
             </CardContent>
         </Card>
     )
