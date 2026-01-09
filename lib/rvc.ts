@@ -149,60 +149,44 @@ export const rvcService = {
     },
 
     /**
-     * Legacy Sync Conversion
+     * Legacy Sync Conversion (Now wraps Async Job)
      */
     async convertVoice(audioBase64: string, options: { agentId?: number, voiceId?: number, sourceGender?: string } = {}): Promise<string | null> {
-        const config = await this._getConfig(options)
+        console.log(`[RVC-SyncWrapper] Starting async job as sync replacement...`)
 
-        let cleanBase64 = audioBase64
-        if (audioBase64.includes('base64,')) cleanBase64 = audioBase64.split('base64,')[1]
+        // 1. Start the Job
+        const jobId = await this.startJob(audioBase64, options)
 
-        console.log(`[RVC] Connecting to ${config.rvcUrl} (Sync)...`)
-        const isRunPodServerless = config.rvcUrl.includes('runpod.ai')
-
-        if (isRunPodServerless) {
-            const payload = {
-                input: {
-                    audio_base64: cleanBase64,
-                    model_name: config.selectedModel,
-                    model_url: config.modelUrl,
-                    pitch: config.pitch,
-                    f0_method: 'rmvpe',
-                    index_rate: config.indexRate,
-                    protect: config.protect,
-                    filter_radius: 3
-                }
-            }
-            let endpoint = config.rvcUrl
-            if (!endpoint.includes('/runsync')) endpoint = `${endpoint.replace(/\/$/, '')}/runsync`
-
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${config.runpodKey}` },
-                body: JSON.stringify(payload)
-            })
-
-            if (!response.ok) return null
-            const data = await response.json()
-            if (data.status === 'COMPLETED' && data.output?.audio_base64) {
-                return `data:audio/mpeg;base64,${data.output.audio_base64}`
-            }
+        if (!jobId) {
+            console.error('[RVC-SyncWrapper] Failed to start job.')
             return null
-        } else {
-            // Local fallback
-            const buffer = Buffer.from(cleanBase64, 'base64')
-            const blob = new Blob([buffer], { type: 'audio/ogg' })
-            const formData = new FormData()
-            formData.append('file', blob, 'input.ogg')
-            formData.append('f0_up_key', config.pitch.toString())
-            formData.append('f0_method', 'rmvpe')
-            formData.append('index_rate', config.indexRate.toString())
-            if (config.selectedModel) formData.append('model_name', config.selectedModel)
-
-            const response = await fetch(`${config.rvcUrl}/convert`, { method: 'POST', body: formData })
-            if (!response.ok) return null
-            const ab = await response.arrayBuffer()
-            return `data:audio/mpeg;base64,${Buffer.from(ab).toString('base64')}`
         }
+
+        console.log(`[RVC-SyncWrapper] Job ${jobId} started. Polling for results...`)
+
+        // 2. Poll until completion
+        // Max wait: 5 minutes (RunPod cold starts can be long)
+        const MAX_ATTEMPTS = 100
+        const DELAY_MS = 3000
+
+        for (let i = 0; i < MAX_ATTEMPTS; i++) {
+            await new Promise(r => setTimeout(r, DELAY_MS))
+
+            const check = await this.checkJob(jobId)
+
+            if (check.status === 'COMPLETED' && check.output?.audio_base64) {
+                console.log(`[RVC-SyncWrapper] Job ${jobId} completed successfully!`)
+                return `data:audio/mpeg;base64,${check.output.audio_base64}`
+            }
+            else if (check.status === 'FAILED' || check.status === 'TIMED_OUT' || check.status === 'error') {
+                console.error(`[RVC-SyncWrapper] Job ${jobId} failed with status: ${check.status}`)
+                return null
+            }
+
+            if (i % 10 === 0) console.log(`[RVC-SyncWrapper] Still waiting... (${i}/${MAX_ATTEMPTS})`)
+        }
+
+        console.error(`[RVC-SyncWrapper] Job ${jobId} timed out after max attempts.`)
+        return null
     }
 }
