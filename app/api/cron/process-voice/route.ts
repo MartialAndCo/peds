@@ -6,7 +6,7 @@ import { mediaService } from '@/lib/media';
 import { anthropic } from '@/lib/anthropic';
 import { venice } from '@/lib/venice';
 
-const AI_CHECK_PROMPT = `
+const DEFAULT_VOICE_CHECK_PROMPT = `
 You are an intelligent assistant managing a WhatsApp conversation.
 A voice note was requested with this description: "{REQUEST_DESCRIPTION}".
 It is now ready to send.
@@ -88,7 +88,8 @@ export async function GET(req: Request) {
 
                                     const provider = settings.ai_provider || 'venice';
                                     const messagesLog = newMessages.map(m => `[User]: ${m.message_text}`).join('\n');
-                                    const prompt = AI_CHECK_PROMPT
+                                    const promptTemplate = settings.prompt_voice_context_check || DEFAULT_VOICE_CHECK_PROMPT;
+                                    const prompt = promptTemplate
                                         .replace('{REQUEST_DESCRIPTION}', req.description)
                                         .replace('{NEW_MESSAGES}', messagesLog);
 

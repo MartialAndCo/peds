@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Loader2, Brain, Shield, Server, Trash, Settings2, Check, X, User } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 
 export default function SettingsPage() {
@@ -20,7 +21,29 @@ export default function SettingsPage() {
         openrouter_api_key: '',
         openrouter_model: 'cognitivecomputations/dolphin-mistral-24b-venice-edition:free',
         ai_provider: 'venice',
-        mem0_api_key: ''
+        mem0_api_key: '',
+        // System Messages
+        msg_view_once_refusal: '',
+        msg_voice_refusal: '',
+        msg_media_request_source: '',
+        // AI Instructions & Rules
+        prompt_identity_template: '',
+        prompt_context_template: '',
+        prompt_mission_template: '',
+        prompt_global_rules: '',
+        prompt_social_media_rules: '',
+        prompt_image_handling_rules: '',
+        prompt_payment_rules: '',
+        prompt_voice_note_policy: '',
+        prompt_style_instructions: '',
+        // Workflow Prompts
+        prompt_ai_retry_logic: '',
+        prompt_voice_context_check: '',
+        prompt_profiler_extraction: '',
+        prompt_activator_context: '',
+        prompt_media_analysis: '',
+        prompt_media_scheduling: '',
+        prompt_trust_analysis: ''
     })
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
@@ -58,8 +81,9 @@ export default function SettingsPage() {
     const tabs = [
         { id: 'infrastructure', label: 'Infrastructure', icon: Server },
         { id: 'intelligence', label: 'Intelligence', icon: Brain },
+        { id: 'prompts', label: 'Prompts', icon: Settings2 },
         { id: 'moderation', label: 'Moderation', icon: Shield },
-        { id: 'voices', label: 'Voices', icon: Brain }, // Using Brain icon as placeholder or Speech if available
+        { id: 'voices', label: 'Voices', icon: Brain },
     ]
 
     return (
@@ -305,6 +329,185 @@ export default function SettingsPage() {
                     </div>
                 )}
 
+                {/* Prompts Tab */}
+                {activeTab === 'prompts' && (
+                    <div className="space-y-6">
+                        {/* System Messages */}
+                        <div className="glass rounded-2xl p-6">
+                            <h3 className="text-white font-medium mb-4">Standard Messages (Refusals)</h3>
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <label className="text-white/60 text-xs font-medium uppercase tracking-wider">View Once Refusal</label>
+                                    <Textarea
+                                        value={settings.msg_view_once_refusal || ''}
+                                        onChange={(e) => setSettings({ ...settings, msg_view_once_refusal: e.target.value })}
+                                        className="bg-white/[0.04] border-white/[0.08] text-white min-h-[80px]"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-white/60 text-xs font-medium uppercase tracking-wider">Voice Message Refusal</label>
+                                    <Textarea
+                                        value={settings.msg_voice_refusal || ''}
+                                        onChange={(e) => setSettings({ ...settings, msg_voice_refusal: e.target.value })}
+                                        className="bg-white/[0.04] border-white/[0.08] text-white min-h-[80px]"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-white/60 text-xs font-medium uppercase tracking-wider">Media Request Source Template</label>
+                                    <Textarea
+                                        value={settings.msg_media_request_source || ''}
+                                        onChange={(e) => setSettings({ ...settings, msg_media_request_source: e.target.value })}
+                                        className="bg-white/[0.04] border-white/[0.08] text-white min-h-[80px]"
+                                    />
+                                    <p className="text-white/30 text-[10px]">Placeholders: {'{PHONE}'}, {'{TYPE}'}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* AI Instructions (Director Block) */}
+                        <div className="glass rounded-2xl p-6">
+                            <h3 className="text-white font-medium mb-4">AI Core Instructions (Director Blocks)</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <label className="text-white/60 text-xs font-medium uppercase tracking-wider">Identity Template</label>
+                                    <Textarea
+                                        value={settings.prompt_identity_template || ''}
+                                        onChange={(e) => setSettings({ ...settings, prompt_identity_template: e.target.value })}
+                                        className="bg-white/[0.04] border-white/[0.08] text-white min-h-[100px]"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-white/60 text-xs font-medium uppercase tracking-wider">Context Template</label>
+                                    <Textarea
+                                        value={settings.prompt_context_template || ''}
+                                        onChange={(e) => setSettings({ ...settings, prompt_context_template: e.target.value })}
+                                        className="bg-white/[0.04] border-white/[0.08] text-white min-h-[100px]"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-white/60 text-xs font-medium uppercase tracking-wider">Mission Template</label>
+                                    <Textarea
+                                        value={settings.prompt_mission_template || ''}
+                                        onChange={(e) => setSettings({ ...settings, prompt_mission_template: e.target.value })}
+                                        className="bg-white/[0.04] border-white/[0.08] text-white min-h-[100px]"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-white/60 text-xs font-medium uppercase tracking-wider">Global Rules</label>
+                                    <Textarea
+                                        value={settings.prompt_global_rules || ''}
+                                        onChange={(e) => setSettings({ ...settings, prompt_global_rules: e.target.value })}
+                                        className="bg-white/[0.04] border-white/[0.08] text-white min-h-[100px]"
+                                    />
+                                </div>
+                                <div className="space-y-2 md:col-span-2">
+                                    <label className="text-white/60 text-xs font-medium uppercase tracking-wider">Social Media Rules</label>
+                                    <Textarea
+                                        value={settings.prompt_social_media_rules || ''}
+                                        onChange={(e) => setSettings({ ...settings, prompt_social_media_rules: e.target.value })}
+                                        className="bg-white/[0.04] border-white/[0.08] text-white min-h-[120px]"
+                                    />
+                                </div>
+                                <div className="space-y-2 md:col-span-2">
+                                    <label className="text-white/60 text-xs font-medium uppercase tracking-wider">Image Handling Rules</label>
+                                    <Textarea
+                                        value={settings.prompt_image_handling_rules || ''}
+                                        onChange={(e) => setSettings({ ...settings, prompt_image_handling_rules: e.target.value })}
+                                        className="bg-white/[0.04] border-white/[0.08] text-white min-h-[150px]"
+                                    />
+                                </div>
+                                <div className="space-y-2 md:col-span-2">
+                                    <label className="text-white/60 text-xs font-medium uppercase tracking-wider">Payment Rules</label>
+                                    <Textarea
+                                        value={settings.prompt_payment_rules || ''}
+                                        onChange={(e) => setSettings({ ...settings, prompt_payment_rules: e.target.value })}
+                                        className="bg-white/[0.04] border-white/[0.08] text-white min-h-[120px]"
+                                    />
+                                </div>
+                                <div className="space-y-2 md:col-span-2">
+                                    <label className="text-white/60 text-xs font-medium uppercase tracking-wider">Voice Note Policy</label>
+                                    <Textarea
+                                        value={settings.prompt_voice_note_policy || ''}
+                                        onChange={(e) => setSettings({ ...settings, prompt_voice_note_policy: e.target.value })}
+                                        className="bg-white/[0.04] border-white/[0.08] text-white min-h-[150px]"
+                                    />
+                                </div>
+                                <div className="space-y-2 md:col-span-2">
+                                    <label className="text-white/60 text-xs font-medium uppercase tracking-wider">Style & Flow Instructions</label>
+                                    <Textarea
+                                        value={settings.prompt_style_instructions || ''}
+                                        onChange={(e) => setSettings({ ...settings, prompt_style_instructions: e.target.value })}
+                                        className="bg-white/[0.04] border-white/[0.08] text-white min-h-[150px]"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Workflow Prompts */}
+                        <div className="glass rounded-2xl p-6">
+                            <h3 className="text-white font-medium mb-4">Background Workflow Prompts (Advanced)</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <label className="text-white/60 text-xs font-medium uppercase tracking-wider">AI Retry Logic (Empty Resp)</label>
+                                    <Textarea
+                                        value={settings.prompt_ai_retry_logic || ''}
+                                        onChange={(e) => setSettings({ ...settings, prompt_ai_retry_logic: e.target.value })}
+                                        className="bg-white/[0.04] border-white/[0.08] text-white min-h-[100px]"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-white/60 text-xs font-medium uppercase tracking-wider">Voice Context Safety Check</label>
+                                    <Textarea
+                                        value={settings.prompt_voice_context_check || ''}
+                                        onChange={(e) => setSettings({ ...settings, prompt_voice_context_check: e.target.value })}
+                                        className="bg-white/[0.04] border-white/[0.08] text-white min-h-[100px]"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-white/60 text-xs font-medium uppercase tracking-wider">Profiler Extraction (JSON)</label>
+                                    <Textarea
+                                        value={settings.prompt_profiler_extraction || ''}
+                                        onChange={(e) => setSettings({ ...settings, prompt_profiler_extraction: e.target.value })}
+                                        className="bg-white/[0.04] border-white/[0.08] text-white min-h-[120px]"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-white/60 text-xs font-medium uppercase tracking-wider">Activator Context Instruction</label>
+                                    <Textarea
+                                        value={settings.prompt_activator_context || ''}
+                                        onChange={(e) => setSettings({ ...settings, prompt_activator_context: e.target.value })}
+                                        className="bg-white/[0.04] border-white/[0.08] text-white min-h-[120px]"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-white/60 text-xs font-medium uppercase tracking-wider">Media Safety & Intent Analysis</label>
+                                    <Textarea
+                                        value={settings.prompt_media_analysis || ''}
+                                        onChange={(e) => setSettings({ ...settings, prompt_media_analysis: e.target.value })}
+                                        className="bg-white/[0.04] border-white/[0.08] text-white min-h-[120px]"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-white/60 text-xs font-medium uppercase tracking-wider">Media Delivery Scheduling</label>
+                                    <Textarea
+                                        value={settings.prompt_media_scheduling || ''}
+                                        onChange={(e) => setSettings({ ...settings, prompt_media_scheduling: e.target.value })}
+                                        className="bg-white/[0.04] border-white/[0.08] text-white min-h-[120px]"
+                                    />
+                                </div>
+                                <div className="space-y-2 md:col-span-2">
+                                    <label className="text-white/60 text-xs font-medium uppercase tracking-wider">Trust Score Evolution Analysis</label>
+                                    <Textarea
+                                        value={settings.prompt_trust_analysis || ''}
+                                        onChange={(e) => setSettings({ ...settings, prompt_trust_analysis: e.target.value })}
+                                        className="bg-white/[0.04] border-white/[0.08] text-white min-h-[120px]"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Moderation Tab */}
                 {activeTab === 'moderation' && (
                     <div className="space-y-6">
@@ -341,8 +544,8 @@ export default function SettingsPage() {
                         </Button>
                     </div>
                 </div>
-            </form>
-        </div>
+            </form >
+        </div >
     )
 }
 

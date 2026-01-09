@@ -25,7 +25,8 @@ export async function handleChat(
     if (isViewOnce) {
         console.log('[Chat] ViewOnce Detected. Rejecting.')
         await new Promise(r => setTimeout(r, 2000))
-        await whatsapp.sendText(contact.phone_whatsapp, "Mince ça bug mon tel, j'arrive pas à ouvrir les photos éphémères (View Once) 😕\n\nTu peux me la renvoyer en normal stp ?", undefined, agentId)
+        const refusalMsg = settings.msg_view_once_refusal || "Mince ça bug mon tel, j'arrive pas à ouvrir les photos éphémères (View Once) 😕\n\nTu peux me la renvoyer en normal stp ?"
+        await whatsapp.sendText(contact.phone_whatsapp, refusalMsg, undefined, agentId)
         return { handled: true, result: 'view_once_rejected' }
     }
 
@@ -83,7 +84,8 @@ export async function handleChat(
         return { handled: true, result: 'paused' }
     }
     if (messageText.startsWith('[Voice Message -')) {
-        await whatsapp.sendText(contact.phone_whatsapp, "Désolé, je ne peux pas écouter les messages vocaux pour le moment.", undefined, agentId)
+        const voiceRefusalMsg = settings.msg_voice_refusal || "Désolé, je ne peux pas écouter les messages vocaux pour le moment."
+        await whatsapp.sendText(contact.phone_whatsapp, voiceRefusalMsg, undefined, agentId)
         return { handled: true, result: 'voice_error' }
     }
 
@@ -222,7 +224,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         let currentSystemPrompt = systemPrompt
         if (attempts > 1) {
             console.log(`[Chat] Retry #${attempts} for Conv ${conversation.id} due to empty response.`)
-            currentSystemPrompt += "\n\n[SYSTEM CRITICAL]: Your previous response was valid actions like *nods* but contained NO spoken text. You MUST write spoken text now. Do not just act. Say something."
+            currentSystemPrompt += settings.prompt_ai_retry_logic || "\n\n[SYSTEM CRITICAL]: Your previous response was valid actions like *nods* but contained NO spoken text. You MUST write spoken text now. Do not just act. Say something."
         }
 
         responseText = await callAI(settings, conversation, currentSystemPrompt, contextMessages, lastContent)

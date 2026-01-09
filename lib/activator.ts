@@ -48,7 +48,9 @@ export const activator = {
 
         // INJECT CONTEXT
         if (context) {
-            systemPrompt += `\n\n[IMMEDIATE CONTEXT (HAPPENED 5 MINS AGO)]:\n${context}\n\n[INSTRUCTION]: CONTINUE the flow. This context is FRESH. Do NOT say "I remember you mentioned" (that sounds fake). Just react naturally as if switching apps (Snapchat -> WhatsApp). Be casual and direct.`
+            const defaultActivatorPrompt = `\n\n[IMMEDIATE CONTEXT (HAPPENED 5 MINS AGO)]:\n${context}\n\n[INSTRUCTION]: CONTINUE the flow. This context is FRESH. Do NOT say "I remember you mentioned" (that sounds fake). Just react naturally as if switching apps (Snapchat -> WhatsApp). Be casual and direct.`
+            const activatorPromptTemplate = settings.prompt_activator_context || defaultActivatorPrompt;
+            systemPrompt += activatorPromptTemplate.replace('{CONTEXT}', context);
         }
 
         // 4. Generate AI

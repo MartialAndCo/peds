@@ -27,7 +27,7 @@ export const mediaService = {
 
         const blacklistText = blacklist.map(b => `- ${b.term} (Forbidden in ${b.mediaType})`).join('\n');
 
-        const systemPrompt = `You are a Content Safety and Intent Analyzer for a personal media banking system.
+        const defaultAnalysisPrompt = `You are a Content Safety and Intent Analyzer for a personal media banking system.
         
         Your Goal:
         1. Check if the user's request violates any BLACKLIST rules.
@@ -53,6 +53,11 @@ export const mediaService = {
             "refusalReason": string | null,
             "intentCategory": string | null // must match an id from Available Categories
         }`;
+
+        const systemPromptTemplate = settings.prompt_media_analysis || defaultAnalysisPrompt;
+        const systemPrompt = systemPromptTemplate
+            .replace('{BLACKLIST}', blacklistText)
+            .replace('{CATEGORIES}', availableCategories);
 
         try {
             // Use Venice or Anthropic based on settings preference
@@ -142,7 +147,12 @@ export const mediaService = {
             }
         });
 
-        const msg = `📸 *Media Request*\n\nUser ${contactPhone} wants: *${typeId}*\n\nReply with a photo/video (or just chat) to fulfill it.`;
+        const defaultMsg = `📸 *Media Request*\n\nUser ${contactPhone} wants: *${typeId}*\n\nReply with a photo/video (or just chat) to fulfill it.`;
+        const settingsAll = await getSettings();
+        const msgTemplate = settingsAll.msg_media_request_source || defaultMsg;
+        const msg = msgTemplate
+            .replace('{PHONE}', contactPhone)
+            .replace('{TYPE}', typeId);
         await whatsapp.sendText(targetPhone, msg);
 
         return 'REQUEST_NEW';
@@ -316,9 +326,14 @@ export const mediaService = {
         const history = lastMessages.reverse().map((m: any) => `${m.sender === 'user' ? 'User' : 'You'}: ${m.message_text}`).join('\n');
         const nowLA = TimingManager.getLATime().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' });
 
-        const schedulingPrompt = `(SYSTEM: You just received the photo the user asked for (Type: ${ingestionResult.type}). Goal: Deliver naturally.\nContext: Time ${nowLA}\nChat History:\n${history}\nTask: 1. Did you promise a time? 2. Calculate delay (min 1m). 3. Write caption.\nOutput JSON: { "reasoning": "...", "delay_minutes": 5, "caption": "..." })`;
-
         const settings = await getSettings();
+
+        const defaultSchedulingPrompt = `(SYSTEM: You just received the photo the user asked for (Type: ${ingestionResult.type}). Goal: Deliver naturally.\nContext: Time ${nowLA}\nChat History:\n${history}\nTask: 1. Did you promise a time? 2. Calculate delay (min 1m). 3. Write caption.\nOutput JSON: { "reasoning": "...", "delay_minutes": 5, "caption": "..." })`;
+        const schedulingPromptTemplate = settings.prompt_media_scheduling || defaultSchedulingPrompt;
+        const schedulingPrompt = schedulingPromptTemplate
+            .replace('{TYPE}', ingestionResult.type)
+            .replace('{TIME}', nowLA)
+            .replace('{HISTORY}', history);
         const provider = settings.ai_provider || 'venice';
 
         let aiResponseText = "{}";

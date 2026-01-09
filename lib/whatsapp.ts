@@ -289,5 +289,21 @@ export const whatsapp = {
         } catch (error: any) {
             return { success: false, error: error.message }
         }
+    },
+
+    // Delete Session PERMANENTLY (Stop + remove auth data, NO restart)
+    async deleteSession(agentId: string) {
+        const { endpoint, apiKey } = await getConfig()
+        try {
+            console.log(`[WhatsApp] Deleting session permanently: ${agentId}`)
+            await axios.post(`${endpoint}/api/sessions/delete`,
+                { sessionId: agentId },
+                { headers: { 'X-Api-Key': apiKey }, timeout: 10000 }
+            )
+            return { success: true }
+        } catch (error: any) {
+            console.error(`[WhatsApp] Delete session failed:`, error.message)
+            return { success: false, error: error.message }
+        }
     }
 }

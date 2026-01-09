@@ -8,7 +8,6 @@ export const profilerService = {
      */
     async updateProfile(contactId: string) {
         // 1. Get History (Last 50 messages)
-        // We need enough context to find info spread out.
         const conversation = await prisma.conversation.findFirst({
             where: { contactId },
             orderBy: { createdAt: 'desc' }
@@ -23,8 +22,11 @@ export const profilerService = {
         })
         const history = messages.reverse().map(m => `${m.sender}: ${m.message_text}`).join('\n')
 
-        // 2. Ask AI to extract
-        const systemPrompt = `You are a data extractor. Analyze the conversation history and extract the user's profile information.
+        // 2. Ask AI to extract (from DB)
+        const settingsList = await prisma.setting.findMany();
+        const settings = settingsList.reduce((acc: any, curr: any) => { acc[curr.key] = curr.value; return acc }, {});
+
+        const defaultPrompt = `You are a data extractor. Analyze the conversation history and extract the user's profile information.
         
         Output strictly valid JSON:
         {
@@ -36,10 +38,19 @@ export const profilerService = {
             "intent": "What does he want? (e.g. date, pics, chat)"
         }
         
-        If information is missing, use null. do NOT invent.`
+        If information is missing, use null. do NOT invent.`;
+
+        const systemPrompt = settings.prompt_profiler_extraction || defaultPrompt;
 
         try {
-            const result = await venice.chatCompletion(systemPrompt, [], `Conversation:\n${history}\n\nExtract Profile JSON:`)
+            const provider = settings.ai_provider || 'venice';
+            let result = "";
+            if (provider === 'anthropic') {
+                const { anthropic } = require('@/lib/anthropic')
+                result = await anthropic.chatCompletion(systemPrompt, [], `Conversation:\n${history}\n\nExtract Profile JSON:`, { apiKey: settings.anthropic_api_key, model: settings.anthropic_model })
+            } else {
+                result = await venice.chatCompletion(systemPrompt, [], `Conversation:\n${history}\n\nExtract Profile JSON:`, { apiKey: settings.venice_api_key, model: settings.venice_model })
+            }
 
             // Clean Markdown code blocks if present
             const cleanJson = result.replace(/```json/g, '').replace(/```/g, '').trim()

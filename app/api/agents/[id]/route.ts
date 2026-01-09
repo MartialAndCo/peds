@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { whatsapp } from '@/lib/whatsapp'
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
     const session = await getServerSession(authOptions)
@@ -49,13 +50,18 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const { id } = await params
 
     try {
-        // Soft delete or real delete? Real delete for now unless linked data prevents it.
-        // We'll soft delete by setting isActive = false if deletion fails
+        // 1. Clean up WhatsApp session (stop + delete auth data)
+        // This prevents orphan sessions from reconnecting infinitely
+        await whatsapp.deleteSession(id)
+        console.log(`[Agent Delete] WhatsApp session ${id} cleaned up`)
+
+        // 2. Delete from database
         await prisma.agent.delete({
             where: { id: parseInt(id) }
         })
         return NextResponse.json({ success: true })
     } catch (e) {
+        console.error('Failed to delete agent', e)
         // Fallback to archiving if deletion barred by constraints
         return NextResponse.json({ error: 'Cannot delete active agent with data' }, { status: 400 })
     }

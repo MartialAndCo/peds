@@ -58,6 +58,7 @@ interface SessionData {
     store: any
     messageCache: Map<string, WAMessage>
     lidToPnMap: Map<string, string>
+    wasConnected: boolean // Track if session was ever successfully authenticated
 }
 
 // Map<agentId, SessionData>
@@ -194,7 +195,8 @@ async function startSession(sessionId: string) {
         qr: null,
         store,
         messageCache: new Map<string, WAMessage>(),
-        lidToPnMap: new Map<string, string>()
+        lidToPnMap: new Map<string, string>(),
+        wasConnected: false // Will be set to true when connection opens
     }
 
     sessions.set(sessionId, sessionData)
@@ -212,23 +214,37 @@ async function startSession(sessionId: string) {
         }
 
         if (connection === 'close') {
-            const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut
+            const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode
+            const wasLoggedOut = statusCode === DisconnectReason.loggedOut
+            const wasQrTimeout = statusCode === 408 // QR refs attempts ended
+
             sessionData.status = 'DISCONNECTED'
-            server.log.info({ sessionId, error: lastDisconnect?.error }, `Connection closed. Reconnect: ${shouldReconnect}`)
+            server.log.info({ sessionId, statusCode, wasConnected: sessionData.wasConnected, error: lastDisconnect?.error }, 'Connection closed')
 
             // Always clean up old session reference to allow restart
+            const wasConnected = sessionData.wasConnected
             sessions.delete(sessionId)
             clearInterval(storeInterval)
 
-            if (shouldReconnect) {
-                setTimeout(() => startSession(sessionId), 5000) // Simple retry
-            } else {
+            // Only auto-reconnect if:
+            // 1. Not logged out
+            // 2. Session was previously connected (authenticated) OR it's not a QR timeout
+            // This prevents infinite QR loop for never-scanned sessions
+            const shouldReconnect = !wasLoggedOut && (wasConnected || !wasQrTimeout)
+
+            if (shouldReconnect && wasConnected) {
+                server.log.info({ sessionId }, 'Auto-reconnecting previously authenticated session...')
+                setTimeout(() => startSession(sessionId), 5000)
+            } else if (wasQrTimeout && !wasConnected) {
+                server.log.info({ sessionId }, 'QR timeout - waiting for manual restart (user never scanned)')
+            } else if (wasLoggedOut) {
                 server.log.warn({ sessionId }, 'Session logged out. Need manual restart/scan.')
             }
         } else if (connection === 'open') {
             sessionData.status = 'CONNECTED'
             sessionData.qr = null
-            server.log.info({ sessionId }, 'Connection OPEN')
+            sessionData.wasConnected = true // Mark as successfully authenticated
+            server.log.info({ sessionId }, 'Connection OPEN - session authenticated')
         }
     })
 
@@ -344,6 +360,31 @@ server.post('/api/sessions/reset', async (req: any, reply) => {
     return { success: true, message: 'Session reset. Scan new QR code.' }
 })
 
+// Delete Session PERMANENTLY (Stop + remove auth data, NO restart)
+server.post('/api/sessions/delete', async (req: any, reply) => {
+    const { sessionId } = req.body
+    if (!sessionId) return reply.code(400).send({ error: 'Missing sessionId' })
+
+    server.log.info({ sessionId }, 'Deleting session permanently...')
+
+    // 1. Stop existing session if running
+    const session = sessions.get(sessionId)
+    if (session) {
+        try { session.sock.end(undefined) } catch (e) { }
+        sessions.delete(sessionId)
+    }
+
+    // 2. Delete auth folder
+    const authPath = path.join(BASE_AUTH_DIR, `session_${sessionId}`)
+    if (fs.existsSync(authPath)) {
+        fs.rmSync(authPath, { recursive: true, force: true })
+        server.log.info({ sessionId, authPath }, 'Auth data deleted permanently')
+    }
+
+    // NO restart - session is gone forever
+    return { success: true, message: 'Session deleted permanently' }
+})
+
 // Get Status (Compat with multiple)
 server.get('/api/sessions/:sessionId/status', async (req: any, reply) => {
     const { sessionId } = req.params
@@ -453,19 +494,24 @@ server.listen({ port: PORT, host: '0.0.0.0' }, (err, address) => {
     }
     console.log(`Baileys Multi-Session Service listening on ${address}`)
 
-    // Auto-start 'default' session if exists?
-    // Or wait for API call.
-    // Let's try to auto-start all subdirectories in auth_info_baileys?
+    // Auto-start only sessions that have valid credentials (were previously authenticated)
+    // Sessions without creds.json are waiting for QR scan - don't auto-start them
     try {
         const dirs = fs.readdirSync(BASE_AUTH_DIR)
         dirs.forEach(dir => {
             if (dir.startsWith('session_')) {
                 const id = dir.replace('session_', '')
-                startSession(id)
+                const credsPath = path.join(BASE_AUTH_DIR, dir, 'creds.json')
+
+                // Only auto-start if credentials exist (session was previously authenticated)
+                if (fs.existsSync(credsPath)) {
+                    console.log(`Auto-starting authenticated session: ${id}`)
+                    startSession(id)
+                } else {
+                    console.log(`Skipping unauthenticated session: ${id} (no creds.json - needs manual start)`)
+                }
             }
         })
-        // If legacy root files exist and no sessions, maybe migrate? 
-        // For now, let's keep it manual or simple.
     } catch (e) {
         console.error('Failed to auto-start sessions', e)
     }
