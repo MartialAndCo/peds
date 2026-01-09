@@ -30,34 +30,38 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         const totalSize = buffer.length
 
         // Handle Range Requests (Critical for Amplify 6MB Limit)
+        const MAX_CHUNK_SIZE = 4 * 1024 * 1024; // 4MB (Safe below 6MB Lambda limit)
+
+        // Handle Range Requests (Critical for Amplify 6MB Limit)
         const range = req.headers.get('range')
+
+        let start = 0
+        let end = totalSize - 1
 
         if (range) {
             const parts = range.replace(/bytes=/, '').split('-')
-            const start = parseInt(parts[0], 10)
-            const end = parts[1] ? parseInt(parts[1], 10) : totalSize - 1
-            const chunksize = (end - start) + 1
-
-            const slicedBuffer = buffer.subarray(start, end + 1)
-
-            return new NextResponse(slicedBuffer, {
-                status: 206,
-                headers: {
-                    'Content-Range': `bytes ${start}-${end}/${totalSize}`,
-                    'Accept-Ranges': 'bytes',
-                    'Content-Length': chunksize.toString(),
-                    'Content-Type': 'audio/wav',
-                }
-            })
-        } else {
-            // Full content (Might fail if > 6MB on Amplify)
-            return new NextResponse(buffer, {
-                headers: {
-                    'Content-Length': totalSize.toString(),
-                    'Content-Type': 'audio/wav',
-                }
-            })
+            start = parseInt(parts[0], 10)
+            if (parts[1]) end = parseInt(parts[1], 10)
         }
+
+        // ENFORCE MAX CHUNK SIZE
+        // Even if browser asked for "0-" (everything), we cut it at 4MB
+        if ((end - start + 1) > MAX_CHUNK_SIZE) {
+            end = start + MAX_CHUNK_SIZE - 1
+        }
+
+        const chunksize = (end - start) + 1
+        const slicedBuffer = buffer.subarray(start, end + 1)
+
+        return new NextResponse(slicedBuffer, {
+            status: 206, // Always returned Partial Content for large files
+            headers: {
+                'Content-Range': `bytes ${start}-${end}/${totalSize}`,
+                'Accept-Ranges': 'bytes',
+                'Content-Length': chunksize.toString(),
+                'Content-Type': 'audio/wav',
+            }
+        })
 
     } catch (e) {
         console.error(e)
