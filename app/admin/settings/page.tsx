@@ -4,7 +4,9 @@ import { useEffect, useState, useCallback } from 'react'
 import axios from 'axios'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Loader2, Brain, Shield, Server, Trash, Settings2, Check, X } from 'lucide-react'
+import { Loader2, Brain, Shield, Server, Trash, Settings2, Check, X, User } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { cn } from '@/lib/utils'
 
 export default function SettingsPage() {
     const [settings, setSettings] = useState<any>({
@@ -526,14 +528,15 @@ function VoiceManager() {
                     </div>
                     <div className="space-y-1">
                         <label className="text-[10px] text-white/40 uppercase font-medium">Gender</label>
-                        <select
-                            value={newGender}
-                            onChange={e => setNewGender(e.target.value)}
-                            className="w-full h-10 px-3 rounded-md bg-white/[0.04] border border-white/[0.08] text-white text-sm focus:outline-none"
-                        >
-                            <option value="MALE">Male</option>
-                            <option value="FEMALE">Female</option>
-                        </select>
+                        <Select value={newGender} onValueChange={setNewGender}>
+                            <SelectTrigger className="bg-white/[0.04] border-white/[0.08] text-white">
+                                <SelectValue placeholder="Gender" />
+                            </SelectTrigger>
+                            <SelectContent className="glass-strong border-white/10 text-white">
+                                <SelectItem value="MALE">Male (Homme)</SelectItem>
+                                <SelectItem value="FEMALE">Female (Femme)</SelectItem>
+                            </SelectContent>
+                        </Select>
                     </div>
                 </div>
 
@@ -597,14 +600,15 @@ function VoiceManager() {
                                         className="bg-white/[0.04] border-white/[0.08] text-white h-8 text-xs"
                                         placeholder="Name"
                                     />
-                                    <select
-                                        value={editForm.gender}
-                                        onChange={e => setEditForm({ ...editForm, gender: e.target.value })}
-                                        className="h-8 px-2 rounded-md bg-white/[0.04] border border-white/[0.08] text-white text-[10px] focus:outline-none"
-                                    >
-                                        <option value="MALE">Male</option>
-                                        <option value="FEMALE">Female</option>
-                                    </select>
+                                    <Select value={editForm.gender} onValueChange={(val) => setEditForm({ ...editForm, gender: val })}>
+                                        <SelectTrigger className="h-8 bg-white/[0.04] border-white/[0.08] text-white text-[10px]">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent className="glass-strong border-white/10 text-white">
+                                            <SelectItem value="MALE">Male</SelectItem>
+                                            <SelectItem value="FEMALE">Female</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                                 <Input
                                     value={editForm.url}
@@ -869,16 +873,18 @@ function VoiceTester({ voices }: { voices: any[] }) {
                 <div className="flex gap-4">
                     <div className="flex-1">
                         <label className="text-xs text-white/40 mb-1 block">Voice Model (Target)</label>
-                        <select
-                            className="w-full h-10 px-3 rounded-md bg-white/[0.04] border border-white/[0.08] text-white text-sm focus:outline-none"
-                            value={selectedVoice}
-                            onChange={e => setSelectedVoice(e.target.value)}
-                        >
-                            <option value="">Select a Voice Model...</option>
-                            {voices.map(v => (
-                                <option key={v.id} value={v.id}>{v.name} ({v.gender || 'FEMALE'})</option>
-                            ))}
-                        </select>
+                        <Select value={selectedVoice} onValueChange={setSelectedVoice}>
+                            <SelectTrigger className="w-full h-10 bg-white/[0.04] border-white/[0.08] text-white">
+                                <SelectValue placeholder="Select a Voice Model..." />
+                            </SelectTrigger>
+                            <SelectContent className="glass-strong border-white/10 text-white">
+                                {voices.map(v => (
+                                    <SelectItem key={v.id} value={v.id.toString()}>
+                                        {v.name} ({v.gender || 'FEMALE'})
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
                 </div>
 
@@ -889,14 +895,15 @@ function VoiceTester({ voices }: { voices: any[] }) {
                         </div>
                         <div className="flex items-center gap-2">
                             <span className="text-xs text-white/60">I am:</span>
-                            <select
-                                className="h-8 px-2 rounded bg-black/20 text-white text-xs border border-white/10 focus:outline-none"
-                                value={sourceGender}
-                                onChange={e => setSourceGender(e.target.value)}
-                            >
-                                <option value="MALE">Male (Homme)</option>
-                                <option value="FEMALE">Female (Femme)</option>
-                            </select>
+                            <Select value={sourceGender} onValueChange={setSourceGender}>
+                                <SelectTrigger className="h-8 bg-black/20 text-white text-xs border-white/10 w-32">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="glass-strong border-white/10 text-white">
+                                    <SelectItem value="MALE">Male (Homme)</SelectItem>
+                                    <SelectItem value="FEMALE">Female (Femme)</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
                     </div>
                 </div>
