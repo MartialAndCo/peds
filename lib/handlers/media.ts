@@ -30,10 +30,12 @@ export async function handleSourceMedia(
         if (mediaData) {
             const result = await voiceService.ingestVoice(normalizedPhone, mediaData)
 
-            if (result.action === 'confirming') {
-                await whatsapp.sendText(sourcePhone, spin(`{🎙️|🗣️} **{Voice Received|Audio In}**\n\nTranscript: "*${result.transcript}*"\n\nReply **OK** to send.\nReply **NO** to retry.`))
+            if (result.action === 'processing') {
+                await whatsapp.sendText(sourcePhone, spin(`{🎙️|🗣️} **{Voice Received|Processing...}**\n\nConverting voice...`))
             } else if (result.action === 'saved_no_request') {
                 await whatsapp.sendText(sourcePhone, spin(`{⚠️|ℹ️} {Voice stored|Saved} but no pending request.`))
+            } else if (result.action === 'error') {
+                await whatsapp.sendText(sourcePhone, spin(`{❌|⚠️} Failed to process voice.`))
             }
 
             return { handled: true, type: 'source_voice_ingest' }
