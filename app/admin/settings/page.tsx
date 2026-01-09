@@ -877,7 +877,7 @@ function VoiceTester({ voices }: { voices: any[] }) {
                             <SelectTrigger className="w-full h-10 bg-white/[0.04] border-white/[0.08] text-white">
                                 <SelectValue placeholder="Select a Voice Model..." />
                             </SelectTrigger>
-                            <SelectContent className="glass-strong border-white/10 text-white">
+                            <SelectContent>
                                 {voices.map(v => (
                                     <SelectItem key={v.id} value={v.id.toString()}>
                                         {v.name} ({v.gender || 'FEMALE'})
