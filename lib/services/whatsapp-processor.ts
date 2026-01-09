@@ -33,14 +33,16 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
         let normalizedPhone = `+${from.split('@')[0]}`
 
         if (from.includes('@lid')) {
-            normalizedPhone = from
+            // LID Handling - Try to resolve to phone number
             if (payload._data?.phoneNumber) {
                 console.log(`[Processor] Replacing LID ${from} with Resolved PN ${payload._data.phoneNumber}`)
-                const pn = payload._data.phoneNumber.replace('@s.whatsapp.net', '@c.us', '').replace('@c.us', '')
+                const pn = payload._data.phoneNumber.replace('@s.whatsapp.net', '').replace('@c.us', '')
                 normalizedPhone = pn.startsWith('+') ? pn : `+${pn}`
             } else {
-                console.warn(`[Processor] SAFETY ALERT: Could not resolve LID to PN for ${from}. IGNORING.`)
-                return { status: 'ignored_lid_safety' }
+                // No phone number available, use LID as identifier
+                // This allows the system to work even when LID cannot be resolved
+                console.log(`[Processor] Using LID as identifier: ${from} (phone number not available)`)
+                normalizedPhone = from // Use the full LID as identifier (e.g., "76712679350466@lid")
             }
         }
 
