@@ -115,9 +115,15 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
         }
 
         // --- 2. User Media Request Logic ---
+        // Track if we resolved a real phone number from LID (for updating existing contacts)
+        const wasLidResolved = from.includes('@lid') && payload._data?.phoneNumber
+
         const contact = await prisma.contact.upsert({
             where: { phone_whatsapp: normalizedPhone },
-            update: {},
+            update: {
+                // Update the phone number if we resolved it from LID
+                ...(wasLidResolved ? { phone_whatsapp: normalizedPhone } : {})
+            },
             create: {
                 phone_whatsapp: normalizedPhone,
                 name: payload._data?.notifyName || "Inconnu",
