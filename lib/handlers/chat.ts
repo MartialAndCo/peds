@@ -81,6 +81,7 @@ export async function handleChat(
 
     // 5. Checks (Paused/VoiceFail)
     if (conversation.status === 'paused') {
+        console.log('[Chat] Conversation is PAUSED. Ignoring message.')
         logger.info('Conversation paused', { module: 'chat', conversationId: conversation.id })
         return { handled: true, result: 'paused' }
     }
@@ -90,7 +91,10 @@ export async function handleChat(
         return { handled: true, result: 'voice_error' }
     }
 
-    if (!conversation.ai_enabled) return { handled: true, result: 'ai_disabled' }
+    if (!conversation.ai_enabled) {
+        console.log('[Chat] AI is DISABLED for this conversation.')
+        return { handled: true, result: 'ai_disabled' }
+    }
 
     // 6. Debounce
     if (!contact.testMode) {

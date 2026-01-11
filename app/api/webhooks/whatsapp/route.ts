@@ -6,6 +6,7 @@ import { logger, trace } from '@/lib/logger'
 export async function POST(req: Request) {
     try {
         const body = await req.json()
+        console.log('[Webhook] Received Payload:', JSON.stringify(body, null, 2))
 
         // 1. Security Check
         const secret = req.headers.get('x-internal-secret')
