@@ -87,6 +87,13 @@ export const rvcService = {
     async startJob(audioInput: string, options: { agentId?: number, voiceId?: number, sourceGender?: string }) {
         const config = await this._getConfig(options)
 
+        console.log(`[RVC-Async] Config resolved: rvcUrl=${config.rvcUrl}, model=${config.selectedModel}, pitch=${config.pitch}`)
+
+        if (!config.runpodKey) {
+            console.error('[RVC-Async] CRITICAL: No RunPod API Key configured!')
+            return null
+        }
+
         let payload: any = {
             input: {
                 model_name: config.selectedModel,
@@ -109,6 +116,7 @@ export const rvcService = {
             let cleanBase64 = audioInput
             if (audioInput.includes('base64,')) cleanBase64 = audioInput.split('base64,')[1]
             payload.input.audio_base64 = cleanBase64
+            console.log(`[RVC] Using Base64 input (length: ${cleanBase64.length})`)
         }
 
         // Use /run endpoint
@@ -121,18 +129,29 @@ export const rvcService = {
 
         console.log(`[RVC-Async] Starting Job at ${endpoint}...`)
 
-        const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${config.runpodKey}`
-            },
-            body: JSON.stringify(payload)
-        })
+        try {
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${config.runpodKey}`
+                },
+                body: JSON.stringify(payload)
+            })
 
-        if (!response.ok) return null
-        const data = await response.json()
-        return data.id // Returns the Job ID
+            if (!response.ok) {
+                const errorText = await response.text().catch(() => 'Unable to read error body')
+                console.error(`[RVC-Async] Job start FAILED. Status: ${response.status}, Body: ${errorText}`)
+                return null
+            }
+
+            const data = await response.json()
+            console.log(`[RVC-Async] Job started successfully. Job ID: ${data.id}`)
+            return data.id // Returns the Job ID
+        } catch (fetchErr: any) {
+            console.error(`[RVC-Async] Fetch error: ${fetchErr.message}`)
+            return null
+        }
     },
 
     /**
