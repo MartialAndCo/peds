@@ -382,15 +382,16 @@ async function startSession(sessionId: string) {
                 }
             }
 
+            // Cache for media retrieval BEFORE webhook (so it's available when app requests download)
+            if (msg.key.id) {
+                sessionData.messageCache.set(msg.key.id, msg)
+                server.log.info({ sessionId, msgId: msg.key.id, cacheSize: sessionData.messageCache.size }, 'Message cached for media retrieval')
+                setTimeout(() => sessionData.messageCache.delete(msg.key.id!), 600000) // 10min TTL for media
+            }
+
             server.log.info({ sessionId, webhookUrl: WEBHOOK_URL }, 'Sending to webhook...')
             const response = await axios.post(WEBHOOK_URL, payload, { headers: { 'x-internal-secret': WEBHOOK_SECRET || '' } })
             server.log.info({ sessionId, status: response.status }, 'Webhook call successful')
-
-            // Cache for media retrieval
-            if (msg.key.id) {
-                sessionData.messageCache.set(msg.key.id, msg)
-                setTimeout(() => sessionData.messageCache.delete(msg.key.id!), 600000) // 10min TTL for media
-            }
 
         } catch (e: any) {
             server.log.error({ sessionId, err: e.message, response: e.response?.data }, 'Webhook call FAILED')
