@@ -8,6 +8,7 @@ export const voiceService = {
      * Request a voice note from the Human Source.
      */
     async requestVoice(contactPhone: string, textToSay: string, context: string) {
+        console.log(`[VoiceService] Requesting voice for ${contactPhone}. Text: "${textToSay}"`)
         // 1. Get Settings
         const settings = await settingsService.getSettings()
 

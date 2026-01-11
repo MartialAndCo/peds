@@ -34,6 +34,7 @@ async function getCachedMediaTypes() {
 export const mediaService = {
     // 1. Analyze Request (Smart Logic)
     async analyzeRequest(text: string) {
+        console.log(`[MediaService] Analyzing request: "${text}"`)
         logger.info(`Analyzing request: "${text}"`, { module: 'media_service' });
 
         // Fetch Cached Data (Parallelize for Cold Start Optimization)
