@@ -262,7 +262,7 @@ class Logger {
         if (this.flushInterval) {
             clearInterval(this.flushInterval)
         }
-        await this.flush()
+        await this.checkAndFlush()
     }
 }
 
