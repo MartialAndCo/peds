@@ -24,7 +24,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
     }
 
     return (
-        <div className="h-full">
+        <div className="h-[calc(100vh-12rem)] max-h-[calc(100vh-12rem)]">
             <ConversationView conversationId={id} initialData={conversation} />
         </div>
     )

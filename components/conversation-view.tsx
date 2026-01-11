@@ -186,9 +186,9 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
     }
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full">
+        <div className="flex flex-col md:flex-row gap-6 h-full max-h-full">
             {/* Chat Area (Left/Middle) */}
-            <Card className="md:col-span-2 flex flex-col h-full">
+            <Card className="md:flex-[2] flex flex-col h-full min-h-0">
                 <CardHeader className="flex flex-row items-center justify-between py-3 border-b">
                     <CardTitle className="text-lg flex items-center">
                         <User className="mr-2 h-5 w-5" />
@@ -200,7 +200,7 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
                         </Badge>
                     </div>
                 </CardHeader>
-                <CardContent className="flex-1 p-0 overflow-hidden relative">
+                <CardContent className="flex-1 min-h-0 p-0 overflow-hidden relative">
                     <div
                         className="h-full overflow-y-auto p-4 space-y-4"
                         ref={scrollRef}
@@ -272,7 +272,7 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
             </Card>
 
             {/* Controls Area (Right) */}
-            <div className="space-y-4 h-full overflow-y-auto">
+            <div className="md:flex-[1] space-y-4 h-full overflow-y-auto min-h-0">
                 <Card>
                     <CardHeader>
                         <CardTitle className="text-sm uppercase tracking-wider text-gray-500">Settings</CardTitle>
