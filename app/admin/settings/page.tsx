@@ -8,6 +8,7 @@ import { Loader2, Brain, Shield, Server, Trash, Settings2, Check, X, User } from
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
+import { SessionManager } from '@/components/settings/session-manager'
 
 export default function SettingsPage() {
     const [settings, setSettings] = useState<any>({
