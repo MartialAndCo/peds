@@ -3,6 +3,8 @@ import { whatsapp } from '@/lib/whatsapp'
 import { voiceService } from '@/lib/voice'
 import { mediaService } from '@/lib/media'
 import { spin } from '@/lib/spintax'
+import { logger } from '@/lib/logger'
+import { logger } from '@/lib/logger'
 
 export async function handleSourceMedia(
     payload: any,
@@ -21,7 +23,7 @@ export async function handleSourceMedia(
     const isVoiceSource = voiceSourcePhone && normalizedPhone.includes(voiceSourcePhone.replace('+', ''))
 
     if (isVoiceSource && isVoiceNote) {
-        console.log('Voice Source sent audio. Ingesting...')
+        logger.info('Voice source sent audio', { module: 'media', sourcePhone: normalizedPhone })
         let mediaData = payload.body
         if (!mediaData || mediaData.length < 100) {
             mediaData = await whatsapp.downloadMedia(payload.id)
@@ -43,7 +45,7 @@ export async function handleSourceMedia(
     }
 
     // Normal Media Logic (Images/Videos)
-    console.log('Source sent media. Ingesting...')
+    logger.info('Source sent media', { module: 'media', sourcePhone, mimeType: payload._data?.mimetype || payload.type })
     let mediaData = payload.body
     if (!mediaData || mediaData.length < 100) {
         mediaData = await whatsapp.downloadMedia(payload.id)

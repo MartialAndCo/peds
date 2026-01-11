@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { whatsapp } from '@/lib/whatsapp';
 import { venice } from '@/lib/venice';
 import { anthropic } from '@/lib/anthropic';
+import { logger } from '@/lib/logger';
 
 // Helper to fetch settings
 async function getSettings() {
@@ -15,7 +16,7 @@ async function getSettings() {
 export const mediaService = {
     // 1. Analyze Request (Smart Logic)
     async analyzeRequest(text: string) {
-        console.log(`[Media] Analyzing request: "${text}"`);
+        logger.info(`Analyzing request: "${text}"`, { module: 'media_service' });
 
         // Fetch Blacklist Rules
         const blacklist = await prisma.blacklistRule.findMany();
@@ -86,18 +87,18 @@ export const mediaService = {
             if (jsonMatch) {
                 return JSON.parse(jsonMatch[0]);
             }
-            console.warn('[Media] Failed to parse AI JSON response:', responseText);
+            logger.warn('Failed to parse AI JSON response', { module: 'media_service', responseText });
             return null;
 
         } catch (e: any) {
-            console.error('[Media] Analysis Failed:', e.message);
+            logger.error('Analysis Failed', e, { module: 'media_service' });
             return null;
         }
     },
 
     // 2. Process Request
     async processRequest(contactPhone: string, typeId: string) {
-        console.log(`[Media] Processing request for ${typeId} from ${contactPhone}`);
+        logger.info(`Processing request for ${typeId}`, { module: 'media_service', contactPhone });
 
         // A. Check Bank
         const allMedias = await prisma.media.findMany({ where: { typeId } });
@@ -160,14 +161,14 @@ export const mediaService = {
 
     // 4. Ingest Media
     async ingestMedia(sourcePhone: string, mediaData: string, mimeType: string) {
-        console.log(`[MediaService] Ingesting from ${sourcePhone}, mime: ${mimeType}`)
+        logger.info(`Ingesting media`, { module: 'media_service', sourcePhone, mimeType });
 
         // Find most recent pending request
         const latestPending = await prisma.pendingRequest.findFirst({
             where: { status: 'pending' },
             orderBy: { createdAt: 'desc' }
         });
-        console.log(`[MediaService] Latest Pending: ${latestPending?.id}, typeId: ${latestPending?.typeId}`)
+        logger.info(`Latest Pending Request`, { module: 'media_service', requestId: latestPending?.id, typeId: latestPending?.typeId });
 
         if (!latestPending) return null;
 
@@ -175,7 +176,7 @@ export const mediaService = {
         const isAudio = mimeType.startsWith('audio') || latestPending.typeId === 'audio' || latestPending.typeId === 'voice_note';
 
         if (isAudio && latestPending) {
-            console.log('[MediaService] Audio detected. Intercepting for RVC Processing...');
+            logger.info('Audio detected. Intercepting for RVC Processing...', { module: 'media_service' });
 
             try {
                 const { rvcService } = require('@/lib/rvc');
@@ -200,12 +201,12 @@ export const mediaService = {
                 }
 
                 if (!voiceId) {
-                    console.warn('[MediaService] No Voice ID found. Uploading raw audio or failing?');
+                    logger.warn('No Voice ID found. Uploading raw audio or failing?', { module: 'media_service' });
                     // If no voice ID, maybe just send raw audio? For now, fail safe.
                     // voiceId = 'default'; 
                 }
 
-                console.log(`[MediaService] Using Voice ID: ${voiceId}`);
+                logger.info(`Using Voice ID: ${voiceId}`, { module: 'media_service' });
 
                 // 2. Prepare Source Audio (Supabase logic for large files)
                 let finalAudioInput = mediaData;
@@ -217,7 +218,7 @@ export const mediaService = {
 
                 // Reuse 8MB Limit logic
                 if (buffer.length > 8 * 1024 * 1024) {
-                    console.log('[MediaService] Source Audio > 8MB. Uploading to Supabase...');
+                    logger.info('Source Audio > 8MB. Uploading to Supabase...', { module: 'media_service' });
                     const { createClient } = require('@supabase/supabase-js');
                     const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
                     const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -234,7 +235,7 @@ export const mediaService = {
                                 sourceUrl = data.publicUrl;
                             }
                         } else {
-                            console.error('[MediaService] Supabase Upload failed', upErr);
+                            logger.error('Supabase Upload failed', upErr, { module: 'media_service' });
                         }
                     }
                 }
@@ -253,18 +254,18 @@ export const mediaService = {
                     }
                 });
 
-                console.log(`[MediaService] RVC Job Started: ${jobId}. Returning Async.`);
+                logger.info(`RVC Job Started: ${jobId}`, { module: 'media_service' });
                 return null; // STOP HERE. Don't fulfill yet.
 
-            } catch (err) {
-                console.error('[MediaService] RVC Interception Failed:', err);
+            } catch (err: any) {
+                logger.error('RVC Interception Failed', err, { module: 'media_service' });
                 // Fallback to normal ingestion (send raw)?
             }
         }
         // --- END INTERCEPTION ---
 
         if (!latestPending.typeId) {
-            console.error("[MediaService] Pending Request missing typeId, cannot ingest media.");
+            logger.error("Pending Request missing typeId, cannot ingest media.", undefined, { module: 'media_service' });
             return null;
         }
         const typeId = latestPending.typeId;
@@ -310,7 +311,7 @@ export const mediaService = {
         const contact = await prisma.contact.findUnique({ where: { phone_whatsapp: contactPhone } });
 
         if (!contact) {
-            console.error('[MediaService] Contact not found for scheduling:', contactPhone);
+            logger.error('Contact not found for scheduling', undefined, { module: 'media_service', contactPhone });
             return null;
         }
 
@@ -343,7 +344,7 @@ export const mediaService = {
             } else {
                 aiResponseText = await venice.chatCompletion(conversation.prompt.system_prompt, [], schedulingPrompt, { apiKey: settings.venice_api_key, model: settings.venice_model });
             }
-        } catch (e) { console.error("[MediaService] AI Sched Failed", e); }
+        } catch (e: any) { logger.error("AI Sched Failed", e, { module: 'media_service' }); }
 
         let sched = { delay_minutes: 5, caption: "Here!", reasoning: "Default" };
         try {
@@ -354,7 +355,7 @@ export const mediaService = {
         const delay = Math.max(1, sched.delay_minutes || 2);
         const scheduledAt = new Date(Date.now() + delay * 60 * 1000); // Wait delay minutes
 
-        console.log(`[MediaService] Queueing item for ${contact.id} at ${scheduledAt}`);
+        logger.info(`Queueing item`, { module: 'media_service', contactId: contact.id, scheduledAt });
 
         const newItem = await prisma.messageQueue.create({
             data: {
@@ -372,7 +373,7 @@ export const mediaService = {
         // Try Notify Source (Optional, swallow errors)
         try {
             await whatsapp.sendText(sourcePhone, `📅 Scheduled: ${scheduledAt.toLocaleTimeString()} (${delay}m).\nReason: ${sched.reasoning}`);
-        } catch (e) { console.warn("[MediaService] Failed to notify source (WAHA error?), but Queue Item created."); }
+        } catch (e) { logger.warn("Failed to notify source (WAHA error?), but Queue Item created.", { module: 'media_service' }); }
 
         return newItem;
     }
