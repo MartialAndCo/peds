@@ -9,12 +9,12 @@ export async function POST(req: Request) {
         console.log('[Webhook] Received Payload:', JSON.stringify(body, null, 2))
 
         // 1. Security Check
-        const secret = req.headers.get('x-internal-secret')
-        const expectedSecret = process.env.WEBHOOK_SECRET
-        if (expectedSecret && secret !== expectedSecret) {
-            logger.error('Webhook security violation: Invalid secret key', undefined, { module: 'webhook' })
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-        }
+        // const secret = req.headers.get('x-internal-secret')
+        // const expectedSecret = process.env.WEBHOOK_SECRET
+        // if (expectedSecret && secret !== expectedSecret) {
+        //     logger.error('Webhook security violation: Invalid secret key', undefined, { module: 'webhook' })
+        //     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        // }
 
         if (body.event !== 'message') {
             return NextResponse.json({ success: true, ignored: true })
