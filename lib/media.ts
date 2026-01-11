@@ -4,30 +4,14 @@ import { venice } from '@/lib/venice';
 import { anthropic } from '@/lib/anthropic';
 import { logger } from '@/lib/logger';
 
+import { settingsService } from '@/lib/settings-cache';
+
 // Simple Cache System
 const cache = {
-    settings: { data: null as any, expiry: 0 },
     blacklist: { data: null as any, expiry: 0 },
     mediaTypes: { data: null as any, expiry: 0 }
 };
 const CACHE_TTL = 60000; // 60 seconds
-
-// Helper to fetch settings (Cached)
-async function getSettings() {
-    if (Date.now() < cache.settings.expiry && cache.settings.data) return cache.settings.data;
-    try {
-        const settingsList = await prisma.setting.findMany();
-        const data = settingsList.reduce((acc: any, curr: any) => {
-            acc[curr.key] = curr.value;
-            return acc;
-        }, {});
-        cache.settings = { data, expiry: Date.now() + CACHE_TTL };
-        return data;
-    } catch (e: any) {
-        logger.error('Failed to fetch settings, using cache or empty', e, { module: 'media_cache' });
-        return cache.settings.data || {};
-    }
-}
 
 async function getCachedBlacklist() {
     if (Date.now() < cache.blacklist.expiry && cache.blacklist.data) return cache.blacklist.data;
@@ -55,7 +39,7 @@ export const mediaService = {
         // Fetch Cached Data (Parallelize for Cold Start Optimization)
         const [blacklist, settings, mediaTypes] = await Promise.all([
             getCachedBlacklist(),
-            getSettings(),
+            settingsService.getSettings(),
             getCachedMediaTypes()
         ]);
         const availableCategories = mediaTypes.map((t: any) => `${t.id} (${t.description})`).join(', ');
@@ -183,7 +167,8 @@ export const mediaService = {
         });
 
         const defaultMsg = `📸 *Media Request*\n\nUser ${contactPhone} wants: *${typeId}*\n\nReply with a photo/video (or just chat) to fulfill it.`;
-        const settingsAll = await getSettings();
+        const defaultMsg = `📸 *Media Request*\n\nUser ${contactPhone} wants: *${typeId}*\n\nReply with a photo/video (or just chat) to fulfill it.`;
+        const settingsAll: any = await settingsService.getSettings();
         const msgTemplate = settingsAll.msg_media_request_source || defaultMsg;
         const msg = msgTemplate
             .replace('{PHONE}', contactPhone)
@@ -361,7 +346,7 @@ export const mediaService = {
         const history = lastMessages.reverse().map((m: any) => `${m.sender === 'user' ? 'User' : 'You'}: ${m.message_text}`).join('\n');
         const nowLA = TimingManager.getLATime().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' });
 
-        const settings = await getSettings();
+        const settings: any = await settingsService.getSettings();
 
         const defaultSchedulingPrompt = `(SYSTEM: You just received the photo the user asked for (Type: ${ingestionResult.type}). Goal: Deliver naturally.\nContext: Time ${nowLA}\nChat History:\n${history}\nTask: 1. Did you promise a time? 2. Calculate delay (min 1m). 3. Write caption.\nOutput JSON: { "reasoning": "...", "delay_minutes": 5, "caption": "..." })`;
         const schedulingPromptTemplate = settings.prompt_media_scheduling || defaultSchedulingPrompt;
