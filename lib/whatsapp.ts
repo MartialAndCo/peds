@@ -27,6 +27,7 @@ export async function getConfig() {
 
 export const whatsapp = {
     async sendText(chatId: string, text: string, replyTo?: string, agentId?: number) {
+        console.log(`[WhatsApp] Sending Text to ${chatId} (Agent: ${agentId}, Text: "${text.substring(0, 30)}...")`)
         const textPreview = text.substring(0, 50) + (text.length > 50 ? '...' : '')
         logger.info('Sending text message', { module: 'whatsapp', chatId, textPreview, agentId })
         const { endpoint, apiKey } = await getConfig()
@@ -49,6 +50,7 @@ export const whatsapp = {
                 headers: { 'X-Api-Key': apiKey },
                 timeout: 15000 // 15s timeout
             })
+            console.log(`[WhatsApp] SendText success (ID: ${response.data?.id?.id || 'unknown'})`)
             return response.data
         } catch (error: any) {
             logger.error('WhatsApp sendText failed', error, { module: 'whatsapp', chatId })
