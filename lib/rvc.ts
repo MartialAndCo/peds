@@ -13,8 +13,6 @@ export const rvcService = {
     /**
      * Internal helper to determine RVC parameters (Source/Target/Pitch)
      */
-
-    // ...
     async _getConfig(options: { agentId?: number, voiceId?: number, sourceGender?: string }) {
         // 1. Get Settings
         const settings = await settingsService.getSettings()

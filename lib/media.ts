@@ -167,7 +167,7 @@ export const mediaService = {
         });
 
         const defaultMsg = `📸 *Media Request*\n\nUser ${contactPhone} wants: *${typeId}*\n\nReply with a photo/video (or just chat) to fulfill it.`;
-        const defaultMsg = `📸 *Media Request*\n\nUser ${contactPhone} wants: *${typeId}*\n\nReply with a photo/video (or just chat) to fulfill it.`;
+
         const settingsAll: any = await settingsService.getSettings();
         const msgTemplate = settingsAll.msg_media_request_source || defaultMsg;
         const msg = msgTemplate
