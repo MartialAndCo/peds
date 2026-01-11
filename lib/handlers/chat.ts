@@ -57,6 +57,7 @@ export async function handleChat(
                     messageText = "[Voice Message - Transcription Failed]"
                 }
             } else {
+                console.error(`[Chat] Download Failed for Media ID: ${payload.id}. Media object:`, media ? 'Present (No Data)' : 'NULL')
                 messageText = "[Voice Message - Download Failed]"
             }
         } catch (e) {
