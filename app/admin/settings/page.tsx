@@ -353,6 +353,26 @@ export default function SettingsPage() {
                             </div>
                         </div>
 
+                        {/* Transcription Settings */}
+                        <div className="glass rounded-2xl p-6">
+                            <h3 className="text-white font-medium mb-4">Transcription (STT)</h3>
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <label className="text-white/60 text-xs font-medium uppercase tracking-wider">
+                                        Groq API Key (Whisper)
+                                    </label>
+                                    <Input
+                                        type="password"
+                                        value={settings.groq_api_key || ''}
+                                        onChange={(e) => setSettings({ ...settings, groq_api_key: e.target.value })}
+                                        placeholder="gsk_..."
+                                        className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/30"
+                                    />
+                                    <p className="text-white/30 text-xs">Required for Voice Note transcription (uses Whisper-large-v3)</p>
+                                </div>
+                            </div>
+                        </div>
+
                         {/* Long-term Memory */}
                         <div className="glass rounded-2xl p-6">
                             <h3 className="text-white font-medium mb-4">Long-Term Memory (Mem0)</h3>
