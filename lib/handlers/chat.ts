@@ -232,7 +232,30 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
             currentSystemPrompt += settings.prompt_ai_retry_logic || "\n\n[SYSTEM CRITICAL]: Your previous response was valid actions like *nods* but contained NO spoken text. You MUST write spoken text now. Do not just act. Say something."
         }
 
-        responseText = await callAI(settings, conversation, currentSystemPrompt, contextMessages, lastContent)
+        try {
+            responseText = await callAI(settings, conversation, currentSystemPrompt, contextMessages, lastContent)
+        } catch (error: any) {
+            console.error(`[Chat] AI Attempt ${attempts} failed:`, error.message)
+
+            // CRITICAL: Handle Quota/Payment Errors (402)
+            if (error.message?.includes('402') || error.message?.includes('Insufficient balance') || error.message?.includes('Quota')) {
+                console.log('[Chat] AI Quota Exceeded. Queuing as AI_FAILED for manual attention.')
+
+                await prisma.messageQueue.create({
+                    data: {
+                        contactId: contact.id,
+                        conversationId: conversation.id,
+                        content: `[SYSTEM: AI GENERATION FAILED]\nReason: Insufficient Credits (402)\nOriginal User Message: "${lastContent}"`,
+                        status: 'AI_FAILED_402',
+                        scheduledAt: new Date()
+                    }
+                })
+                return { handled: true, result: 'ai_quota_failed' }
+            }
+
+            // If it's a temporary error, we let the loop retry (up to MAX_RETRIES)
+            if (attempts >= MAX_RETRIES) throw error
+        }
 
         // Valid response found?
         if (responseText && responseText.trim().length > 0) break
