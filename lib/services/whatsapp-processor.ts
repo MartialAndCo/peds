@@ -221,7 +221,7 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
                             return { status: 'media_sent' }
 
                         } else if (result.action === 'REQUEST_SOURCE') {
-                            const status = await mediaService.requestFromSource(contact.phone_whatsapp, analysis.intentCategory)
+                            const status = await mediaService.requestFromSource(contact.phone_whatsapp, analysis.intentCategory, settings)
 
                             let currentConversation = await prisma.conversation.findFirst({
                                 where: { contactId: contact.id, status: 'active' },

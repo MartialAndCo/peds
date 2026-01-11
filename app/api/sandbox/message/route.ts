@@ -107,8 +107,8 @@ export async function POST(req: Request) {
                     return NextResponse.json(responsePayload)
 
                 } else if (result.action === 'REQUEST_SOURCE') {
-                    // Request Pending logic
-                    const status = await mediaService.requestFromSource(contact.phone_whatsapp, analysis.intentCategory)
+                    // Request Pending logic (pass global settings for sandbox)
+                    const status = await mediaService.requestFromSource(contact.phone_whatsapp, analysis.intentCategory, settings)
 
                     // Generate "Wait" message
                     const instruction = status === 'REQUEST_NEW'
