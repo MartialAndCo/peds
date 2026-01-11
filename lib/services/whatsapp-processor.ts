@@ -4,6 +4,7 @@ import { anthropic } from '@/lib/anthropic'
 import { whatsapp } from '@/lib/whatsapp'
 import { NextResponse } from 'next/server'
 import { logger } from '@/lib/logger'
+import { settingsService } from '@/lib/settings-cache'
 
 /**
  * Core processor for WhatsApp Webhook Payloads.
