@@ -14,10 +14,20 @@ interface LogContext {
     [key: string]: any
 }
 
+// Config cache to avoid DB queries on every log
+let configCache: { enabled: boolean; endpoint: string | null; apiKey: string | null } | null = null
+let configCacheTime = 0
+const CONFIG_CACHE_TTL = 60000 // 60 seconds
+
 /**
- * Get log forwarding configuration from database
+ * Get log forwarding configuration from database with caching
  */
 async function getLogConfig() {
+    // Return cached config if still valid
+    const now = Date.now()
+    if (configCache && (now - configCacheTime) < CONFIG_CACHE_TTL) {
+        return configCache
+    }
     try {
         const settings = await prisma.setting.findMany({
             where: {
@@ -32,18 +42,28 @@ async function getLogConfig() {
             config[s.key] = s.value
         })
 
-        return {
+        configCache = {
             enabled: config.log_forwarding_enabled === 'true',
             endpoint: config.waha_endpoint || process.env.BAILEYS_LOG_ENDPOINT || null,
             apiKey: config.waha_api_key || process.env.AUTH_TOKEN || null
         }
+        configCacheTime = now
+        return configCache
     } catch (error) {
-        // Fallback to env vars if DB is not available
-        return {
+        // If DB fails, return cached config if available, otherwise fallback to env vars
+        if (configCache) {
+            return configCache
+        }
+
+        // Fallback to env vars if DB is not available and no cache
+        const fallback = {
             enabled: process.env.LOG_FORWARDING_ENABLED === 'true',
             endpoint: process.env.BAILEYS_LOG_ENDPOINT || null,
             apiKey: process.env.AUTH_TOKEN || null
         }
+        configCache = fallback
+        configCacheTime = now
+        return fallback
     }
 }
 
