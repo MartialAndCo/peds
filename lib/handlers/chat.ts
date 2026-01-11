@@ -5,6 +5,7 @@ import { venice } from '@/lib/venice'
 import { anthropic } from '@/lib/anthropic'
 import { openrouter } from '@/lib/openrouter'
 import { TimingManager } from '@/lib/timing'
+import { logger } from '@/lib/logger'
 // import { messageQueue } from '@/lib/queue' // Deprecated
 import { NextResponse } from 'next/server'
 
@@ -23,7 +24,7 @@ export async function handleChat(
     // 1. View Once Handling
     const isViewOnce = payload._data?.isViewOnce === true || payload.isViewOnce === true
     if (isViewOnce) {
-        console.log('[Chat] ViewOnce Detected. Rejecting.')
+        logger.info('ViewOnce message rejected', { module: 'chat', contactId: contact.id })
         await new Promise(r => setTimeout(r, 2000))
         const refusalMsg = settings.msg_view_once_refusal || "Mince ça bug mon tel, j'arrive pas à ouvrir les photos éphémères (View Once) 😕\n\nTu peux me la renvoyer en normal stp ?"
         await whatsapp.sendText(contact.phone_whatsapp, refusalMsg, undefined, agentId)
@@ -80,7 +81,7 @@ export async function handleChat(
 
     // 5. Checks (Paused/VoiceFail)
     if (conversation.status === 'paused') {
-        console.log(`[Chat] Conv ${conversation.id} is PAUSED.`)
+        logger.info('Conversation paused', { module: 'chat', conversationId: conversation.id })
         return { handled: true, result: 'paused' }
     }
     if (messageText.startsWith('[Voice Message -')) {
@@ -185,7 +186,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     if (memories.length > 0) systemPrompt += `\n\n[MEMORY]:\n${memories.map((m: any) => `- ${m.memory}`).join('\n')}`
 
     // 3. Timing
-    console.log(`[Chat] Generating AI response for Conv ${conversation.id}...`)
+    logger.info('Generating AI response', { module: 'chat', conversationId: conversation.id, phase })
     const lastUserDate = new Date() // Approx
     const timing = TimingManager.analyzeContext(lastUserDate, phase)
     if (contact.testMode) { timing.delaySeconds = 0; timing.mode = 'INSTANT_TEST' }
@@ -211,7 +212,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     }
 
     // 4. Inline Wait
-    console.log(`[Chat] Waiting ${timing.delaySeconds}s...`)
+    logger.info('Waiting before AI response', { module: 'chat', delaySeconds: timing.delaySeconds, mode: timing.mode })
     if (timing.delaySeconds > 0) await new Promise(r => setTimeout(r, timing.delaySeconds * 1000))
 
     // 5. Generate with Retry Limit
@@ -223,7 +224,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         attempts++
         let currentSystemPrompt = systemPrompt
         if (attempts > 1) {
-            console.log(`[Chat] Retry #${attempts} for Conv ${conversation.id} due to empty response.`)
+            logger.info('AI retry due to empty response', { module: 'chat', attempt: attempts, conversationId: conversation.id })
             currentSystemPrompt += settings.prompt_ai_retry_logic || "\n\n[SYSTEM CRITICAL]: Your previous response was valid actions like *nods* but contained NO spoken text. You MUST write spoken text now. Do not just act. Say something."
         }
 

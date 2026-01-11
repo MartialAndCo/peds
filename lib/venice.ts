@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { logger } from './logger'
 
 export const venice = {
     async chatCompletion(systemPrompt: string, messages: { role: string, content: string }[], userMessage: string, config: { apiKey?: string, model?: string, temperature?: number, max_tokens?: number, frequency_penalty?: number } = {}) {
@@ -27,9 +28,9 @@ export const venice = {
 
         for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
             try {
-                if (attempt > 1) console.log(`[Venice] Retry attempt ${attempt}/${MAX_RETRIES}...`)
+                if (attempt > 1) logger.info('Venice retry attempt', { module: 'venice', attempt, maxRetries: MAX_RETRIES })
 
-                console.log(`[Venice] Sending request. Model: ${model}. Context: ${apiMessages.length} msgs. KeyPrefix: ${apiKey.substring(0, 5)}...`)
+                logger.info('Venice AI request', { module: 'venice', model, contextLength: apiMessages.length })
                 const response = await axios.post('https://api.venice.ai/api/v1/chat/completions', {
                     model,
                     messages: apiMessages,
@@ -48,7 +49,7 @@ export const venice = {
             } catch (error: any) {
                 const status = error.response?.status
                 const detail = error.response ? `${status} - ${JSON.stringify(error.response.data)}` : error.message
-                console.error(`[Venice] Attempt ${attempt} failed:`, detail)
+                logger.error('Venice AI request failed', error, { module: 'venice', attempt, status, detail })
 
                 // If fatal error (Auth / Bad Request), stop immediately
                 // User reports 402 is flaky, so we retry it. 401/403 are usually permanent.
