@@ -43,7 +43,9 @@ export default function SettingsPage() {
         prompt_activator_context: '',
         prompt_media_analysis: '',
         prompt_media_scheduling: '',
-        prompt_trust_analysis: ''
+        prompt_trust_analysis: '',
+        // Log Forwarding
+        log_forwarding_enabled: 'false'
     })
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
@@ -198,6 +200,46 @@ export default function SettingsPage() {
                                     />
                                     <p className="text-white/30 text-xs">Default pitch shift logic</p>
                                 </div>
+                            </div>
+                        </div>
+
+                        {/* Log Forwarding */}
+                        <div className="glass rounded-2xl p-6">
+                            <h3 className="text-white font-medium mb-4">Log Forwarding (Centralized Logs)</h3>
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+                                    <div>
+                                        <p className="text-white font-medium">Enable Log Forwarding</p>
+                                        <p className="text-white/40 text-xs mt-1">
+                                            Forward all Amplify logs to Baileys server for centralized logging
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSettings({
+                                            ...settings,
+                                            log_forwarding_enabled: settings.log_forwarding_enabled === 'true' ? 'false' : 'true'
+                                        })}
+                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.log_forwarding_enabled === 'true' ? 'bg-green-500' : 'bg-white/20'
+                                            }`}
+                                    >
+                                        <span
+                                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.log_forwarding_enabled === 'true' ? 'translate-x-6' : 'translate-x-1'
+                                                }`}
+                                        />
+                                    </button>
+                                </div>
+                                {settings.log_forwarding_enabled === 'true' && (
+                                    <div className="p-4 rounded-xl bg-green-500/5 border border-green-500/20">
+                                        <p className="text-green-400 text-sm flex items-center gap-2">
+                                            <Check className="h-4 w-4" />
+                                            Log forwarding is active. All logs will be sent to: <span className="font-mono">{settings.waha_endpoint}/api/logs/ingest</span>
+                                        </p>
+                                        <p className="text-white/40 text-xs mt-2">
+                                            Logs are forwarded with trace IDs for correlation. Check your Baileys server logs to see the complete message flow.
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>

@@ -3,13 +3,14 @@ import { venice } from '@/lib/venice'
 import { anthropic } from '@/lib/anthropic'
 import { whatsapp } from '@/lib/whatsapp'
 import { NextResponse } from 'next/server'
+import { logger } from '@/lib/logger'
 
 /**
  * Core processor for WhatsApp Webhook Payloads.
  * This function encapsulates the business logic previously in the route handler.
  */
 export async function processWhatsAppPayload(payload: any, agentId: number) {
-    console.log(`[Processor] Start handling for Agent ${agentId}`)
+    logger.messageProcessing('Start handling message', { agentId, from: payload.from })
 
     try {
         // Ignore own messages
@@ -25,7 +26,7 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
         if (from.includes('@lid')) {
             // LID Handling
         } else if (!from.includes('@c.us')) {
-            console.log(`[Processor] Ignored JID: ${from}`)
+            logger.debug('Ignored non-user JID', { from, module: 'processor' })
             return { status: 'ignored_group' }
         }
 
@@ -35,13 +36,13 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
         if (from.includes('@lid')) {
             // LID Handling - Try to resolve to phone number
             if (payload._data?.phoneNumber) {
-                console.log(`[Processor] Replacing LID ${from} with Resolved PN ${payload._data.phoneNumber}`)
+                logger.debug('Replacing LID with resolved phone number', { lid: from, pn: payload._data.phoneNumber, module: 'processor' })
                 const pn = payload._data.phoneNumber.replace('@s.whatsapp.net', '').replace('@c.us', '')
                 normalizedPhone = pn.startsWith('+') ? pn : `+${pn}`
             } else {
                 // No phone number available, use LID as identifier
                 // This allows the system to work even when LID cannot be resolved
-                console.log(`[Processor] Using LID as identifier: ${from} (phone number not available)`)
+                logger.debug('Using LID as identifier (phone number not available)', { lid: from, module: 'processor' })
                 normalizedPhone = from // Use the full LID as identifier (e.g., "76712679350466@lid")
             }
         }
@@ -81,7 +82,7 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
             (leadProviderPhone && cleanSender === leadProviderPhone.replace('+', ''))
 
         if (isPrivilegedSender) {
-            console.log(`[Processor] Privileged message from ${normalizedPhone}`)
+            logger.info('Privileged message detected', { from: normalizedPhone, module: 'processor' })
             const text = messageText
             const sourcePhone = normalizedPhone.split('@')[0]
 
@@ -101,7 +102,7 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
                 let content = messageText
                 const isAudio = payload.type === 'ptt' || payload.type === 'audio' || payload._data?.mimetype?.startsWith('audio')
                 if (isAudio) {
-                    console.log('[LeadProvider] Voice detected but transcription is disabled (Cartesia removed).')
+                    logger.warn('Voice detected from lead provider but transcription is disabled', { module: 'processor' })
                     // Logic to handle audio without transcription or skip
                 }
 
@@ -265,7 +266,7 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
                     }
                 }
             } catch (mediaError) {
-                console.error('[Processor] Media Logic Error:', mediaError)
+                logger.error('Media logic error', mediaError as Error, { module: 'processor' })
             }
         }
 
@@ -303,7 +304,7 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
         return { status: chatResult.result }
 
     } catch (error: any) {
-        console.error('[Processor] Fatal Error:', error)
+        logger.error('Processor fatal error', error, { module: 'processor', agentId })
         throw error
     }
 }

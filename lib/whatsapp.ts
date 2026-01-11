@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 
 // Helper to get config from DB or Env
 export async function getConfig() {
@@ -18,7 +19,7 @@ export async function getConfig() {
             webhookSecret: process.env.WEBHOOK_SECRET
         }
     } catch (e) {
-        console.warn('Failed to fetch WhatsApp settings from DB, falling back to env/defaults')
+        logger.warn('Failed to fetch WhatsApp settings from DB, falling back to env/defaults', { module: 'whatsapp' })
         return {
             endpoint: process.env.WAHA_ENDPOINT || 'http://127.0.0.1:3001',
             apiKey: process.env.AUTH_TOKEN || process.env.WAHA_API_KEY || 'secret',
@@ -29,11 +30,12 @@ export async function getConfig() {
 
 export const whatsapp = {
     async sendText(chatId: string, text: string, replyTo?: string, agentId?: number) {
-        console.log(`[WhatsApp] Sending Text to ${chatId}: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`)
+        const textPreview = text.substring(0, 50) + (text.length > 50 ? '...' : '')
+        logger.info('Sending text message', { module: 'whatsapp', chatId, textPreview, agentId })
         const { endpoint, apiKey } = await getConfig()
 
         if (!endpoint) {
-            console.warn('WHATSAPP_ENDPOINT not configured')
+            logger.warn('WHATSAPP_ENDPOINT not configured', { module: 'whatsapp' })
             return { id: 'mock-id' }
         }
 
@@ -52,14 +54,14 @@ export const whatsapp = {
             })
             return response.data
         } catch (error: any) {
-            console.error('WhatsApp Service SendText Error:', error.message)
+            logger.error('WhatsApp sendText failed', error, { module: 'whatsapp', chatId })
             if (error.code === 'ECONNABORTED') throw new Error('WhatsApp Service Timeout (15s)')
             throw new Error(`Failed to send WhatsApp message: ${error.message}`)
         }
     },
 
     async sendVoice(chatId: string, audioDataUrl: string, replyTo?: string, agentId?: number) {
-        console.log(`[WhatsApp] Sending Voice to ${chatId}`)
+        logger.info('Sending voice message', { module: 'whatsapp', chatId, agentId })
         const { endpoint, apiKey } = await getConfig()
 
         try {
@@ -79,13 +81,13 @@ export const whatsapp = {
                 headers: { 'X-Api-Key': apiKey }
             })
         } catch (error: any) {
-            console.error('WhatsApp Service SendVoice Error:', error.message)
+            logger.error('WhatsApp sendVoice failed', error, { module: 'whatsapp', chatId })
             throw new Error(`Failed to send Voice message: ${error.message}`)
         }
     },
 
     async sendFile(chatId: string, fileDataUrl: string, filename: string, caption?: string, agentId?: number) {
-        console.log(`[WhatsApp] Sending File to ${chatId}: ${filename}`)
+        logger.info('Sending file', { module: 'whatsapp', chatId, filename, agentId })
         const { endpoint, apiKey } = await getConfig()
         try {
             const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
@@ -104,7 +106,7 @@ export const whatsapp = {
                 headers: { 'X-Api-Key': apiKey }
             })
         } catch (error: any) {
-            console.error('WhatsApp Service SendFile Error:', error.message)
+            logger.error('WhatsApp sendFile failed', error, { module: 'whatsapp', chatId, filename })
             throw new Error(`Failed to send File: ${error.message}`)
         }
     },
@@ -129,7 +131,7 @@ export const whatsapp = {
             })
             return response.data
         } catch (e: any) {
-            console.error(`[WhatsApp] Status Check Failed for ${agentId || 'global'}:`, e.message, e.response?.data)
+            logger.error('WhatsApp status check failed', e, { module: 'whatsapp', agentId })
             if (e.response?.status === 404) return { status: 'OFFLINE', error: 'Session not found' }
             return { status: 'UNREACHABLE', error: e.message }
         }

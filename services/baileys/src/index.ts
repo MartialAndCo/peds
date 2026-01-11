@@ -14,6 +14,7 @@ import axios from 'axios'
 import dotenv from 'dotenv'
 import fs from 'fs'
 import path from 'path'
+import { setupLogIngestion } from './log-receiver'
 
 dotenv.config()
 
@@ -87,6 +88,9 @@ server.addHook('preHandler', async (request, reply) => {
         reply.code(401).send({ error: 'Unauthorized' })
     }
 })
+
+// Setup Log Ingestion Endpoint
+setupLogIngestion(server)
 
 // --- STORE IMPLEMENTATION (Factory) ---
 function makeSimpleStore(sessionId: string) {
