@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { AsyncLocalStorage } from 'async_hooks'
+import { prisma } from '@/lib/prisma'
 
 // AsyncLocalStorage for trace context propagation
 const traceStorage = new AsyncLocalStorage<TraceContext>()
@@ -14,6 +15,39 @@ interface LogContext {
 }
 
 /**
+ * Get log forwarding configuration from database
+ */
+async function getLogConfig() {
+    try {
+        const settings = await prisma.setting.findMany({
+            where: {
+                key: {
+                    in: ['log_forwarding_enabled', 'waha_endpoint', 'waha_api_key']
+                }
+            }
+        })
+
+        const config: Record<string, string> = {}
+        settings.forEach(s => {
+            config[s.key] = s.value
+        })
+
+        return {
+            enabled: config.log_forwarding_enabled === 'true',
+            endpoint: config.waha_endpoint || process.env.BAILEYS_LOG_ENDPOINT || null,
+            apiKey: config.waha_api_key || process.env.AUTH_TOKEN || null
+        }
+    } catch (error) {
+        // Fallback to env vars if DB is not available
+        return {
+            enabled: process.env.LOG_FORWARDING_ENABLED === 'true',
+            endpoint: process.env.BAILEYS_LOG_ENDPOINT || null,
+            apiKey: process.env.AUTH_TOKEN || null
+        }
+    }
+}
+
+/**
  * Centralized Logger with HTTP Forwarding to Baileys Server
  * 
  * Features:
@@ -21,25 +55,18 @@ interface LogContext {
  * - Forwards to Baileys server (HTTP POST, non-blocking)
  * - Automatic retry with exponential backoff
  * - Trace ID propagation
+ * - Dynamic configuration from database
  */
 class Logger {
-    private forwardingEnabled: boolean
-    private baileysEndpoint: string | null
-    private apiKey: string | null
     private logBuffer: any[] = []
     private flushInterval: NodeJS.Timeout | null = null
     private maxRetries = 3
     private retryDelay = 100 // ms
+    private isFlushingScheduled = false
 
     constructor() {
-        this.forwardingEnabled = process.env.LOG_FORWARDING_ENABLED === 'true'
-        this.baileysEndpoint = process.env.BAILEYS_LOG_ENDPOINT || null
-        this.apiKey = process.env.AUTH_TOKEN || null
-
-        // Start flush interval (every 2 seconds or when buffer reaches 10 logs)
-        if (this.forwardingEnabled && this.baileysEndpoint) {
-            this.flushInterval = setInterval(() => this.flush(), 2000)
-        }
+        // Start periodic flush check (every 2 seconds)
+        this.flushInterval = setInterval(() => this.checkAndFlush(), 2000)
     }
 
     /**
@@ -75,8 +102,7 @@ class Logger {
      * Add log to buffer for forwarding
      */
     private addToBuffer(level: string, message: string, context?: LogContext) {
-        if (!this.forwardingEnabled || !this.baileysEndpoint) return
-
+        // Just add to buffer, flush will check config dynamically
         const enriched = this.enrichContext(context)
         this.logBuffer.push({
             level,
@@ -90,38 +116,56 @@ class Logger {
 
         // Flush if buffer is full
         if (this.logBuffer.length >= 10) {
-            this.flush()
+            this.checkAndFlush()
+        }
+    }
+
+    /**
+     * Check config and flush if enabled
+     */
+    private async checkAndFlush() {
+        if (this.logBuffer.length === 0 || this.isFlushingScheduled) return
+        this.isFlushingScheduled = true
+
+        try {
+            const config = await getLogConfig()
+            if (config.enabled && config.endpoint && config.apiKey) {
+                await this.flush(config.endpoint, config.apiKey)
+            } else {
+                // Clear buffer if forwarding is disabled
+                this.logBuffer = []
+            }
+        } finally {
+            this.isFlushingScheduled = false
         }
     }
 
     /**
      * Flush log buffer to Baileys server
      */
-    private async flush() {
+    private async flush(endpoint: string, apiKey: string) {
         if (this.logBuffer.length === 0) return
-        if (!this.baileysEndpoint || !this.apiKey) return
 
         const logsToSend = [...this.logBuffer]
         this.logBuffer = []
 
         try {
-            await this.sendWithRetry(logsToSend)
+            await this.sendWithRetry(logsToSend, endpoint, apiKey)
         } catch (error: any) {
             // Silent fail - logs are already in CloudWatch
-            // console.error('[Logger] Failed to forward logs to Baileys:', error.message)
         }
     }
 
     /**
      * Send logs with retry logic
      */
-    private async sendWithRetry(logs: any[], attempt = 1): Promise<void> {
+    private async sendWithRetry(logs: any[], endpoint: string, apiKey: string, attempt = 1): Promise<void> {
         try {
             await axios.post(
-                `${this.baileysEndpoint}/api/logs/ingest`,
+                `${endpoint}/api/logs/ingest`,
                 { logs },
                 {
-                    headers: { 'X-Api-Key': this.apiKey },
+                    headers: { 'X-Api-Key': apiKey },
                     timeout: 5000
                 }
             )
@@ -129,7 +173,7 @@ class Logger {
             if (attempt < this.maxRetries) {
                 const delay = this.retryDelay * Math.pow(2, attempt - 1)
                 await new Promise(resolve => setTimeout(resolve, delay))
-                return this.sendWithRetry(logs, attempt + 1)
+                return this.sendWithRetry(logs, endpoint, apiKey, attempt + 1)
             }
             throw error
         }
