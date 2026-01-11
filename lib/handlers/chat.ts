@@ -39,8 +39,30 @@ export async function handleChat(
 
     const isVoiceMessage = payload.type === 'ptt' || payload.type === 'audio' || payload._data?.mimetype?.startsWith('audio')
     if (isVoiceMessage && !messageText.startsWith('[Voice Message -')) {
-        console.log('Chat: Voice Message Detected. Transcription disabled (Cartesia removed).')
-        messageText = "[Voice Message - Transcription Disabled]"
+        console.log('Chat: Audio Message Detected. Attempting transcription...')
+        try {
+            const media = await whatsapp.downloadMedia(payload.id)
+            if (media && media.data) {
+                const { transcriptionService } = require('@/lib/transcription')
+                const buffer = Buffer.from(media.data as unknown as string, 'base64')
+                // Determine extension based on mimetype
+                const ext = media.mimetype?.includes('ogg') ? 'audio.ogg' : 'audio.mp3'
+
+                const transcribedText = await transcriptionService.transcribe(buffer, ext)
+
+                if (transcribedText) {
+                    messageText = transcribedText // Replace placeholder
+                    console.log(`[Chat] Voice Transcribed: "${messageText}"`)
+                } else {
+                    messageText = "[Voice Message - Transcription Failed]"
+                }
+            } else {
+                messageText = "[Voice Message - Download Failed]"
+            }
+        } catch (e) {
+            console.error('Chat: Transcription Unexpected Error', e)
+            messageText = "[Voice Message - Error]"
+        }
     }
 
     // 3. Vision Logic
@@ -86,9 +108,13 @@ export async function handleChat(
         return { handled: true, result: 'paused' }
     }
     if (messageText.startsWith('[Voice Message -')) {
-        const voiceRefusalMsg = settings.msg_voice_refusal || "Désolé, je ne peux pas écouter les messages vocaux pour le moment."
-        await whatsapp.sendText(contact.phone_whatsapp, voiceRefusalMsg, undefined, agentId)
-        return { handled: true, result: 'voice_error' }
+        // If transcription FAILED, we send refusal.
+        // If it succeeded, messageText will be the actual text, so we skip this block.
+        if (messageText.includes('Failed') || messageText.includes('Error') || messageText.includes('Disabled')) {
+            const voiceRefusalMsg = settings.msg_voice_refusal || "Désolé, je ne peux pas écouter les messages vocaux pour le moment (Problème technique)."
+            await whatsapp.sendText(contact.phone_whatsapp, voiceRefusalMsg, undefined, agentId)
+            return { handled: true, result: 'voice_error' }
+        }
     }
 
     if (!conversation.ai_enabled) {

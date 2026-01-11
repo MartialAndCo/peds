@@ -21,6 +21,7 @@ export default function SettingsPage() {
         openrouter_api_key: '',
         openrouter_model: 'cognitivecomputations/dolphin-mistral-24b-venice-edition:free',
         ai_provider: 'venice',
+        groq_api_key: '',
         mem0_api_key: '',
         // System Messages
         msg_view_once_refusal: '',
@@ -251,8 +252,8 @@ export default function SettingsPage() {
                         {/* AI Provider Selection */}
                         <div className="glass rounded-2xl p-6">
                             <h3 className="text-white font-medium mb-4">AI Provider</h3>
-                            <div className="grid grid-cols-3 gap-3 mb-6">
-                                {['venice', 'anthropic', 'openrouter'].map((provider) => (
+                            <div className="grid grid-cols-4 gap-3 mb-6">
+                                {['venice', 'anthropic', 'openrouter', 'groq'].map((provider) => (
                                     <button
                                         key={provider}
                                         type="button"
@@ -263,7 +264,8 @@ export default function SettingsPage() {
                                             }`}
                                     >
                                         {provider === 'venice' ? 'Venice AI' :
-                                            provider === 'anthropic' ? 'Anthropic' : 'OpenRouter'}
+                                            provider === 'anthropic' ? 'Anthropic' :
+                                                provider === 'groq' ? 'Groq' : 'OpenRouter'}
                                     </button>
                                 ))}
                             </div>
