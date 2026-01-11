@@ -6,17 +6,20 @@ import { settingsService } from '@/lib/settings-cache'
 export const voiceService = {
     /**
      * Request a voice note from the Human Source.
+     * @param agentSettings - Optional agent-specific settings (overrides global)
      */
-    async requestVoice(contactPhone: string, textToSay: string, context: string) {
+    async requestVoice(contactPhone: string, textToSay: string, context: string, agentSettings?: any) {
         console.log(`[VoiceService] Requesting voice for ${contactPhone}. Text: "${textToSay}"`)
-        // 1. Get Settings
-        const settings = await settingsService.getSettings()
+        // 1. Get Settings (Agent settings override global)
+        const globalSettings = await settingsService.getSettings()
+        const settings = agentSettings ? { ...globalSettings, ...agentSettings } : globalSettings
 
         const sourcePhone = settings.voice_source_number
         if (!sourcePhone) {
             console.error('[Voice] No voice_source_number configured.')
             return 'NO_SOURCE'
         }
+        console.log(`[VoiceService] Using voice_source_number: ${sourcePhone}`)
 
         // 2. Create Pending Request
         await prisma.pendingRequest.create({

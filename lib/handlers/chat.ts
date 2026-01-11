@@ -313,7 +313,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
             whatsapp.markAsRead(contact.phone_whatsapp, agentId).catch(() => { })
             await whatsapp.sendVoice(contact.phone_whatsapp, existing.url, payload.id, agentId)
         } else {
-            await voiceService.requestVoice(contact.phone_whatsapp, voiceText, lastContent)
+            await voiceService.requestVoice(contact.phone_whatsapp, voiceText, lastContent, settings)
             return { handled: true, result: 'voice_requested' }
         }
     } else {
