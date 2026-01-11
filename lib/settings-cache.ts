@@ -20,13 +20,17 @@ export const settingsService = {
      * Uses in-memory cache with 60s TTL.
      */
     async getSettings() {
+        console.log('[SettingsCache] Requesting settings (Time: ' + new Date().toISOString() + ')')
         // Return cached if valid
         if (Date.now() < settingsCache.expiry && settingsCache.data) {
+            console.log('[SettingsCache] Returning cached settings')
             return settingsCache.data
         }
 
         try {
+            console.log('[SettingsCache] Cache miss/expired. Fetching from DB...')
             const settingsList = await prisma.setting.findMany()
+            console.log(`[SettingsCache] DB returned ${settingsList.length} settings`)
             const data = settingsList.reduce((acc: any, curr: any) => {
                 acc[curr.key] = curr.value
                 return acc
