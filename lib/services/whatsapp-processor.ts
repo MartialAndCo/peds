@@ -5,6 +5,7 @@ import { whatsapp } from '@/lib/whatsapp'
 import { NextResponse } from 'next/server'
 import { logger } from '@/lib/logger'
 import { settingsService } from '@/lib/settings-cache'
+import { queueService } from '@/lib/services/queue-service'
 
 /**
  * Core processor for WhatsApp Webhook Payloads.
@@ -316,8 +317,6 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
         const { handleChat } = require('@/lib/handlers/chat')
         const chatResult = await handleChat(payload, contact, conversation, settings, messageText, agentId)
         console.log('[Processor] Chat Result:', chatResult)
-
-        import { queueService } from '@/lib/services/queue-service'
 
         // ...
 
