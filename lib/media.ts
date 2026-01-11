@@ -52,10 +52,12 @@ export const mediaService = {
     async analyzeRequest(text: string) {
         logger.info(`Analyzing request: "${text}"`, { module: 'media_service' });
 
-        // Fetch Cached Data
-        const blacklist = await getCachedBlacklist();
-        const settings = await getSettings();
-        const mediaTypes = await getCachedMediaTypes();
+        // Fetch Cached Data (Parallelize for Cold Start Optimization)
+        const [blacklist, settings, mediaTypes] = await Promise.all([
+            getCachedBlacklist(),
+            getSettings(),
+            getCachedMediaTypes()
+        ]);
         const availableCategories = mediaTypes.map((t: any) => `${t.id} (${t.description})`).join(', ');
 
         const blacklistText = blacklist.map((b: any) => `- ${b.term} (Forbidden in ${b.mediaType})`).join('\n');
