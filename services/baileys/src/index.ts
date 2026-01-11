@@ -604,6 +604,150 @@ server.post('/api/sendStateTyping', async (req: any, reply) => {
     }
 })
 
+// Recording State
+server.post('/api/sendStateRecording', async (req: any, reply) => {
+    const { sessionId, chatId, isRecording } = req.body
+    const session = sessions.get(sessionId || 'default')
+    if (!session) return reply.code(404).send({ error: 'Session not found' })
+
+    const jid = chatId.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`
+
+    try {
+        await session.sock.sendPresenceUpdate(isRecording ? 'recording' : 'available', jid)
+        return { success: true }
+    } catch (e: any) {
+        return reply.code(500).send({ error: e.message })
+    }
+})
+
+/**
+ * Helper to convert ANY audio to OGG/OPUS (for WhatsApp PTT)
+ */
+async function convertToOggOpus(inputBuffer: Buffer): Promise<Buffer> {
+    const tempIn = path.join('/tmp', `to_ogg_in_${Date.now()}`)
+    const tempOut = path.join('/tmp', `to_ogg_out_${Date.now()}.ogg`)
+
+    try {
+        if (!fs.existsSync('/tmp')) fs.mkdirSync('/tmp', { recursive: true })
+        fs.writeFileSync(tempIn, inputBuffer)
+
+        await new Promise((resolve, reject) => {
+            ffmpeg(tempIn)
+                .toFormat('opus')
+                .outputOptions([
+                    '-acodec libopus',
+                    '-ac 1',
+                    '-ar 48000'
+                ])
+                .on('end', resolve)
+                .on('error', reject)
+                .save(tempOut)
+        })
+
+        const outputBuffer = fs.readFileSync(tempOut)
+        return outputBuffer
+    } finally {
+        if (fs.existsSync(tempIn)) fs.unlinkSync(tempIn)
+        if (fs.existsSync(tempOut)) fs.unlinkSync(tempOut)
+    }
+}
+
+// Send Voice (PTT)
+server.post('/api/sendVoice', async (req: any, reply) => {
+    const { sessionId, chatId, file, replyTo } = req.body
+    const session = sessions.get(sessionId || 'default')
+    if (!session) return reply.code(404).send({ error: 'Session not found' })
+
+    const jid = chatId.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`
+
+    try {
+        let buffer = Buffer.from(file.data, 'base64')
+        const isWav = file.mimetype?.includes('wav') || file.filename?.endsWith('.wav')
+
+        // Always convert to OGG/OPUS for WhatsApp PTT to be safe and ensure it's rendered as a voice note
+        server.log.info({ sessionId, chatId }, 'Converting outgoing voice to OGG/OPUS...')
+        buffer = await convertToOggOpus(buffer)
+
+        await session.sock.sendMessage(jid, {
+            audio: buffer,
+            mimetype: 'audio/ogg; codecs=opus',
+            ptt: true
+        }, { quoted: replyTo ? { key: { id: replyTo } } : undefined })
+
+        return { success: true }
+    } catch (e: any) {
+        server.log.error({ error: e.message }, 'Failed to send voice')
+        return reply.code(500).send({ error: e.message })
+    }
+})
+
+// Send Image
+server.post('/api/sendImage', async (req: any, reply) => {
+    const { sessionId, chatId, file, caption, replyTo } = req.body
+    const session = sessions.get(sessionId || 'default')
+    if (!session) return reply.code(404).send({ error: 'Session not found' })
+
+    const jid = chatId.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`
+
+    try {
+        const buffer = Buffer.from(file.data, 'base64')
+        await session.sock.sendMessage(jid, {
+            image: buffer,
+            caption: caption,
+            mimetype: file.mimetype || 'image/jpeg'
+        }, { quoted: replyTo ? { key: { id: replyTo } } : undefined })
+
+        return { success: true }
+    } catch (e: any) {
+        return reply.code(500).send({ error: e.message })
+    }
+})
+
+// Send Video
+server.post('/api/sendVideo', async (req: any, reply) => {
+    const { sessionId, chatId, file, caption, replyTo } = req.body
+    const session = sessions.get(sessionId || 'default')
+    if (!session) return reply.code(404).send({ error: 'Session not found' })
+
+    const jid = chatId.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`
+
+    try {
+        const buffer = Buffer.from(file.data, 'base64')
+        await session.sock.sendMessage(jid, {
+            video: buffer,
+            caption: caption,
+            mimetype: file.mimetype || 'video/mp4'
+        }, { quoted: replyTo ? { key: { id: replyTo } } : undefined })
+
+        return { success: true }
+    } catch (e: any) {
+        return reply.code(500).send({ error: e.message })
+    }
+})
+
+// Send File (Generic Document)
+server.post('/api/sendFile', async (req: any, reply) => {
+    const { sessionId, chatId, file, caption, replyTo } = req.body
+    const session = sessions.get(sessionId || 'default')
+    if (!session) return reply.code(404).send({ error: 'Session not found' })
+
+    const jid = chatId.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`
+
+    try {
+        const buffer = Buffer.from(file.data, 'base64')
+        await session.sock.sendMessage(jid, {
+            document: buffer,
+            caption: caption,
+            mimetype: file.mimetype || 'application/octet-stream',
+            fileName: file.filename || 'file'
+        }, { quoted: replyTo ? { key: { id: replyTo } } : undefined })
+
+        return { success: true }
+    } catch (e: any) {
+        return reply.code(500).send({ error: e.message })
+    }
+})
+
 // Download Media from Cached Message
 server.get('/api/messages/:messageId/media', async (req: any, reply) => {
     const { messageId } = req.params

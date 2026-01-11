@@ -111,11 +111,53 @@ export const whatsapp = {
     },
 
     async sendImage(chatId: string, dataUrl: string, caption?: string, agentId?: number) {
-        return this.sendFile(chatId, dataUrl, 'image.jpg', caption, agentId)
+        logger.info('Sending image', { module: 'whatsapp', chatId, agentId })
+        const { endpoint, apiKey } = await getConfig()
+        try {
+            const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
+            const base64Data = dataUrl.split(',')[1] || dataUrl
+
+            await axios.post(`${endpoint}/api/sendImage`, {
+                sessionId: agentId?.toString(),
+                chatId: formattedChatId,
+                file: {
+                    mimetype: 'image/jpeg',
+                    data: base64Data,
+                    filename: 'image.jpg'
+                },
+                caption: caption
+            }, {
+                headers: { 'X-Api-Key': apiKey }
+            })
+        } catch (error: any) {
+            logger.error('WhatsApp sendImage failed', error, { module: 'whatsapp', chatId })
+            throw new Error(`Failed to send Image: ${error.message}`)
+        }
     },
 
     async sendVideo(chatId: string, dataUrl: string, caption?: string, agentId?: number) {
-        return this.sendFile(chatId, dataUrl, 'video.mp4', caption, agentId)
+        logger.info('Sending video', { module: 'whatsapp', chatId, agentId })
+        const { endpoint, apiKey } = await getConfig()
+        try {
+            const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
+            const base64Data = dataUrl.split(',')[1] || dataUrl
+
+            await axios.post(`${endpoint}/api/sendVideo`, {
+                sessionId: agentId?.toString(),
+                chatId: formattedChatId,
+                file: {
+                    mimetype: 'video/mp4',
+                    data: base64Data,
+                    filename: 'video.mp4'
+                },
+                caption: caption
+            }, {
+                headers: { 'X-Api-Key': apiKey }
+            })
+        } catch (error: any) {
+            logger.error('WhatsApp sendVideo failed', error, { module: 'whatsapp', chatId })
+            throw new Error(`Failed to send Video: ${error.message}`)
+        }
     },
 
     // Get Status (replaces getSessionStatus)
@@ -160,8 +202,8 @@ export const whatsapp = {
 
         for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
             try {
-                // Encode ID to handle @c.us etc safely in URL
-                const url = `${endpoint}/api/messages/${encodeURIComponent(messageId)}/media`
+                // Encode ID to handle @c.us etc safely in URL. Request WAV format for audio.
+                const url = `${endpoint}/api/messages/${encodeURIComponent(messageId)}/media?format=wav`
                 logger.info(`Downloading media (Attempt ${attempt}/${MAX_RETRIES})`, { module: 'whatsapp_client', url, messageId })
 
                 const response = await axios.get(url, {
