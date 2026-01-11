@@ -317,6 +317,18 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
         const chatResult = await handleChat(payload, contact, conversation, settings, messageText, agentId)
         console.log('[Processor] Chat Result:', chatResult)
 
+        // TRIGGER QUEUE IMMEDIATE FLUSH
+        // If chat put something in queue, we want it out NOW, not in 10 mins.
+        if (chatResult?.result === 'sent' || chatResult?.result === 'queued') {
+            console.log('[Processor] Triggering immediate queue processing...')
+            const { endpoint, apiKey } = await require('@/lib/whatsapp').getConfig()
+            // Fire and forget fetch to our own API
+            fetch(`${endpoint}/api/cron/process-queue`, {
+                method: 'GET', // or POST depending on route
+                headers: { 'Authorization': `Bearer ${process.env.CRON_SECRET || 'secret'}` } // Optional auth if needed
+            }).catch(err => console.error('[Processor] Failed to trigger queue:', err))
+        }
+
         return { status: chatResult.result }
 
     } catch (error: any) {

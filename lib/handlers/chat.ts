@@ -271,7 +271,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         whatsapp.markAsRead(contact.phone_whatsapp, agentId).catch(() => { })
 
         // We push the raw responseText (with |||) to DB. The Cron/Worker handles splitting.
-        await prisma.messageQueue.create({
+        const queuedMsg = await prisma.messageQueue.create({
             data: {
                 contactId: contact.id,
                 conversationId: conversation.id,
@@ -280,6 +280,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
                 status: 'PENDING'
             }
         })
+        console.log(`[Chat] Message Queued for delivery. QueueID: ${queuedMsg.id}`)
     }
 
     return { handled: true, result: 'sent' }
