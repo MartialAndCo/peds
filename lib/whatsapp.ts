@@ -1,11 +1,11 @@
 import axios from 'axios'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import { settingsService } from '@/lib/settings-cache'
 
 // Helper to get config from DB or Env
 export async function getConfig() {
     try {
-        import { settingsService } from '@/lib/settings-cache'
 
         // Helper to get config from DB or Env
         export async function getConfig() {

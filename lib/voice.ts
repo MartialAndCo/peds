@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { whatsapp } from '@/lib/whatsapp'
 import Fuse from 'fuse.js'
+import { settingsService } from '@/lib/settings-cache'
 
 export const voiceService = {
     /**
@@ -8,7 +9,6 @@ export const voiceService = {
      */
     async requestVoice(contactPhone: string, textToSay: string, context: string) {
         // 1. Get Settings
-        import { settingsService } from '@/lib/settings-cache'
 
 // ...
     async requestVoice(contactPhone: string, textToSay: string, context: string) {
