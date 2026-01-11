@@ -35,7 +35,7 @@ export async function POST(req: Request) {
             }
         })
 
-        await logger.messageReceived(payload, agentId)
+        logger.messageReceived(payload, agentId)
 
         // 3. Fire-and-Forget Processing
         // We do NOT await this. We let it run in the background.
@@ -45,14 +45,14 @@ export async function POST(req: Request) {
             return processWhatsAppPayload(payload, agentId)
         })
             .then(async (result) => {
-                await logger.info('Webhook event processed', { eventId: event.id, status: result.status, module: 'webhook' })
+                logger.info('Webhook event processed', { eventId: event.id, status: result.status, module: 'webhook' })
                 await prisma.webhookEvent.update({
                     where: { id: event.id },
                     data: { status: 'PROCESSED', processedAt: new Date() }
                 })
             })
             .catch(async (err) => {
-                await logger.error('Webhook processing failed', err, { eventId: event.id, module: 'webhook' })
+                logger.error('Webhook processing failed', err, { eventId: event.id, module: 'webhook' })
                 await prisma.webhookEvent.update({
                     where: { id: event.id },
                     data: { status: 'FAILED', error: err.message, processedAt: new Date() }
@@ -63,7 +63,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: true, queued: true, eventId: event.id })
 
     } catch (error: any) {
-        await logger.error('Webhook error', error, { module: 'webhook' })
+        logger.error('Webhook error', error, { module: 'webhook' })
         return NextResponse.json({ error: error.message }, { status: 500 })
     }
 }

@@ -10,7 +10,7 @@ import { logger } from '@/lib/logger'
  * This function encapsulates the business logic previously in the route handler.
  */
 export async function processWhatsAppPayload(payload: any, agentId: number) {
-    await logger.messageProcessing('Start handling message', { agentId, from: payload.from })
+    logger.messageProcessing('Start handling message', { agentId, from: payload.from })
 
     try {
         // Ignore own messages
@@ -82,7 +82,7 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
             (leadProviderPhone && cleanSender === leadProviderPhone.replace('+', ''))
 
         if (isPrivilegedSender) {
-            await logger.info('Privileged message detected', { from: normalizedPhone, module: 'processor' })
+            logger.info('Privileged message detected', { from: normalizedPhone, module: 'processor' })
             const text = messageText
             const sourcePhone = normalizedPhone.split('@')[0]
 

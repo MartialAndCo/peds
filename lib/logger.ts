@@ -192,12 +192,13 @@ class Logger {
     /**
      * Public logging methods
      */
-    async info(message: string, context?: LogContext) {
+    info(message: string, context?: LogContext) {
         this.logLocally('info', message, context)
-        await this.addToBuffer('info', message, context)
+        // Fire-and-forget: don't block on flush
+        this.addToBuffer('info', message, context).catch(() => { })
     }
 
-    async error(message: string, error?: Error, context?: LogContext) {
+    error(message: string, error?: Error, context?: LogContext) {
         const enrichedContext = {
             ...context,
             error: error ? {
@@ -207,29 +208,32 @@ class Logger {
             } : undefined
         }
         this.logLocally('error', message, enrichedContext)
-        await this.addToBuffer('error', message, enrichedContext)
+        // Fire-and-forget: don't block on flush
+        this.addToBuffer('error', message, enrichedContext).catch(() => { })
     }
 
-    async warn(message: string, context?: LogContext) {
+    warn(message: string, context?: LogContext) {
         this.logLocally('warn', message, context)
-        await this.addToBuffer('warn', message, context)
+        // Fire-and-forget: don't block on flush
+        this.addToBuffer('warn', message, context).catch(() => { })
     }
 
-    async debug(message: string, context?: LogContext) {
+    debug(message: string, context?: LogContext) {
         this.logLocally('debug', message, context)
-        await this.addToBuffer('debug', message, context)
+        // Fire-and-forget: don't block on flush
+        this.addToBuffer('debug', message, context).catch(() => { })
     }
 
     // Legacy compatibility
-    async log(message: string, data?: any) {
-        await this.info(message, data)
+    log(message: string, data?: any) {
+        this.info(message, data)
     }
 
     /**
      * Specialized logging methods
      */
-    async messageReceived(payload: any, agentId: number) {
-        await this.info('Message received from WhatsApp', {
+    messageReceived(payload: any, agentId: number) {
+        this.info('Message received from WhatsApp', {
             module: 'webhook',
             chatId: payload.from,
             messageType: payload.type,
@@ -238,15 +242,15 @@ class Logger {
         })
     }
 
-    async messageProcessing(step: string, context: LogContext) {
-        await this.info(`Processing: ${step}`, {
+    messageProcessing(step: string, context: LogContext) {
+        this.info(`Processing: ${step}`, {
             module: 'processor',
             ...context
         })
     }
 
-    async messageSent(chatId: string, type: string, success: boolean, context?: LogContext) {
-        await this.info(`Message sent: ${type}`, {
+    messageSent(chatId: string, type: string, success: boolean, context?: LogContext) {
+        this.info(`Message sent: ${type}`, {
             module: 'whatsapp',
             chatId,
             type,
