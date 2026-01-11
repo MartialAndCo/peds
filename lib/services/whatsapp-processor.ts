@@ -10,7 +10,7 @@ import { logger } from '@/lib/logger'
  * This function encapsulates the business logic previously in the route handler.
  */
 export async function processWhatsAppPayload(payload: any, agentId: number) {
-    logger.messageProcessing('Start handling message', { agentId, from: payload.from })
+    await logger.messageProcessing('Start handling message', { agentId, from: payload.from })
 
     try {
         // Ignore own messages

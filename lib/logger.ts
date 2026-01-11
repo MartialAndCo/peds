@@ -210,26 +210,26 @@ class Logger {
         await this.addToBuffer('error', message, enrichedContext)
     }
 
-    warn(message: string, context?: LogContext) {
+    async warn(message: string, context?: LogContext) {
         this.logLocally('warn', message, context)
-        this.addToBuffer('warn', message, context)
+        await this.addToBuffer('warn', message, context)
     }
 
-    debug(message: string, context?: LogContext) {
+    async debug(message: string, context?: LogContext) {
         this.logLocally('debug', message, context)
-        this.addToBuffer('debug', message, context)
+        await this.addToBuffer('debug', message, context)
     }
 
     // Legacy compatibility
-    log(message: string, data?: any) {
-        this.info(message, data)
+    async log(message: string, data?: any) {
+        await this.info(message, data)
     }
 
     /**
      * Specialized logging methods
      */
-    messageReceived(payload: any, agentId: number) {
-        this.info('Message received from WhatsApp', {
+    async messageReceived(payload: any, agentId: number) {
+        await this.info('Message received from WhatsApp', {
             module: 'webhook',
             chatId: payload.from,
             messageType: payload.type,
@@ -238,15 +238,15 @@ class Logger {
         })
     }
 
-    messageProcessing(step: string, context: LogContext) {
-        this.info(`Processing: ${step}`, {
+    async messageProcessing(step: string, context: LogContext) {
+        await this.info(`Processing: ${step}`, {
             module: 'processor',
             ...context
         })
     }
 
-    messageSent(chatId: string, type: string, success: boolean, context?: LogContext) {
-        this.info(`Message sent: ${type}`, {
+    async messageSent(chatId: string, type: string, success: boolean, context?: LogContext) {
+        await this.info(`Message sent: ${type}`, {
             module: 'whatsapp',
             chatId,
             type,

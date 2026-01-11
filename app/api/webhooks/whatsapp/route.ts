@@ -35,7 +35,7 @@ export async function POST(req: Request) {
             }
         })
 
-        logger.messageReceived(payload, agentId)
+        await logger.messageReceived(payload, agentId)
 
         // 3. Fire-and-Forget Processing
         // We do NOT await this. We let it run in the background.
