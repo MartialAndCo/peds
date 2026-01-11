@@ -14,6 +14,7 @@ import axios from 'axios'
 import dotenv from 'dotenv'
 import fs from 'fs'
 import path from 'path'
+import ffmpeg from 'fluent-ffmpeg'
 import { setupLogIngestion } from './log-receiver.js'
 
 dotenv.config()
@@ -91,6 +92,33 @@ server.addHook('preHandler', async (request, reply) => {
 
 // Setup Log Ingestion Endpoint
 setupLogIngestion(server)
+
+/**
+ * Helper to convert audio buffer to WAV using ffmpeg
+ */
+async function convertToWav(inputBuffer: Buffer): Promise<Buffer> {
+    const tempIn = path.join('/tmp', `input_${Date.now()}.ogg`)
+    const tempOut = path.join('/tmp', `output_${Date.now()}.wav`)
+
+    try {
+        if (!fs.existsSync('/tmp')) fs.mkdirSync('/tmp', { recursive: true })
+        fs.writeFileSync(tempIn, inputBuffer)
+
+        await new Promise((resolve, reject) => {
+            ffmpeg(tempIn)
+                .toFormat('wav')
+                .on('end', resolve)
+                .on('error', reject)
+                .save(tempOut)
+        })
+
+        const outputBuffer = fs.readFileSync(tempOut)
+        return outputBuffer
+    } finally {
+        if (fs.existsSync(tempIn)) fs.unlinkSync(tempIn)
+        if (fs.existsSync(tempOut)) fs.unlinkSync(tempOut)
+    }
+}
 
 // --- STORE IMPLEMENTATION (Factory) ---
 function makeSimpleStore(sessionId: string) {
@@ -630,6 +658,19 @@ server.get('/api/messages/:messageId/media', async (req: any, reply) => {
         if (msg?.stickerMessage) mimetype = 'image/webp'
 
         server.log.info({ messageId, mimetype, size: (buffer as Buffer).length }, 'Media downloaded successfully')
+
+        // Handle WAV conversion if requested
+        if (req.query.format === 'wav' && mimetype.startsWith('audio/')) {
+            server.log.info({ messageId }, 'Converting audio to WAV...')
+            try {
+                const wavBuffer = await convertToWav(buffer as Buffer)
+                server.log.info({ messageId, originalSize: (buffer as Buffer).length, wavSize: wavBuffer.length }, 'Converted to WAV successfully')
+                reply.header('Content-Type', 'audio/wav')
+                return reply.send(wavBuffer)
+            } catch (convErr: any) {
+                server.log.error({ messageId, error: convErr.message }, 'WAV conversion failed, falling back to original')
+            }
+        }
 
         reply.header('Content-Type', mimetype)
         return reply.send(buffer)

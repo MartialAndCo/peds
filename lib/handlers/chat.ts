@@ -45,8 +45,8 @@ export async function handleChat(
             if (media && media.data) {
                 const { transcriptionService } = require('@/lib/transcription')
                 const buffer = Buffer.from(media.data as unknown as string, 'base64')
-                // Determine extension based on mimetype
-                const ext = media.mimetype?.includes('ogg') ? 'audio.ogg' : 'audio.mp3'
+                // We now request WAV from Baileys, so use .wav extension
+                const ext = 'audio.wav'
 
                 const transcribedText = await transcriptionService.transcribe(buffer, ext)
 
