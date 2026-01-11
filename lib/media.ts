@@ -4,13 +4,47 @@ import { venice } from '@/lib/venice';
 import { anthropic } from '@/lib/anthropic';
 import { logger } from '@/lib/logger';
 
-// Helper to fetch settings
+// Simple Cache System
+const cache = {
+    settings: { data: null as any, expiry: 0 },
+    blacklist: { data: null as any, expiry: 0 },
+    mediaTypes: { data: null as any, expiry: 0 }
+};
+const CACHE_TTL = 60000; // 60 seconds
+
+// Helper to fetch settings (Cached)
 async function getSettings() {
-    const settingsList = await prisma.setting.findMany();
-    return settingsList.reduce((acc: any, curr: any) => {
-        acc[curr.key] = curr.value;
-        return acc;
-    }, {});
+    if (Date.now() < cache.settings.expiry && cache.settings.data) return cache.settings.data;
+    try {
+        const settingsList = await prisma.setting.findMany();
+        const data = settingsList.reduce((acc: any, curr: any) => {
+            acc[curr.key] = curr.value;
+            return acc;
+        }, {});
+        cache.settings = { data, expiry: Date.now() + CACHE_TTL };
+        return data;
+    } catch (e: any) {
+        logger.error('Failed to fetch settings, using cache or empty', e, { module: 'media_cache' });
+        return cache.settings.data || {};
+    }
+}
+
+async function getCachedBlacklist() {
+    if (Date.now() < cache.blacklist.expiry && cache.blacklist.data) return cache.blacklist.data;
+    try {
+        const data = await prisma.blacklistRule.findMany();
+        cache.blacklist = { data, expiry: Date.now() + CACHE_TTL };
+        return data;
+    } catch (e) { return cache.blacklist.data || []; }
+}
+
+async function getCachedMediaTypes() {
+    if (Date.now() < cache.mediaTypes.expiry && cache.mediaTypes.data) return cache.mediaTypes.data;
+    try {
+        const data = await prisma.mediaType.findMany();
+        cache.mediaTypes = { data, expiry: Date.now() + CACHE_TTL };
+        return data;
+    } catch (e) { return cache.mediaTypes.data || []; }
 }
 
 export const mediaService = {
@@ -18,15 +52,13 @@ export const mediaService = {
     async analyzeRequest(text: string) {
         logger.info(`Analyzing request: "${text}"`, { module: 'media_service' });
 
-        // Fetch Blacklist Rules
-        const blacklist = await prisma.blacklistRule.findMany();
+        // Fetch Cached Data
+        const blacklist = await getCachedBlacklist();
         const settings = await getSettings();
+        const mediaTypes = await getCachedMediaTypes();
+        const availableCategories = mediaTypes.map((t: any) => `${t.id} (${t.description})`).join(', ');
 
-        // Fetch Media Types for context
-        const mediaTypes = await prisma.mediaType.findMany();
-        const availableCategories = mediaTypes.map(t => `${t.id} (${t.description})`).join(', ');
-
-        const blacklistText = blacklist.map(b => `- ${b.term} (Forbidden in ${b.mediaType})`).join('\n');
+        const blacklistText = blacklist.map((b: any) => `- ${b.term} (Forbidden in ${b.mediaType})`).join('\n');
 
         const defaultAnalysisPrompt = `You are a Content Safety and Intent Analyzer for a personal media banking system.
         

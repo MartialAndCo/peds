@@ -14,7 +14,7 @@ export const prisma = globalForPrisma.prisma || new PrismaClient({
     datasources: {
         db: {
             url: url && !url.includes("pgbouncer=true")
-                ? url + (url.includes("?") ? "&" : "?") + "pgbouncer=true"
+                ? url + (url.includes("?") ? "&" : "?") + "pgbouncer=true&connection_limit=1&pool_timeout=10"
                 : url,
         },
     },
