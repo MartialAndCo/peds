@@ -31,7 +31,7 @@ export async function getConfig() {
 export const whatsapp = {
     async sendText(chatId: string, text: string, replyTo?: string, agentId?: number) {
         const textPreview = text.substring(0, 50) + (text.length > 50 ? '...' : '')
-        logger.info('Sending text message', { module: 'whatsapp', chatId, textPreview, agentId })
+        await logger.info('Sending text message', { module: 'whatsapp', chatId, textPreview, agentId })
         const { endpoint, apiKey } = await getConfig()
 
         if (!endpoint) {
@@ -61,7 +61,7 @@ export const whatsapp = {
     },
 
     async sendVoice(chatId: string, audioDataUrl: string, replyTo?: string, agentId?: number) {
-        logger.info('Sending voice message', { module: 'whatsapp', chatId, agentId })
+        await logger.info('Sending voice message', { module: 'whatsapp', chatId, agentId })
         const { endpoint, apiKey } = await getConfig()
 
         try {
@@ -87,7 +87,7 @@ export const whatsapp = {
     },
 
     async sendFile(chatId: string, fileDataUrl: string, filename: string, caption?: string, agentId?: number) {
-        logger.info('Sending file', { module: 'whatsapp', chatId, filename, agentId })
+        await logger.info('Sending file', { module: 'whatsapp', chatId, filename, agentId })
         const { endpoint, apiKey } = await getConfig()
         try {
             const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`

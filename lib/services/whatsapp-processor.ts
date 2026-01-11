@@ -82,7 +82,7 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
             (leadProviderPhone && cleanSender === leadProviderPhone.replace('+', ''))
 
         if (isPrivilegedSender) {
-            logger.info('Privileged message detected', { from: normalizedPhone, module: 'processor' })
+            await logger.info('Privileged message detected', { from: normalizedPhone, module: 'processor' })
             const text = messageText
             const sourcePhone = normalizedPhone.split('@')[0]
 

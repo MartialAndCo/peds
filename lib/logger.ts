@@ -101,7 +101,7 @@ class Logger {
     /**
      * Add log to buffer for forwarding
      */
-    private addToBuffer(level: string, message: string, context?: LogContext) {
+    private async addToBuffer(level: string, message: string, context?: LogContext) {
         // Just add to buffer, flush will check config dynamically
         const enriched = this.enrichContext(context)
         this.logBuffer.push({
@@ -116,9 +116,8 @@ class Logger {
 
         console.log(`[DEBUG] Log buffered: ${message}, buffer size: ${this.logBuffer.length}`)
 
-
         // In serverless, flush immediately (Lambda may terminate before interval)
-        this.checkAndFlush()
+        await this.checkAndFlush()
     }
 
     /**
@@ -193,12 +192,12 @@ class Logger {
     /**
      * Public logging methods
      */
-    info(message: string, context?: LogContext) {
+    async info(message: string, context?: LogContext) {
         this.logLocally('info', message, context)
-        this.addToBuffer('info', message, context)
+        await this.addToBuffer('info', message, context)
     }
 
-    error(message: string, error?: Error, context?: LogContext) {
+    async error(message: string, error?: Error, context?: LogContext) {
         const enrichedContext = {
             ...context,
             error: error ? {
@@ -208,7 +207,7 @@ class Logger {
             } : undefined
         }
         this.logLocally('error', message, enrichedContext)
-        this.addToBuffer('error', message, enrichedContext)
+        await this.addToBuffer('error', message, enrichedContext)
     }
 
     warn(message: string, context?: LogContext) {
