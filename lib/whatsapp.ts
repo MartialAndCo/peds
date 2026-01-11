@@ -156,7 +156,8 @@ export const whatsapp = {
     async downloadMedia(messageId: string) {
         const { endpoint, apiKey } = await getConfig()
         try {
-            const url = `${endpoint}/api/messages/${messageId}/media`
+            // Encode ID to handle @c.us etc safely in URL
+            const url = `${endpoint}/api/messages/${encodeURIComponent(messageId)}/media`
             logger.info(`Downloading media`, { module: 'whatsapp_client', url, messageId })
 
             const response = await axios.get(url, {
