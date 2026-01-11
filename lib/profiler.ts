@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { venice } from '@/lib/venice'
+import { settingsService } from '@/lib/settings-cache'
 
 export const profilerService = {
     /**
