@@ -1,5 +1,5 @@
-
 import { prisma } from '@/lib/prisma'
+import { settingsService } from '@/lib/settings-cache'
 
 export type AgentPhase = 'CONNECTION' | 'VULNERABILITY' | 'CRISIS' | 'MONEYPOT'
 
