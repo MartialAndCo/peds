@@ -155,25 +155,38 @@ export const whatsapp = {
     // Download Media (No agentId needed usually, cached global or by ID)
     async downloadMedia(messageId: string) {
         const { endpoint, apiKey } = await getConfig()
-        try {
-            // Encode ID to handle @c.us etc safely in URL
-            const url = `${endpoint}/api/messages/${encodeURIComponent(messageId)}/media`
-            logger.info(`Downloading media`, { module: 'whatsapp_client', url, messageId })
+        const MAX_RETRIES = 5
+        const RETRY_DELAY_MS = 2000
 
-            const response = await axios.get(url, {
-                headers: { 'X-Api-Key': apiKey },
-                responseType: 'arraybuffer'
-            })
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            try {
+                // Encode ID to handle @c.us etc safely in URL
+                const url = `${endpoint}/api/messages/${encodeURIComponent(messageId)}/media`
+                logger.info(`Downloading media (Attempt ${attempt}/${MAX_RETRIES})`, { module: 'whatsapp_client', url, messageId })
 
-            const mimetype = response.headers['content-type']
-            return {
-                mimetype,
-                data: Buffer.from(response.data)
+                const response = await axios.get(url, {
+                    headers: { 'X-Api-Key': apiKey },
+                    responseType: 'arraybuffer'
+                })
+
+                const mimetype = response.headers['content-type']
+                return {
+                    mimetype,
+                    data: Buffer.from(response.data)
+                }
+            } catch (error: any) {
+                const is404 = error.response?.status === 404
+                if (is404 && attempt < MAX_RETRIES) {
+                    logger.warn(`Media 404 Not Found (Attempt ${attempt}). Retrying in ${RETRY_DELAY_MS}ms...`, { traceId: messageId })
+                    await new Promise(r => setTimeout(r, RETRY_DELAY_MS))
+                    continue
+                }
+
+                logger.error('Download Media Error', error, { module: 'whatsapp_client', status: error.response?.status })
+                return null
             }
-        } catch (error: any) {
-            logger.error('Download Media Error', error, { module: 'whatsapp_client' })
-            return null
         }
+        return null
     },
 
     async markAsRead(chatId: string, agentId?: number) {
