@@ -141,14 +141,14 @@ export const whatsapp = {
     async resetSession(sessionId: string) {
         const { endpoint, apiKey } = await getConfig()
         try {
-            console.log(`[WhatsApp] Resetting session: ${sessionId}`)
+            logger.info(`Resetting session: ${sessionId}`, { module: 'whatsapp' })
             const response = await axios.post(`${endpoint}/api/sessions/reset`,
                 { sessionId },
                 { headers: { 'X-Api-Key': apiKey }, timeout: 10000 }
             )
             return response.data
         } catch (e: any) {
-            console.error(`[WhatsApp] Reset Failed:`, e.message)
+            logger.error(`Reset Failed`, e, { module: 'whatsapp', sessionId })
             throw new Error(e.response?.data?.error || e.message)
         }
     },
@@ -158,7 +158,7 @@ export const whatsapp = {
         const { endpoint, apiKey } = await getConfig()
         try {
             const url = `${endpoint}/api/messages/${messageId}/media`
-            console.log(`[WhatsAppClient] Downloading media from: ${url}`)
+            logger.info(`Downloading media`, { module: 'whatsapp_client', url, messageId })
 
             const response = await axios.get(url, {
                 headers: { 'X-Api-Key': apiKey },
@@ -171,7 +171,7 @@ export const whatsapp = {
                 data: Buffer.from(response.data)
             }
         } catch (error: any) {
-            console.error('WhatsApp Service Download Media Error:', error.message)
+            logger.error('Download Media Error', error, { module: 'whatsapp_client' })
             return null
         }
     },
@@ -187,7 +187,7 @@ export const whatsapp = {
                 headers: { 'X-Api-Key': apiKey }
             })
         } catch (error: any) {
-            console.error('WhatsApp Service MarkRead Error:', error.message)
+            logger.error('MarkRead Error', error, { module: 'whatsapp' })
         }
     },
 
@@ -203,7 +203,7 @@ export const whatsapp = {
                 headers: { 'X-Api-Key': apiKey }
             })
         } catch (error: any) {
-            console.error('WhatsApp Service TypingStatus Error:', error.message)
+            logger.error('TypingStatus Error', error, { module: 'whatsapp' })
         }
     },
 
@@ -219,7 +219,7 @@ export const whatsapp = {
                 headers: { 'X-Api-Key': apiKey }
             })
         } catch (error: any) {
-            console.error('WhatsApp Service RecordingStatus Error:', error.message)
+            logger.error('RecordingStatus Error', error, { module: 'whatsapp' })
         }
     },
 
@@ -232,7 +232,7 @@ export const whatsapp = {
             })
             return response.data
         } catch (error: any) {
-            console.error('WhatsApp Admin Status Error:', error.message)
+            logger.error('Admin Status Error', error, { module: 'whatsapp' })
             return { success: false, error: error.message, status: null }
         }
     },
@@ -246,7 +246,7 @@ export const whatsapp = {
             })
             return response.data
         } catch (error: any) {
-            console.error('WhatsApp Admin Logs Error:', error.message)
+            logger.error('Admin Logs Error', error, { module: 'whatsapp' })
             return { success: false, error: error.message, lines: [] }
         }
     },
@@ -263,7 +263,7 @@ export const whatsapp = {
             )
             return response.data
         } catch (error: any) {
-            console.error('WhatsApp Admin Action Error:', error.message)
+            logger.error('Admin Action Error', error, { module: 'whatsapp' })
             return { success: false, error: error.message }
         }
     },
@@ -297,14 +297,14 @@ export const whatsapp = {
     async deleteSession(agentId: string) {
         const { endpoint, apiKey } = await getConfig()
         try {
-            console.log(`[WhatsApp] Deleting session permanently: ${agentId}`)
+            logger.info(`Deleting session permanently`, { module: 'whatsapp', agentId })
             await axios.post(`${endpoint}/api/sessions/delete`,
                 { sessionId: agentId },
                 { headers: { 'X-Api-Key': apiKey }, timeout: 10000 }
             )
             return { success: true }
         } catch (error: any) {
-            console.error(`[WhatsApp] Delete session failed:`, error.message)
+            logger.error(`Delete session failed`, error, { module: 'whatsapp', agentId })
             return { success: false, error: error.message }
         }
     }
