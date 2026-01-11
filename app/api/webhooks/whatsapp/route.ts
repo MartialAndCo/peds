@@ -45,14 +45,14 @@ export async function POST(req: Request) {
             return processWhatsAppPayload(payload, agentId)
         })
             .then(async (result) => {
-                logger.info('Webhook event processed', { eventId: event.id, status: result.status, module: 'webhook' })
+                await logger.info('Webhook event processed', { eventId: event.id, status: result.status, module: 'webhook' })
                 await prisma.webhookEvent.update({
                     where: { id: event.id },
                     data: { status: 'PROCESSED', processedAt: new Date() }
                 })
             })
             .catch(async (err) => {
-                logger.error('Webhook processing failed', err, { eventId: event.id, module: 'webhook' })
+                await logger.error('Webhook processing failed', err, { eventId: event.id, module: 'webhook' })
                 await prisma.webhookEvent.update({
                     where: { id: event.id },
                     data: { status: 'FAILED', error: err.message, processedAt: new Date() }
@@ -63,7 +63,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: true, queued: true, eventId: event.id })
 
     } catch (error: any) {
-        logger.error('Webhook error', error, { module: 'webhook' })
+        await logger.error('Webhook error', error, { module: 'webhook' })
         return NextResponse.json({ error: error.message }, { status: 500 })
     }
 }
