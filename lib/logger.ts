@@ -14,56 +14,31 @@ interface LogContext {
     [key: string]: any
 }
 
+import { settingsService } from '@/lib/settings-cache'
+
 // Config cache to avoid DB queries on every log
-let configCache: { enabled: boolean; endpoint: string | null; apiKey: string | null } | null = null
-let configCacheTime = 0
-const CONFIG_CACHE_TTL = 60000 // 60 seconds
+// (settingsService handles caching now, but we can keep a small local transformation cache if needed, 
+//  or just rely on settingsService which is fast memory access)
 
 /**
- * Get log forwarding configuration from database with caching
+ * Get log forwarding configuration from settings service
  */
 async function getLogConfig() {
-    // Return cached config if still valid
-    const now = Date.now()
-    if (configCache && (now - configCacheTime) < CONFIG_CACHE_TTL) {
-        return configCache
-    }
     try {
-        const settings = await prisma.setting.findMany({
-            where: {
-                key: {
-                    in: ['log_forwarding_enabled', 'waha_endpoint', 'waha_api_key']
-                }
-            }
-        })
+        const settings: any = await settingsService.getSettings()
 
-        const config: Record<string, string> = {}
-        settings.forEach(s => {
-            config[s.key] = s.value
-        })
-
-        configCache = {
-            enabled: config.log_forwarding_enabled === 'true',
-            endpoint: config.waha_endpoint || process.env.BAILEYS_LOG_ENDPOINT || null,
-            apiKey: config.waha_api_key || process.env.AUTH_TOKEN || null
+        return {
+            enabled: settings.log_forwarding_enabled === 'true',
+            endpoint: settings.waha_endpoint || process.env.BAILEYS_LOG_ENDPOINT || null,
+            apiKey: settings.waha_api_key || process.env.AUTH_TOKEN || null
         }
-        configCacheTime = now
-        return configCache
     } catch (error) {
-        // If DB fails, return cached config if available, otherwise fallback to env vars
-        if (configCache) {
-            return configCache
-        }
-
-        // Fallback to env vars if DB is not available and no cache
-        const fallback = {
+        // Fallback to env vars
+        return {
             enabled: process.env.LOG_FORWARDING_ENABLED === 'true',
             endpoint: process.env.BAILEYS_LOG_ENDPOINT || null,
             apiKey: process.env.AUTH_TOKEN || null
         }
-        configCache = fallback
-        configCacheTime = now
-        return fallback
     }
 }
 

@@ -38,7 +38,7 @@ export const settingsService = {
 
             return data
         } catch (error: any) {
-            logger.error('Failed to fetch settings from DB', error, { module: 'settings_cache' })
+            console.error('Failed to fetch settings from DB', error)
 
             // Return stale cache if available, otherwise empty object to prevent crash
             if (settingsCache.data) return settingsCache.data
