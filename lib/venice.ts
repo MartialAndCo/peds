@@ -30,7 +30,7 @@ export const venice = {
             try {
                 if (attempt > 1) logger.info('Venice retry attempt', { module: 'venice', attempt, maxRetries: MAX_RETRIES })
 
-                logger.info('Venice AI request', { module: 'venice', model, contextLength: apiMessages.length })
+                console.log(`[Venice] Requesting completion (Model: ${model})...`)
                 const response = await axios.post('https://api.venice.ai/api/v1/chat/completions', {
                     model,
                     messages: apiMessages,
@@ -44,11 +44,14 @@ export const venice = {
                     }
                 })
 
-                return response.data.choices[0]?.message?.content || ""
+                const content = response.data.choices[0]?.message?.content || ""
+                console.log(`[Venice] Response received (${content.length} chars)`)
+                return content
 
             } catch (error: any) {
                 const status = error.response?.status
                 const detail = error.response ? `${status} - ${JSON.stringify(error.response.data)}` : error.message
+                console.error(`[Venice] Request failed (Attempt ${attempt}): ${detail}`)
                 logger.error('Venice AI request failed', error, { module: 'venice', attempt, status, detail })
 
                 // If fatal error (Auth / Bad Request), stop immediately
