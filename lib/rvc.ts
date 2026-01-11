@@ -13,13 +13,12 @@ export const rvcService = {
     /**
      * Internal helper to determine RVC parameters (Source/Target/Pitch)
      */
+    import { settingsService } from '@/lib/settings-cache'
+
+// ...
     async _getConfig(options: { agentId?: number, voiceId?: number, sourceGender?: string }) {
         // 1. Get Settings
-        const settingsList = await prisma.setting.findMany()
-        const settings = settingsList.reduce((acc: any, curr: any) => {
-            acc[curr.key] = curr.value
-            return acc
-        }, {})
+        const settings = await settingsService.getSettings()
 
         // 2. Determine Genders
         let sourceGender = options.sourceGender || 'MALE'
@@ -145,8 +144,7 @@ export const rvcService = {
     async checkJob(jobId: string) {
         // We need the API Key/URL again. Ideally we store this or fetch it.
         // For simplicity, we re-fetch settings.
-        const settingsList = await prisma.setting.findMany()
-        const settings = settingsList.reduce((acc: any, curr: any) => { acc[curr.key] = curr.value; return acc }, {})
+        const settings = await settingsService.getSettings()
         const rvcUrl = process.env.RVC_API_URL || settings.rvc_api_url
         const runpodKey = process.env.RUNPOD_API_KEY || settings.runpod_api_key
 
