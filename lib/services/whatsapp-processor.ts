@@ -48,11 +48,16 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
         }
 
         // Fetch Settings Early
-        const settingsList = await prisma.setting.findMany()
-        const settings = settingsList.reduce((acc: any, curr: any) => {
-            acc[curr.key] = curr.value
-            return acc
-        }, {})
+        const settings = await settingsService.getSettings()
+
+        // ...
+
+        // ... (Wait, I need to remove the broken async processMessage block that was pasted inside processWhatsAppPayload)
+
+        // Fetch Settings (Cached)
+        // ALREADY FETCHED ABOVE AS 'settings'
+
+        // Fetch Agent-Specific Settings (Overrides Global)
 
         // Fetch Agent-Specific Settings (Overrides Global)
         const agentWithSettings = await prisma.agent.findUnique({

@@ -23,8 +23,7 @@ export const profilerService = {
         const history = messages.reverse().map(m => `${m.sender}: ${m.message_text}`).join('\n')
 
         // 2. Ask AI to extract (from DB)
-        const settingsList = await prisma.setting.findMany();
-        const settings = settingsList.reduce((acc: any, curr: any) => { acc[curr.key] = curr.value; return acc }, {});
+        const settings = await settingsService.getSettings()
 
         const defaultPrompt = `You are a data extractor. Analyze the conversation history and extract the user's profile information.
         

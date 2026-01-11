@@ -107,8 +107,7 @@ export const director = {
         })
         const transcript = recentMessages.reverse().map(m => `${m.sender}: ${m.message_text}`).join('\n');
 
-        const settingsList = await prisma.setting.findMany()
-        const settings = settingsList.reduce((acc: any, curr: any) => { acc[curr.key] = curr.value; return acc }, {})
+        const settings = await settingsService.getSettings()
 
         const defaultTrustPrompt = `Analyze the trust evolution in this conversation (Teenage Girl <-> User).
 TRANSCRIPT (Last few messages):
