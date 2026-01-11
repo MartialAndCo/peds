@@ -22,6 +22,7 @@ export async function POST(req: Request) {
 
         const payload = body.payload
         const agentId = body.sessionId ? parseInt(body.sessionId) : 1
+        console.log(`[Webhook] Resolved Agent ID: ${agentId} (from sessionId: ${body.sessionId})`)
 
         // Generate trace ID for this message flow
         const traceId = trace.generate()

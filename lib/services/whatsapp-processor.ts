@@ -281,6 +281,7 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
 
         // --- 3. Chat Logic ---
         // Find existing Conversation (Active OR Paused)
+        console.log(`[Processor] Searching for conversation for Contact ${contact.id} and Agent ${agentId}...`)
         let conversation = await prisma.conversation.findFirst({
             where: {
                 contactId: contact.id,
@@ -292,6 +293,7 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
         })
 
         if (!conversation) {
+            console.log('[Processor] No existing conversation found. Creating NEW one (Default: PAUSED)...')
             const defaultPrompt = await prisma.prompt.findFirst({ where: { isActive: true } }) || await prisma.prompt.findFirst()
             if (!defaultPrompt) throw new Error('No prompt configured')
 
@@ -305,6 +307,9 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
                 },
                 include: { prompt: true }
             })
+            console.log(`[Processor] New Conversation Created: ID ${conversation.id}, Status: ${conversation.status}`)
+        } else {
+            console.log(`[Processor] Found Existing Conversation: ID ${conversation.id}, Status: ${conversation.status}`)
         }
 
         console.log('[Processor] Handing off to Chat Handler...')
