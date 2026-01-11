@@ -114,6 +114,8 @@ class Logger {
             source: 'amplify'
         })
 
+        console.log(`[DEBUG] Log buffered: ${message}, buffer size: ${this.logBuffer.length}`)
+
         // Flush if buffer is full
         if (this.logBuffer.length >= 10) {
             this.checkAndFlush()
@@ -129,12 +131,18 @@ class Logger {
 
         try {
             const config = await getLogConfig()
+            console.log(`[DEBUG] Log config:`, config, `Buffer size: ${this.logBuffer.length}`)
+
             if (config.enabled && config.endpoint && config.apiKey) {
+                console.log(`[DEBUG] Flushing ${this.logBuffer.length} logs to ${config.endpoint}`)
                 await this.flush(config.endpoint, config.apiKey)
             } else {
+                console.log(`[DEBUG] Forwarding disabled or missing config, clearing buffer`)
                 // Clear buffer if forwarding is disabled
                 this.logBuffer = []
             }
+        } catch (error: any) {
+            console.error(`[DEBUG] checkAndFlush error:`, error)
         } finally {
             this.isFlushingScheduled = false
         }
@@ -149,9 +157,13 @@ class Logger {
         const logsToSend = [...this.logBuffer]
         this.logBuffer = []
 
+        console.log(`[DEBUG] Sending ${logsToSend.length} logs to ${endpoint}/api/logs/ingest`)
+
         try {
             await this.sendWithRetry(logsToSend, endpoint, apiKey)
+            console.log(`[DEBUG] Logs sent successfully`)
         } catch (error: any) {
+            console.error(`[DEBUG] Failed to send logs:`, error.message)
             // Silent fail - logs are already in CloudWatch
         }
     }
