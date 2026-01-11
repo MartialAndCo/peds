@@ -50,6 +50,7 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
 
         // Fetch Settings Early
         const settings = await settingsService.getSettings()
+        console.log('[Processor] DB Settings fetched successfully')
 
         // ...
 
@@ -304,8 +305,10 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
             })
         }
 
+        console.log('[Processor] Handing off to Chat Handler...')
         const { handleChat } = require('@/lib/handlers/chat')
         const chatResult = await handleChat(payload, contact, conversation, settings, messageText, agentId)
+        console.log('[Processor] Chat Result:', chatResult)
 
         return { status: chatResult.result }
 
