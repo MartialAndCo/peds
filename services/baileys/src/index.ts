@@ -14,7 +14,7 @@ import axios from 'axios'
 import dotenv from 'dotenv'
 import fs from 'fs'
 import path from 'path'
-import { setupLogIngestion } from './log-receiver'
+import { setupLogIngestion } from './log-receiver.js'
 
 dotenv.config()
 
