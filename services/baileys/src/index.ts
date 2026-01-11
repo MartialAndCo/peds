@@ -81,7 +81,7 @@ server.addHook('onResponse', async (request, reply) => {
 // Auth Middleware
 server.addHook('preHandler', async (request, reply) => {
     const urlPath = request.url.split('?')[0]
-    if (urlPath === '/status' || urlPath === '/api/status' || urlPath === '/health') return
+    if (urlPath === '/status' || urlPath === '/api/status' || urlPath === '/health' || urlPath === '/api/logs/ingest') return
 
     const apiKey = request.headers['x-api-key']
     if (apiKey !== AUTH_TOKEN) {
