@@ -161,6 +161,12 @@ export default function SettingsPage() {
                             </div>
                         </div>
 
+                        {/* Session Management */}
+                        <div className="glass rounded-2xl p-6">
+                            <h3 className="text-white font-medium mb-4">Session Management</h3>
+                            <SessionManager settings={settings} />
+                        </div>
+
                         {/* RVC / RunPod Serverless */}
                         <div className="glass rounded-2xl p-6">
                             <h3 className="text-white font-medium mb-4">Voice Synthesis (RVC / RunPod)</h3>

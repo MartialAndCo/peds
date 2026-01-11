@@ -389,7 +389,7 @@ async function startSession(sessionId: string) {
             // Cache for media retrieval
             if (msg.key.id) {
                 sessionData.messageCache.set(msg.key.id, msg)
-                setTimeout(() => sessionData.messageCache.delete(msg.key.id!), 300000) // 5min
+                setTimeout(() => sessionData.messageCache.delete(msg.key.id!), 600000) // 10min TTL for media
             }
 
         } catch (e: any) {
@@ -572,6 +572,70 @@ server.post('/api/sendStateTyping', async (req: any, reply) => {
         return { success: true }
     } catch (e: any) {
         return reply.code(500).send({ error: e.message })
+    }
+})
+
+// Download Media from Cached Message
+server.get('/api/messages/:messageId/media', async (req: any, reply) => {
+    const { messageId } = req.params
+    const sessionIdParam = req.query.sessionId as string | undefined
+
+    server.log.info({ messageId, sessionIdParam }, 'Media download request')
+
+    // Find the message in session caches
+    let targetSession: SessionData | undefined
+    let cachedMessage: WAMessage | undefined
+
+    if (sessionIdParam) {
+        targetSession = sessions.get(sessionIdParam)
+        cachedMessage = targetSession?.messageCache.get(messageId)
+    } else {
+        // Search all sessions
+        for (const [id, session] of sessions) {
+            const msg = session.messageCache.get(messageId)
+            if (msg) {
+                targetSession = session
+                cachedMessage = msg
+                server.log.info({ messageId, foundInSession: id }, 'Message found in cache')
+                break
+            }
+        }
+    }
+
+    if (!cachedMessage || !targetSession) {
+        server.log.warn({ messageId }, 'Message not found in any session cache')
+        return reply.code(404).send({ error: 'Message not found in cache. It may have expired (5min TTL).' })
+    }
+
+    try {
+        // Use Baileys' downloadMediaMessage utility
+        const buffer = await downloadMediaMessage(
+            cachedMessage,
+            'buffer',
+            {},
+            {
+                logger: pino({ level: 'silent' }) as any,
+                reuploadRequest: targetSession.sock.updateMediaMessage
+            }
+        )
+
+        // Determine mimetype from message
+        const msg = cachedMessage.message
+        let mimetype = 'application/octet-stream'
+        if (msg?.audioMessage) mimetype = msg.audioMessage.mimetype || 'audio/ogg; codecs=opus'
+        if (msg?.imageMessage) mimetype = msg.imageMessage.mimetype || 'image/jpeg'
+        if (msg?.videoMessage) mimetype = msg.videoMessage.mimetype || 'video/mp4'
+        if (msg?.documentMessage) mimetype = msg.documentMessage.mimetype || 'application/octet-stream'
+        if (msg?.stickerMessage) mimetype = 'image/webp'
+
+        server.log.info({ messageId, mimetype, size: (buffer as Buffer).length }, 'Media downloaded successfully')
+
+        reply.header('Content-Type', mimetype)
+        return reply.send(buffer)
+
+    } catch (e: any) {
+        server.log.error({ messageId, error: e.message, stack: e.stack }, 'Media download failed')
+        return reply.code(500).send({ error: 'Failed to download media: ' + e.message })
     }
 })
 
