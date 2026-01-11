@@ -62,10 +62,12 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
         // Fetch Agent-Specific Settings (Overrides Global)
 
         // Fetch Agent-Specific Settings (Overrides Global)
+        console.log(`[Processor] Fetching agent settings for ID ${agentId}...`)
         const agentWithSettings = await prisma.agent.findUnique({
             where: { id: Number(agentId) },
             include: { settings: true }
         })
+        console.log(`[Processor] Agent settings fetch complete. Found: ${!!agentWithSettings}`)
 
         agentWithSettings?.settings.forEach((s: any) => {
             settings[s.key] = s.value
