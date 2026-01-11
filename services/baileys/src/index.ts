@@ -96,7 +96,7 @@ setupLogIngestion(server)
 /**
  * Helper to convert audio buffer to WAV using ffmpeg
  */
-async function convertToWav(inputBuffer: Buffer): Promise<Buffer> {
+async function convertToWav(inputBuffer: Buffer): Promise<any> {
     const tempIn = path.join('/tmp', `input_${Date.now()}.ogg`)
     const tempOut = path.join('/tmp', `output_${Date.now()}.wav`)
 
@@ -623,7 +623,7 @@ server.post('/api/sendStateRecording', async (req: any, reply) => {
 /**
  * Helper to convert ANY audio to OGG/OPUS (for WhatsApp PTT)
  */
-async function convertToOggOpus(inputBuffer: Buffer): Promise<Buffer> {
+async function convertToOggOpus(inputBuffer: Buffer): Promise<any> {
     const tempIn = path.join('/tmp', `to_ogg_in_${Date.now()}`)
     const tempOut = path.join('/tmp', `to_ogg_out_${Date.now()}.ogg`)
 
@@ -666,7 +666,7 @@ server.post('/api/sendVoice', async (req: any, reply) => {
 
         // Always convert to OGG/OPUS for WhatsApp PTT to be safe and ensure it's rendered as a voice note
         server.log.info({ sessionId, chatId }, 'Converting outgoing voice to OGG/OPUS...')
-        buffer = await convertToOggOpus(buffer)
+        buffer = (await convertToOggOpus(buffer)) as any
 
         await session.sock.sendMessage(jid, {
             audio: buffer,
