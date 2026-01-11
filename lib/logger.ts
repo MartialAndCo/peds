@@ -116,10 +116,9 @@ class Logger {
 
         console.log(`[DEBUG] Log buffered: ${message}, buffer size: ${this.logBuffer.length}`)
 
-        // Flush if buffer is full
-        if (this.logBuffer.length >= 10) {
-            this.checkAndFlush()
-        }
+
+        // In serverless, flush immediately (Lambda may terminate before interval)
+        this.checkAndFlush()
     }
 
     /**
