@@ -26,8 +26,18 @@ export async function handleSourceMedia(
     if (isVoiceSource && isVoiceNote) {
         logger.info('Voice source sent audio', { module: 'media', sourcePhone: normalizedPhone })
         let mediaData = payload.body
+
         if (!mediaData || mediaData.length < 100) {
-            mediaData = await whatsapp.downloadMedia(payload.id)
+            // downloadMedia returns { mimetype, data: Buffer } - extract and convert to base64
+            const downloaded = await whatsapp.downloadMedia(payload.id)
+            if (downloaded && downloaded.data) {
+                mediaData = Buffer.isBuffer(downloaded.data)
+                    ? downloaded.data.toString('base64')
+                    : downloaded.data
+                logger.info('Extracted base64 from downloaded media', { module: 'media', length: mediaData?.length })
+            } else {
+                mediaData = null
+            }
         }
 
         if (mediaData) {
