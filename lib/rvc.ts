@@ -107,17 +107,36 @@ export const rvcService = {
             }
         }
 
-        // Check if input is URL or Base64
-        if (audioInput.startsWith('http://') || audioInput.startsWith('https://')) {
-            console.log(`[RVC] Using Audio URL: ${audioInput}`)
-            payload.input.audio_url = audioInput
+        // Guard: Ensure audioInput is a string
+        let cleanBase64 = ""
+        if (typeof audioInput !== 'string') {
+            console.warn(`[RVC-Async] Warning: audioInput is not a string (Type: ${typeof audioInput}). Attempting conversion...`)
+            if (Buffer.isBuffer(audioInput)) {
+                cleanBase64 = (audioInput as Buffer).toString('base64')
+                console.log(`[RVC-Async] Converted Buffer to Base64 (length: ${cleanBase64.length})`)
+            } else {
+                console.error(`[RVC-Async] FATAL: Invalid audioInput type: ${typeof audioInput}`)
+                return null
+            }
         } else {
-            // Handle Base64
-            let cleanBase64 = audioInput
-            if (audioInput.includes('base64,')) cleanBase64 = audioInput.split('base64,')[1]
-            payload.input.audio_base64 = cleanBase64
-            console.log(`[RVC] Using Base64 input (length: ${cleanBase64.length})`)
+            // Check if input is URL or Base64
+            if (audioInput.startsWith('http://') || audioInput.startsWith('https://')) {
+                console.log(`[RVC] Using Audio URL: ${audioInput}`)
+                payload.input.audio_url = audioInput
+                // Early exit for URL flow
+            } else {
+                // Handle Base64 String
+                cleanBase64 = audioInput
+                if (audioInput.includes('base64,')) cleanBase64 = audioInput.split('base64,')[1]
+                console.log(`[RVC] Using Base64 input (length: ${cleanBase64.length})`)
+            }
         }
+
+        // Assign audio_base64 if not using URL
+        if (!payload.input.audio_url && cleanBase64) {
+            payload.input.audio_base64 = cleanBase64
+        }
+
 
         // Use /run endpoint
         let endpoint = config.rvcUrl
