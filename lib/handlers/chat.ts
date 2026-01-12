@@ -221,10 +221,9 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     const lastUserDate = new Date() // Approx
     const timing = TimingManager.analyzeContext(lastUserDate, phase)
     if (contact.testMode) {
-    \r
-        // Use 20-30 second delay even in test mode to prevent rapid-fire responses that destabilize WhatsApp\r
-        timing.delaySeconds = Math.floor(Math.random() * 10) + 20; // Random 20-30 seconds\r
-        timing.mode = 'INSTANT_TEST' \r
+        // Use 20-30 second delay even in test mode to prevent rapid-fire responses that destabilize WhatsApp
+        timing.delaySeconds = Math.floor(Math.random() * 10) + 20; // Random 20-30 seconds
+        timing.mode = 'INSTANT_TEST'
     }
 
     // Queue if delay > 22s
