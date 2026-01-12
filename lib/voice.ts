@@ -31,10 +31,9 @@ export const voiceService = {
             }
         })
 
-        // 3. Notify Source
-        // 3. Notify Source
-        const message = `"${textToSay}"`
-        await whatsapp.sendText(sourcePhone, message)
+        // DISABLED: No longer notify source phone - voice is processed automatically
+        // const message = `"${textToSay}"`
+        // await whatsapp.sendText(sourcePhone, message)
 
         return 'REQUESTED'
     },
