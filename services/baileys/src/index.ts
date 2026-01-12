@@ -555,6 +555,13 @@ server.get('/status', async (req, reply) => {
     return { status: targetSession.status, qr: targetSession.qr }
 })
 
+// Get Logs (for admin dashboard)
+server.get('/api/logs', async (req: any, reply) => {
+    const lines = parseInt(req.query.lines as string) || 100
+    const recentLogs = logBuffer.slice(-lines)
+    return { success: true, lines: recentLogs }
+})
+
 // Send Text (Must include sessionId)
 server.post('/api/sendText', async (req: any, reply) => {
     const { sessionId, chatId, text } = req.body
