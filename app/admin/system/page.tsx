@@ -34,18 +34,29 @@ export default function SystemPage() {
     const fetchStatus = async () => {
         try {
             const res = await fetch('/api/admin/status')
+            if (!res.ok) {
+                console.error('Status API returned:', res.status)
+                return
+            }
             const data = await res.json()
             if (data.success) {
                 setStatus(data.status)
+            } else {
+                console.error('Status API error:', data.error)
             }
         } catch (e) {
             console.error('Failed to fetch status:', e)
+            // Don't crash - just leave status as null
         }
     }
 
     const fetchLogs = async () => {
         try {
             const res = await fetch('/api/admin/logs?lines=200')
+            if (!res.ok) {
+                console.error('Logs API returned:', res.status)
+                return
+            }
             const data = await res.json()
             if (data.success && data.lines) {
                 setLogs(data.lines)
@@ -56,6 +67,7 @@ export default function SystemPage() {
             }
         } catch (e) {
             console.error('Failed to fetch logs:', e)
+            // Don't crash - just leave logs as empty
         }
     }
 
