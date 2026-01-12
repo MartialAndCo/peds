@@ -10,7 +10,8 @@ import {
     Zap,
     Settings,
     ArrowLeft,
-    Image as ImageIcon
+    Image as ImageIcon,
+    Users
 } from 'lucide-react'
 import { useAgent } from '@/components/agent-provider'
 
@@ -28,6 +29,7 @@ export function SidebarWorkspace() {
             routes: [
                 { label: 'Overview', icon: LayoutDashboard, href: `${baseUrl}` },
                 { label: 'Conversations', icon: MessageSquare, href: `${baseUrl}/conversations` },
+                { label: 'Contacts', icon: Users, href: `${baseUrl}/contacts` },
             ]
         },
         {
