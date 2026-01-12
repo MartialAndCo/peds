@@ -324,6 +324,15 @@ async function startSession(sessionId: string) {
                 return
             }
 
+            // FIX: Ignore old messages delivered during reconnection sync
+            const msgTimestamp = msg.messageTimestamp
+            const nowSeconds = Math.floor(Date.now() / 1000)
+            const msgAgeSeconds = msgTimestamp ? nowSeconds - Number(msgTimestamp) : 0
+            if (msgAgeSeconds > 30) {
+                server.log.info({ sessionId, msgId: msg.key.id, ageSeconds: msgAgeSeconds }, 'Ignoring stale message (older than 30s, likely reconnection sync)')
+                return
+            }
+
             // Determine Body
             let body = msg.message.conversation ||
                 msg.message.extendedTextMessage?.text ||
