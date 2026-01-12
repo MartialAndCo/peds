@@ -281,11 +281,13 @@ export const whatsapp = {
     async adminStatus() {
         const { endpoint, apiKey } = await getConfig()
         try {
-            const response = await axios.get(`${endpoint}/api/admin/status`, {
+            // Baileys Docker uses /status endpoint directly
+            const response = await axios.get(`${endpoint}/status`, {
                 headers: { 'X-Api-Key': apiKey },
                 timeout: 5000
             })
-            return response.data
+            // Wrap response for compatibility with system page
+            return { success: true, status: response.data }
         } catch (error: any) {
             logger.error('Admin Status Error', error, { module: 'whatsapp' })
             return { success: false, error: error.message, status: null }
@@ -295,11 +297,12 @@ export const whatsapp = {
     async adminLogs(lines: number = 100) {
         const { endpoint, apiKey } = await getConfig()
         try {
-            const response = await axios.get(`${endpoint}/api/admin/logs?lines=${lines}`, {
+            // Baileys Docker uses /api/logs endpoint
+            const response = await axios.get(`${endpoint}/api/logs?lines=${lines}`, {
                 headers: { 'X-Api-Key': apiKey },
                 timeout: 5000
             })
-            return response.data
+            return { success: true, lines: response.data.lines || [] }
         } catch (error: any) {
             logger.error('Admin Logs Error', error, { module: 'whatsapp' })
             return { success: false, error: error.message, lines: [] }
