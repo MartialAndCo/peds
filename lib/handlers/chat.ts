@@ -194,31 +194,12 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         if (prev.sender !== curr.sender || prev.message_text.trim() !== curr.message_text.trim()) uniqueHistory.push(curr)
     }
 
-    // NEW: Collect all CONSECUTIVE unanswered contact messages
-    // These are messages at the END of history that have no AI response after them
-    const unansweredMessages: string[] = []
-    for (let i = history.length - 1; i >= 0; i--) {
-        if (history[i].sender === 'contact') {
-            unansweredMessages.unshift(history[i].message_text)
-        } else {
-            break // Stop at the last AI message
-        }
-    }
-    
-    // If multiple messages, combine them for the AI with clear labeling
-    const batchedUserMessage = unansweredMessages.length > 1
-        ? `(User sent ${unansweredMessages.length} messages, respond to all naturally):\n${unansweredMessages.map((m, i) => `[${i+1}]: ${m}`).join('\n')}`
-        : lastMessageText
-    
-    console.log(`[Chat] Batched ${unansweredMessages.length} unanswered messages for AI`)
-
     const messagesForAI = uniqueHistory.map((m: any) => ({
         role: m.sender === 'contact' ? 'user' : 'ai',
         content: m.message_text
     }))
     const contextMessages = messagesForAI.slice(0, -1)
-    // Use the batched message instead of just the last one
-    const lastContent = batchedUserMessage
+    const lastContent = messagesForAI[messagesForAI.length - 1]?.content || lastMessageText
 
     // 2. Memory & Director
     const { memoryService } = require('@/lib/memory')
