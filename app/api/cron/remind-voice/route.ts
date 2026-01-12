@@ -3,6 +3,9 @@ import { prisma } from '@/lib/prisma'
 import { whatsapp } from '@/lib/whatsapp'
 
 export async function GET(req: Request) {
+    // DISABLED: User requested removal of voice reminder notifications
+    return NextResponse.json({ success: true, disabled: true, count: 0 })
+
     try {
         console.log('[RemindVoice] Checking for stale confirmations...')
 
