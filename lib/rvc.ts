@@ -116,16 +116,22 @@ export const rvcService = {
                 cleanBase64 = (audioInput as Buffer).toString('base64')
                 console.log(`[RVC-Async] Converted Buffer to Base64 (length: ${cleanBase64.length})`)
             } else if (typeof audioInput === 'object' && audioInput !== null) {
-                // Handle JSON-serialized Buffer: { type: 'Buffer', data: [...] }
-                // or just standard object that might have a data property
+                // Handle various object structures
                 const inputObj = audioInput as any
+
                 if (inputObj.type === 'Buffer' && Array.isArray(inputObj.data)) {
+                    // JSON-serialized Buffer: { type: 'Buffer', data: [...] }
                     cleanBase64 = Buffer.from(inputObj.data).toString('base64')
                     console.log(`[RVC-Async] Converted JSON Buffer to Base64 (length: ${cleanBase64.length})`)
                 } else if (inputObj.data && Array.isArray(inputObj.data)) {
                     // Sometimes just { data: [...] }
                     cleanBase64 = Buffer.from(inputObj.data).toString('base64')
                     console.log(`[RVC-Async] Converted Generic Data Array to Base64 (length: ${cleanBase64.length})`)
+                } else if (inputObj.data && typeof inputObj.data === 'string') {
+                    // Handle { mimetype, data } where data is already a base64 string
+                    cleanBase64 = inputObj.data
+                    if (cleanBase64.includes('base64,')) cleanBase64 = cleanBase64.split('base64,')[1]
+                    console.log(`[RVC-Async] Extracted Base64 from data property (length: ${cleanBase64.length})`)
                 } else {
                     console.error(`[RVC-Async] FATAL: Unknown object structure: keys=[${Object.keys(inputObj).join(', ')}]`)
                     return null
