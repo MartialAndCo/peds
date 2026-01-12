@@ -159,6 +159,16 @@ export default function AgentSettingsPage() {
                                         />
                                     </div>
                                 </div>
+                                <div className="space-y-2">
+                                    <Label className="text-xs uppercase text-white/50 tracking-wider">PayPal Username</Label>
+                                    <Input
+                                        value={promptSettings['paypal_username'] || ''}
+                                        onChange={e => setPromptSettings({ ...promptSettings, paypal_username: e.target.value })}
+                                        placeholder={globalSettings['paypal_username'] || '@username'}
+                                        className="bg-white/5 border-white/10 text-white font-mono focus:border-white/20"
+                                    />
+                                    <p className="text-[10px] text-white/30">Used when AI mentions payment method</p>
+                                </div>
                             </div>
                         </div>
 
