@@ -24,6 +24,22 @@ export async function POST(req: Request) {
         const agentId = body.sessionId ? parseInt(body.sessionId) : 1
         console.log(`[Webhook] Resolved Agent ID: ${agentId} (from sessionId: ${body.sessionId})`)
 
+        // DEDUPLICATION CHECK: Skip if this message ID was already processed
+        const messageId = payload?.id
+        if (messageId) {
+            const existingEvent = await prisma.webhookEvent.findFirst({
+                where: {
+                    source: 'whatsapp',
+                    status: { in: ['PENDING', 'PROCESSED'] },
+                    payload: { path: ['payload', 'id'], equals: messageId }
+                }
+            })
+            if (existingEvent) {
+                logger.info('Duplicate message ignored', { messageId, existingEventId: existingEvent.id, module: 'webhook' })
+                return NextResponse.json({ success: true, ignored: true, reason: 'duplicate' })
+            }
+        }
+
         // Generate trace ID for this message flow
         const traceId = trace.generate()
 

@@ -306,6 +306,12 @@ async function startSession(sessionId: string) {
         // DEBUG: Log ALL incoming messages
         server.log.info({ sessionId, type: m.type, count: m.messages.length }, 'messages.upsert event received')
 
+        // FIX: Only process NEW messages (notify), skip re-delivered ones (append)
+        if (m.type !== 'notify') {
+            server.log.info({ sessionId, type: m.type }, 'Ignoring non-notify upsert (re-delivered/append message)')
+            return
+        }
+
         if (!WEBHOOK_URL) {
             server.log.warn({ sessionId }, 'WEBHOOK_URL not configured - messages will NOT be forwarded!')
             return
