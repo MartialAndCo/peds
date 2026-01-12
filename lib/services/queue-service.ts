@@ -121,14 +121,32 @@ export class QueueService {
             await new Promise(r => setTimeout(r, typingMs + 500))
 
             let parts = content.split('|||').filter((p: string) => p.trim().length > 0)
+
+            // Log split analysis
+            console.log(`[QueueService] Message split analysis: ${parts.length} parts from content (length: ${content.length})`)
+            if (parts.length > 1) {
+                console.log(`[QueueService] Split markers found, will send ${parts.length} separate bubbles`)
+            }
+
             if (parts.length === 1 && content.length > 300) {
                 // Fallback split for very long single blocks? 
                 // For now, keep as is unless explicit requirement.
+                console.log(`[QueueService] Long message (${content.length} chars) but no ||| markers, sending as single bubble`)
             }
 
-            for (const part of parts) {
-                await whatsapp.sendText(phone, part.trim(), undefined, agentId)
-                if (parts.indexOf(part) < parts.length - 1) {
+            for (let i = 0; i < parts.length; i++) {
+                const part = parts[i]
+                console.log(`[QueueService] Sending part ${i + 1}/${parts.length}: "${part.substring(0, 40)}${part.length > 40 ? '...' : ''}"`)
+
+                try {
+                    await whatsapp.sendText(phone, part.trim(), undefined, agentId)
+                    console.log(`[QueueService] Part ${i + 1}/${parts.length} sent successfully`)
+                } catch (sendError: any) {
+                    console.error(`[QueueService] FAILED to send part ${i + 1}/${parts.length}:`, sendError.message)
+                    throw sendError // Re-throw to mark entire message as failed
+                }
+
+                if (i < parts.length - 1) {
                     await new Promise(r => setTimeout(r, 1000))
                 }
             }

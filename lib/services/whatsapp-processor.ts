@@ -330,6 +330,17 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
             console.log('[Processor] Queue Worker finished.')
         }
 
+        // AUTO-RECOVERY: Check for orphan messages (runs in background, fire-and-forget)
+        // This eliminates the need for external cron - recovery happens on each incoming message
+        const { messageRecoveryService } = require('@/lib/services/message-recovery')
+        messageRecoveryService.recoverOrphanMessages()
+            .then((result: any) => {
+                if (result.recovered > 0) {
+                    console.log(`[Processor] Auto-recovery: Recovered ${result.recovered} orphan messages`)
+                }
+            })
+            .catch((err: any) => console.error('[Processor] Auto-recovery failed (non-blocking):', err.message))
+
         return { status: chatResult.result }
 
     } catch (error: any) {
