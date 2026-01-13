@@ -292,10 +292,10 @@ async function repairSession(sessionId: string): Promise<{ success: boolean, mes
         return { success: false, message: 'Repair already in progress', details: {} }
     }
 
-    // Check cooldown (minimum 60 seconds between repairs)
+    // Check cooldown (minimum 30 seconds between repairs)
     const now = Date.now()
-    if (session && (now - session.lastRepairTime) < 60000) {
-        const waitTime = Math.ceil((60000 - (now - session.lastRepairTime)) / 1000)
+    if (session && (now - session.lastRepairTime) < 30000) {
+        const waitTime = Math.ceil((30000 - (now - session.lastRepairTime)) / 1000)
         return { success: false, message: `Repair cooldown active. Wait ${waitTime}s`, details: {} }
     }
 
@@ -1140,4 +1140,22 @@ server.listen({ port: PORT, host: '0.0.0.0' }, (err, address) => {
     } catch (e) {
         console.error('Failed to auto-start sessions', e)
     }
+
+    // Periodic health check - auto-repair every 5 minutes if issues detected
+    setInterval(async () => {
+        for (const [sessionId, session] of sessions) {
+            // Skip if already repairing or not connected
+            if (session.isRepairing || session.status !== 'CONNECTED') continue
+
+            // Check if session has accumulated errors
+            if (session.decryptErrors > 3 || session.badMacCount > 3) {
+                console.log(`[AutoRepair] Session ${sessionId} has ${session.decryptErrors} decrypt errors, ${session.badMacCount} Bad MAC errors. Auto-repairing...`)
+                try {
+                    await repairSession(sessionId)
+                } catch (e) {
+                    console.error(`[AutoRepair] Failed to repair session ${sessionId}:`, e)
+                }
+            }
+        }
+    }, 5 * 60 * 1000) // Every 5 minutes
 })
