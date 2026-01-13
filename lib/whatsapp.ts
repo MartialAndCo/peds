@@ -231,13 +231,14 @@ export const whatsapp = {
         return null
     },
 
-    async markAsRead(chatId: string, agentId?: number) {
+    async markAsRead(chatId: string, agentId?: number, messageKey?: any) {
         const { endpoint, apiKey } = await getConfig()
         try {
             const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
             await axios.post(`${endpoint}/api/markSeen`, {
                 sessionId: agentId?.toString(),
-                chatId: formattedChatId
+                chatId: formattedChatId,
+                messageKey // Pass the full key if available
             }, {
                 headers: { 'X-Api-Key': apiKey }
             })
