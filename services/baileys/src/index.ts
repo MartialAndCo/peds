@@ -79,7 +79,8 @@ const server = fastify({
 // Logging Hook
 server.addHook('onResponse', async (request, reply) => {
     const urlPath = request.url.split('?')[0]
-    if (['/status', '/api/status', '/health'].includes(urlPath)) return
+    // Skip noisy polling endpoints
+    if (['/status', '/api/status', '/health', '/api/logs'].includes(urlPath)) return
 
     addToLogBuffer(`${new Date().toISOString()} [${request.method}] ${request.url} - ${reply.statusCode}`)
 })
