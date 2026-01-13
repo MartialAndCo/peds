@@ -177,7 +177,7 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
                     logger.info('Healing: Merged and deleted ghost contact', { ghostId: ghostContact.id, realId: realContact.id })
                 }
             } catch (e) {
-                logger.error('Healing: Failed to merge duplicate contacts', e)
+                logger.error('Healing: Failed to merge duplicate contacts', e as Error)
             }
         }
 
