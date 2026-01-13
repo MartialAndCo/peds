@@ -39,8 +39,21 @@ export default function SystemPage() {
                 return
             }
             const data = await res.json()
-            if (data.success) {
-                setStatus(data.status)
+            if (data.success && data.status) {
+                // Transform Docker response {status: 'CONNECTED', qr: null} 
+                // to UI format {connected: boolean, ...}
+                const dockerStatus = data.status
+                setStatus({
+                    connected: dockerStatus.status === 'CONNECTED',
+                    user: dockerStatus.user || null,
+                    uptime: dockerStatus.uptime || '--',
+                    uptimeSeconds: dockerStatus.uptimeSeconds || 0,
+                    memory: dockerStatus.memory || { heapUsed: '--', heapTotal: '--', rss: '--' },
+                    chatsLoaded: dockerStatus.chatsLoaded || 0,
+                    lidMappings: dockerStatus.lidMappings || 0,
+                    nodeVersion: dockerStatus.nodeVersion || '--',
+                    timestamp: dockerStatus.timestamp || new Date().toISOString()
+                })
             } else {
                 console.error('Status API error:', data.error)
             }
