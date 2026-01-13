@@ -533,6 +533,22 @@ async function startSession(sessionId: string) {
                     status: msg.status,
                     rawKeys: Object.keys(msg)
                 }, 'Message has no content - DEBUG')
+
+                // REACTIVE AUTO-REPAIR: messageStubType 2 = CIPHERTEXT (decryption failed)
+                if (msg.messageStubType === 2) {
+                    sessionData.decryptErrors++
+                    server.log.warn({ sessionId, decryptErrors: sessionData.decryptErrors }, 'Decrypt error detected (CIPHERTEXT stub)')
+
+                    // Trigger immediate repair if threshold reached
+                    if (sessionData.decryptErrors >= 3 && !sessionData.isRepairing) {
+                        server.log.warn({ sessionId }, 'Threshold reached - triggering immediate auto-repair')
+                        repairSession(sessionId).then(result => {
+                            server.log.info({ sessionId, result: result.message }, 'Auto-repair completed')
+                        }).catch(err => {
+                            server.log.error({ sessionId, err: err.message }, 'Auto-repair failed')
+                        })
+                    }
+                }
                 return
             }
 
