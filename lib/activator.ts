@@ -38,12 +38,14 @@ export const activator = {
 
         // 3. Build System Prompt
         const { phase, details } = await director.determinePhase(conversation.contact.phone_whatsapp)
+        const agentId = conversation.agentId // Get agentId from conversation
         let systemPrompt = await director.buildSystemPrompt(
             settings,
             conversation.contact,
             phase,
             details,
-            conversation.prompt.system_prompt
+            conversation.prompt.system_prompt,
+            agentId // Pass agentId to Director
         )
 
         // INJECT CONTEXT
@@ -81,22 +83,25 @@ export const activator = {
         // Cleanup
         aiText = aiText.replace(/\*[^*]+\*/g, '').trim()
 
-        // 5. Send to WhatsApp
+        // 5. Send to WhatsApp (Baileys Docker)
         const wahaEndpoint = settings.waha_endpoint
         const wahaSession = settings.waha_session || 'default'
-        const wahaKey = settings.waha_api_key
+        const authToken = settings.waha_api_key // This is now AUTH_TOKEN for Baileys
 
         const parts = aiText.split('|||').filter(p => p.trim().length > 0)
+
+        // Convert phone number to correct JID format for Baileys
+        const rawPhone = conversation.contact.phone_whatsapp.replace(/[^0-9]/g, '')
+        const chatJid = `${rawPhone}@s.whatsapp.net`
 
         for (const part of parts) {
             try {
                 await axios.post(`${wahaEndpoint}/api/sendText`, {
-                    session: wahaSession,
-                    chatId: `${conversation.contact.phone_whatsapp}@c.us`,
-                    text: part.trim(),
-                    reply_to: null
+                    sessionId: wahaSession, // Baileys expects sessionId, not session
+                    chatId: chatJid,
+                    text: part.trim()
                 }, {
-                    headers: { 'X-Api-Key': wahaKey }
+                    headers: { 'x-api-key': authToken } // Correct header for Baileys
                 })
             } catch (e: any) {
                 console.error('[Activator] WAHA Send Failed:', e.message)
