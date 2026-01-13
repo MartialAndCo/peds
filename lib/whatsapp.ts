@@ -289,6 +289,10 @@ export const whatsapp = {
             // Wrap response for compatibility with system page
             return { success: true, status: response.data }
         } catch (error: any) {
+            // Suppress connection refused logs (Docker offline)
+            if (error.code === 'ECONNREFUSED' || error.message?.includes('ECONNREFUSED')) {
+                return { success: false, error: 'Service Offline', status: null }
+            }
             logger.error('Admin Status Error', error, { module: 'whatsapp' })
             return { success: false, error: error.message, status: null }
         }
@@ -304,6 +308,10 @@ export const whatsapp = {
             })
             return { success: true, lines: response.data.lines || [] }
         } catch (error: any) {
+            // Suppress connection refused logs (Docker offline)
+            if (error.code === 'ECONNREFUSED' || error.message?.includes('ECONNREFUSED')) {
+                return { success: false, error: 'Service Offline', lines: [] }
+            }
             logger.error('Admin Logs Error', error, { module: 'whatsapp' })
             return { success: false, error: error.message, lines: [] }
         }
