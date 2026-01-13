@@ -523,7 +523,16 @@ async function startSession(sessionId: string) {
         try {
             const msg = m.messages[0]
             if (!msg.message) {
-                server.log.info({ sessionId, msgId: msg.key.id }, 'Message has no content (status update/receipt)')
+                // DEBUG: Log full message structure to understand what we're receiving
+                server.log.info({
+                    sessionId,
+                    msgId: msg.key.id,
+                    fullKey: msg.key,
+                    hasMessageField: 'message' in msg,
+                    messageType: msg.messageStubType,
+                    status: msg.status,
+                    rawKeys: Object.keys(msg)
+                }, 'Message has no content - DEBUG')
                 return
             }
 
