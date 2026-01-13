@@ -539,9 +539,9 @@ async function startSession(sessionId: string) {
                     sessionData.decryptErrors++
                     server.log.warn({ sessionId, decryptErrors: sessionData.decryptErrors }, 'Decrypt error detected (CIPHERTEXT stub)')
 
-                    // Trigger immediate repair if threshold reached
-                    if (sessionData.decryptErrors >= 3 && !sessionData.isRepairing) {
-                        server.log.warn({ sessionId }, 'Threshold reached - triggering immediate auto-repair')
+                    // AGGRESSIVE: Trigger repair on FIRST error
+                    if (sessionData.decryptErrors >= 1 && !sessionData.isRepairing) {
+                        server.log.warn({ sessionId }, 'Critical error (Bad MAC) - triggering IMMEDIATE auto-repair')
                         repairSession(sessionId).then(result => {
                             server.log.info({ sessionId, result: result.message }, 'Auto-repair completed')
                         }).catch(err => {
