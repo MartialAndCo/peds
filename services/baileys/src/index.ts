@@ -631,6 +631,7 @@ async function startSession(sessionId: string) {
                     body,
                     fromMe: msg.key.fromMe,
                     type,
+                    messageKey: msg.key, // Full key for read receipts
                     _data: {
                         notifyName: msg.pushName,
                         phoneNumber: resolvedPhoneNumber // Include resolved phone number for LID messages
@@ -818,40 +819,37 @@ server.post('/api/sendText', async (req: any, reply) => {
 
 // Mark as Read/Seen
 server.post('/api/markSeen', async (req: any, reply) => {
-    const { sessionId, chatId, messageId } = req.body
+    const { sessionId, chatId, messageId, messageKey } = req.body
     const session = sessions.get(sessionId || 'default')
     if (!session) return reply.code(404).send({ error: 'Session not found' })
 
-    const jid = chatId.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`
-
     try {
+        // Best case: Full messageKey provided by caller (from webhook payload)
+        if (messageKey && messageKey.remoteJid && messageKey.id) {
+            await session.sock.readMessages([messageKey])
+            server.log.info({ sessionId, messageKey }, 'Marked message as read (direct key)')
+            return { success: true, method: 'direct_key' }
+        }
+
         // If messageId is provided, try to get the message from cache
         if (messageId && session.messageCache.has(messageId)) {
             const cachedMsg = session.messageCache.get(messageId)
             if (cachedMsg?.key) {
                 await session.sock.readMessages([cachedMsg.key])
-                server.log.info({ sessionId, chatId, messageId }, 'Marked message as read')
-                return { success: true, method: 'specific_message' }
+                server.log.info({ sessionId, chatId, messageId }, 'Marked message as read (cache)')
+                return { success: true, method: 'cache' }
             }
         }
 
-        // Try to get the last message from the store for this chat
-        const lastMsg = await session.store?.loadMessage?.(jid, messageId || '')
-        if (lastMsg?.key) {
-            await session.sock.readMessages([lastMsg.key])
-            server.log.info({ sessionId, chatId }, 'Marked last message as read from store')
-            return { success: true, method: 'store_lookup' }
-        }
-
-        // Fallback: Create a minimal key structure to attempt read
-        // This may not always work but is better than nothing
+        // Fallback: construct key from chatId
+        const jid = chatId?.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`
         const fallbackKey = {
             remoteJid: jid,
             id: messageId || 'unknown',
             fromMe: false
         }
         await session.sock.readMessages([fallbackKey])
-        server.log.info({ sessionId, chatId, fallbackKey }, 'Attempted read with fallback key')
+        server.log.info({ sessionId, chatId, fallbackKey }, 'Marked as read (fallback key)')
         return { success: true, method: 'fallback' }
     } catch (e: any) {
         server.log.error({ err: e, sessionId, chatId }, 'Failed to mark as read')
