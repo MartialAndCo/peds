@@ -292,10 +292,10 @@ async function repairSession(sessionId: string): Promise<{ success: boolean, mes
         return { success: false, message: 'Repair already in progress', details: {} }
     }
 
-    // Check cooldown (minimum 30 seconds between repairs)
+    // Check cooldown (minimum 10 seconds between repairs)
     const now = Date.now()
-    if (session && (now - session.lastRepairTime) < 30000) {
-        const waitTime = Math.ceil((30000 - (now - session.lastRepairTime)) / 1000)
+    if (session && (now - session.lastRepairTime) < 10000) {
+        const waitTime = Math.ceil((10000 - (now - session.lastRepairTime)) / 1000)
         return { success: false, message: `Repair cooldown active. Wait ${waitTime}s`, details: {} }
     }
 
@@ -334,6 +334,7 @@ async function repairSession(sessionId: string): Promise<{ success: boolean, mes
             newSession.badMacCount = 0
             newSession.decryptErrors = 0
             newSession.isRepairing = false
+            newSession.lastRepairTime = now // Persist repair time for grace period check
         }
 
         console.log(`[Recovery] Session ${sessionId} repair complete`)
@@ -473,6 +474,9 @@ async function startSession(sessionId: string) {
             sessionData.status = 'CONNECTED'
             sessionData.qr = null
             sessionData.wasConnected = true // Mark as successfully authenticated
+            sessionData.isRepairing = false
+            sessionData.decryptErrors = 0 // Reset error counters
+            sessionData.badMacCount = 0
             server.log.info({ sessionId }, 'Connection OPEN - session authenticated')
         }
     })
@@ -536,6 +540,13 @@ async function startSession(sessionId: string) {
 
                 // REACTIVE AUTO-REPAIR: messageStubType 2 = CIPHERTEXT (decryption failed)
                 if (msg.messageStubType === 2) {
+                    const now = Date.now()
+                    // GRACE PERIOD: Ignore errors if we just repaired recently (e.g. within 20s)
+                    if (now - sessionData.lastRepairTime < 20000) {
+                        server.log.warn({ sessionId, timeSinceRepair: now - sessionData.lastRepairTime }, 'Ignoring decrypt error during post-repair grace period')
+                        return
+                    }
+
                     sessionData.decryptErrors++
                     server.log.warn({ sessionId, decryptErrors: sessionData.decryptErrors }, 'Decrypt error detected (CIPHERTEXT stub)')
 
