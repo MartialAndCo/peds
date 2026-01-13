@@ -86,7 +86,6 @@ export default function SettingsPage() {
         { id: 'infrastructure', label: 'Infrastructure', icon: Server },
         { id: 'intelligence', label: 'Intelligence', icon: Brain },
         { id: 'prompts', label: 'Prompts', icon: Settings2 },
-        { id: 'moderation', label: 'Moderation', icon: Shield },
         { id: 'voices', label: 'Voices', icon: Brain },
     ]
 
