@@ -139,19 +139,48 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
                 if (ghostContact) {
                     logger.info('Healing: Found duplicate ghost contact for LID', { lid: lidJid, realPhone: normalizedPhone })
 
-                    // 1. Move conversations to the real phone number (which we are about to upsert)
-                    // First ensure real contact exists (or will be created below, but we need ID for relation update)
-                    // To avoid complexity, we actually just upsert the real contact NOW to get its ID
-                    const realContact = await prisma.contact.upsert({
-                        where: { phone_whatsapp: normalizedPhone },
-                        update: {},
-                        create: {
-                            phone_whatsapp: normalizedPhone,
-                            name: payload._data?.notifyName || ghostContact.name || "Inconnu",
-                            source: 'WhatsApp Incoming (Healed)',
-                            status: ghostContact.status
-                        }
-                    })
+                    // Check if real contact already exists
+                    const existingRealContact = await prisma.contact.findUnique({ where: { phone_whatsapp: normalizedPhone } })
+
+                    let realContact
+                    if (existingRealContact) {
+                        // Real contact exists - merge ghost data INTO it (preserve real's existing data, fill gaps from ghost)
+                        realContact = await prisma.contact.update({
+                            where: { phone_whatsapp: normalizedPhone },
+                            data: {
+                                // Only fill in empty fields from ghost contact
+                                name: existingRealContact.name || ghostContact.name,
+                                notes: existingRealContact.notes || ghostContact.notes,
+                                profile: (existingRealContact.profile || ghostContact.profile) as any,
+                                source: existingRealContact.source || ghostContact.source,
+                                status: existingRealContact.status !== 'new' ? existingRealContact.status : ghostContact.status,
+                                agentPhase: existingRealContact.agentPhase !== 'CONNECTION' ? existingRealContact.agentPhase : ghostContact.agentPhase,
+                                trustScore: existingRealContact.trustScore > 0 ? existingRealContact.trustScore : ghostContact.trustScore,
+                                testMode: existingRealContact.testMode || ghostContact.testMode,
+                                isHidden: existingRealContact.isHidden || ghostContact.isHidden,
+                            }
+                        })
+                        logger.info('Healing: Merged ghost metadata into existing contact', { ghostId: ghostContact.id, realId: realContact.id })
+                    } else {
+                        // Real contact doesn't exist - copy EVERYTHING from ghost with new phone number
+                        realContact = await prisma.contact.create({
+                            data: {
+                                phone_whatsapp: normalizedPhone,
+                                name: ghostContact.name || payload._data?.notifyName || "Inconnu",
+                                notes: ghostContact.notes,
+                                profile: ghostContact.profile as any,
+                                source: ghostContact.source || 'WhatsApp Incoming (Healed)',
+                                status: ghostContact.status,
+                                agentPhase: ghostContact.agentPhase,
+                                trustScore: ghostContact.trustScore,
+                                lastPhaseUpdate: ghostContact.lastPhaseUpdate,
+                                lastTrustAnalysis: ghostContact.lastTrustAnalysis,
+                                testMode: ghostContact.testMode,
+                                isHidden: ghostContact.isHidden,
+                            }
+                        })
+                        logger.info('Healing: Created real contact with all ghost metadata', { ghostId: ghostContact.id, realId: realContact.id })
+                    }
 
                     // Move Conversations
                     await prisma.conversation.updateMany({
@@ -159,7 +188,6 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
                         data: { contactId: realContact.id }
                     })
 
-                    // Move Messages (if any were linked to contact directly, but they are linked to conversation usually)
                     // Move MessageQueue items
                     await prisma.messageQueue.updateMany({
                         where: { contactId: ghostContact.id },
