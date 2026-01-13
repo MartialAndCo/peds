@@ -61,7 +61,7 @@ function loadLidMap(): Map<string, string> {
             const json = JSON.parse(data)
             return new Map(Object.entries(json))
         } catch (e) {
-            server.log.error('Failed to load LID map', e)
+            server.log.error({ err: e }, 'Failed to load LID map')
         }
     }
     return new Map()
@@ -77,7 +77,7 @@ function saveLidMap(map: Map<string, string>) {
             fs.writeFileSync(LID_MAP_PATH, JSON.stringify(obj, null, 2))
             server.log.info({ count: map.size }, 'LID Map saved to disk')
         } catch (e) {
-            server.log.error('Failed to save LID map', e)
+            server.log.error({ err: e }, 'Failed to save LID map')
         }
     }, 5000) // Save after 5 seconds of inactivity
 }
