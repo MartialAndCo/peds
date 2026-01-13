@@ -200,9 +200,16 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
                         data: { contactId: realContact.id }
                     })
 
-                    // Delete Ghost
-                    await prisma.contact.delete({ where: { id: ghostContact.id } })
-                    logger.info('Healing: Merged and deleted ghost contact', { ghostId: ghostContact.id, realId: realContact.id })
+                    // Mark ghost as merged (DON'T delete - preserves links)
+                    await prisma.contact.update({
+                        where: { id: ghostContact.id },
+                        data: {
+                            status: 'merged',
+                            mergedIntoId: realContact.id,
+                            isHidden: true // Hide from listings
+                        }
+                    })
+                    logger.info('Healing: Ghost contact marked as merged', { ghostId: ghostContact.id, realId: realContact.id })
                 }
             } catch (e) {
                 logger.error('Healing: Failed to merge duplicate contacts', e as Error)

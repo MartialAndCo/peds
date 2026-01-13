@@ -37,9 +37,12 @@ model Contact {
   name            String?
   source          String?        @default("manual")
   notes           String?
-  status          String         @default("new") // active, archive, blacklisted
+  status          String         @default("new") // active, archive, blacklisted, merged
   isHidden        Boolean        @default(false) // Hide from dashboard (e.g. Lead Source)
   testMode        Boolean        @default(false) // Bypass AI delays for testing
+  
+  // Merge tracking - if this contact was merged into another
+  mergedIntoId    String?        // ID of the contact this was merged into
   
   // State-Aware Agent Fields
   agentPhase      String         @default("CONNECTION") // CONNECTION, VULNERABILITY, CRISIS
@@ -60,6 +63,7 @@ model Contact {
   @@index([source])
   @@index([isHidden])
   @@index([agentPhase])
+  @@index([mergedIntoId])
   @@map("contacts")
 }
 
