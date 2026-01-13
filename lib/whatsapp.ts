@@ -326,6 +326,24 @@ export const whatsapp = {
         }
     },
 
+    async repairSession(sessionId: string = '1') {
+        const { endpoint, apiKey } = await getConfig()
+        try {
+            logger.info('Repairing session', { module: 'whatsapp', sessionId })
+            const response = await axios.post(`${endpoint}/api/sessions/repair`,
+                { sessionId },
+                {
+                    headers: { 'X-Api-Key': apiKey, 'Content-Type': 'application/json' },
+                    timeout: 30000
+                }
+            )
+            return response.data
+        } catch (error: any) {
+            logger.error('Repair Session Error', error, { module: 'whatsapp' })
+            return { success: false, message: error.message }
+        }
+    },
+
     // NEW: Session Management
     async startSession(agentId: string) {
         const { endpoint, apiKey } = await getConfig()

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { RefreshCw, Terminal, Trash2, GitBranch, Power, CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import { RefreshCw, Terminal, Trash2, GitBranch, Power, CheckCircle, XCircle, Loader2, Wrench } from 'lucide-react'
 
 interface SystemStatus {
     connected: boolean
@@ -91,6 +91,32 @@ export default function SystemPage() {
             })
             const data = await res.json()
             setActionResult({ success: data.success, message: data.message || data.output || data.error || 'Unknown result' })
+        } catch (e: any) {
+            setActionResult({ success: false, message: e.message })
+        } finally {
+            setActionLoading(null)
+        }
+    }
+
+    const repairSession = async () => {
+        if (actionLoading) return
+
+        setActionLoading('repair')
+        setActionResult(null)
+
+        try {
+            const res = await fetch('/api/admin/repair', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sessionId: '1' })
+            })
+            const data = await res.json()
+            setActionResult({
+                success: data.success,
+                message: data.success
+                    ? `✅ Session repaired! Cleaned: ${data.details?.cleaned?.length || 0} files. No QR rescan needed.`
+                    : data.message || 'Repair failed'
+            })
         } catch (e: any) {
             setActionResult({ success: false, message: e.message })
         } finally {
@@ -225,6 +251,16 @@ export default function SystemPage() {
                         >
                             {actionLoading === 'clear_sessions' ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
                             Clear Sessions
+                        </Button>
+
+                        <Button
+                            variant="outline"
+                            onClick={repairSession}
+                            disabled={!!actionLoading}
+                            className="border-amber-500/50 hover:bg-amber-500/10"
+                        >
+                            {actionLoading === 'repair' ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wrench className="h-4 w-4 mr-2" />}
+                            Repair Session
                         </Button>
                     </div>
 
