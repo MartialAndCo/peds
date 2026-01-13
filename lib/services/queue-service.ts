@@ -12,9 +12,6 @@ export class QueueService {
         const now = new Date()
         console.log(`[QueueService] Processing Message Queue... Server time: ${now.toISOString()}`)
 
-        // Debug: Count ALL pending messages
-        const allPending = await prisma.messageQueue.count({ where: { status: 'PENDING' } })
-
         // 1. Find Pending Messages due NOW
         const pendingMessages = await prisma.messageQueue.findMany({
             where: {
@@ -26,26 +23,29 @@ export class QueueService {
             orderBy: { scheduledAt: 'asc' }
         })
 
-        console.log(`[QueueService] Found ${pendingMessages.length} pending messages DUE NOW (Total Pending: ${allPending}).`)
-
-        if (pendingMessages.length === 0) return { processed: 0, pending: allPending }
+        if (pendingMessages.length === 0) return { processed: 0, pending: 0 }
 
         const results = []
 
         for (const queueItem of pendingMessages) {
             try {
-                // Double check status (concurrency safety)
-                const current = await prisma.messageQueue.findUnique({ where: { id: queueItem.id } })
-                if (current?.status !== 'PENDING') continue
+                // ATOMIC LOCK: Only process if status is PENDING
+                const lock = await prisma.messageQueue.updateMany({
+                    where: { id: queueItem.id, status: 'PENDING' },
+                    data: { status: 'PROCESSING' }
+                })
 
-                // Mark PROCESSING (Optional, but good for safety)
-                // await prisma.messageQueue.update({ where: { id: queueItem.id }, data: { status: 'PROCESSING' } })
+                if (lock.count === 0) {
+                    console.log(`[QueueService] Item ${queueItem.id} already locked/processed. Skipping.`)
+                    continue
+                }
 
                 const result = await this.processedSingleItem(queueItem)
                 results.push(result)
 
             } catch (error: any) {
                 console.error(`[QueueService] Failed to process item ${queueItem.id}:`, error)
+                // Revert to FAILED (or PENDING if retry logic exists)
                 await prisma.messageQueue.update({
                     where: { id: queueItem.id },
                     data: { status: 'FAILED', attempts: { increment: 1 } }
@@ -117,37 +117,24 @@ export class QueueService {
             }
 
             await whatsapp.sendTypingState(phone, true, agentId).catch(e => { })
-            const typingMs = Math.min(content.length * 50, 8000) // 50ms per char
+            const typingMs = Math.min(content.length * 50, 8000)
             await new Promise(r => setTimeout(r, typingMs + 500))
 
+            // Unified Splitting Logic (Matches route.ts)
             let parts = content.split('|||').filter((p: string) => p.trim().length > 0)
-
-            // Log split analysis
-            console.log(`[QueueService] Message split analysis: ${parts.length} parts from content (length: ${content.length})`)
-            if (parts.length > 1) {
-                console.log(`[QueueService] Split markers found, will send ${parts.length} separate bubbles`)
+            if (parts.length === 1 && content.length > 50) {
+                const paragraphs = content.split(/\n+/).filter((p: string) => p.trim().length > 0)
+                if (paragraphs.length > 1) parts = paragraphs
             }
 
-            if (parts.length === 1 && content.length > 300) {
-                // Fallback split for very long single blocks? 
-                // For now, keep as is unless explicit requirement.
-                console.log(`[QueueService] Long message (${content.length} chars) but no ||| markers, sending as single bubble`)
-            }
+            console.log(`[QueueService] Message split into ${parts.length} bubbles`)
 
             for (let i = 0; i < parts.length; i++) {
                 const part = parts[i]
-                console.log(`[QueueService] Sending part ${i + 1}/${parts.length}: "${part.substring(0, 40)}${part.length > 40 ? '...' : ''}"`)
-
-                try {
-                    await whatsapp.sendText(phone, part.trim(), undefined, agentId)
-                    console.log(`[QueueService] Part ${i + 1}/${parts.length} sent successfully`)
-                } catch (sendError: any) {
-                    console.error(`[QueueService] FAILED to send part ${i + 1}/${parts.length}:`, sendError.message)
-                    throw sendError // Re-throw to mark entire message as failed
-                }
+                await whatsapp.sendText(phone, part.trim(), undefined, agentId)
 
                 if (i < parts.length - 1) {
-                    await new Promise(r => setTimeout(r, 1000))
+                    await new Promise(r => setTimeout(r, 1000 + Math.random() * 500))
                 }
             }
             await whatsapp.sendTypingState(phone, false, agentId).catch(e => { })
