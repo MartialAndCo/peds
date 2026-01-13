@@ -398,15 +398,15 @@ async function startSession(sessionId: string) {
     })
 
     // Custom Store with persistence
-    const store = makeInMemoryStore({ logger: pino({ level: 'silent' }) })
+    const store = makeSimpleStore(sessionId)
     const STORE_FILE = path.join(authFolder, 'store.json')
-    store?.readFromFile(STORE_FILE)
+    store.readFromFile(STORE_FILE)
     // Save every 30s
     const storeInterval = setInterval(() => {
-        store?.writeToFile(STORE_FILE)
+        store.writeToFile(STORE_FILE)
     }, 30_000)
 
-    store?.bind(sock.ev)
+    store.bind(sock.ev)
 
     // Load LID Map from disk
     const persistentLidMap = loadLidMap()
