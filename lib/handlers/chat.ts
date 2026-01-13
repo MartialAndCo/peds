@@ -345,7 +345,7 @@ async function callAI(settings: any, conv: any, sys: string, ctx: any[], last: s
     const params = {
         apiKey: provider === 'anthropic' ? settings.anthropic_api_key : (provider === 'openrouter' ? settings.openrouter_api_key : settings.venice_api_key),
         model: provider === 'anthropic' ? settings.anthropic_model : (provider === 'openrouter' ? settings.openrouter_model : conv.prompt.model),
-        temperature: Number(conv.prompt.temperature),
+        temperature: settings.ai_temperature ? Number(settings.ai_temperature) : Number(conv.prompt.temperature),
         max_tokens: conv.prompt.max_tokens
     }
 

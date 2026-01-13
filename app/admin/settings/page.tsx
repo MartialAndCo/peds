@@ -46,6 +46,8 @@ export default function SettingsPage() {
         prompt_media_analysis: '',
         prompt_media_scheduling: '',
         prompt_trust_analysis: '',
+        // AI Parameters
+        ai_temperature: '0.7',
         // Log Forwarding
         log_forwarding_enabled: 'false'
     })
@@ -356,6 +358,32 @@ export default function SettingsPage() {
                                         </div>
                                     </>
                                 )}
+                            </div>
+                        </div>
+
+                        {/* AI Parameters */}
+                        <div className="glass rounded-2xl p-6">
+                            <h3 className="text-white font-medium mb-4">AI Parameters</h3>
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <label className="text-white/60 text-xs font-medium uppercase tracking-wider">
+                                        Temperature ({settings.ai_temperature || '0.7'})
+                                    </label>
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="1"
+                                        step="0.1"
+                                        value={settings.ai_temperature || '0.7'}
+                                        onChange={(e) => setSettings({ ...settings, ai_temperature: e.target.value })}
+                                        className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-white"
+                                    />
+                                    <div className="flex justify-between text-white/30 text-xs">
+                                        <span>0.0 (Precise)</span>
+                                        <span>1.0 (Creative)</span>
+                                    </div>
+                                    <p className="text-white/30 text-xs">Higher values produce more creative but less consistent responses</p>
+                                </div>
                             </div>
                         </div>
 

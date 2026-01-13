@@ -65,14 +65,14 @@ export const activator = {
                     systemPrompt,
                     contextMessages,
                     lastMessage,
-                    { apiKey: settings.anthropic_api_key, model: conversation.prompt.model, temperature: Number(conversation.prompt.temperature) }
+                    { apiKey: settings.anthropic_api_key, model: conversation.prompt.model, temperature: settings.ai_temperature ? Number(settings.ai_temperature) : Number(conversation.prompt.temperature) }
                 )
             } else {
                 aiText = await venice.chatCompletion(
                     systemPrompt,
                     contextMessages,
                     lastMessage,
-                    { apiKey: settings.venice_api_key, model: conversation.prompt.model, temperature: Number(conversation.prompt.temperature) }
+                    { apiKey: settings.venice_api_key, model: conversation.prompt.model, temperature: settings.ai_temperature ? Number(settings.ai_temperature) : Number(conversation.prompt.temperature) }
                 )
             }
         } catch (e: any) {

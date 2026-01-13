@@ -49,7 +49,7 @@ export default async function DashboardPage() {
                 _sum: { amount: true },
                 where: { createdAt: { gte: startOfMonth(new Date()) } }
             }),
-            prisma.contact.count(),
+            prisma.contact.count({ where: { status: { not: 'merged' }, isHidden: false } }),
             prisma.conversation.count({ where: { status: 'active' } }),
             prisma.message.count({ where: { timestamp: { gte: subDays(new Date(), 1) } } }),
             prisma.message.count(),
