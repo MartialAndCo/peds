@@ -61,6 +61,11 @@ interface SessionData {
     messageCache: Map<string, WAMessage>
     lidToPnMap: Map<string, string>
     wasConnected: boolean // Track if session was ever successfully authenticated
+    // Error tracking for auto-recovery
+    badMacCount: number
+    decryptErrors: number
+    lastRepairTime: number
+    isRepairing: boolean
 }
 
 // Map<agentId, SessionData>
@@ -172,6 +177,157 @@ function makeSimpleStore(sessionId: string) {
     }
 }
 
+// --- SESSION REPAIR FUNCTIONS ---
+
+/**
+ * Clean corrupted session parts WITHOUT deleting main credentials.
+ * This allows repair without requiring a new QR scan.
+ * It deletes:
+ * - sender-keys/ (group encryption keys)
+ * - app-state-sync-*.json (app state)
+ * - pre-keys that may be corrupted
+ */
+async function cleanCorruptedSessionParts(sessionId: string): Promise<{ cleaned: string[], kept: string[] }> {
+    const authPath = path.join(BASE_AUTH_DIR, `session_${sessionId}`)
+    const cleaned: string[] = []
+    const kept: string[] = []
+
+    if (!fs.existsSync(authPath)) {
+        return { cleaned: [], kept: [] }
+    }
+
+    const files = fs.readdirSync(authPath)
+
+    for (const file of files) {
+        const filePath = path.join(authPath, file)
+        const stat = fs.statSync(filePath)
+
+        // Keep essential credentials
+        if (file === 'creds.json') {
+            kept.push('creds.json')
+            continue
+        }
+
+        // Delete sender-keys directory
+        if (file === 'sender-key-memory.json' || file.startsWith('sender-key')) {
+            if (stat.isDirectory()) {
+                fs.rmSync(filePath, { recursive: true })
+            } else {
+                fs.unlinkSync(filePath)
+            }
+            cleaned.push(file)
+            continue
+        }
+
+        // Delete app-state-sync files (can cause desync)
+        if (file.startsWith('app-state-sync')) {
+            fs.unlinkSync(filePath)
+            cleaned.push(file)
+            continue
+        }
+
+        // Delete pre-key files (will be regenerated)
+        if (file.startsWith('pre-key-') || file === 'pre-keys.json') {
+            fs.unlinkSync(filePath)
+            cleaned.push(file)
+            continue
+        }
+
+        // Delete session files per contact (will be re-negotiated)
+        if (file.startsWith('session-')) {
+            fs.unlinkSync(filePath)
+            cleaned.push(file)
+            continue
+        }
+
+        // Keep everything else
+        kept.push(file)
+    }
+
+    return { cleaned, kept }
+}
+
+/**
+ * Repair a session by cleaning corrupted parts and reconnecting.
+ * This should fix "Waiting for this message" issues without QR rescan.
+ */
+async function repairSession(sessionId: string): Promise<{ success: boolean, message: string, details: any }> {
+    const session = sessions.get(sessionId)
+
+    // Check if repair already in progress
+    if (session?.isRepairing) {
+        return { success: false, message: 'Repair already in progress', details: {} }
+    }
+
+    // Check cooldown (minimum 60 seconds between repairs)
+    const now = Date.now()
+    if (session && (now - session.lastRepairTime) < 60000) {
+        const waitTime = Math.ceil((60000 - (now - session.lastRepairTime)) / 1000)
+        return { success: false, message: `Repair cooldown active. Wait ${waitTime}s`, details: {} }
+    }
+
+    console.log(`[Recovery] Starting session repair for ${sessionId}...`)
+
+    if (session) {
+        session.isRepairing = true
+        session.lastRepairTime = now
+    }
+
+    try {
+        // Step 1: Disconnect current session if active
+        if (session) {
+            try {
+                session.sock.end(undefined)
+            } catch (e) {
+                // Ignore disconnect errors
+            }
+            sessions.delete(sessionId)
+        }
+
+        // Step 2: Clean corrupted session parts (keep creds.json)
+        const cleanResult = await cleanCorruptedSessionParts(sessionId)
+        console.log(`[Recovery] Cleaned: ${cleanResult.cleaned.join(', ') || 'nothing'}`)
+        console.log(`[Recovery] Kept: ${cleanResult.kept.join(', ')}`)
+
+        // Step 3: Wait a moment for cleanup to complete
+        await new Promise(resolve => setTimeout(resolve, 2000))
+
+        // Step 4: Restart session
+        await startSession(sessionId)
+
+        // Reset error counters on the new session
+        const newSession = sessions.get(sessionId)
+        if (newSession) {
+            newSession.badMacCount = 0
+            newSession.decryptErrors = 0
+            newSession.isRepairing = false
+        }
+
+        console.log(`[Recovery] Session ${sessionId} repair complete`)
+
+        return {
+            success: true,
+            message: 'Session repaired successfully. No QR rescan needed.',
+            details: {
+                cleaned: cleanResult.cleaned,
+                kept: cleanResult.kept
+            }
+        }
+    } catch (error: any) {
+        console.error(`[Recovery] Repair failed for ${sessionId}:`, error)
+
+        if (session) {
+            session.isRepairing = false
+        }
+
+        return {
+            success: false,
+            message: `Repair failed: ${error.message}`,
+            details: {}
+        }
+    }
+}
+
 // --- SESSION STARTUP LOGIC ---
 async function startSession(sessionId: string) {
     if (sessions.has(sessionId)) {
@@ -228,7 +384,12 @@ async function startSession(sessionId: string) {
         store,
         messageCache: new Map<string, WAMessage>(),
         lidToPnMap: new Map<string, string>(),
-        wasConnected: false // Will be set to true when connection opens
+        wasConnected: false, // Will be set to true when connection opens
+        // Error tracking for auto-recovery
+        badMacCount: 0,
+        decryptErrors: 0,
+        lastRepairTime: 0,
+        isRepairing: false
     }
 
     sessions.set(sessionId, sessionData)
@@ -530,6 +691,22 @@ server.post('/api/sessions/delete', async (req: any, reply) => {
 
     // NO restart - session is gone forever
     return { success: true, message: 'Session deleted permanently' }
+})
+
+// Repair Session (Clean corrupted parts WITHOUT full reset - no QR rescan needed)
+server.post('/api/sessions/repair', async (req: any, reply) => {
+    const { sessionId } = req.body
+    if (!sessionId) return reply.code(400).send({ error: 'Missing sessionId' })
+
+    server.log.info({ sessionId }, 'Repairing session (cleaning corrupted parts)...')
+
+    const result = await repairSession(sessionId)
+
+    if (!result.success) {
+        return reply.code(400).send(result)
+    }
+
+    return result
 })
 
 // Get Status (Compat with multiple)
