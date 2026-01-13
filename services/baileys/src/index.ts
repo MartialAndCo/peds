@@ -1033,7 +1033,10 @@ server.post('/api/admin/action', async (req: any, reply) => {
     // Some actions might be global, others session specific
 
     if (action === 'restart') {
-        process.exit(0) // Docker will restart
+        setTimeout(() => {
+            process.exit(0) // Docker will restart
+        }, 1000)
+        return { success: true, message: 'Restarting container...' }
     }
 
     return { success: true }
