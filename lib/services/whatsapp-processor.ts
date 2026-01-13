@@ -129,6 +129,58 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
         // Track if we resolved a real phone number from LID (for updating existing contacts)
         const wasLidResolved = from.includes('@lid') && payload._data?.phoneNumber
 
+        // 2a. Self-Healing: Merge Ghost Contact if LID is resolved
+        if (wasLidResolved) {
+            const lidJid = from // e.g. 767...@lid
+            try {
+                // Check if a ghost contact exists with phone_whatsapp = LID
+                const ghostContact = await prisma.contact.findUnique({ where: { phone_whatsapp: lidJid } })
+
+                if (ghostContact) {
+                    logger.info('Healing: Found duplicate ghost contact for LID', { lid: lidJid, realPhone: normalizedPhone })
+
+                    // 1. Move conversations to the real phone number (which we are about to upsert)
+                    // First ensure real contact exists (or will be created below, but we need ID for relation update)
+                    // To avoid complexity, we actually just upsert the real contact NOW to get its ID
+                    const realContact = await prisma.contact.upsert({
+                        where: { phone_whatsapp: normalizedPhone },
+                        update: {},
+                        create: {
+                            phone_whatsapp: normalizedPhone,
+                            name: payload._data?.notifyName || ghostContact.name || "Inconnu",
+                            source: 'WhatsApp Incoming (Healed)',
+                            status: ghostContact.status
+                        }
+                    })
+
+                    // Move Conversations
+                    await prisma.conversation.updateMany({
+                        where: { contactId: ghostContact.id },
+                        data: { contactId: realContact.id }
+                    })
+
+                    // Move Messages (if any were linked to contact directly, but they are linked to conversation usually)
+                    // Move MessageQueue items
+                    await prisma.messageQueue.updateMany({
+                        where: { contactId: ghostContact.id },
+                        data: { contactId: realContact.id }
+                    })
+
+                    // Move Payments
+                    await prisma.payment.updateMany({
+                        where: { contactId: ghostContact.id },
+                        data: { contactId: realContact.id }
+                    })
+
+                    // Delete Ghost
+                    await prisma.contact.delete({ where: { id: ghostContact.id } })
+                    logger.info('Healing: Merged and deleted ghost contact', { ghostId: ghostContact.id, realId: realContact.id })
+                }
+            } catch (e) {
+                logger.error('Healing: Failed to merge duplicate contacts', e)
+            }
+        }
+
         const contact = await prisma.contact.upsert({
             where: { phone_whatsapp: normalizedPhone },
             update: {
