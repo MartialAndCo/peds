@@ -818,23 +818,43 @@ server.post('/api/sendText', async (req: any, reply) => {
 
 // Mark as Read/Seen
 server.post('/api/markSeen', async (req: any, reply) => {
-    const { sessionId, chatId } = req.body
+    const { sessionId, chatId, messageId } = req.body
     const session = sessions.get(sessionId || 'default')
     if (!session) return reply.code(404).send({ error: 'Session not found' })
 
     const jid = chatId.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`
 
     try {
-        // Try to read from store or cache to get the last message key
-        // Simple fallback: send presence update 'available' (user comes online)
-        // Note: Real 'read' receipt requires message key. 
-        // We will just update presence for now as 'mark read' logic is complex without message ID context.
-        // Or if we have a key in req, we use it.
-        // Future: Frontend should pass messageId(s) to mark read.
+        // If messageId is provided, try to get the message from cache
+        if (messageId && session.messageCache.has(messageId)) {
+            const cachedMsg = session.messageCache.get(messageId)
+            if (cachedMsg?.key) {
+                await session.sock.readMessages([cachedMsg.key])
+                server.log.info({ sessionId, chatId, messageId }, 'Marked message as read')
+                return { success: true, method: 'specific_message' }
+            }
+        }
 
-        // For now, at least prevent 404
-        return { success: true }
+        // Try to get the last message from the store for this chat
+        const lastMsg = await session.store?.loadMessage?.(jid, messageId || '')
+        if (lastMsg?.key) {
+            await session.sock.readMessages([lastMsg.key])
+            server.log.info({ sessionId, chatId }, 'Marked last message as read from store')
+            return { success: true, method: 'store_lookup' }
+        }
+
+        // Fallback: Create a minimal key structure to attempt read
+        // This may not always work but is better than nothing
+        const fallbackKey = {
+            remoteJid: jid,
+            id: messageId || 'unknown',
+            fromMe: false
+        }
+        await session.sock.readMessages([fallbackKey])
+        server.log.info({ sessionId, chatId, fallbackKey }, 'Attempted read with fallback key')
+        return { success: true, method: 'fallback' }
     } catch (e: any) {
+        server.log.error({ err: e, sessionId, chatId }, 'Failed to mark as read')
         return reply.code(500).send({ error: e.message })
     }
 })
