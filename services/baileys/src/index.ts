@@ -4,7 +4,8 @@ import makeWASocket, {
     fetchLatestBaileysVersion,
     makeCacheableSignalKeyStore,
     WAMessage,
-    downloadMediaMessage
+    downloadMediaMessage,
+    makeInMemoryStore
 } from '@whiskeysockets/baileys'
 import { Boom } from '@hapi/boom'
 import fastify from 'fastify'
