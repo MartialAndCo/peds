@@ -33,7 +33,12 @@ if (!AUTH_TOKEN) {
 process.on('uncaughtException', (err) => {
     console.error('Uncaught Exception:', err)
 })
-process.on('unhandledRejection', (reason, promise) => {
+process.on('unhandledRejection', (reason: any, promise) => {
+    // Filter known harmless errors during repair
+    if (reason?.message?.includes('Connection Closed')) {
+        console.log('[IGNORE] Connection closed during operation - expected during repair')
+        return
+    }
     console.error('Unhandled Rejection at:', promise, 'reason:', reason)
 })
 
@@ -252,10 +257,9 @@ async function cleanCorruptedSessionParts(sessionId: string): Promise<{ cleaned:
             continue
         }
 
-        // Delete app-state-sync files (can cause desync)
+        // KEEP app-state-sync files (removing them can cause more issues)
         if (file.startsWith('app-state-sync')) {
-            fs.unlinkSync(filePath)
-            cleaned.push(file)
+            kept.push(file)
             continue
         }
 
@@ -542,7 +546,7 @@ async function startSession(sessionId: string) {
                 if (msg.messageStubType === 2) {
                     const now = Date.now()
                     // GRACE PERIOD: Ignore errors if we just repaired recently (e.g. within 20s)
-                    if (now - sessionData.lastRepairTime < 20000) {
+                    if (now - sessionData.lastRepairTime < 60000) { // 60s grace period for key resync
                         server.log.warn({ sessionId, timeSinceRepair: now - sessionData.lastRepairTime }, 'Ignoring decrypt error during post-repair grace period')
                         return
                     }
