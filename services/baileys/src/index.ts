@@ -1292,5 +1292,5 @@ server.listen({ port: PORT, host: '0.0.0.0' }, (err, address) => {
                 console.error(`[Maintenance] Failed for ${sessionId}:`, e)
             }
         }
-    }, 6 * 60 * 60 * 1000) // Every 6 hours
+    }, 30 * 60 * 1000) // Every 30 minutes
 })
