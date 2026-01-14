@@ -797,6 +797,77 @@ server.get('/api/sessions/:sessionId/status', async (req: any, reply) => {
     return { status: session.status, qr: session.qr }
 })
 
+// Proactive Session Maintenance - Cleans old per-contact session files
+server.post('/api/sessions/:sessionId/maintenance', async (req: any, reply) => {
+    const { sessionId } = req.params
+    const { maxAgeDays } = req.body || {}
+    const maxAge = (maxAgeDays || 7) * 24 * 60 * 60 * 1000 // Default 7 days
+
+    server.log.info({ sessionId, maxAgeDays: maxAgeDays || 7 }, 'Running proactive session maintenance')
+
+    const authPath = path.join(BASE_AUTH_DIR, `session_${sessionId}`)
+    if (!fs.existsSync(authPath)) {
+        return reply.code(404).send({ error: 'Session folder not found' })
+    }
+
+    const now = Date.now()
+    const cleaned: string[] = []
+    const kept: string[] = []
+
+    try {
+        const files = fs.readdirSync(authPath)
+
+        for (const file of files) {
+            const filePath = path.join(authPath, file)
+            const stat = fs.statSync(filePath)
+
+            // Keep essential files: creds.json, store.json
+            if (file === 'creds.json' || file === 'store.json') {
+                kept.push(file)
+                continue
+            }
+
+            // Check age of session-*.json files (per-contact encryption keys)
+            if (file.startsWith('session-')) {
+                const fileAge = now - stat.mtimeMs
+                if (fileAge > maxAge) {
+                    fs.unlinkSync(filePath)
+                    cleaned.push(file)
+                    server.log.info({ sessionId, file, ageDays: Math.floor(fileAge / (24 * 60 * 60 * 1000)) }, 'Cleaned old session file')
+                } else {
+                    kept.push(file)
+                }
+                continue
+            }
+
+            // Clean old pre-key files (>7 days)
+            if (file.startsWith('pre-key-')) {
+                const fileAge = now - stat.mtimeMs
+                if (fileAge > maxAge) {
+                    fs.unlinkSync(filePath)
+                    cleaned.push(file)
+                }
+                continue
+            }
+
+            kept.push(file)
+        }
+
+        server.log.info({ sessionId, cleaned: cleaned.length, kept: kept.length }, 'Maintenance complete')
+
+        return {
+            success: true,
+            cleaned: cleaned.length,
+            kept: kept.length,
+            cleanedFiles: cleaned.slice(0, 20), // Limit response size
+            message: `Cleaned ${cleaned.length} old files`
+        }
+    } catch (e: any) {
+        server.log.error({ sessionId, err: e.message }, 'Maintenance failed')
+        return reply.code(500).send({ error: e.message })
+    }
+})
+
 // Global Status (Fallback for single-session legacy calls)
 server.get('/status', async (req, reply) => {
     // Return the status of the first available session or 'default'
@@ -1185,4 +1256,41 @@ server.listen({ port: PORT, host: '0.0.0.0' }, (err, address) => {
             }
         }
     }, 5 * 60 * 1000) // Every 5 minutes
+
+    // Proactive session maintenance - clean old session files every 6 hours
+    setInterval(async () => {
+        console.log('[Maintenance] Running proactive session cleanup...')
+        for (const [sessionId, session] of sessions) {
+            if (session.status !== 'CONNECTED') continue
+
+            const authPath = path.join(BASE_AUTH_DIR, `session_${sessionId}`)
+            if (!fs.existsSync(authPath)) continue
+
+            const MAX_AGE = 7 * 24 * 60 * 60 * 1000 // 7 days
+            const now = Date.now()
+            let cleaned = 0
+
+            try {
+                const files = fs.readdirSync(authPath)
+                for (const file of files) {
+                    if (!file.startsWith('session-') && !file.startsWith('pre-key-')) continue
+                    if (file === 'creds.json' || file === 'store.json') continue
+
+                    const filePath = path.join(authPath, file)
+                    const stat = fs.statSync(filePath)
+                    const fileAge = now - stat.mtimeMs
+
+                    if (fileAge > MAX_AGE) {
+                        fs.unlinkSync(filePath)
+                        cleaned++
+                    }
+                }
+                if (cleaned > 0) {
+                    console.log(`[Maintenance] Session ${sessionId}: Cleaned ${cleaned} old files`)
+                }
+            } catch (e) {
+                console.error(`[Maintenance] Failed for ${sessionId}:`, e)
+            }
+        }
+    }, 6 * 60 * 60 * 1000) // Every 6 hours
 })
