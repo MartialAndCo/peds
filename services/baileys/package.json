@@ -10,7 +10,7 @@
         "dev": "ts-node-dev --respawn --transpile-only --esm src/index.ts"
     },
     "dependencies": {
-        "@whiskeysockets/baileys": "github:WhiskeySockets/Baileys#add-lid-to-message-key",
+        "@whiskeysockets/baileys": "^7.0.0-rc.5",
         "fastify": "^4.24.3",
         "pino": "^8.16.1",
         "pino-pretty": "^10.2.3",
