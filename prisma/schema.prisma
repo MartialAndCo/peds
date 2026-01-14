@@ -172,6 +172,7 @@ model Conversation {
   ai_enabled      Boolean   @default(true)
   processingLock  DateTime? // For ensuring sequential processing
   metadata        Json?     // Flexible storage for flow states (e.g. Lead Ingestion Drafts)
+  lastMemoryExtraction DateTime? // When facts were last extracted to Mem0
   createdAt       DateTime  @default(now())
   closedAt        DateTime?
   
@@ -187,6 +188,7 @@ model Conversation {
   @@index([processingLock])
   @@map("conversations")
 }
+
 
 model Message {
   id              Int      @id @default(autoincrement())

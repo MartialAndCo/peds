@@ -9,7 +9,8 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Loader2, Save, Trash, User, Fingerprint, Mic2, Shield, Palette, AlertOctagon, Sparkles } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
+import { Loader2, Save, Trash, User, Fingerprint, Mic2, Shield, Palette, AlertOctagon, Sparkles, Plus, X, CreditCard } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // Types
@@ -159,7 +160,11 @@ export default function AgentSettingsPage() {
                                         />
                                     </div>
                                 </div>
-                                <div className="space-y-2">
+                                <PaymentMethodsEditor
+                                    settings={promptSettings}
+                                    onChange={setPromptSettings}
+                                />
+                                {/* <div className="space-y-2">
                                     <Label className="text-xs uppercase text-white/50 tracking-wider">PayPal Username</Label>
                                     <Input
                                         value={promptSettings['paypal_username'] || ''}
@@ -168,7 +173,7 @@ export default function AgentSettingsPage() {
                                         className="bg-white/5 border-white/10 text-white font-mono focus:border-white/20"
                                     />
                                     <p className="text-[10px] text-white/30">Used when AI mentions payment method</p>
-                                </div>
+                                </div> */}
                             </div>
                         </div>
 
@@ -330,7 +335,7 @@ export default function AgentSettingsPage() {
                     </Button>
                 </div>
             </div>
-        </div>
+        </div >
     )
 }
 
@@ -422,6 +427,125 @@ function PhaseCard({ title, subtitle, color, borderColor, value, globalValue, on
                 )}
                 placeholder={globalValue}
             />
+        </div>
+    )
+}
+
+function PaymentMethodsEditor({ settings, onChange }: { settings: Record<string, string>, onChange: (s: Record<string, string>) => void }) {
+    const providers = ['PayPal', 'Venmo', 'CashApp', 'Zelle'] // Principals
+
+    const toggleProvider = (provider: string, checked: boolean) => {
+        onChange({
+            ...settings,
+            [`payment_${provider.toLowerCase()}_enabled`]: String(checked)
+        })
+    }
+
+    const updateUsername = (provider: string, val: string) => {
+        onChange({
+            ...settings,
+            [`payment_${provider.toLowerCase()}_username`]: val
+        })
+    }
+
+    // Custom Methods Helpers
+    const getCustoms = () => {
+        try {
+            return JSON.parse(settings['payment_custom_methods'] || '[]')
+        } catch { return [] }
+    }
+
+    const addCustom = () => {
+        const current = getCustoms()
+        const newMethod = { id: Date.now(), name: 'New Method', value: '' }
+        onChange({
+            ...settings,
+            payment_custom_methods: JSON.stringify([...current, newMethod])
+        })
+    }
+
+    const updateCustom = (id: number, field: 'name' | 'value', val: string) => {
+        const current = getCustoms()
+        const updated = current.map((c: any) => c.id === id ? { ...c, [field]: val } : c)
+        onChange({
+            ...settings,
+            payment_custom_methods: JSON.stringify(updated)
+        })
+    }
+
+    const removeCustom = (id: number) => {
+        const current = getCustoms()
+        const updated = current.filter((c: any) => c.id !== id)
+        onChange({
+            ...settings,
+            payment_custom_methods: JSON.stringify(updated)
+        })
+    }
+
+    return (
+        <div className="space-y-4 pt-4 border-t border-white/5">
+            <div className="flex items-center justify-between">
+                <Label className="text-xs uppercase text-white/50 tracking-wider flex items-center gap-2">
+                    <CreditCard className="w-3 h-3" /> Payment Methods
+                </Label>
+                <Button variant="ghost" size="sm" onClick={addCustom} className="h-6 text-[10px] uppercase bg-white/5 hover:bg-white/10 text-white">
+                    <Plus className="w-3 h-3 mr-1" /> Custom
+                </Button>
+            </div>
+
+            <div className="space-y-2">
+                {/* Principals */}
+                {providers.map(p => {
+                    const keyEnabled = `payment_${p.toLowerCase()}_enabled`
+                    const keyUser = `payment_${p.toLowerCase()}_username`
+                    const isEnabled = settings[keyEnabled] === 'true'
+
+                    return (
+                        <div key={p} className={cn("rounded-lg p-3 transition-colors", isEnabled ? "bg-blue-500/10 border border-blue-500/20" : "bg-white/5 border border-white/5")}>
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-bold uppercase tracking-wider text-white/80">{p}</span>
+                                <Switch checked={isEnabled} onCheckedChange={(c) => toggleProvider(p, c)} />
+                            </div>
+                            {isEnabled && (
+                                <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+                                    <Input
+                                        placeholder={`@username or phone`}
+                                        value={settings[keyUser] || ''}
+                                        onChange={e => updateUsername(p, e.target.value)}
+                                        className="bg-black/20 border-white/10 h-8 text-xs font-mono text-white"
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    )
+                })}
+
+                {/* Customs */}
+                {getCustoms().map((c: any) => (
+                    <div key={c.id} className="relative bg-purple-500/10 border border-purple-500/20 rounded-lg p-3 space-y-2 animate-in fade-in slide-in-from-right-2">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeCustom(c.id)}
+                            className="absolute -top-2 -right-2 h-5 w-5 bg-black rounded-full text-white/40 hover:text-red-400 border border-white/10"
+                        >
+                            <X className="w-3 h-3" />
+                        </Button>
+                        <Input
+                            value={c.name}
+                            onChange={e => updateCustom(c.id, 'name', e.target.value)}
+                            placeholder="Method Name (e.g. Lydia)"
+                            className="bg-black/20 border-white/10 h-7 text-xs font-bold text-white"
+                        />
+                        <Input
+                            value={c.value}
+                            onChange={e => updateCustom(c.id, 'value', e.target.value)}
+                            placeholder="Username / Link"
+                            className="bg-black/20 border-white/10 h-8 text-xs font-mono text-white"
+                        />
+                    </div>
+                ))}
+            </div>
         </div>
     )
 }

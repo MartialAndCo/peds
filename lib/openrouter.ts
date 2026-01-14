@@ -12,7 +12,17 @@ export const openrouter = {
 
         if (!apiKey) {
             console.warn("OPENROUTER_API_KEY not configured");
-            return "IA non configurée (Clé API manquante)";
+            // Fallback to Venice (which has RunPod as its own fallback)
+            console.warn("[OpenRouter] No API key, falling back to Venice...");
+            return await venice.chatCompletion(
+                systemPrompt,
+                messages,
+                userMessage,
+                {
+                    temperature: config.temperature,
+                    max_tokens: config.max_tokens
+                }
+            );
         }
 
         const model = config.model || process.env.OPENROUTER_MODEL || "cognitivecomputations/dolphin-mistral-24b-venice-edition:free";
@@ -45,33 +55,33 @@ export const openrouter = {
             return "";
 
         } catch (error: any) {
-            // Check for Rate Limit (429)
+            // Check for Rate Limit (429) or any other error
             const isRateLimit = error?.message?.includes('429') ||
                 JSON.stringify(error).includes('rate-limited') ||
                 error?.code === 429;
 
             if (isRateLimit) {
-                console.warn(`[OpenRouter] Rate limit hit (429). Falling back to Venice Service...`);
-                try {
-                    // Fallback to Venice Service - DO NOT pass the OpenRouter apiKey
-                    return await venice.chatCompletion(
-                        systemPrompt,
-                        messages,
-                        userMessage,
-                        {
-                            // Don't pass apiKey - let Venice use VENICE_API_KEY from env
-                            temperature: config.temperature,
-                            max_tokens: config.max_tokens
-                        }
-                    );
-                } catch (fallbackError) {
-                    console.error("[OpenRouter] Venice Fallback failed:", fallbackError);
-                    return "";
-                }
+                console.warn(`[OpenRouter] Rate limit hit (429). Falling back to Venice...`);
+            } else {
+                console.error(`[OpenRouter] Error:`, error);
+                console.warn(`[OpenRouter] Falling back to Venice...`);
             }
 
-            console.error(`[OpenRouter] Error:`, error);
-            return "";
+            // Fallback to Venice (which internally has RunPod as fallback)
+            try {
+                return await venice.chatCompletion(
+                    systemPrompt,
+                    messages,
+                    userMessage,
+                    {
+                        temperature: config.temperature,
+                        max_tokens: config.max_tokens
+                    }
+                );
+            } catch (fallbackError) {
+                console.error("[OpenRouter] Venice fallback failed:", fallbackError);
+                return "";
+            }
         }
     },
 };

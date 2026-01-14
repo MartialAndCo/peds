@@ -15,17 +15,44 @@ export const memoryService = {
         return new MemoryClient({ apiKey });
     },
 
+    // Build agent-specific user_id to isolate memories per agent
+    buildUserId(phone: string, agentId?: number): string {
+        if (agentId) {
+            return `agent_${agentId}_${phone}`
+        }
+        return phone
+    },
+
     async add(userId: string, text: string) {
         try {
             const client = await this.getClient();
             if (!client) return;
 
-            // Mem0 'add' takes messages or text.
-            // Using userId as the unique identifier for the memory scope.
             await client.add([{ role: "user", content: text }], { user_id: userId });
             console.log(`[Mem0] Memory added for user ${userId}`);
         } catch (error) {
             console.error('[Mem0] Failed to add memory:', error);
+        }
+    },
+
+    // Agent-specific add: isolates memories per agent
+    async addForAgent(phone: string, agentId: number, text: string) {
+        const userId = this.buildUserId(phone, agentId)
+        await this.add(userId, text)
+    },
+
+    // Add multiple facts at once
+    async addMany(userId: string, facts: string[]) {
+        try {
+            const client = await this.getClient();
+            if (!client) return;
+
+            for (const fact of facts) {
+                await client.add([{ role: "user", content: fact }], { user_id: userId });
+            }
+            console.log(`[Mem0] Added ${facts.length} memories for user ${userId}`);
+        } catch (error) {
+            console.error('[Mem0] Failed to add memories:', error);
         }
     },
 
@@ -35,7 +62,6 @@ export const memoryService = {
             if (!client) return [];
 
             const memories = await client.search(query, { user_id: userId });
-            // Structure depends on Mem0 response, usually list of objects with 'memory' text
             return memories || [];
         } catch (error) {
             console.error('[Mem0] Failed to search memory:', error);
@@ -56,12 +82,17 @@ export const memoryService = {
         }
     },
 
+    // Agent-specific getAll
+    async getAllForAgent(phone: string, agentId: number) {
+        const userId = this.buildUserId(phone, agentId)
+        return await this.getAll(userId)
+    },
+
     async deleteAll(userId: string) {
         try {
             const client = await this.getClient();
             if (!client) return;
 
-            // Delete all memories for this user
             await client.deleteAll({ user_id: userId });
             console.log(`[Mem0] All memories deleted for user ${userId}`);
         } catch (error) {
@@ -69,3 +100,4 @@ export const memoryService = {
         }
     }
 };
+

@@ -205,16 +205,29 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     const { memoryService } = require('@/lib/memory')
     const { director } = require('@/lib/director')
 
-    let memories = []
+    // Load ALL memories for this user (agent-specific if agentId available)
+    let memories: any[] = []
     try {
-        const res = await memoryService.search(contact.phone_whatsapp, lastContent)
-        memories = Array.isArray(res) ? res : (res?.results || [])
-    } catch (e) { }
+        // Use agent-isolated memories if agentId is known
+        const memoryUserId = agentId
+            ? memoryService.buildUserId(contact.phone_whatsapp, agentId)
+            : contact.phone_whatsapp
+        const res = await memoryService.getAll(memoryUserId)
+        memories = Array.isArray(res) ? res : (res?.results || res?.memories || [])
+        console.log(`[Chat] Loaded ${memories.length} memories for ${memoryUserId}`)
+    } catch (e) {
+        console.warn('[Chat] Memory retrieval failed', e)
+    }
 
     director.performDailyTrustAnalysis(contact.phone_whatsapp).catch(console.error)
     const { phase, details } = await director.determinePhase(contact.phone_whatsapp)
     let systemPrompt = await director.buildSystemPrompt(settings, contact, phase, details, conversation.prompt.system_prompt, agentId)
-    if (memories.length > 0) systemPrompt += `\n\n[MEMORY]:\n${memories.map((m: any) => `- ${m.memory}`).join('\n')}`
+
+    // Inject memories with clearer phrasing to avoid AI confusing user facts with its own identity
+    if (memories.length > 0) {
+        const memoryBlock = memories.map((m: any) => `- ${m.memory}`).join('\n')
+        systemPrompt += `\n\n[WHAT YOU KNOW ABOUT THE PERSON YOU'RE TALKING TO]:\n${memoryBlock}`
+    }
 
     // 3. Timing
     logger.info('Generating AI response', { module: 'chat', conversationId: conversation.id, phase })

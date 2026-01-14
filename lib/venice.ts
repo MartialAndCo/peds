@@ -1,12 +1,18 @@
 import axios from 'axios'
 import { logger } from './logger'
+import { runpod } from './runpod'
 
 export const venice = {
     async chatCompletion(systemPrompt: string, messages: { role: string, content: string }[], userMessage: string, config: { apiKey?: string, model?: string, temperature?: number, max_tokens?: number, frequency_penalty?: number } = {}) {
         const apiKey = config.apiKey || process.env.VENICE_API_KEY
         if (!apiKey) {
             console.warn('VENICE_API_KEY not configured')
-            return "IA non configurée (Clé API manquante)"
+            // Fallback to RunPod if Venice is not configured
+            console.warn('[Venice] No API key, falling back to RunPod...')
+            return await runpod.chatCompletion(systemPrompt, messages, userMessage, {
+                temperature: config.temperature,
+                max_tokens: config.max_tokens
+            })
         }
 
         const model = config.model || process.env.VENICE_MODEL || 'venice-uncensored'
@@ -54,20 +60,36 @@ export const venice = {
                 console.error(`[Venice] Request failed (Attempt ${attempt}): ${detail}`)
                 logger.error('Venice AI request failed', error, { module: 'venice', attempt, status, detail })
 
-                // If fatal error (Auth / Bad Request), stop immediately
+                // If fatal error (Auth / Bad Request), fallback to RunPod immediately
                 // User reports 402 is flaky, so we retry it. 401/403 are usually permanent.
                 if (status === 400 || status === 401 || status === 403) {
-                    return "";
+                    console.warn(`[Venice] Fatal error (${status}). Falling back to RunPod...`)
+                    return await runpod.chatCompletion(systemPrompt, messages, userMessage, {
+                        temperature: config.temperature,
+                        max_tokens: config.max_tokens
+                    })
                 }
 
-                // If last attempt, return empty
-                if (attempt === MAX_RETRIES) return ""
+                // If last attempt, fallback to RunPod
+                if (attempt === MAX_RETRIES) {
+                    console.warn(`[Venice] All ${MAX_RETRIES} attempts failed. Falling back to RunPod...`)
+                    return await runpod.chatCompletion(systemPrompt, messages, userMessage, {
+                        temperature: config.temperature,
+                        max_tokens: config.max_tokens
+                    })
+                }
 
                 // Wait before retry (Exponential Backoff: 1s, 2s, 4s)
                 const delay = 1000 * Math.pow(2, attempt - 1)
                 await new Promise(r => setTimeout(r, delay))
             }
         }
-        return ""
+
+        // This should not be reached, but fallback to RunPod just in case
+        console.warn('[Venice] Unexpected exit from retry loop. Falling back to RunPod...')
+        return await runpod.chatCompletion(systemPrompt, messages, userMessage, {
+            temperature: config.temperature,
+            max_tokens: config.max_tokens
+        })
     }
 }
