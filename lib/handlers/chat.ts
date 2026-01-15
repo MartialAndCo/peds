@@ -163,6 +163,12 @@ export async function handleChat(
         return { handled: true, result: 'ai_disabled' }
     }
 
+    // CRITICAL: Block empty messages from triggering AI
+    if (!messageText || messageText.trim() === '') {
+        console.warn('[Chat] BLOCKING empty message - no content to process')
+        return { handled: true, result: 'empty_message' }
+    }
+
     // 6. Debounce
     if (!contact.testMode) {
         const DEBOUNCE_MS = 6000
