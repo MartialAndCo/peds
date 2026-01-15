@@ -87,6 +87,27 @@ export async function handleChat(
     }
 
     // 4. Save Contact Message
+    let mediaUrl: string | null = null
+
+    // Media Handling (Image/Video/Audio)
+    if (payload.type === 'image' || payload.type === 'video' || payload.type === 'audio' || payload.type === 'ptt' || payload._data?.mimetype?.startsWith('image') || payload._data?.mimetype?.startsWith('video')) {
+        console.log(`[Chat] Media detected (${payload.type}). Downloading & Uploading...`)
+        try {
+            const media = await whatsapp.downloadMedia(payload.id)
+            if (media && media.data) {
+                const { storage } = require('@/lib/storage')
+                const buffer = Buffer.from(media.data as unknown as string, 'base64')
+                const mime = media.mimetype || (payload.type === 'image' ? 'image/jpeg' : 'video/mp4')
+
+                mediaUrl = await storage.uploadMedia(buffer, mime)
+                if (mediaUrl) console.log(`[Chat] Media uploaded: ${mediaUrl}`)
+                else console.warn('[Chat] Media upload failed')
+            }
+        } catch (e) {
+            console.error('[Chat] Media handling failed:', e)
+        }
+    }
+
     try {
         await prisma.message.create({
             data: {
@@ -94,6 +115,7 @@ export async function handleChat(
                 sender: 'contact',
                 message_text: messageText,
                 waha_message_id: payload.id,
+                mediaUrl: mediaUrl,
                 timestamp: new Date()
             }
         })
