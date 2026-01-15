@@ -16,17 +16,29 @@ export async function GET(req: Request) {
         let stillProcessing = 0
 
         // --- PART 1: Process NEW Messages (PENDING) ---
-        // Limit to 5 to avoid choking lambda
-        const pending = await prisma.incomingQueue.findMany({
-            where: { status: 'PENDING' },
-            take: 5,
-            orderBy: { createdAt: 'asc' }
+        // ATOMIC CLAIM: Use transaction to prevent race conditions
+        // This ensures only ONE CRON invocation can claim each item.
+        const pending = await prisma.$transaction(async (tx) => {
+            // Find items that are ready
+            const items = await tx.incomingQueue.findMany({
+                where: { status: 'PENDING' },
+                take: 5,
+                orderBy: { createdAt: 'asc' }
+            })
+
+            // Immediately lock ALL of them
+            if (items.length > 0) {
+                await tx.incomingQueue.updateMany({
+                    where: { id: { in: items.map(i => i.id) } },
+                    data: { status: 'PROCESSING' }
+                })
+            }
+
+            return items
         })
 
         for (const item of pending) {
-            // Lock
-            await prisma.incomingQueue.update({ where: { id: item.id }, data: { status: 'PROCESSING' } })
-
+            // Item is already locked as PROCESSING by transaction above
             try {
                 const payload = item.payload as any
                 const traceId = trace.generate()
