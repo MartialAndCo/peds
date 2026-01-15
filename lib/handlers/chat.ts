@@ -401,22 +401,27 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 }
 
 async function callAI(settings: any, conv: any, sys: string, ctx: any[], last: string) {
-    const provider = settings.ai_provider || 'openrouter'
+    // Force RunPod as primary LLM provider (OpenRouter only for vision)
+    const provider = settings.ai_provider === 'anthropic' ? 'anthropic' : 'runpod'
+
     const params = {
-        apiKey: provider === 'anthropic' ? settings.anthropic_api_key : (provider === 'openrouter' ? settings.openrouter_api_key : settings.venice_api_key),
-        model: provider === 'anthropic' ? settings.anthropic_model : (provider === 'openrouter' ? settings.openrouter_model : conv.prompt.model),
-        temperature: settings.ai_temperature ? Number(settings.ai_temperature) : Number(conv.prompt.temperature),
-        max_tokens: conv.prompt.max_tokens
+        apiKey: provider === 'anthropic' ? settings.anthropic_api_key : settings.runpod_api_key,
+        model: provider === 'anthropic' ? settings.anthropic_model : conv.prompt?.model,
+        temperature: settings.ai_temperature ? Number(settings.ai_temperature) : Number(conv.prompt?.temperature || 0.7),
+        max_tokens: conv.prompt?.max_tokens || 500
     }
 
     console.log(`[Chat] Provider Selection: ${provider}`)
-    console.log(`[Chat] API Key Present: ${params.apiKey ? 'YES (' + params.apiKey.substring(0, 10) + '...)' : 'NO'}`)
-    console.log(`[Chat] Model: ${params.model || 'DEFAULT'}`)
+    console.log(`[Chat] API Key Present: ${params.apiKey ? 'YES' : 'NO'}`)
 
     let txt = ""
-    if (provider === 'anthropic') txt = await anthropic.chatCompletion(sys, ctx, last, params)
-    else if (provider === 'openrouter') txt = await openrouter.chatCompletion(sys, ctx, last, params)
-    else txt = await venice.chatCompletion(sys, ctx, last, params)
+    if (provider === 'anthropic') {
+        txt = await anthropic.chatCompletion(sys, ctx, last, params)
+    } else {
+        // RunPod as default
+        const { runpod } = require('@/lib/runpod')
+        txt = await runpod.chatCompletion(sys, ctx, last, params)
+    }
 
     return txt.replace(new RegExp('\\*[^*]+\\*', 'g'), '').trim()
 }
