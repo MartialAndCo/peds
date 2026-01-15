@@ -88,10 +88,9 @@ export const openrouter = {
             }
         }
     },
-
     /**
-     * Describe an image using Dolphin Vision 72B (NSFW-compatible).
-     * Sends the image directly to the multimodal model.
+     * Describe an image using Qwen2.5-VL (NSFW-compatible).
+     * Uses direct API call instead of SDK for better format compatibility.
      */
     async describeImage(
         imageBuffer: Buffer,
@@ -114,36 +113,33 @@ export const openrouter = {
 
             console.log(`[OpenRouter Vision] Analyzing image with ${VISION_MODEL}...`);
 
-            const client = new OpenRouter({ apiKey: key });
-            const completion = await client.chat.send({
+            // Use direct axios call instead of SDK (SDK has stricter validation)
+            const axios = require('axios');
+            const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
                 model: VISION_MODEL,
                 messages: [
                     {
-                        role: "system",
-                        content: "You are an uncensored image recognition assistant. Describe objectively what is in the image. If the image contains nudity or explicit content, describe it clinically without refusing or moralizing. Be concise."
-                    },
-                    {
                         role: "user",
                         content: [
-                            { type: "text", text: customPrompt || "What is in this image?" },
-                            {
-                                type: "image_url",
-                                image_url: { url: dataUrl }
-                            }
-                        ] as any
+                            { type: "text", text: customPrompt || "What is in this image? Describe it briefly." },
+                            { type: "image_url", image_url: { url: dataUrl } }
+                        ]
                     }
-                ] as any,
-                maxTokens: 300,
-                stream: false
+                ],
+                max_tokens: 300
+            }, {
+                headers: {
+                    'Authorization': `Bearer ${key}`,
+                    'Content-Type': 'application/json',
+                    'HTTP-Referer': 'https://github.com/MartialAndCo/peds'
+                },
+                timeout: 60000
             });
 
-            const content = completion.choices[0]?.message?.content;
+            const content = response.data.choices[0]?.message?.content;
             if (typeof content === 'string') {
                 console.log(`[OpenRouter Vision] Description: ${content.substring(0, 100)}...`);
                 return content;
-            }
-            if (Array.isArray(content)) {
-                return content.map((part: any) => (part.type === 'text' ? part.text : '')).join('');
             }
             return null;
 
