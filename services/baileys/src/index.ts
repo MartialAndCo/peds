@@ -1298,4 +1298,26 @@ server.listen({ port: PORT, host: '0.0.0.0' }, (err, address) => {
             }
         }
     }, 30 * 60 * 1000) // Every 30 minutes
+
+    // Process incoming message queue - call Amplify CRON every 30 seconds
+    setInterval(async () => {
+        try {
+            const webhookUrl = WEBHOOK_URL?.replace('/api/webhooks/whatsapp', '/api/cron/process-incoming')
+            if (!webhookUrl) return
+
+            const response = await axios.get(webhookUrl, {
+                timeout: 60000, // 60s timeout for slow AI providers
+                headers: { 'x-cron-source': 'baileys' }
+            })
+
+            if (response.data?.processed > 0) {
+                console.log(`[CRON] Processed ${response.data.processed} incoming messages`)
+            }
+        } catch (e: any) {
+            // Silent fail - it's just a CRON trigger
+            if (e.code !== 'ECONNABORTED') {
+                console.error('[CRON] Process-incoming failed:', e.message)
+            }
+        }
+    }, 30 * 1000) // Every 30 seconds
 })
