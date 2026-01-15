@@ -11,7 +11,8 @@ import {
     Settings,
     ArrowLeft,
     Image as ImageIcon,
-    Users
+    Users,
+    ShieldCheck
 } from 'lucide-react'
 import { useAgent } from '@/components/agent-provider'
 
@@ -38,6 +39,7 @@ export function SidebarWorkspace() {
                 { label: 'Identity', icon: Fingerprint, href: `${baseUrl}/identity` },
                 { label: 'Connectivity', icon: Zap, href: `${baseUrl}/connection` },
                 { label: 'Settings', icon: Settings, href: `${baseUrl}/settings` },
+                { label: 'Moderation', icon: ShieldCheck, href: `${baseUrl}/moderation` },
             ]
         },
         {

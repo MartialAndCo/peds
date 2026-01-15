@@ -14,7 +14,8 @@ import {
     Server,
     ShieldCheck,
     Globe,
-    ListTodo
+    ListTodo,
+    Mic2
 } from 'lucide-react'
 
 const adminRoutes = [
@@ -35,10 +36,9 @@ const adminRoutes = [
     {
         title: "System",
         routes: [
-            { label: 'Queue', icon: ListTodo, href: '/admin/queue' },
-            { label: 'Infrastructure', icon: Server, href: '/admin/system' },
+            { label: 'Monitor', icon: ListTodo, href: '/admin/system' },
+            { label: 'Voice Library', icon: Mic2, href: '/admin/voices' },
             { label: 'Settings', icon: Settings, href: '/admin/settings' },
-            { label: 'Moderation', icon: ShieldCheck, href: '/admin/moderation' },
         ]
     }
 ]
