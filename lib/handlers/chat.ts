@@ -272,12 +272,23 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     // 3. Timing
     logger.info('Generating AI response', { module: 'chat', conversationId: conversation.id, phase })
     const lastUserDate = new Date() // Approx
-    const timing = TimingManager.analyzeContext(lastUserDate, phase)
-    if (contact.testMode) {
-        // Use 20-30 second delay even in test mode to prevent rapid-fire responses that destabilize WhatsApp
-        timing.delaySeconds = Math.floor(Math.random() * 10) + 20; // Random 20-30 seconds
-        timing.mode = 'INSTANT_TEST'
+    let timing = TimingManager.analyzeContext(lastUserDate, phase)
+
+    // Debug logging
+    console.log(`[Timing] Contact testMode: ${contact.testMode}`)
+    console.log(`[Timing] Before override - Mode: ${timing.mode}, Delay: ${timing.delaySeconds}s`)
+
+    // TEST MODE: Override ALL timing, respond in 3-8 seconds
+    if (contact.testMode === true) {
+        timing = {
+            mode: 'INSTANT_TEST' as any,
+            delaySeconds: Math.floor(Math.random() * 5) + 3, // 3-8 seconds
+            shouldGhost: true
+        }
+        console.log(`[Timing] TEST MODE ACTIVE - Overriding to ${timing.delaySeconds}s`)
     }
+
+    console.log(`[Timing] Final - Mode: ${timing.mode}, Delay: ${timing.delaySeconds}s`)
 
     // Queue if delay > 22s
     if (timing.delaySeconds > 22) {
