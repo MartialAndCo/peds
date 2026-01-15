@@ -79,7 +79,8 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
 
         // --- 1. Source (Admin) Logic ---
         const adminPhone = settings.source_phone_number
-        const mediaSourcePhone = settings.media_source_number || adminPhone
+        // NOTE: mediaSourcePhone does NOT fallback to admin - if not set, media requests will fail
+        const mediaSourcePhone = settings.media_source_number
         const voiceSourcePhone = settings.voice_source_number || adminPhone
         const leadProviderPhone = settings.lead_provider_number || adminPhone
 

@@ -308,6 +308,18 @@ export default function AgentSettingsPage() {
                                         </SelectContent>
                                     </Select>
                                 </div>
+                                <div className="space-y-2 pt-4 border-t border-white/5">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <Label className="text-xs uppercase text-white/50 tracking-wider">Voice Response Mode</Label>
+                                            <p className="text-[10px] text-white/30 mt-1">When enabled, voice messages trigger RVC pipeline instead of text responses</p>
+                                        </div>
+                                        <Switch
+                                            checked={promptSettings['voice_response_enabled'] === 'true'}
+                                            onCheckedChange={(checked) => setPromptSettings({ ...promptSettings, voice_response_enabled: checked ? 'true' : 'false' })}
+                                        />
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div className="md:col-span-2">
