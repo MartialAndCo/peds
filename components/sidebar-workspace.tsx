@@ -29,6 +29,7 @@ export function SidebarWorkspace() {
             title: "Performance",
             routes: [
                 { label: 'Overview', icon: LayoutDashboard, href: `${baseUrl}` },
+                { label: 'Pipeline', icon: Zap, href: `${baseUrl}/pipeline` },
                 { label: 'Conversations', icon: MessageSquare, href: `${baseUrl}/conversations` },
                 { label: 'Contacts', icon: Users, href: `${baseUrl}/contacts` },
             ]

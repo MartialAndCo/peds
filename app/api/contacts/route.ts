@@ -20,6 +20,7 @@ export async function GET(req: Request) {
     const status = searchParams.get('status')
     const source = searchParams.get('source')
     const search = searchParams.get('search')
+    const agentId = searchParams.get('agentId')
 
     const where: any = {}
     if (status) where.status = status
@@ -29,6 +30,13 @@ export async function GET(req: Request) {
             { name: { contains: search } }, // sqlite is distinct from postgres (ilike vs contains fallback)
             { phone_whatsapp: { contains: search } }
         ]
+    }
+
+    // Filter by Agent if provided
+    if (agentId) {
+        where.conversations = {
+            some: { agentId: parseInt(agentId) }
+        }
     }
 
     // Filter out hidden contacts unless explicitly requested? No, user wants them gone.

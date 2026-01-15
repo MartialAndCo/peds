@@ -58,6 +58,7 @@ model Contact {
   conversations   Conversation[]
   payments        Payment[]
   messageQueue    MessageQueue[]
+  trustLogs       TrustLog[]
 
   @@index([status])
   @@index([source])
@@ -207,6 +208,21 @@ model Message {
   @@index([sender])
   @@index([timestamp])
   @@map("messages")
+}
+
+model TrustLog {
+  id             Int      @id @default(autoincrement())
+  contactId      String
+  contact        Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  oldScore       Int
+  newScore       Int
+  change         Int 
+  reason         String? 
+  transcript     String? 
+  createdAt      DateTime @default(now())
+
+  @@index([contactId])
+  @@map("trust_logs")
 }
 
 model Setting {

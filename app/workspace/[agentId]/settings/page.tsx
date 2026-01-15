@@ -179,6 +179,59 @@ export default function AgentSettingsPage() {
                 </div>
             </div>
 
+            {/* Phase Progression Configuration */}
+            <div className="glass rounded-2xl p-6">
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="h-10 w-10 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-400">
+                        <Save className="h-5 w-5" />
+                    </div>
+                    <div>
+                        <h3 className="text-white font-medium">Auto-Progression Rules</h3>
+                        <p className="text-white/40 text-xs">Configure how contacts move between phases.</p>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <SettingInput
+                        label="Trust Threshold: Phase 2"
+                        desc="Score needed for Fast Track to Phase 2"
+                        value={promptSettings['phase_limit_trust_medium']}
+                        globalValue={globalSettings['phase_limit_trust_medium'] || '60'}
+                        onChange={(v: string) => setPromptSettings({ ...promptSettings, phase_limit_trust_medium: v })}
+                    />
+                    <SettingInput
+                        label="Trust Threshold: Phase 3"
+                        desc="Score needed for Fast Track to Phase 3"
+                        value={promptSettings['phase_limit_trust_high']}
+                        globalValue={globalSettings['phase_limit_trust_high'] || '75'}
+                        onChange={(v: string) => setPromptSettings({ ...promptSettings, phase_limit_trust_high: v })}
+                    />
+                    <div className="hidden lg:block"></div>
+
+                    <SettingInput
+                        label="Phase 1 duration (Fast)"
+                        desc="Minimum days if Trust is High"
+                        value={promptSettings['phase_days_fast_connection']}
+                        globalValue={globalSettings['phase_days_fast_connection'] || '2'}
+                        onChange={(v: string) => setPromptSettings({ ...promptSettings, phase_days_fast_connection: v })}
+                    />
+                    <SettingInput
+                        label="Phase 1 duration (Slow)"
+                        desc="Force move to Phase 2 after N days"
+                        value={promptSettings['phase_days_slow_connection']}
+                        globalValue={globalSettings['phase_days_slow_connection'] || '5'}
+                        onChange={(v: string) => setPromptSettings({ ...promptSettings, phase_days_slow_connection: v })}
+                    />
+                    <SettingInput
+                        label="Phase 2 duration (Slow)"
+                        desc="Force move to Phase 3 after N days"
+                        value={promptSettings['phase_days_slow_vulnerability']}
+                        globalValue={globalSettings['phase_days_slow_vulnerability'] || '12'}
+                        onChange={(v: string) => setPromptSettings({ ...promptSettings, phase_days_slow_vulnerability: v })}
+                    />
+                </div>
+            </div>
+
             {/* Danger Zone - Always visible at bottom, distinct style */}
             <div className="mt-12 pt-8 border-t border-white/5">
                 <div className="flex justify-between items-center opacity-50 hover:opacity-100 transition-opacity">
@@ -233,6 +286,43 @@ function PromptCard({ value, globalValue, onChange, minHeight = "min-h-[120px]" 
                     </Button>
                 </div>
             )}
+        </div>
+    )
+}
+
+function SettingInput({ label, desc, value, globalValue, onChange }: any) {
+    const isOverridden = value !== undefined && value !== null && value !== ''
+
+    return (
+        <div className={cn(
+            "rounded-xl border p-4 transition-all duration-300 relative group",
+            isOverridden ? "bg-purple-500/[0.02] border-purple-500/30" : "bg-white/[0.02] border-white/5"
+        )}>
+            <Label className="text-xs uppercase text-white/50 tracking-wider block mb-1">{label}</Label>
+            <p className="text-[10px] text-white/30 mb-3">{desc}</p>
+
+            <div className="relative">
+                <input
+                    type="text"
+                    value={value || ''}
+                    placeholder={globalValue ? `Default: ${globalValue}` : 'No default'}
+                    onChange={e => onChange(e.target.value)}
+                    className={cn(
+                        "w-full bg-transparent border rounded-md p-2 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500/50",
+                        isOverridden ? "border-purple-500/30 text-white" : "border-white/10 text-white/60"
+                    )}
+                />
+
+                {isOverridden && (
+                    <button
+                        onClick={() => onChange('')}
+                        className="absolute right-2 top-2 text-white/20 hover:text-red-400"
+                        title="Reset to Default"
+                    >
+                        <Trash className="w-3 h-3" />
+                    </button>
+                )}
+            </div>
         </div>
     )
 }

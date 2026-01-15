@@ -265,9 +265,36 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         console.warn('[Chat] Memory retrieval failed', e)
     }
 
-    director.performDailyTrustAnalysis(contact.phone_whatsapp).catch(console.error)
-    const { phase, details } = await director.determinePhase(contact.phone_whatsapp)
-    let systemPrompt = await director.buildSystemPrompt(settings, contact, phase, details, conversation.prompt.system_prompt, agentId)
+    // Check for Trust Analysis Trigger
+    // Trigger every 10 messages OR if > 12 hours since last analysis
+    const MSG_INTERVAL = 10;
+    const TIME_INTERVAL = 12 * 60 * 60 * 1000;
+
+    let shouldAnalyze = false;
+    if (!contact.lastTrustAnalysis) shouldAnalyze = true;
+    else {
+        const timeDiff = new Date().getTime() - new Date(contact.lastTrustAnalysis).getTime();
+        if (timeDiff > TIME_INTERVAL) shouldAnalyze = true;
+        else {
+            // Count messages since last analysis
+            const recentCount = await prisma.message.count({
+                where: {
+                    conversationId: conversation.id,
+                    timestamp: { gt: contact.lastTrustAnalysis }
+                }
+            });
+            if (recentCount >= MSG_INTERVAL) shouldAnalyze = true;
+        }
+    }
+
+    if (shouldAnalyze) {
+        console.log(`[Chat] Triggering Trust Analysis for ${contact.phone_whatsapp}...`);
+        // Run in background to not block response
+        director.performTrustAnalysis(contact.phone_whatsapp).catch(console.error);
+    }
+
+    const { phase, details, reason } = await director.determinePhase(contact.phone_whatsapp)
+    let systemPrompt = await director.buildSystemPrompt(settings, contact, phase, details, conversation.prompt.system_prompt, agentId, reason)
 
     // Inject memories with clearer phrasing to avoid AI confusing user facts with its own identity
     if (memories.length > 0) {
