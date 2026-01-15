@@ -13,6 +13,7 @@ export async function getConfig() {
         return {
             endpoint: settings.waha_endpoint || process.env.WAHA_ENDPOINT || defaultEndpoint,
             apiKey: settings.waha_api_key || process.env.WAHA_API_KEY || 'secret',
+            defaultSession: settings.waha_session || process.env.WAHA_SESSION || 'default',
             webhookSecret: process.env.WEBHOOK_SECRET
         }
     } catch (e) {
@@ -20,6 +21,7 @@ export async function getConfig() {
         return {
             endpoint: process.env.WAHA_ENDPOINT || 'http://127.0.0.1:3001',
             apiKey: process.env.WAHA_API_KEY || 'secret',
+            defaultSession: process.env.WAHA_SESSION || 'default',
             webhookSecret: process.env.WEBHOOK_SECRET
         }
     }
@@ -30,7 +32,7 @@ export const whatsapp = {
         console.log(`[WhatsApp] Sending Text to ${chatId} (Agent: ${agentId}, Text: "${text.substring(0, 30)}...")`)
         const textPreview = text.substring(0, 50) + (text.length > 50 ? '...' : '')
         logger.info('Sending text message', { module: 'whatsapp', chatId, textPreview, agentId })
-        const { endpoint, apiKey } = await getConfig()
+        const { endpoint, apiKey, defaultSession } = await getConfig()
 
         if (!endpoint) {
             logger.warn('WHATSAPP_ENDPOINT not configured', { module: 'whatsapp' })
@@ -42,7 +44,7 @@ export const whatsapp = {
 
             // Call our new microservice
             const response = await axios.post(`${endpoint}/api/sendText`, {
-                sessionId: agentId?.toString(), // Pass Agent ID as Session ID
+                sessionId: agentId?.toString() || defaultSession, // Use Agent ID or Default Session
                 chatId: formattedChatId,
                 text,
                 replyTo
