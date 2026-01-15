@@ -11,6 +11,8 @@ const createConversationSchema = z.object({
     initial_message: z.string().min(1).optional(),
 })
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: Request) {
     try {
         const session = await getServerSession(authOptions)
@@ -22,6 +24,8 @@ export async function GET(req: Request) {
         const status = searchParams.get('status')
         const contactId = searchParams.get('contact_id')
         const agentId = searchParams.get('agentId')
+
+        console.log(`[API GET Conversations] AgentId: ${agentId}, Status: ${status}, Contact: ${contactId}`)
 
         const where: any = {}
         if (status) where.status = status
