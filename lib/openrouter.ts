@@ -109,8 +109,8 @@ export const openrouter = {
             const base64Image = imageBuffer.toString('base64');
             const dataUrl = `data:${mimeType};base64,${base64Image}`;
 
-            // Use Dolphin Vision 72B for uncensored image analysis
-            const VISION_MODEL = "cognitivecomputations/dolphin-vision-72b";
+            // Use Qwen2.5-VL for uncensored image/video analysis
+            const VISION_MODEL = "qwen/qwen-2.5-vl-72b-instruct";
 
             console.log(`[OpenRouter Vision] Analyzing image with ${VISION_MODEL}...`);
 
