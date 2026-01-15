@@ -26,7 +26,14 @@ export async function GET(req: Request) {
         const where: any = {}
         if (status) where.status = status
         if (contactId) where.contactId = contactId
-        if (agentId) where.agentId = parseInt(agentId)
+
+        // Filter by Agent: Include matching Agent ID OR null (legacy/unassigned)
+        if (agentId) {
+            where.OR = [
+                { agentId: parseInt(agentId) },
+                { agentId: null }
+            ]
+        }
 
         const conversations = await prisma.conversation.findMany({
             where,
