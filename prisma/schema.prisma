@@ -340,3 +340,19 @@ model WebhookEvent {
   @@index([status])
   @@map("webhook_events")
 }
+
+// Incoming message queue for async processing (prevents timeout)
+model IncomingQueue {
+  id          Int       @id @default(autoincrement())
+  payload     Json      // Full webhook payload from Baileys
+  agentId     Int
+  status      String    @default("PENDING") // PENDING, PROCESSING, DONE, FAILED
+  attempts    Int       @default(0)
+  error       String?
+  createdAt   DateTime  @default(now())
+  processedAt DateTime?
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("incoming_queue")
+}

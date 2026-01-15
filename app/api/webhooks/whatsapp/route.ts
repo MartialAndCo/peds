@@ -1,8 +1,15 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { processWhatsAppPayload } from '@/lib/services/whatsapp-processor'
-import { logger, trace } from '@/lib/logger'
+import { logger } from '@/lib/logger'
 
+/**
+ * WhatsApp Webhook Handler
+ * 
+ * Receives messages from Baileys and queues them for async processing.
+ * Returns 200 immediately to prevent timeout issues.
+ * 
+ * Processing happens via CRON: /api/cron/process-incoming
+ */
 export async function POST(req: Request) {
     try {
         const body = await req.json()
@@ -16,6 +23,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
+        // Ignore non-message events
         if (body.event !== 'message') {
             return NextResponse.json({ success: true, ignored: true })
         }
@@ -24,62 +32,38 @@ export async function POST(req: Request) {
         const agentId = body.sessionId ? parseInt(body.sessionId) : 1
         console.log(`[Webhook] Resolved Agent ID: ${agentId} (from sessionId: ${body.sessionId})`)
 
-        // DEDUPLICATION CHECK: Skip if this message ID was already processed
+        // 2. DEDUPLICATION CHECK: Skip if already queued
         const messageId = payload?.id
         if (messageId) {
-            const existingEvent = await prisma.webhookEvent.findFirst({
+            const existingItem = await prisma.incomingQueue.findFirst({
                 where: {
-                    source: 'whatsapp',
-                    status: { in: ['PENDING', 'PROCESSED'] },
                     payload: { path: ['payload', 'id'], equals: messageId }
                 }
             })
-            if (existingEvent) {
-                logger.info('Duplicate message ignored', { messageId, existingEventId: existingEvent.id, module: 'webhook' })
+            if (existingItem) {
+                logger.info('Duplicate message ignored', { messageId, existingItemId: existingItem.id, module: 'webhook' })
                 return NextResponse.json({ success: true, ignored: true, reason: 'duplicate' })
             }
         }
 
-        // Generate trace ID for this message flow
-        const traceId = trace.generate()
-
-        // 2. Async Ingestion (Log to DB)
-        // We log the event synchronously to ensure durability
-        const event = await prisma.webhookEvent.create({
+        // 3. ADD TO QUEUE (fast operation)
+        const queueItem = await prisma.incomingQueue.create({
             data: {
-                source: 'whatsapp',
-                payload: body as any, // Cast JSON
+                payload: body as any,
+                agentId,
                 status: 'PENDING'
             }
         })
 
         logger.messageReceived(payload, agentId)
+        console.log(`[Webhook] Message queued: ID ${queueItem.id}`)
 
-        // 3. EARLY RESPONSE - Return 200 immediately to prevent Baileys timeout
-        // The processing continues in background via fire-and-forget
-        // This is safe because we've already logged the event to DB
-
-        // Fire-and-forget processing (no await)
-        trace.runAsync(traceId, agentId, async () => {
-            return await processWhatsAppPayload(payload, agentId)
+        // 4. RETURN 200 IMMEDIATELY - CRON will process the queue
+        return NextResponse.json({
+            success: true,
+            queued: true,
+            queueId: queueItem.id
         })
-            .then(async (result) => {
-                logger.info('Webhook event processed', { eventId: event.id, status: result.status, module: 'webhook' })
-                await prisma.webhookEvent.update({
-                    where: { id: event.id },
-                    data: { status: 'PROCESSED', processedAt: new Date() }
-                })
-            })
-            .catch(async (err) => {
-                logger.error('Webhook processing failed', err, { eventId: event.id, module: 'webhook' })
-                await prisma.webhookEvent.update({
-                    where: { id: event.id },
-                    data: { status: 'FAILED', error: err.message, processedAt: new Date() }
-                })
-            })
-
-        // 4. Response - Return immediately (processing continues in background)
-        return NextResponse.json({ success: true, eventId: event.id })
 
     } catch (error: any) {
         logger.error('Webhook error', error, { module: 'webhook' })
