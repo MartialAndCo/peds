@@ -5,11 +5,8 @@ import { memoryExtractionService } from '@/lib/services/memory-extraction'
  * CRON Endpoint: Extract Memories
  * 
  * Analyzes conversations and extracts important facts/anecdotes to Mem0.
- * Should be triggered every 6 hours.
- * 
- * Vercel Cron: Add to vercel.json:
- * { "crons": [{ "path": "/api/cron/extract-memories", "schedule": "0 */6 * * * " }] }
-    */
+ * Should be triggered every 6 hours via external CRON.
+ */
 export async function GET(request: Request) {
     // Optional: Verify cron secret for security
     const authHeader = request.headers.get('authorization')
