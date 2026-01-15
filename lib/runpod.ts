@@ -2,8 +2,8 @@ import axios from 'axios'
 import { logger } from './logger'
 import { settingsService } from '@/lib/settings-cache'
 
-const RUNPOD_ENDPOINT = 'https://api.runpod.ai/v2/ihpu7nsjr8numn/run'
-const RUNPOD_STATUS_ENDPOINT = 'https://api.runpod.ai/v2/ihpu7nsjr8numn/status'
+const RUNPOD_ENDPOINT = 'https://api.runpod.ai/v2/qphne3ihyyooj2/run'
+const RUNPOD_STATUS_ENDPOINT = 'https://api.runpod.ai/v2/qphne3ihyyooj2/status'
 
 export const runpod = {
     /**
