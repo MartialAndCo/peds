@@ -379,8 +379,17 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     if (responseText.includes('Error:') || responseText.includes('undefined')) return { handled: true, result: 'blocked_safety' }
 
     // Voice Response Logic
-    let isVoice = (settings.voice_response_enabled === 'true' || settings.voice_response_enabled === true) && (payload.type === 'ptt' || payload.type === 'audio')
+    const isPttMessage = payload.type === 'ptt' || payload.type === 'audio'
+    const voiceEnabled = settings.voice_response_enabled === 'true' || settings.voice_response_enabled === true
+
+    console.log(`[Voice] payload.type: ${payload.type}, isPttMessage: ${isPttMessage}`)
+    console.log(`[Voice] voice_response_enabled: "${settings.voice_response_enabled}" (type: ${typeof settings.voice_response_enabled})`)
+    console.log(`[Voice] voiceEnabled: ${voiceEnabled}`)
+
+    let isVoice = voiceEnabled && isPttMessage
     if (responseText.startsWith('[VOICE]')) { isVoice = true; responseText = responseText.replace('[VOICE]', '').trim() }
+
+    console.log(`[Voice] Final isVoice: ${isVoice}`)
 
     await prisma.message.create({
         data: { conversationId: conversation.id, sender: 'ai', message_text: responseText.replace(/\|\|\|/g, '\n'), timestamp: new Date() }
