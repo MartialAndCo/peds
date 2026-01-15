@@ -43,9 +43,8 @@ export const runpod = {
             const response = await axios.post(RUNPOD_ENDPOINT, {
                 input: {
                     messages: apiMessages,
-                    temperature: config.temperature ?? 0.7,
-                    max_tokens: config.max_tokens ?? 500,
-                    model: config.model || 'default'
+                    temperature: config.temperature ?? 0.15,
+                    max_tokens: config.max_tokens ?? 512
                 }
             }, {
                 headers: {
