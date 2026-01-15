@@ -66,25 +66,42 @@ export async function handleChat(
         }
     }
 
-    // 3. Vision Logic (OpenRouter Dolphin Vision 72B)
+    // 3. Vision Logic (OpenRouter Qwen2.5-VL)
     const isImageMessage = payload.type === 'image' || payload._data?.mimetype?.startsWith('image')
     if (isImageMessage && !messageText.includes('[Image Description]')) {
-        console.log('Chat: Image Detected. Analyzing with OpenRouter Vision...')
-        try {
-            const media = await whatsapp.downloadMedia(payload.id)
-            if (media && media.data) {
-                const buffer = Buffer.from(media.data as unknown as string, 'base64')
-                const description = await openrouter.describeImage(
-                    buffer,
-                    media.mimetype || 'image/jpeg',
-                    settings.openrouter_api_key
-                )
-                if (description) {
-                    messageText = messageText ? `${messageText}\n\n[Image Description]: ${description}` : `[Image Description]: ${description}`
-                    console.log(`[Chat] Vision Description: ${description.substring(0, 100)}...`)
+        console.log('[Chat] Image Detected. Analyzing with OpenRouter Vision...')
+        console.log(`[Chat] OpenRouter API Key Present: ${settings.openrouter_api_key ? 'YES' : 'NO'}`)
+
+        if (!settings.openrouter_api_key) {
+            console.warn('[Chat] Vision skipped: No OpenRouter API key in settings')
+        } else {
+            try {
+                const media = await whatsapp.downloadMedia(payload.id)
+                console.log(`[Chat] Media downloaded: ${media ? 'YES' : 'NO'}, Data: ${media?.data ? 'YES' : 'NO'}`)
+
+                if (media && media.data) {
+                    const buffer = Buffer.from(media.data as unknown as string, 'base64')
+                    console.log(`[Chat] Buffer size: ${buffer.length} bytes`)
+
+                    const description = await openrouter.describeImage(
+                        buffer,
+                        media.mimetype || 'image/jpeg',
+                        settings.openrouter_api_key
+                    )
+
+                    if (description) {
+                        messageText = messageText ? `${messageText}\n\n[Image Description]: ${description}` : `[Image Description]: ${description}`
+                        console.log(`[Chat] Vision SUCCESS: ${description.substring(0, 100)}...`)
+                    } else {
+                        console.warn('[Chat] Vision returned null description')
+                    }
+                } else {
+                    console.warn('[Chat] Vision skipped: No media data')
                 }
+            } catch (e: any) {
+                console.error('[Chat] Vision FAILED:', e.message || e)
             }
-        } catch (e) { console.error('Vision Failed', e) }
+        }
     }
 
     // 4. Save Contact Message
