@@ -55,31 +55,30 @@ export async function POST(req: Request) {
 
         logger.messageReceived(payload, agentId)
 
-        // 3. Sync Processing (Required for Serverless to guarantee execution)
-        // We await this to ensure the lambda doesn't freeze the background task.
-        try {
-            await trace.runAsync(traceId, agentId, async () => {
-                return await processWhatsAppPayload(payload, agentId)
-            })
-                .then(async (result) => {
-                    logger.info('Webhook event processed', { eventId: event.id, status: result.status, module: 'webhook' })
-                    await prisma.webhookEvent.update({
-                        where: { id: event.id },
-                        data: { status: 'PROCESSED', processedAt: new Date() }
-                    })
-                })
-                .catch(async (err) => {
-                    logger.error('Webhook processing failed', err, { eventId: event.id, module: 'webhook' })
-                    await prisma.webhookEvent.update({
-                        where: { id: event.id },
-                        data: { status: 'FAILED', error: err.message, processedAt: new Date() }
-                    })
-                })
-        } catch (e) {
-            console.error('Processing wrapper failed', e)
-        }
+        // 3. EARLY RESPONSE - Return 200 immediately to prevent Baileys timeout
+        // The processing continues in background via fire-and-forget
+        // This is safe because we've already logged the event to DB
 
-        // 4. Response
+        // Fire-and-forget processing (no await)
+        trace.runAsync(traceId, agentId, async () => {
+            return await processWhatsAppPayload(payload, agentId)
+        })
+            .then(async (result) => {
+                logger.info('Webhook event processed', { eventId: event.id, status: result.status, module: 'webhook' })
+                await prisma.webhookEvent.update({
+                    where: { id: event.id },
+                    data: { status: 'PROCESSED', processedAt: new Date() }
+                })
+            })
+            .catch(async (err) => {
+                logger.error('Webhook processing failed', err, { eventId: event.id, module: 'webhook' })
+                await prisma.webhookEvent.update({
+                    where: { id: event.id },
+                    data: { status: 'FAILED', error: err.message, processedAt: new Date() }
+                })
+            })
+
+        // 4. Response - Return immediately (processing continues in background)
         return NextResponse.json({ success: true, eventId: event.id })
 
     } catch (error: any) {
