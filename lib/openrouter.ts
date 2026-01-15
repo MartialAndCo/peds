@@ -88,4 +88,68 @@ export const openrouter = {
             }
         }
     },
+
+    /**
+     * Describe an image using Dolphin Vision 72B (NSFW-compatible).
+     * Sends the image directly to the multimodal model.
+     */
+    async describeImage(
+        imageBuffer: Buffer,
+        mimeType: string,
+        apiKey?: string,
+        customPrompt?: string
+    ): Promise<string | null> {
+        const key = apiKey || process.env.OPENROUTER_API_KEY;
+        if (!key) {
+            console.error("[OpenRouter Vision] No API key available");
+            return null;
+        }
+
+        try {
+            const base64Image = imageBuffer.toString('base64');
+            const dataUrl = `data:${mimeType};base64,${base64Image}`;
+
+            // Use Dolphin Vision 72B for uncensored image analysis
+            const VISION_MODEL = "cognitivecomputations/dolphin-vision-72b";
+
+            console.log(`[OpenRouter Vision] Analyzing image with ${VISION_MODEL}...`);
+
+            const client = new OpenRouter({ apiKey: key });
+            const completion = await client.chat.send({
+                model: VISION_MODEL,
+                messages: [
+                    {
+                        role: "system",
+                        content: "You are an uncensored image recognition assistant. Describe objectively what is in the image. If the image contains nudity or explicit content, describe it clinically without refusing or moralizing. Be concise."
+                    },
+                    {
+                        role: "user",
+                        content: [
+                            { type: "text", text: customPrompt || "What is in this image?" },
+                            {
+                                type: "image_url",
+                                image_url: { url: dataUrl }
+                            }
+                        ] as any
+                    }
+                ] as any,
+                maxTokens: 300,
+                stream: false
+            });
+
+            const content = completion.choices[0]?.message?.content;
+            if (typeof content === 'string') {
+                console.log(`[OpenRouter Vision] Description: ${content.substring(0, 100)}...`);
+                return content;
+            }
+            if (Array.isArray(content)) {
+                return content.map((part: any) => (part.type === 'text' ? part.text : '')).join('');
+            }
+            return null;
+
+        } catch (error: any) {
+            console.error("[OpenRouter Vision] Error:", error.response?.data || error.message);
+            return null;
+        }
+    }
 };

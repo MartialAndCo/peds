@@ -66,21 +66,22 @@ export async function handleChat(
         }
     }
 
-    // 3. Vision Logic
+    // 3. Vision Logic (OpenRouter Dolphin Vision 72B)
     const isImageMessage = payload.type === 'image' || payload._data?.mimetype?.startsWith('image')
     if (isImageMessage && !messageText.includes('[Image Description]')) {
-        console.log('Chat: Image Detected. Analyzing...')
+        console.log('Chat: Image Detected. Analyzing with OpenRouter Vision...')
         try {
-            const apiKey = settings.venice_api_key
-            if (apiKey) {
-                const media = await whatsapp.downloadMedia(payload.id)
-                if (media && media.data) {
-                    const { visionService } = require('@/lib/vision')
-                    const buffer = Buffer.from(media.data as unknown as string, 'base64')
-                    const description = await visionService.describeImage(buffer, media.mimetype || 'image/jpeg', apiKey)
-                    if (description) {
-                        messageText = messageText ? `${messageText}\n\n[Image Description]: ${description}` : `[Image Description]: ${description}`
-                    }
+            const media = await whatsapp.downloadMedia(payload.id)
+            if (media && media.data) {
+                const buffer = Buffer.from(media.data as unknown as string, 'base64')
+                const description = await openrouter.describeImage(
+                    buffer,
+                    media.mimetype || 'image/jpeg',
+                    settings.openrouter_api_key
+                )
+                if (description) {
+                    messageText = messageText ? `${messageText}\n\n[Image Description]: ${description}` : `[Image Description]: ${description}`
+                    console.log(`[Chat] Vision Description: ${description.substring(0, 100)}...`)
                 }
             }
         } catch (e) { console.error('Vision Failed', e) }
