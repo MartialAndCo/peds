@@ -60,10 +60,13 @@ export const venice = {
                 console.error(`[Venice] Request failed (Attempt ${attempt}): ${detail}`)
                 logger.error('Venice AI request failed', error, { module: 'venice', attempt, status, detail })
 
-                // If fatal error (Auth / Bad Request), fallback to RunPod immediately
-                // User reports 402 is flaky, so we retry it. 401/403 are usually permanent.
-                if (status === 400 || status === 401 || status === 403) {
-                    console.warn(`[Venice] Fatal error (${status}). Falling back to RunPod...`)
+                // If fatal error (Auth / Bad Request / Payment), fallback to RunPod immediately
+                // - 400: Bad Request
+                // - 401: Unauthorized
+                // - 402: Payment Required (No credits) - Retry is useless, fallback immediately
+                // - 403: Forbidden
+                if (status === 400 || status === 401 || status === 402 || status === 403) {
+                    console.warn(`[Venice] Fatal error (${status}). Falling back to RunPod immediately...`)
                     return await runpod.chatCompletion(systemPrompt, messages, userMessage, {
                         temperature: config.temperature,
                         max_tokens: config.max_tokens
