@@ -392,7 +392,9 @@ async function callAI(settings: any, conv: any, sys: string, ctx: any[], last: s
         max_tokens: conv.prompt.max_tokens
     }
 
-    console.log(`[Chat] Calling Provider: ${provider}, Model: ${params.model}`)
+    console.log(`[Chat] Provider Selection: ${provider}`)
+    console.log(`[Chat] API Key Present: ${params.apiKey ? 'YES (' + params.apiKey.substring(0, 10) + '...)' : 'NO'}`)
+    console.log(`[Chat] Model: ${params.model || 'DEFAULT'}`)
 
     let txt = ""
     if (provider === 'anthropic') txt = await anthropic.chatCompletion(sys, ctx, last, params)
