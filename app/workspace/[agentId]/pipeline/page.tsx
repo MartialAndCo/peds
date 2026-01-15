@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import axios from 'axios'
-import { useParams, useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import { Loader2, MessageSquare, DollarSign, Clock, ShieldCheck, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -107,6 +107,7 @@ function PhaseColumn({ title, subtitle, color, contacts }: any) {
 }
 
 function ContactCard({ contact, color }: any) {
+    const { agentId } = useParams()
     const router = useRouter()
 
     // Safety checks for logic verification
@@ -119,7 +120,7 @@ function ContactCard({ contact, color }: any) {
 
     return (
         <div
-            onClick={() => router.push(`/workspace/chat?contactId=${contact.id}`)}
+            onClick={() => router.push(`/workspace/${agentId}/conversations?contact=${contact.id}`)}
             className="group relative bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.05] rounded-xl p-4 cursor-pointer transition-all duration-200 hover:shadow-lg hover:border-white/10 active:scale-[0.98]"
         >
             <div className="flex justify-between items-start mb-3">
