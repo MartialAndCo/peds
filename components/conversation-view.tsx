@@ -10,6 +10,7 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Send, Bot, User, Pause, Play, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { AudioPlayer } from '@/components/chat/audio-player'
 
 interface ConversationViewProps {
     conversationId: number
@@ -271,7 +272,7 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
                                         )}
                                         {isAudio && (
                                             <div className="mb-2 mt-1">
-                                                <audio src={m.mediaUrl!} controls className="max-w-full" />
+                                                <AudioPlayer src={m.mediaUrl!} isMe={isMe} />
                                             </div>
                                         )}
 
