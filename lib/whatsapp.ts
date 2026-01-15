@@ -3,24 +3,39 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { settingsService } from '@/lib/settings-cache'
 
+const cleanKey = (key?: string) => {
+    if (!key) return undefined
+    // Remove surrounding quotes and excessive whitespace/newlines
+    return key.trim().replace(/^["']|["']$/g, '')
+}
+
 // Helper to get config from DB or Env
 export async function getConfig() {
     try {
         const settings = await settingsService.getSettings()
 
         const defaultEndpoint = 'http://127.0.0.1:3001'
+        const dbKey = cleanKey(settings.waha_api_key)
+        const envKey = cleanKey(process.env.AUTH_TOKEN || process.env.WAHA_API_KEY)
+
+        // If DB has default "secret" but Env has a real key, use Env
+        let finalKey = dbKey
+        if ((!dbKey || dbKey === 'secret') && envKey && envKey !== 'secret') {
+            finalKey = envKey
+        }
 
         return {
             endpoint: settings.waha_endpoint || process.env.WAHA_ENDPOINT || defaultEndpoint,
-            apiKey: settings.waha_api_key || process.env.WAHA_API_KEY || 'secret',
+            apiKey: finalKey || 'secret',
             defaultSession: settings.waha_session || process.env.WAHA_SESSION || 'default',
             webhookSecret: process.env.WEBHOOK_SECRET
         }
     } catch (e) {
         logger.warn('Failed to fetch WhatsApp settings from DB, falling back to env/defaults', { module: 'whatsapp' })
+        const envKey = cleanKey(process.env.AUTH_TOKEN || process.env.WAHA_API_KEY)
         return {
             endpoint: process.env.WAHA_ENDPOINT || 'http://127.0.0.1:3001',
-            apiKey: process.env.WAHA_API_KEY || 'secret',
+            apiKey: envKey || 'secret',
             defaultSession: process.env.WAHA_SESSION || 'default',
             webhookSecret: process.env.WEBHOOK_SECRET
         }
