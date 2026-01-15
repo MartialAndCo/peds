@@ -428,7 +428,11 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
         //     })
         //     .catch((err: any) => console.error('[Processor] Auto-recovery failed (non-blocking):', err.message))
 
-        return { status: chatResult.result }
+        return {
+            status: chatResult.result,
+            jobId: chatResult.jobId,
+            conversationId: conversation.id
+        }
 
     } catch (error: any) {
         logger.error('Processor fatal error', error, { module: 'processor', agentId })

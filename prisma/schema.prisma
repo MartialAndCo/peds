@@ -346,7 +346,10 @@ model IncomingQueue {
   id          Int       @id @default(autoincrement())
   payload     Json      // Full webhook payload from Baileys
   agentId     Int
-  status      String    @default("PENDING") // PENDING, PROCESSING, DONE, FAILED
+  // Async AI Job Tracking
+  runpodJobId String?   // ID returned by RunPod /run endpoint
+  
+  status      String    @default("PENDING") // PENDING, PROCESSING, AI_PROCESSING, DONE, FAILED
   attempts    Int       @default(0)
   error       String?
   createdAt   DateTime  @default(now())

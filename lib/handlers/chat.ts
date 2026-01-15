@@ -281,6 +281,13 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         } catch (error: any) {
             console.error(`[Chat] AI Attempt ${attempts} failed:`, error.message)
 
+            // CRITICAL: Handle Async Job Handoff
+            if ((error as any).isAsyncJob || error.message?.startsWith('RUNPOD_ASYNC_JOB')) {
+                const jobId = (error as any).jobId || error.message.split(':')[1]
+                console.log(`[Chat] Async Job Started: ${jobId}. Stopping sync execution.`)
+                return { handled: true, result: 'async_job_started', jobId }
+            }
+
             // CRITICAL: Handle Quota/Payment Errors (402)
             if (error.message?.includes('402') || error.message?.includes('Insufficient balance') || error.message?.includes('Quota')) {
                 console.log('[Chat] AI Quota Exceeded. Queuing as AI_FAILED for manual attention.')

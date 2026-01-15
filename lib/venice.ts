@@ -63,14 +63,20 @@ export const venice = {
                 // If fatal error (Auth / Bad Request / Payment), fallback to RunPod immediately
                 // - 400: Bad Request
                 // - 401: Unauthorized
-                // - 402: Payment Required (No credits) - Retry is useless, fallback immediately
+                // - 402: Payment Required (No credits) - Retry is useless, switch to ASYNC JOB
                 // - 403: Forbidden
                 if (status === 400 || status === 401 || status === 402 || status === 403) {
-                    console.warn(`[Venice] Fatal error (${status}). Falling back to RunPod immediately...`)
-                    return await runpod.chatCompletion(systemPrompt, messages, userMessage, {
+                    console.warn(`[Venice] Fatal error (${status}). Switching to RunPod ASYNC Job...`)
+                    // Async Submission to prevent Lambda timeout
+                    const jobId = await runpod.submitJob(systemPrompt, messages, userMessage, {
                         temperature: config.temperature,
                         max_tokens: config.max_tokens
                     })
+                    // Throw special error to be caught by chat handler
+                    const error = new Error(`RUNPOD_ASYNC_JOB:${jobId}`)
+                        (error as any).isAsyncJob = true
+                            (error as any).jobId = jobId
+                    throw error
                 }
 
                 // If last attempt, fallback to RunPod

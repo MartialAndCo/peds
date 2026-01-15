@@ -2,92 +2,148 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { processWhatsAppPayload } from '@/lib/services/whatsapp-processor'
 import { logger, trace } from '@/lib/logger'
+import { runpod } from '@/lib/runpod'
+import { whatsapp } from '@/lib/whatsapp'
 
 /**
  * CRON Endpoint: Process Incoming Message Queue
- * 
- * Processes queued incoming WhatsApp messages.
- * Should be triggered every minute for fast response times.
- * 
- * Vercel Cron: Add to vercel.json:
- * { "crons": [{ "path": "/api/cron/process-incoming", "schedule": "* * * * *" }] }
+ * Supports Async AI Jobs (RunPod) to avoid timeouts.
  */
 export async function GET(req: Request) {
     try {
         console.log('[CRON] Processing incoming message queue...')
+        let processed = 0
+        let stillProcessing = 0
 
-        // Find pending items (limit to 10 to avoid Lambda timeout)
+        // --- PART 1: Process NEW Messages (PENDING) ---
+        // Limit to 5 to avoid choking lambda
         const pending = await prisma.incomingQueue.findMany({
             where: { status: 'PENDING' },
-            take: 10,
+            take: 5,
             orderBy: { createdAt: 'asc' }
         })
 
-        if (pending.length === 0) {
-            return NextResponse.json({ success: true, processed: 0, message: 'Queue empty' })
-        }
-
-        console.log(`[CRON] Found ${pending.length} pending messages to process`)
-
-        let processed = 0
-        let failed = 0
-
         for (const item of pending) {
-            // Atomic lock: Only process if still PENDING
-            const lock = await prisma.incomingQueue.updateMany({
-                where: { id: item.id, status: 'PENDING' },
-                data: { status: 'PROCESSING' }
-            })
-
-            if (lock.count === 0) {
-                console.log(`[CRON] Item ${item.id} already being processed, skipping`)
-                continue
-            }
+            // Lock
+            await prisma.incomingQueue.update({ where: { id: item.id }, data: { status: 'PROCESSING' } })
 
             try {
                 const payload = item.payload as any
                 const traceId = trace.generate()
 
-                console.log(`[CRON] Processing item ${item.id} for agent ${item.agentId}`)
-
-                await trace.runAsync(traceId, item.agentId, async () => {
+                // Execute Logic
+                const result = await trace.runAsync(traceId, item.agentId, async () => {
                     return await processWhatsAppPayload(payload.payload, item.agentId)
                 })
 
-                // Mark as done
-                await prisma.incomingQueue.update({
-                    where: { id: item.id },
-                    data: {
-                        status: 'DONE',
-                        processedAt: new Date()
-                    }
-                })
-
-                processed++
-                console.log(`[CRON] Item ${item.id} processed successfully`)
+                // Check Result
+                if (result.status === 'async_job_started' && result.jobId) {
+                    // Switch to Async Mode
+                    console.log(`[CRON] Item ${item.id} switched to Async Job: ${result.jobId}`)
+                    await prisma.incomingQueue.update({
+                        where: { id: item.id },
+                        data: {
+                            status: 'AI_PROCESSING',
+                            runpodJobId: result.jobId
+                        }
+                    })
+                } else {
+                    // Regular Completion
+                    await prisma.incomingQueue.update({
+                        where: { id: item.id },
+                        data: { status: 'DONE', processedAt: new Date() }
+                    })
+                    processed++
+                }
 
             } catch (err: any) {
-                console.error(`[CRON] Failed to process item ${item.id}:`, err)
-
-                // Mark as failed with retry info
+                console.error(`[CRON] Failed item ${item.id}:`, err)
                 await prisma.incomingQueue.update({
                     where: { id: item.id },
                     data: {
-                        status: item.attempts >= 2 ? 'FAILED' : 'PENDING', // Retry up to 3 times
+                        status: item.attempts >= 2 ? 'FAILED' : 'PENDING',
                         attempts: { increment: 1 },
                         error: err.message
                     }
                 })
+            }
+        }
 
-                failed++
+        // --- PART 2: Poll Async Jobs (AI_PROCESSING) ---
+        const asyncJobs = await prisma.incomingQueue.findMany({
+            where: { status: 'AI_PROCESSING', runpodJobId: { not: null } },
+            take: 10
+        })
+
+        for (const job of asyncJobs) {
+            if (!job.runpodJobId) continue
+
+            try {
+                const check = await runpod.checkJobStatus(job.runpodJobId)
+
+                if (check.status === 'COMPLETED' && check.output) {
+                    console.log(`[CRON] Async Job ${job.runpodJobId} COMPLETED. Finalizing...`)
+                    const responseText = check.output
+
+                    // 1. Save to DB (Find conversation logic is tricky here as we lost context)
+                    // We need to re-find the conversation. Ideally we stored convId in queue, but we didn't add the column yet.
+                    // We'll assume the last active conversation for this contact.
+
+                    const payload = job.payload as any
+                    const from = payload.payload?.from || ""
+                    // Normalize phone (reuse logic roughly)
+                    const phone = from.includes('@') ? `+${from.split('@')[0]}` : ""
+
+                    if (phone) {
+                        // Send WhatsApp Response
+                        await whatsapp.sendText(phone, responseText)
+
+                        // Try to log it if we can find the conv
+                        const conv = await prisma.conversation.findFirst({
+                            where: { contact: { phone_whatsapp: phone }, status: { in: ['active', 'paused'] } },
+                            orderBy: { updatedAt: 'desc' }
+                        })
+                        if (conv) {
+                            await prisma.message.create({
+                                data: {
+                                    conversationId: conv.id,
+                                    sender: 'ai',
+                                    message_text: responseText,
+                                    timestamp: new Date()
+                                }
+                            })
+                        }
+                    }
+
+                    // Mark DONE
+                    await prisma.incomingQueue.update({
+                        where: { id: job.id },
+                        data: { status: 'DONE', processedAt: new Date() }
+                    })
+                    processed++
+
+                } else if (check.status === 'FAILED' || check.status === 'CANCELLED') {
+                    console.error(`[CRON] Async Job ${job.runpodJobId} FAILED.`)
+                    await prisma.incomingQueue.update({
+                        where: { id: job.id },
+                        data: { status: 'FAILED', error: 'Async Job Failed' }
+                    })
+                } else {
+                    // IN_QUEUE or IN_PROGRESS
+                    console.log(`[CRON] Async Job ${job.runpodJobId} still running...`)
+                    stillProcessing++
+                }
+
+            } catch (e: any) {
+                console.error(`[CRON] Error polling job ${job.id}:`, e.message)
             }
         }
 
         return NextResponse.json({
             success: true,
             processed,
-            failed,
-            total: pending.length
+            stillProcessing,
+            checked: pending.length + asyncJobs.length
         })
 
     } catch (error: any) {

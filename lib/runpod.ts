@@ -10,32 +10,25 @@ export const runpod = {
      * Send a chat completion request to RunPod serverless GPU.
      * This is intended as a last-resort fallback when OpenRouter and Venice both fail.
      */
-    async chatCompletion(
+    /**
+     * Submit a job to RunPod and return the Job ID immediately.
+     */
+    async submitJob(
         systemPrompt: string,
         messages: { role: string, content: string }[],
         userMessage: string,
         config: { apiKey?: string; model?: string; temperature?: number; max_tokens?: number } = {}
     ): Promise<string> {
         let apiKey = config.apiKey || process.env.RUNPOD_API_KEY
-
         if (!apiKey) {
-            // Try fetching from DB settings
             try {
                 const settings = await settingsService.getSettings()
-                // Access using index signature or known key if typed
                 apiKey = (settings as any).runpod_api_key
-                console.log(`[RunPod] Loaded API Key from Settings: ${apiKey ? 'Yes' : 'No'}`)
-            } catch (e) {
-                console.error('[RunPod] Failed to load settings:', e)
-            }
+            } catch (e) { }
         }
 
-        if (!apiKey) {
-            console.warn('[RunPod] RUNPOD_API_KEY not configured')
-            return "IA non configurée (RunPod API Key manquante)"
-        }
+        if (!apiKey) return ""
 
-        // Construct message history
         const apiMessages = [
             { role: 'system', content: systemPrompt },
             ...messages.map(m => ({
@@ -46,9 +39,7 @@ export const runpod = {
         ]
 
         try {
-            console.log('[RunPod] Sending request to serverless endpoint...')
-
-            // Submit the job to RunPod
+            console.log('[RunPod] Submitting async job...')
             const response = await axios.post(RUNPOD_ENDPOINT, {
                 input: {
                     messages: apiMessages,
@@ -61,107 +52,99 @@ export const runpod = {
                     'Authorization': `Bearer ${apiKey}`,
                     'Content-Type': 'application/json'
                 },
-                timeout: 10000 // 10s for initial submission
+                timeout: 10000
             })
 
             const jobId = response.data?.id
-            if (!jobId) {
-                console.error('[RunPod] No job ID returned:', response.data)
-                return ""
-            }
-
-            console.log(`[RunPod] Job submitted: ${jobId}. Polling for result...`)
-
-            // Poll for completion (max 60s with 2s intervals)
-            const maxPolls = 30
-            for (let i = 0; i < maxPolls; i++) {
-                await new Promise(r => setTimeout(r, 2000)) // Wait 2s between polls
-
-                const statusResponse = await axios.get(`${RUNPOD_STATUS_ENDPOINT}/${jobId}`, {
-                    headers: {
-                        'Authorization': `Bearer ${apiKey}`
-                    },
-                    timeout: 5000
-                })
-
-                const status = statusResponse.data?.status
-                console.log(`[RunPod] Poll ${i + 1}/${maxPolls}: Status = ${status}`)
-
-                if (status === 'COMPLETED') {
-                    const output = statusResponse.data?.output
-
-                    // Handle Array output (e.g. ["{\"id\":...}"])
-                    if (Array.isArray(output) && output.length > 0) {
-                        // Check if it's an array of strings that are actually JSON
-                        if (typeof output[0] === 'string') {
-                            try {
-                                // Try parsing the string as JSON
-                                const parsed = JSON.parse(output[0])
-                                if (parsed.choices?.[0]?.message?.content) {
-                                    const content = parsed.choices[0].message.content
-                                    console.log(`[RunPod] Response received (Parsed JSON) (${content.length} chars)`)
-                                    return content
-                                }
-                            } catch (e) {
-                                // Not JSON, maybe just text?
-                                console.log('[RunPod] Array[0] is not JSON, returning as text')
-                                return output[0]
-                            }
-                        }
-                    }
-
-                    // Handle different output formats
-                    if (typeof output === 'string') {
-                        try {
-                            // It might be a JSON string itself
-                            const parsed = JSON.parse(output)
-                            if (parsed.choices?.[0]?.message?.content) {
-                                return parsed.choices[0].message.content
-                            }
-                        } catch (e) { }
-
-                        console.log(`[RunPod] Response received (${output.length} chars)`)
-                        return output
-                    }
-                    if (output?.text) {
-                        console.log(`[RunPod] Response received (${output.text.length} chars)`)
-                        return output.text
-                    }
-                    if (output?.content) {
-                        console.log(`[RunPod] Response received (${output.content.length} chars)`)
-                        return output.content
-                    }
-                    if (output?.choices?.[0]?.message?.content) {
-                        const content = output.choices[0].message.content
-                        console.log(`[RunPod] Response received (${content.length} chars)`)
-                        return content
-                    }
-                    console.warn('[RunPod] Completed but unknown output format:', output)
-                    return ""
-                }
-
-
-                if (status === 'FAILED') {
-                    console.error('[RunPod] Job failed:', statusResponse.data?.error)
-                    return ""
-                }
-
-                if (status === 'CANCELLED') {
-                    console.warn('[RunPod] Job was cancelled')
-                    return ""
-                }
-
-                // Continue polling for IN_QUEUE, IN_PROGRESS
-            }
-
-            console.error('[RunPod] Job timed out after polling')
-            return ""
-
+            console.log(`[RunPod] Job submitted: ${jobId}`)
+            return jobId || ""
         } catch (error: any) {
-            const detail = error.response ? `${error.response.status} - ${JSON.stringify(error.response.data)}` : error.message
-            console.error(`[RunPod] Request failed: ${detail}`)
-            logger.error('RunPod AI request failed', error, { module: 'runpod', detail })
+            console.error('[RunPod] Job submission failed:', error.message)
             return ""
         }
+    },
+
+    /**
+     * Check the status of a job.
+     * Returns the content if COMPLETED, null if IN_PROGRESS, or throw error if FAILED/CANCELLED.
+     */
+    async checkJobStatus(jobId: string, apiKey?: string): Promise<{ status: string, output?: string }> {
+        if (!apiKey) {
+            apiKey = process.env.RUNPOD_API_KEY
+            if (!apiKey) {
+                try {
+                    const settings = await settingsService.getSettings()
+                    apiKey = (settings as any).runpod_api_key
+                } catch (e) { }
+            }
+        }
+
+        if (!apiKey) throw new Error("Missing RunPod API Key")
+
+        const statusResponse = await axios.get(`${RUNPOD_STATUS_ENDPOINT}/${jobId}`, {
+            headers: { 'Authorization': `Bearer ${apiKey}` },
+            timeout: 5000
+        })
+
+        const status = statusResponse.data?.status
+        const output = statusResponse.data?.output
+
+        if (status === 'COMPLETED') {
+            // Parse logic (same as before)
+            let finalContent = ""
+            if (Array.isArray(output) && output.length > 0) {
+                if (typeof output[0] === 'string') {
+                    try {
+                        const parsed = JSON.parse(output[0])
+                        if (parsed.choices?.[0]?.message?.content) {
+                            finalContent = parsed.choices[0].message.content
+                        } else {
+                            finalContent = output[0]
+                        }
+                    } catch (e) { finalContent = output[0] }
+                }
+            }
+            else if (typeof output === 'string') {
+                try {
+                    const parsed = JSON.parse(output)
+                    if (parsed.choices?.[0]?.message?.content) {
+                        finalContent = parsed.choices[0].message.content
+                    } else { finalContent = output }
+                } catch (e) { finalContent = output }
+            }
+            else if (output?.choices?.[0]?.message?.content) {
+                finalContent = output.choices[0].message.content
+            }
+
+            return { status: 'COMPLETED', output: finalContent }
+        }
+
+        return { status }
+    },
+
+    /**
+     * Legacy Wrapper (Sync)
+     */
+    async chatCompletion(
+        systemPrompt: string,
+        messages: { role: string, content: string }[],
+        userMessage: string,
+        config: { apiKey?: string; model?: string; temperature?: number; max_tokens?: number } = {}
+    ): Promise<string> {
+        const jobId = await this.submitJob(systemPrompt, messages, userMessage, config)
+        if (!jobId) return ""
+
+        // Polling loop (same as before)
+        const maxPolls = 60
+        for (let i = 0; i < maxPolls; i++) {
+            await new Promise(r => setTimeout(r, 2000))
+            try {
+                const result = await this.checkJobStatus(jobId, config.apiKey)
+                if (result.status === 'COMPLETED') return result.output || ""
+                if (result.status === 'FAILED' || result.status === 'CANCELLED') return ""
+            } catch (e) { console.error(e); return "" }
+        }
+        return ""
     }
 }
+
