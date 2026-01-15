@@ -258,7 +258,7 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
                             aiRefusal = await venice.chatCompletion(mainPrompt, [], refusalSystemPrompt, { apiKey: settings.venice_api_key, model: settings.venice_model })
                         }
 
-                        await whatsapp.sendText(contact.phone_whatsapp, aiRefusal)
+                        await whatsapp.sendText(contact.phone_whatsapp, aiRefusal, undefined, agentId)
                         // Save Interaction
                         if (currentConversation) {
                             await prisma.message.create({
@@ -278,8 +278,8 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
 
                         if (result.action === 'SEND') {
                             const dataUrl = result.media.url
-                            if (dataUrl.startsWith('data:image')) await whatsapp.sendImage(contact.phone_whatsapp, dataUrl)
-                            else await whatsapp.sendVideo(contact.phone_whatsapp, dataUrl)
+                            if (dataUrl.startsWith('data:image')) await whatsapp.sendImage(contact.phone_whatsapp, dataUrl, undefined, agentId)
+                            else await whatsapp.sendVideo(contact.phone_whatsapp, dataUrl, undefined, agentId)
 
                             await prisma.media.update({
                                 where: { id: result.media.id },
@@ -344,10 +344,10 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
                             // Split & Send
                             const parts = responseText.split('|||').filter(p => p.trim().length > 0)
                             for (const part of parts) {
-                                await whatsapp.sendTypingState(contact.phone_whatsapp, true)
+                                await whatsapp.sendTypingState(contact.phone_whatsapp, true, agentId)
                                 // Simulated Delay
                                 await new Promise(r => setTimeout(r, 2000))
-                                await whatsapp.sendText(contact.phone_whatsapp, part.trim())
+                                await whatsapp.sendText(contact.phone_whatsapp, part.trim(), undefined, agentId)
                             }
 
                             if (currentConversation) {

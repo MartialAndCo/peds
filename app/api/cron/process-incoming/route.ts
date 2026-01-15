@@ -96,7 +96,7 @@ export async function GET(req: Request) {
 
                     if (phone) {
                         // Send WhatsApp Response
-                        await whatsapp.sendText(phone, responseText)
+                        await whatsapp.sendText(phone, responseText, undefined, job.agentId || undefined)
 
                         // Try to log it if we can find the conv
                         const conv = await prisma.conversation.findFirst({
