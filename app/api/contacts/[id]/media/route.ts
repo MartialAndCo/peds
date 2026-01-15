@@ -13,11 +13,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         const { id } = await params
 
         // Find messages in conversations with this contact that have mediaUrl
-        // We join via Conversation
+        // Exclude voice messages (audio/ptt types)
         const mediaMessages = await prisma.message.findMany({
             where: {
                 conversation: { contactId: id },
-                mediaUrl: { not: null }
+                mediaUrl: { not: null },
+                // Exclude voice messages by filtering out audio data URLs
+                NOT: [
+                    { mediaUrl: { contains: 'audio' } },
+                    { message_text: { startsWith: '[Voice Message' } }
+                ]
             },
             orderBy: { timestamp: 'desc' },
             select: {
