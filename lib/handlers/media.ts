@@ -58,12 +58,27 @@ export async function handleSourceMedia(
     // Normal Media Logic (Images/Videos)
     logger.info('Source sent media', { module: 'media', sourcePhone, mimeType: payload._data?.mimetype || payload.type })
     let mediaData = payload.body
+    let mimeType = payload._data?.mimetype || payload.type || 'image/jpeg'
+
     if (!mediaData || mediaData.length < 100) {
-        mediaData = await whatsapp.downloadMedia(payload.id)
+        const downloaded = await whatsapp.downloadMedia(payload.id)
+        if (downloaded && downloaded.data) {
+            // Extract base64 data from buffer/string
+            mediaData = Buffer.isBuffer(downloaded.data)
+                ? downloaded.data.toString('base64')
+                : (typeof downloaded.data === 'string' ? downloaded.data : null)
+            // Use downloaded mimetype if available
+            if (downloaded.mimetype) {
+                mimeType = downloaded.mimetype
+            }
+            logger.info('Extracted media from download', { module: 'media', length: mediaData?.length, mimeType })
+        } else {
+            mediaData = null
+        }
     }
 
-    if (mediaData) {
-        const ingestionResult = await mediaService.ingestMedia(sourcePhone, mediaData, payload._data?.mimetype || payload.type)
+    if (mediaData && typeof mediaData === 'string') {
+        const ingestionResult = await mediaService.ingestMedia(sourcePhone, mediaData, mimeType)
 
         if (ingestionResult) {
             await whatsapp.sendText(sourcePhone, spin(`{✅|📥} {Media ingested|Photo received}. Analyzing...`))

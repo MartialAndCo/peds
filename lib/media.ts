@@ -193,6 +193,9 @@ export const mediaService = {
     async ingestMedia(sourcePhone: string, mediaData: string, mimeType: string) {
         logger.info(`Ingesting media`, { module: 'media_service', sourcePhone, mimeType });
 
+        // Defensive check for mimeType
+        const safeMimeType = typeof mimeType === 'string' ? mimeType : 'unknown'
+
         // Find most recent pending request
         const latestPending = await prisma.pendingRequest.findFirst({
             where: { status: 'pending' },
@@ -203,7 +206,7 @@ export const mediaService = {
         if (!latestPending) return null;
 
         // --- RVC INTERCEPTION ---
-        const isAudio = mimeType.startsWith('audio') || latestPending.typeId === 'audio' || latestPending.typeId === 'voice_note';
+        const isAudio = safeMimeType.startsWith('audio') || latestPending.typeId === 'audio' || latestPending.typeId === 'voice_note';
 
         if (isAudio && latestPending) {
             logger.info('Audio detected. Intercepting for RVC Processing...', { module: 'media_service' });
