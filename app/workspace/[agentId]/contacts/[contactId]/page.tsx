@@ -160,31 +160,40 @@ export default function ContactDetailsPage() {
                     </div>
 
                     {/* Media Gallery */}
-                    <div className="glass p-6 rounded-2xl min-h-[400px]">
-                        <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-6">Shared Media</h3>
+                    <div className="glass p-6 rounded-2xl">
+                        <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Shared Media</h3>
 
                         {media.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center h-48 border-2 border-dashed border-white/5 rounded-xl">
+                            <div className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-white/5 rounded-xl">
                                 <p className="text-white/20 text-sm">No media exchanged yet.</p>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                {media.map((item, i) => (
-                                    <div key={i} className="aspect-square rounded-xl bg-black/20 overflow-hidden relative group border border-white/5 hover:border-white/20 transition-all cursor-pointer">
-                                        {/* Determine if image or video based on URL or metadata - keeping simple for now */}
+                            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                                {media.slice(0, 10).map((item, i) => (
+                                    <div
+                                        key={i}
+                                        className="aspect-square rounded-lg bg-black/30 overflow-hidden relative group border border-white/5 hover:border-white/20 transition-all cursor-pointer"
+                                    >
                                         <img
                                             src={item.mediaUrl}
-                                            alt="Shared"
+                                            alt="Media"
                                             className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+                                            onError={(e) => {
+                                                (e.target as HTMLImageElement).style.display = 'none';
+                                                (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="flex items-center justify-center h-full text-white/20 text-xs">📁</div>';
+                                            }}
                                         />
-                                        <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <p className="text-[10px] text-white/70 text-right">
+                                        <div className="absolute bottom-0 left-0 right-0 p-1.5 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <p className="text-[9px] text-white/70 text-right">
                                                 {new Date(item.timestamp).toLocaleDateString()}
                                             </p>
                                         </div>
                                     </div>
                                 ))}
                             </div>
+                        )}
+                        {media.length > 10 && (
+                            <p className="text-xs text-white/30 text-center mt-3">+{media.length - 10} more</p>
                         )}
                     </div>
 
