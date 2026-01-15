@@ -250,11 +250,11 @@ export const whatsapp = {
     },
 
     async markAsRead(chatId: string, agentId?: number, messageKey?: any) {
-        const { endpoint, apiKey } = await getConfig()
+        const { endpoint, apiKey, defaultSession } = await getConfig()
         try {
             const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
             await axios.post(`${endpoint}/api/markSeen`, {
-                sessionId: agentId?.toString(),
+                sessionId: agentId?.toString() || defaultSession,
                 chatId: formattedChatId,
                 messageKey // Pass the full key if available
             }, {
@@ -266,11 +266,11 @@ export const whatsapp = {
     },
 
     async sendTypingState(chatId: string, isTyping: boolean, agentId?: number) {
-        const { endpoint, apiKey } = await getConfig()
+        const { endpoint, apiKey, defaultSession } = await getConfig()
         try {
             const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
             await axios.post(`${endpoint}/api/sendStateTyping`, {
-                sessionId: agentId?.toString(),
+                sessionId: agentId?.toString() || defaultSession,
                 chatId: formattedChatId,
                 isTyping
             }, {
@@ -282,11 +282,11 @@ export const whatsapp = {
     },
 
     async sendRecordingState(chatId: string, isRecording: boolean, agentId?: number) {
-        const { endpoint, apiKey } = await getConfig()
+        const { endpoint, apiKey, defaultSession } = await getConfig()
         try {
             const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
             await axios.post(`${endpoint}/api/sendStateRecording`, {
-                sessionId: agentId?.toString(),
+                sessionId: agentId?.toString() || defaultSession,
                 chatId: formattedChatId,
                 isRecording
             }, {
