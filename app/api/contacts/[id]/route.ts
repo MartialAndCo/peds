@@ -27,6 +27,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
             where: { id },
             include: {
                 conversations: {
+                    orderBy: { createdAt: 'desc' },
+                },
+                trustLogs: {
+                    orderBy: { createdAt: 'desc' }
+                },
+                payments: {
                     orderBy: { createdAt: 'desc' }
                 }
             }

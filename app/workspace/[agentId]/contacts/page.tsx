@@ -6,7 +6,7 @@ import axios from 'axios'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
-import { Trash, MessageSquare, Search, Pencil, AlertTriangle, FileText } from 'lucide-react'
+import { Trash, MessageSquare, Search, Pencil, AlertTriangle, FileText, Eye } from 'lucide-react'
 import { useRouter, useParams } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { ContextDialog } from '@/components/contacts/context-dialog'
@@ -74,7 +74,7 @@ export default function WorkspaceContactsPage() {
     }
 
     const goToContactDetail = (contactId: string) => {
-        router.push(`/admin/contacts/${contactId}`)
+        router.push(`/workspace/${agentId}/contacts/${contactId}`)
     }
 
     return (
@@ -193,11 +193,11 @@ export default function WorkspaceContactsPage() {
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-8 w-8 text-white/30 hover:text-white hover:bg-white/10 transition-colors"
+                                                className="h-8 w-8 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 transition-colors"
                                                 onClick={() => goToContactDetail(contact.id)}
-                                                title="Edit Contact Details"
+                                                title="View Full Profile & Media"
                                             >
-                                                <Pencil className="h-4 w-4" />
+                                                <Eye className="h-4 w-4" />
                                             </Button>
                                             <Button
                                                 variant="ghost"
