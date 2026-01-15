@@ -8,7 +8,7 @@ export const voiceService = {
      * Request a voice note from the Human Source.
      * @param agentSettings - Optional agent-specific settings (overrides global)
      */
-    async requestVoice(contactPhone: string, textToSay: string, context: string, agentSettings?: any) {
+    async requestVoice(contactPhone: string, textToSay: string, context: string, agentSettings?: any, agentId?: number) {
         console.log(`[VoiceService] Requesting voice for ${contactPhone}. Text: "${textToSay}"`)
         // 1. Get Settings (Agent settings override global)
         const globalSettings = await settingsService.getSettings()
@@ -33,7 +33,7 @@ export const voiceService = {
 
         // Notify source what to say (initial request only - no confirmations/reminders)
         const message = `"${textToSay}"`
-        await whatsapp.sendText(sourcePhone, message)
+        await whatsapp.sendText(sourcePhone, message, undefined, agentId)
 
         return 'REQUESTED'
     },
