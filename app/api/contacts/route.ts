@@ -33,9 +33,14 @@ export async function GET(req: Request) {
     }
 
     // Filter by Agent if provided
-    if (agentId) {
+    if (agentId && !isNaN(parseInt(agentId))) {
         where.conversations = {
-            some: { agentId: parseInt(agentId) }
+            some: {
+                OR: [
+                    { agentId: parseInt(agentId) },
+                    { agentId: null }
+                ]
+            }
         }
     }
 

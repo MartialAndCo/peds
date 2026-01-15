@@ -4,12 +4,20 @@ import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { whatsapp } from '@/lib/whatsapp'
 
-export async function getQueueItems() {
+export async function getQueueItems(agentId?: number) {
     try {
+        const where: any = {
+            status: 'PENDING'
+        }
+
+        if (agentId) {
+            where.conversation = {
+                agentId: agentId
+            }
+        }
+
         const items = await prisma.messageQueue.findMany({
-            where: {
-                status: 'PENDING'
-            },
+            where,
             include: {
                 contact: {
                     select: {

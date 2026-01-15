@@ -12,7 +12,8 @@ import {
     ArrowLeft,
     Image as ImageIcon,
     Users,
-    ShieldCheck
+    ShieldCheck,
+    Clock
 } from 'lucide-react'
 import { useAgent } from '@/components/agent-provider'
 
@@ -30,6 +31,7 @@ export function SidebarWorkspace() {
             routes: [
                 { label: 'Overview', icon: LayoutDashboard, href: `${baseUrl}` },
                 { label: 'Pipeline', icon: Zap, href: `${baseUrl}/pipeline` },
+                { label: 'Queue', icon: Clock, href: `${baseUrl}/queue` },
                 { label: 'Conversations', icon: MessageSquare, href: `${baseUrl}/conversations` },
                 { label: 'Contacts', icon: Users, href: `${baseUrl}/contacts` },
             ]
