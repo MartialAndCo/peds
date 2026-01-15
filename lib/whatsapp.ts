@@ -12,14 +12,14 @@ export async function getConfig() {
 
         return {
             endpoint: settings.waha_endpoint || process.env.WAHA_ENDPOINT || defaultEndpoint,
-            apiKey: process.env.AUTH_TOKEN || settings.waha_api_key || process.env.WAHA_API_KEY || 'secret',
+            apiKey: settings.waha_api_key || process.env.WAHA_API_KEY || 'secret',
             webhookSecret: process.env.WEBHOOK_SECRET
         }
     } catch (e) {
         logger.warn('Failed to fetch WhatsApp settings from DB, falling back to env/defaults', { module: 'whatsapp' })
         return {
             endpoint: process.env.WAHA_ENDPOINT || 'http://127.0.0.1:3001',
-            apiKey: process.env.AUTH_TOKEN || process.env.WAHA_API_KEY || 'secret',
+            apiKey: process.env.WAHA_API_KEY || 'secret',
             webhookSecret: process.env.WEBHOOK_SECRET
         }
     }
