@@ -6,7 +6,8 @@ import { settingsService } from '@/lib/settings-cache'
 const cleanKey = (key?: string) => {
     if (!key) return undefined
     // Remove surrounding quotes and excessive whitespace/newlines
-    return key.trim().replace(/^["']|["']$/g, '')
+    // Also handles cases like "KEY"R where R is garbage after the closing quote
+    return key.trim().replace(/^["']/, '').replace(/["'].*$/, '')
 }
 
 // Helper to get config from DB or Env
