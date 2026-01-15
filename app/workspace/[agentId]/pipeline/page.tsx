@@ -98,7 +98,7 @@ function PhaseColumn({ title, subtitle, color, contacts }: any) {
 
             {/* List */}
             <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-hide">
-                {contacts.map((contact) => (
+                {contacts.map((contact: any) => (
                     <ContactCard key={contact.id} contact={contact} color={color} />
                 ))}
             </div>
