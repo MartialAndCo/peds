@@ -10,11 +10,14 @@ export const openrouter = {
     ): Promise<string> {
         let apiKey = config.apiKey || process.env.OPENROUTER_API_KEY;
 
+        console.log(`[OpenRouter] Config apiKey received: ${config.apiKey ? 'YES (from settings)' : 'NO'}`);
+        console.log(`[OpenRouter] Env OPENROUTER_API_KEY: ${process.env.OPENROUTER_API_KEY ? 'YES' : 'NO'}`);
+        console.log(`[OpenRouter] Final apiKey resolved: ${apiKey ? 'YES' : 'NO'}`);
+
         if (!apiKey) {
-            console.warn("OPENROUTER_API_KEY not configured");
-            // Fallback to Venice (which has RunPod as its own fallback)
-            console.warn("[OpenRouter] No API key, falling back to Venice...");
-            return await venice.chatCompletion(
+            console.warn("[OpenRouter] No API key, falling back to RunPod directly...");
+            const { runpod } = require("./runpod");
+            return await runpod.chatCompletion(
                 systemPrompt,
                 messages,
                 userMessage,
@@ -61,15 +64,16 @@ export const openrouter = {
                 error?.code === 429;
 
             if (isRateLimit) {
-                console.warn(`[OpenRouter] Rate limit hit (429). Falling back to Venice...`);
+                console.warn(`[OpenRouter] Rate limit hit (429). Falling back to RunPod...`);
             } else {
                 console.error(`[OpenRouter] Error:`, error);
-                console.warn(`[OpenRouter] Falling back to Venice...`);
+                console.warn(`[OpenRouter] Falling back to RunPod...`);
             }
 
-            // Fallback to Venice (which internally has RunPod as fallback)
+            // Fallback directly to RunPod (Venice has no credits)
             try {
-                return await venice.chatCompletion(
+                const { runpod } = require("./runpod");
+                return await runpod.chatCompletion(
                     systemPrompt,
                     messages,
                     userMessage,
@@ -79,7 +83,7 @@ export const openrouter = {
                     }
                 );
             } catch (fallbackError) {
-                console.error("[OpenRouter] Venice fallback failed:", fallbackError);
+                console.error("[OpenRouter] RunPod fallback failed:", fallbackError);
                 return "";
             }
         }
