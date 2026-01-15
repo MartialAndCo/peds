@@ -20,6 +20,7 @@ interface Message {
     id: number
     sender: string
     message_text: string
+    mediaUrl?: string | null
     timestamp: string
 }
 
@@ -235,6 +236,11 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
                             const isAi = m.sender === 'ai'
                             const isContact = m.sender === 'contact'
 
+                            // Media Detection
+                            const isImage = m.mediaUrl && (m.mediaUrl.startsWith('data:image') || m.mediaUrl.match(/\.(jpeg|jpg|gif|png)$/i))
+                            const isVideo = m.mediaUrl && (m.mediaUrl.startsWith('data:video') || m.mediaUrl.match(/\.(mp4|mov)$/i))
+                            const isAudio = m.mediaUrl && (m.mediaUrl.startsWith('data:audio') || m.mediaUrl.match(/\.(mp3|wav|ogg)$/i))
+
                             return (
                                 <div key={m.id} className={cn("flex w-full",
                                     isContact ? "justify-start" : "justify-end"
@@ -249,6 +255,26 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
                                             <span className="text-xs font-bold opacity-70 capitalize">{m.sender}</span>
                                             <span className="text-[10px] opacity-50">{new Date(m.timestamp).toLocaleTimeString()}</span>
                                         </div>
+
+                                        {/* Media Rendering */}
+                                        {isImage && (
+                                            <div className="mb-2 mt-1">
+                                                <a href={m.mediaUrl!} target="_blank" rel="noopener noreferrer">
+                                                    <img src={m.mediaUrl!} alt="Shared Media" className="max-w-full rounded-md max-h-64 object-cover" />
+                                                </a>
+                                            </div>
+                                        )}
+                                        {isVideo && (
+                                            <div className="mb-2 mt-1">
+                                                <video src={m.mediaUrl!} controls className="max-w-full rounded-md max-h-64" />
+                                            </div>
+                                        )}
+                                        {isAudio && (
+                                            <div className="mb-2 mt-1">
+                                                <audio src={m.mediaUrl!} controls className="max-w-full" />
+                                            </div>
+                                        )}
+
                                         <p className="whitespace-pre-wrap">{m.message_text}</p>
                                     </div>
                                 </div>
