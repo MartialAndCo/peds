@@ -85,9 +85,9 @@ export class QueueWorker {
         // Simulate Typing (Dynamic duration based on length)
         await whatsapp.sendTypingState(phone, true).catch(() => { })
 
-        // Calculate typing duration: ~50ms per char, min 2s, max 15s
+        // Calculate typing duration: ~65ms per char, min 2.6s, max 19.5s (+30%)
         const totalChars = content.length;
-        const typingDuration = Math.min(15000, Math.max(2000, totalChars * 50));
+        const typingDuration = Math.min(19500, Math.max(2600, totalChars * 65));
         await new Promise(r => setTimeout(r, typingDuration));
 
         // Stop Typing

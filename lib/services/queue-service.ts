@@ -99,8 +99,8 @@ export class QueueService {
         // B. HANDLE MEDIA (Images/Video)
         else if (mediaUrl) {
             await whatsapp.sendTypingState(phone, true, agentId).catch(e => { })
-            const typingMs = Math.min((content?.length || 10) * 60, 5000)
-            await new Promise(r => setTimeout(r, typingMs + 1000))
+            const typingMs = Math.min((content?.length || 10) * 78, 6500) // +30%
+            await new Promise(r => setTimeout(r, typingMs + 1300))
 
             if (mediaType?.includes('video')) {
                 await whatsapp.sendVideo(phone, mediaUrl, content || "", agentId)
@@ -117,8 +117,8 @@ export class QueueService {
             }
 
             await whatsapp.sendTypingState(phone, true, agentId).catch(e => { })
-            const typingMs = Math.min(content.length * 50, 8000)
-            await new Promise(r => setTimeout(r, typingMs + 500))
+            const typingMs = Math.min(content.length * 65, 10400) // +30%
+            await new Promise(r => setTimeout(r, typingMs + 650))
 
             // Unified Splitting Logic (Matches route.ts)
             let parts = content.split('|||').filter((p: string) => p.trim().length > 0)
