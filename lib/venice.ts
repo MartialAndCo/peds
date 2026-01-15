@@ -73,10 +73,10 @@ export const venice = {
                         max_tokens: config.max_tokens
                     })
                     // Throw special error to be caught by chat handler
-                    const error = new Error(`RUNPOD_ASYNC_JOB:${jobId}`)
-                        (error as any).isAsyncJob = true
-                            (error as any).jobId = jobId
-                    throw error
+                    const asyncSignal = new Error(`RUNPOD_ASYNC_JOB:${jobId}`)
+                        ; (asyncSignal as any).isAsyncJob = true
+                        ; (asyncSignal as any).jobId = jobId
+                    throw asyncSignal
                 }
 
                 // If last attempt, fallback to RunPod

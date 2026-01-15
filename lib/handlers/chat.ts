@@ -361,7 +361,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 }
 
 async function callAI(settings: any, conv: any, sys: string, ctx: any[], last: string) {
-    const provider = settings.ai_provider || 'venice'
+    const provider = settings.ai_provider || 'openrouter'
     const params = {
         apiKey: provider === 'anthropic' ? settings.anthropic_api_key : (provider === 'openrouter' ? settings.openrouter_api_key : settings.venice_api_key),
         model: provider === 'anthropic' ? settings.anthropic_model : (provider === 'openrouter' ? settings.openrouter_model : conv.prompt.model),
