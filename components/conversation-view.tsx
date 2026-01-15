@@ -187,6 +187,19 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
         }
     }
 
+    const toggleFastMode = async () => {
+        try {
+            const newTestMode = !conversation.contact.testMode
+            await axios.put(`/api/contacts/${conversation.contact.id}`, { testMode: newTestMode })
+            setConversation({
+                ...conversation,
+                contact: { ...conversation.contact, testMode: newTestMode }
+            })
+        } catch (e) {
+            alert('Error toggling Fast Mode')
+        }
+    }
+
     return (
         <div className="flex flex-col md:flex-row gap-6 h-full max-h-full">
             {/* Chat Area (Left/Middle) */}
@@ -319,6 +332,20 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
                                 {conversation.status === 'active' ? <Pause className="h-4 w-4 mr-2" /> : <Play className="h-4 w-4 mr-2" />}
                                 {conversation.status === 'active' ? 'Pause' : 'Resume'}
                             </Button>
+                        </div>
+
+                        <div className="border-t pt-4 flex items-center justify-between">
+                            <div>
+                                <Label htmlFor="fast-mode-toggle">⚡ Fast Mode</Label>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    {conversation.contact.testMode ? "Réponses en 3-8s" : "Timing naturel"}
+                                </p>
+                            </div>
+                            <Switch
+                                id="fast-mode-toggle"
+                                checked={conversation.contact.testMode || false}
+                                onCheckedChange={toggleFastMode}
+                            />
                         </div>
                     </CardContent>
                 </Card>
