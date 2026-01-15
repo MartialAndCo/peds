@@ -247,7 +247,7 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
                             include: { prompt: true }
                         })
 
-                        const provider = settings.ai_provider || 'venice'
+                        const provider = settings.ai_provider || 'openrouter'
                         const mainPrompt = currentConversation?.prompt?.system_prompt || "You are a friend."
                         let aiRefusal = ""
 
@@ -320,7 +320,7 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
                                 : `(SYSTEM: User asking AGAIN for ${analysis.intentCategory}. Tell them to be patient. Be cute.)`;
 
                             // Generate Response
-                            const provider = settings.ai_provider || 'venice'
+                            const provider = settings.ai_provider || 'openrouter'
                             let responseText = ""
                             const userMessageForAI = messageText + "\n\n" + instruction;
 
