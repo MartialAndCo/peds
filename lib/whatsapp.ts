@@ -84,14 +84,16 @@ export const whatsapp = {
         try {
             const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
             const base64Data = audioDataUrl.split(',')[1] || audioDataUrl
+            const mime = audioDataUrl.match(/^data:(.*?);base64,/)?.[1] || 'audio/mpeg'
+            const ext = mime.split('/')[1] || 'mp3'
 
             await axios.post(`${endpoint}/api/sendVoice`, {
                 sessionId: agentId?.toString(),
                 chatId: formattedChatId,
                 file: {
-                    mimetype: 'audio/mpeg',
+                    mimetype: mime,
                     data: base64Data,
-                    filename: 'voice.mp3'
+                    filename: `voice.${ext}`
                 },
                 replyTo
             }, {
@@ -170,15 +172,30 @@ export const whatsapp = {
         const { endpoint, apiKey } = await getConfig()
         try {
             const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
-            const base64Data = dataUrl.split(',')[1] || dataUrl
+
+            let base64Data = ''
+            let mime = 'image/jpeg'
+
+            if (dataUrl.startsWith('http')) {
+                // Fetch remote URL
+                const res = await axios.get(dataUrl, { responseType: 'arraybuffer' })
+                const buf = Buffer.from(res.data)
+                base64Data = buf.toString('base64')
+                mime = res.headers['content-type'] || 'image/jpeg'
+            } else {
+                base64Data = dataUrl.split(',')[1] || dataUrl
+                mime = dataUrl.match(/^data:(.*?);base64,/)?.[1] || 'image/jpeg'
+            }
+
+            const ext = mime.split('/')[1] || 'jpg'
 
             await axios.post(`${endpoint}/api/sendImage`, {
                 sessionId: agentId?.toString(),
                 chatId: formattedChatId,
                 file: {
-                    mimetype: 'image/jpeg',
+                    mimetype: mime,
                     data: base64Data,
-                    filename: 'image.jpg'
+                    filename: `image.${ext}`
                 },
                 caption: caption
             }, {
@@ -195,15 +212,30 @@ export const whatsapp = {
         const { endpoint, apiKey } = await getConfig()
         try {
             const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
-            const base64Data = dataUrl.split(',')[1] || dataUrl
+
+            let base64Data = ''
+            let mime = 'video/mp4'
+
+            if (dataUrl.startsWith('http')) {
+                // Fetch remote URL
+                const res = await axios.get(dataUrl, { responseType: 'arraybuffer' })
+                const buf = Buffer.from(res.data)
+                base64Data = buf.toString('base64')
+                mime = res.headers['content-type'] || 'video/mp4'
+            } else {
+                base64Data = dataUrl.split(',')[1] || dataUrl
+                mime = dataUrl.match(/^data:(.*?);base64,/)?.[1] || 'video/mp4'
+            }
+
+            const ext = mime.split('/')[1] || 'mp4'
 
             await axios.post(`${endpoint}/api/sendVideo`, {
                 sessionId: agentId?.toString(),
                 chatId: formattedChatId,
                 file: {
-                    mimetype: 'video/mp4',
+                    mimetype: mime,
                     data: base64Data,
-                    filename: 'video.mp4'
+                    filename: `video.${ext}`
                 },
                 caption: caption
             }, {

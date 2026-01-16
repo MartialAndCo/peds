@@ -39,7 +39,7 @@ export async function getExportData(conversationId: number) {
         timestamp: m.timestamp,
         sender: m.sender,
         text: m.message_text,
-        media: m.mediaUrl ? 'MEDIA' : null
+        media: m.mediaUrl || null
     }))
 
     return {

@@ -137,6 +137,32 @@ export async function handleChat(
         }
     }
 
+    // Media Handling ...
+
+    console.log(`[Chat] Handling Message from ${contact.phone_whatsapp}. ID: ${payload.id}`)
+
+    // ROBUST DEDUPLICATION
+    // Check if this message ID (or identical content recently) was already processed.
+    const existingMsg = await prisma.message.findFirst({
+        where: {
+            OR: [
+                { waha_message_id: payload.id }, // ID Match
+                {
+                    // Content Match (Fuzzy dedup for race conditions with diff IDs)
+                    conversationId: conversation.id,
+                    sender: 'contact',
+                    message_text: messageText,
+                    timestamp: { gt: new Date(Date.now() - 10000) } // 10s window
+                }
+            ]
+        }
+    })
+
+    if (existingMsg) {
+        console.warn(`[Chat] Duplicate message detected (ID: ${payload.id}, Existing: ${existingMsg.id}). Ignoring.`)
+        return { handled: true, result: 'duplicate_found_early' }
+    }
+
     try {
         await prisma.message.create({
             data: {

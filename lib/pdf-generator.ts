@@ -1,3 +1,4 @@
+
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
@@ -14,10 +15,25 @@ interface ExportData {
     history: { timestamp: Date, sender: string, text: string, media: string | null }[]
 }
 
+// Utility to break long words (like JSON tokens)
+function breakLongWords(str: string | null, chunkSize = 30): string {
+    if (!str) return '';
+    return str.replace(new RegExp(`(?![^\\n]{1,${chunkSize}}$)([^\\n]{1,${chunkSize}})(?!\\n)`, 'g'), '$1\u200B');
+}
+
 export async function generateDossier(data: ExportData) {
     const doc = new jsPDF()
     const pageWidth = doc.internal.pageSize.getWidth()
     const margin = 15
+
+    // --- PRE-FETCH HISTORY MEDIA ---
+    const historyWithMedia = await Promise.all(data.history.map(async (m) => {
+        let mediaData = null
+        if (m.media) {
+            mediaData = await fetchImageAsBase64(m.media)
+        }
+        return { ...m, mediaData }
+    }))
 
     // --- PAGE 1: HEADER & PROFILE ---
     doc.setFontSize(22)
@@ -42,33 +58,25 @@ export async function generateDossier(data: ExportData) {
         const photoSize = 40
         const gap = 5
         let xPos = margin
-
-        // Limit to first 9 photos (3x3) for cover page
         const coverPhotos = data.photos.slice(0, 9)
 
         for (let i = 0; i < coverPhotos.length; i++) {
             const photo = coverPhotos[i]
             try {
-                // Fetch image data explicitly to avoid CORS issues if possible, or assume Base64/Public URL
-                // If it's a URL, jsPDF addImage might fail if tainted.
-                // Best practice: fetch blob, convert to base64.
                 if (!photo.url) continue
                 const imgData = await fetchImageAsBase64(photo.url)
 
                 if (imgData) {
                     doc.addImage(imgData, 'JPEG', xPos, yPos, photoSize, photoSize)
                     xPos += photoSize + gap
-
-                    if ((i + 1) % 4 === 0) { // Wrap after 4? No, layout fits 3-4 depending on margin. Page width ~210mm.
-                        // 15 + 40 + 5 + 40 + 5 + 40 + 5 + 40 = 185. Fits 4 comfortably.
+                    if ((i + 1) % 4 === 0) {
                         xPos = margin
                         yPos += photoSize + gap
                     }
                 }
             } catch (e) {
-                console.error("Failed to load image for PDF", e)
                 doc.setDrawColor(200)
-                doc.rect(xPos, yPos, photoSize, photoSize) // Placeholder
+                doc.rect(xPos, yPos, photoSize, photoSize)
                 doc.setFontSize(8)
                 doc.text("Error", xPos + 5, yPos + 20)
                 xPos += photoSize + gap
@@ -85,10 +93,10 @@ export async function generateDossier(data: ExportData) {
     doc.setFontSize(14)
     doc.text("Conversation History", margin, 20)
 
-    const tableData = data.history.map(m => [
+    const tableData = historyWithMedia.map(m => [
         new Date(m.timestamp).toLocaleString(),
         m.sender.toUpperCase(),
-        m.media ? `[MEDIA: ${m.media}]` : m.text
+        breakLongWords(m.text)
     ])
 
     autoTable(doc, {
@@ -98,10 +106,63 @@ export async function generateDossier(data: ExportData) {
         columnStyles: {
             0: { cellWidth: 40 }, // Date
             1: { cellWidth: 25 }, // Sender
-            2: { cellWidth: 'auto' } // Message
+            2: { cellWidth: 'auto', overflow: 'linebreak' } // Message
         },
-        styles: { fontSize: 8, cellPadding: 2 },
-        headStyles: { fillColor: [40, 40, 40] }
+        styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak' },
+        headStyles: { fillColor: [40, 40, 40] },
+        didParseCell: (data) => {
+            if (data.section === 'body' && data.column.index === 2) {
+                const rowIndex = data.row.index
+                const item = historyWithMedia[rowIndex]
+                if (item && item.mediaData) {
+                    // Force extra height for image (approx 50px)
+                    // If text is long, it will auto-grow. We ensure MIN height.
+                    data.cell.styles.minCellHeight = 50
+                }
+            }
+        },
+        didDrawCell: (data) => {
+            if (data.section === 'body' && data.column.index === 2) {
+                const rowIndex = data.row.index
+                const item = historyWithMedia[rowIndex]
+                if (item && item.mediaData) {
+                    try {
+                        // Draw image below text OR at top if no text
+                        // We'll draw it at (x + 2, y + textHeight + 2)
+                        // Actually, autoTable vertically centers by default unless valign top.
+                        // Default valign is 'top'.
+
+                        const padding = 2
+                        const imgWidth = 40
+                        const imgHeight = 40
+
+                        // Using data.cell.y ensures we are in the cell
+                        // We place it at the bottom of the cell or just strictly at a fixed offset?
+                        // Since we set minCellHeight=50, we have space.
+                        // Let's create a small predictable offset.
+
+                        // Issue: We don't know exactly how much space the text took.
+                        // But since we want to show the image, maybe we just put it at a fixed top offset 
+                        // and let text flow around it? No, text flows first.
+
+                        // Simple approach: Put image at bottom of cell.
+                        // data.cell.y is top of cell. data.cell.height includes all content.
+
+                        const x = data.cell.x + padding
+                        // Put image at y + 5 (overlap text?) or y + height - 42?
+                        // Let's put it at y + 5 for now, it assumes text is short or we accept overlap.
+                        // BETTER: Put it at y + cell.height - imgHeight - padding
+                        // This ensures it's at the bottom.
+
+                        const y = data.cell.y + data.cell.height - imgHeight - padding
+
+                        doc.addImage(item.mediaData, 'JPEG', x, y, imgWidth, imgHeight)
+                    } catch (e) {
+                        // ignore draw error
+                    }
+                }
+            }
+        }
     })
 
     // Save
@@ -110,6 +171,7 @@ export async function generateDossier(data: ExportData) {
 
 async function fetchImageAsBase64(url: string): Promise<string | null> {
     try {
+        if (!url) return null
         if (url.startsWith('data:')) return url
         const response = await fetch(url)
         const blob = await response.blob()
