@@ -319,23 +319,72 @@ export const mediaService = {
         }
         const typeId = latestPending.typeId;
 
-        if (!mediaData.startsWith('data:')) {
-            mediaData = `data:${mimeType || 'image/jpeg'};base64,${mediaData}`;
+        // UPLOAD TO SUPABASE (Always, to avoid Base64 DB limits)
+        let finalMediaUrl = mediaData;
+        try {
+            const { createClient } = require('@supabase/supabase-js');
+            const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+            const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+            if (url && key) {
+                const supabase = createClient(url, key);
+                // Extract buffer from base64
+                const base64Content = mediaData.includes('base64,') ? mediaData.split('base64,')[1] : mediaData;
+                const buffer = Buffer.from(base64Content, 'base64');
+                const ext = (mimeType || 'image/jpeg').split('/')[1] || 'bin';
+                const fileName = `ingest_${latestPending.id}_${Date.now()}.${ext}`;
+
+                const { error: upErr } = await supabase.storage.from('media-uploads').upload(fileName, buffer, {
+                    contentType: mimeType || 'image/jpeg',
+                    upsert: true
+                });
+
+                if (!upErr) {
+                    const { data } = supabase.storage.from('media-uploads').getPublicUrl(fileName);
+                    if (data?.publicUrl) {
+                        finalMediaUrl = data.publicUrl;
+                        logger.info(`Media uploaded to Supabase: ${finalMediaUrl}`, { module: 'media_service' });
+                    }
+                } else {
+                    // Fallback to existing bucket if media-uploads doesn't exist? try voice-uploads?
+                    // Actually, let's try 'voice-uploads' as fallback or just log error?
+                    // Let's stick to 'voice-uploads' if that's what we have, or assumes 'media-uploads' exists.
+                    // User previous code used 'voice-uploads'. Let's use 'voice-uploads' for now to be safe, or just 'media'.
+                    // Actually, let's use 'voice-uploads' strictly to avoid 404 on bucket? 
+                    // No, 'voice-uploads' might be confusing. Let's try 'chat-media' or if we can't create, fallback to base64.
+
+                    // REVISION: Use 'voice-uploads' bucket as it's confirmed to exist and work in this project.
+                    // Rename file prefix to distinguish.
+                    console.error('Supabase Upload failed to media-uploads, trying voice-uploads fallback...', upErr);
+                    const { error: retryErr } = await supabase.storage.from('voice-uploads').upload(fileName, buffer, {
+                        contentType: mimeType || 'image/jpeg',
+                        upsert: true
+                    });
+                    if (!retryErr) {
+                        const { data } = supabase.storage.from('voice-uploads').getPublicUrl(fileName);
+                        finalMediaUrl = data.publicUrl;
+                    }
+                }
+            }
+        } catch (uploadError) {
+            logger.error('Failed to upload media, falling back to Base64', uploadError as Error, { module: 'media_service' });
+            if (!mediaData.startsWith('data:')) {
+                mediaData = `data:${mimeType || 'image/jpeg'};base64,${mediaData}`;
+                finalMediaUrl = mediaData;
+            }
         }
 
         // Save to Bank
         const newMedia = await prisma.media.create({
             data: {
                 typeId,
-                url: mediaData,
+                url: finalMediaUrl,
                 sentTo: []
             }
         });
 
         // Fulfill Request
         const contactPhone = latestPending.requesterPhone;
-
-        // (Removed immediate send logic)
 
         // Mark sent
         await prisma.media.update({
@@ -349,7 +398,7 @@ export const mediaService = {
             data: { status: 'fulfilled' }
         });
 
-        return { sentTo: contactPhone, type: typeId, mediaUrl: mediaData, mediaType: mimeType };
+        return { sentTo: contactPhone, type: typeId, mediaUrl: finalMediaUrl, mediaType: mimeType };
     },
 
     // 5. Logic: Process Admin Media & Schedule
@@ -378,7 +427,16 @@ export const mediaService = {
 
         const settings: any = await settingsService.getSettings();
 
-        const defaultSchedulingPrompt = `(SYSTEM: You just received the photo the user asked for (Type: ${ingestionResult.type}). Goal: Deliver naturally.\nContext: Time ${nowLA}\nChat History:\n${history}\nTask: 1. Did you promise a time? 2. Calculate delay (min 1m). 3. Write caption.\nOutput JSON: { "reasoning": "...", "delay_minutes": 5, "caption": "..." })`;
+        // Updated Prompt: Enforce brevity
+        const defaultSchedulingPrompt = `(SYSTEM: You received the photo the user asked for (${ingestionResult.type}). Goal: Send it now.
+Task: Write a VERY SHORT caption (max 10 words).
+Rules:
+- CASUAL & SHORT.
+- NO "Here is the photo".
+- NO "I hope you like it".
+- Examples: "Found it! 📸", "Here you go 😊", "Better late than never!", "Look what I found..."
+Output JSON: { "reasoning": "...", "delay_minutes": 2, "caption": "..." })`;
+
         const schedulingPromptTemplate = settings.prompt_media_scheduling || defaultSchedulingPrompt;
         const schedulingPrompt = schedulingPromptTemplate
             .replace('{TYPE}', ingestionResult.type)
@@ -395,7 +453,7 @@ export const mediaService = {
             }
         } catch (e: any) { logger.error("AI Sched Failed", e, { module: 'media_service' }); }
 
-        let sched = { delay_minutes: 5, caption: "Here!", reasoning: "Default" };
+        let sched = { delay_minutes: 2, caption: "Here!", reasoning: "Default" };
         try {
             const match = aiResponseText.match(new RegExp('\\{[\\s\\S]*\\}'));
             if (match) sched = JSON.parse(match[0]);
