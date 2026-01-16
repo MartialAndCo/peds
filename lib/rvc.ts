@@ -159,6 +159,13 @@ export const rvcService = {
             payload.input.audio_base64 = cleanBase64
         }
 
+        // Add Webhook (Dynamic based on Environment)
+        const appUrl = process.env.WEBHOOK_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://peds.ngrok.io'; // Fallback for dev
+        if (appUrl && appUrl.startsWith('http')) {
+            payload.webhook = `${appUrl}/api/webhooks/runpod`;
+            console.log(`[RVC-Async] Added Webhook: ${payload.webhook}`);
+        }
+
 
         // Use /run endpoint
         let endpoint = config.rvcUrl
