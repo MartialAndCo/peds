@@ -128,6 +128,43 @@ export const whatsapp = {
         }
     },
 
+    /**
+     * Send a reaction (like/heart/emoji) to a message
+     * @param chatId - The chat to react in
+     * @param messageId - The message ID to react to
+     * @param emoji - The emoji to react with (e.g. "👍", "❤️", "😂")
+     * @param agentId - Agent ID for multi-session support
+     */
+    async sendReaction(chatId: string, messageId: string, emoji: string, agentId?: number) {
+        logger.info('Sending reaction', { module: 'whatsapp', chatId, messageId, emoji, agentId })
+        const { endpoint, apiKey, defaultSession } = await getConfig()
+
+        if (!endpoint) {
+            logger.warn('WHATSAPP_ENDPOINT not configured', { module: 'whatsapp' })
+            return { success: false }
+        }
+
+        try {
+            const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
+
+            const response = await axios.post(`${endpoint}/api/sendReaction`, {
+                sessionId: agentId?.toString() || defaultSession,
+                chatId: formattedChatId,
+                messageId,
+                emoji
+            }, {
+                headers: { 'X-Api-Key': apiKey },
+                timeout: 10000
+            })
+
+            logger.info('Reaction sent successfully', { module: 'whatsapp', chatId, emoji })
+            return { success: true, data: response.data }
+        } catch (error: any) {
+            logger.error('WhatsApp sendReaction failed', error, { module: 'whatsapp', chatId, messageId })
+            return { success: false, error: error.message }
+        }
+    },
+
     async sendImage(chatId: string, dataUrl: string, caption?: string, agentId?: number) {
         logger.info('Sending image', { module: 'whatsapp', chatId, agentId })
         const { endpoint, apiKey } = await getConfig()

@@ -953,6 +953,41 @@ server.post('/api/sendText', async (req: any, reply) => {
     }
 })
 
+// Send Reaction (Like/Heart/Emoji)
+server.post('/api/sendReaction', async (req: any, reply) => {
+    const { sessionId, chatId, messageId, emoji } = req.body
+
+    let targetSessionId = sessionId
+    if (!targetSessionId) {
+        if (sessions.size === 1) targetSessionId = sessions.keys().next().value
+        else if (sessions.has('default')) targetSessionId = 'default'
+    }
+
+    const session = sessions.get(targetSessionId)
+    if (!session) return reply.code(404).send({ error: 'Session not found', targetSessionId })
+
+    const jid = chatId.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`
+
+    try {
+        // Baileys sendMessage with react type
+        await session.sock.sendMessage(jid, {
+            react: {
+                text: emoji, // Empty string removes reaction
+                key: {
+                    remoteJid: jid,
+                    id: messageId,
+                    fromMe: false
+                }
+            }
+        })
+        server.log.info({ sessionId: targetSessionId, chatId, messageId, emoji }, 'Reaction sent')
+        return { success: true }
+    } catch (e: any) {
+        server.log.error({ err: e, sessionId: targetSessionId, chatId }, 'Failed to send reaction')
+        return reply.code(500).send({ error: e.message })
+    }
+})
+
 // Mark as Read/Seen
 server.post('/api/markSeen', async (req: any, reply) => {
     const { sessionId, chatId, messageId, messageKey } = req.body

@@ -424,18 +424,41 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     }
     if (responseText.includes('Error:') || responseText.includes('undefined')) return { handled: true, result: 'blocked_safety' }
 
+    // Reaction Logic ([REACT:❤️])
+    const reactionMatch = responseText.match(/\[REACT:(.+?)\]/)
+    if (reactionMatch) {
+        const emoji = reactionMatch[1].trim()
+        responseText = responseText.replace(reactionMatch[0], '').trim()
+
+        // Send reaction immediately
+        whatsapp.sendReaction(contact.phone_whatsapp, payload.id, emoji, agentId)
+            .catch(err => console.error('[Chat] Failed to send reaction:', err))
+
+        console.log(`[Chat] AI sent reaction: ${emoji}`)
+    }
+
+    // If response is ONLY a reaction, stop here (don't send empty text)
+    if (!responseText || responseText.length === 0) {
+        // Log reaction-only response
+        await prisma.message.create({
+            data: {
+                conversationId: conversation.id,
+                sender: 'ai',
+                message_text: `[REACT:${reactionMatch ? reactionMatch[1] : 'unknown'}]`,
+                timestamp: new Date()
+            }
+        })
+        return { handled: true, result: 'reaction_only' }
+    }
+
     // Voice Response Logic
     const isPttMessage = payload.type === 'ptt' || payload.type === 'audio'
     const voiceEnabled = settings.voice_response_enabled === 'true' || settings.voice_response_enabled === true
 
-    console.log(`[Voice] payload.type: ${payload.type}, isPttMessage: ${isPttMessage}`)
-    console.log(`[Voice] voice_response_enabled: "${settings.voice_response_enabled}" (type: ${typeof settings.voice_response_enabled})`)
-    console.log(`[Voice] voiceEnabled: ${voiceEnabled}`)
+    console.log(`[Voice] responseText: "${responseText}"`)
 
     let isVoice = voiceEnabled && isPttMessage
     if (responseText.startsWith('[VOICE]')) { isVoice = true; responseText = responseText.replace('[VOICE]', '').trim() }
-
-    console.log(`[Voice] Final isVoice: ${isVoice}`)
 
     await prisma.message.create({
         data: { conversationId: conversation.id, sender: 'ai', message_text: responseText.replace(/\|\|\|/g, '\n'), timestamp: new Date() }
