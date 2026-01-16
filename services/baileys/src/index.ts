@@ -687,6 +687,39 @@ async function startSession(sessionId: string) {
         }
     })
 
+    // Listen for Reactions (for payment claim confirmation)
+    sock.ev.on('messages.reaction', async (reactions: any[]) => {
+        if (!WEBHOOK_URL) return
+
+        for (const reaction of reactions) {
+            try {
+                server.log.info({ sessionId, reaction }, 'Reaction event received')
+
+                const payload = {
+                    sessionId,
+                    event: 'message.reaction',
+                    payload: {
+                        key: reaction.key,
+                        messageId: reaction.key?.id,
+                        reaction: {
+                            text: reaction.reaction?.text,
+                            key: reaction.reaction?.key
+                        },
+                        fromMe: reaction.key?.fromMe
+                    }
+                }
+
+                const response = await axios.post(WEBHOOK_URL, payload, {
+                    headers: { 'x-internal-secret': WEBHOOK_SECRET || '' }
+                })
+                server.log.info({ sessionId, status: response.status }, 'Reaction webhook sent')
+
+            } catch (e: any) {
+                server.log.error({ sessionId, err: e.message }, 'Reaction webhook FAILED')
+            }
+        }
+    })
+
     return sessionData
 }
 
