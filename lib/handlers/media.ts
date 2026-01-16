@@ -45,9 +45,9 @@ export async function handleSourceMedia(
             const result = await voiceService.ingestVoice(normalizedPhone, mediaData)
 
             if (result.action === 'processing') {
-                await whatsapp.sendText(sourcePhone, spin(`{🎙️|🗣️} **{Voice Received|Processing...}**\n\nConverting voice...`), undefined, agentId)
+                // await whatsapp.sendText(sourcePhone, spin(`{🎙️|🗣️} **{Voice Received|Processing...}**\n\nConverting voice...`), undefined, agentId)
             } else if (result.action === 'saved_no_request') {
-                await whatsapp.sendText(sourcePhone, spin(`{⚠️|ℹ️} {Voice stored|Saved} but no pending request.`), undefined, agentId)
+                // await whatsapp.sendText(sourcePhone, spin(`{⚠️|ℹ️} {Voice stored|Saved} but no pending request.`), undefined, agentId)
             } else if (result.action === 'error') {
                 await whatsapp.sendText(sourcePhone, spin(`{❌|⚠️} Failed to process voice.`), undefined, agentId)
             }

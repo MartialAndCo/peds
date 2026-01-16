@@ -424,7 +424,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     }
     if (responseText.includes('Error:') || responseText.includes('undefined')) return { handled: true, result: 'blocked_safety' }
 
-    // Reaction Logic ([REACT:❤️])
+    // Reaction Logic ([REACT:emoji])
     const reactionMatch = responseText.match(/\[REACT:(.+?)\]/)
     if (reactionMatch) {
         const emoji = reactionMatch[1].trim()
@@ -435,6 +435,56 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
             .catch(err => console.error('[Chat] Failed to send reaction:', err))
 
         console.log(`[Chat] AI sent reaction: ${emoji}`)
+    }
+
+    // Image Logic ([IMAGE:keyword])
+    const imageMatch = responseText.match(/\[IMAGE:(.+?)\]/)
+    if (imageMatch) {
+        const keyword = imageMatch[1].trim()
+        responseText = responseText.replace(imageMatch[0], '').trim()
+        console.log(`[Chat] AI wanted to send image: ${keyword}`)
+
+        // Handle Image Async (Fire & Forget)
+        const { mediaService } = require('@/lib/media'); // Lazy import
+        (async () => {
+            try {
+                const typeId = await mediaService.findMediaTypeByKeyword(keyword)
+                if (!typeId) {
+                    console.log(`[Chat] Image keyword "${keyword}" not found in MediaTypes.`)
+                    return
+                }
+
+                const result = await mediaService.processRequest(contact.phone_whatsapp, typeId)
+
+                if (result.action === 'SEND' && result.media) {
+                    console.log(`[Chat] Found media ${result.media.id} for "${typeId}". Sending...`)
+
+                    // 1. Send Image
+                    // Ensure data is proper DataURL or Base64 (assuming stored as Base64 or URL)
+                    let dataUrl = result.media.data
+                    if (dataUrl && !dataUrl.startsWith('http') && !dataUrl.startsWith('data:')) {
+                        dataUrl = `data:${result.media.mimeType || 'image/jpeg'};base64,${dataUrl}`
+                    }
+
+                    await whatsapp.sendImage(contact.phone_whatsapp, dataUrl, result.media.caption || '', agentId)
+
+                    // 2. Mark as Sent
+                    // sentTo is String[]
+                    const currentSentTo = result.media.sentTo || []
+                    if (!currentSentTo.includes(contact.phone_whatsapp)) {
+                        await prisma.media.update({
+                            where: { id: result.media.id },
+                            data: { sentTo: { push: contact.phone_whatsapp } }
+                        })
+                    }
+                } else if (result.action === 'REQUEST_SOURCE') {
+                    console.log(`[Chat] No media for "${typeId}". Requesting source...`)
+                    await mediaService.requestFromSource(contact.phone_whatsapp, typeId, settings, agentId)
+                }
+            } catch (e: any) {
+                console.error('[Chat] Failed to process AI Image request', e)
+            }
+        })()
     }
 
     // If response is ONLY a reaction, stop here (don't send empty text)

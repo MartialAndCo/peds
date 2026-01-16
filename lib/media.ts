@@ -115,6 +115,22 @@ export const mediaService = {
         }
     },
 
+    // Helper: Find Media Type by Keyword (Deterministic)
+    async findMediaTypeByKeyword(keyword: string) {
+        const types = await getCachedMediaTypes();
+        const normalized = keyword.toLowerCase().trim();
+
+        // 1. Precise Match (ID)
+        const exactId = types.find((t: any) => t.id.toLowerCase() === normalized);
+        if (exactId) return exactId.id;
+
+        // 2. Keyword Match
+        const keywordMatch = types.find((t: any) => t.keywords.some((k: string) => k.toLowerCase() === normalized));
+        if (keywordMatch) return keywordMatch.id;
+
+        return null;
+    },
+
     // 2. Process Request
     async processRequest(contactPhone: string, typeId: string) {
         logger.info(`Processing request for ${typeId}`, { module: 'media_service', contactPhone });
