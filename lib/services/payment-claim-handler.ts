@@ -142,42 +142,16 @@ export async function handlePaymentClaimReaction(
         const memoryText = `User paid ${claim.claimedAmount || 'an amount'} via ${claim.claimedMethod || 'unknown method'}. Payment confirmed.`
         await memoryService.add(memUserId, memoryText)
 
-        // 3. Generate thank you response (AI, not hardcoded)
-        const thankPrompt = `(SYSTEM: The user just sent you money (${claim.claimedAmount || 'some amount'} via ${claim.claimedMethod || 'transfer'}). You received it successfully. Express genuine gratitude in your own words. Be warm and appreciative. Stay in character.)`
+        // NOTE: No thank you message sent here - the AI already responded naturally
+        // to the user's payment claim. Sending another would be redundant.
 
-        try {
-            let thankYouMsg = await venice.chatCompletion(
-                systemPrompt + thankPrompt,
-                [],
-                'Thank you for the payment!', // Dummy user msg for context
-                { apiKey: settings.venice_api_key, model: settings.venice_model || 'venice-uncensored' }
-            )
-            thankYouMsg = thankYouMsg.replace(/\*[^*]+\*/g, '').trim()
-
-            await whatsapp.sendText(claim.contact.phone_whatsapp, thankYouMsg, undefined, agentId)
-
-            // Save message to conversation
-            if (conversation) {
-                await prisma.message.create({
-                    data: {
-                        conversationId: conversation.id,
-                        sender: 'ai',
-                        message_text: thankYouMsg,
-                        timestamp: new Date()
-                    }
-                })
-            }
-        } catch (e) {
-            logger.error('Failed to send thank you message', e as Error, { module: 'payment-claim' })
-        }
-
-        // 4. Update claim status
+        // 3. Update claim status
         await prisma.pendingPaymentClaim.update({
             where: { id: claim.id },
             data: { status: 'CONFIRMED' }
         })
 
-        logger.info('Payment claim confirmed', { module: 'payment-claim', claimId: claim.id })
+        logger.info('Payment claim confirmed (silent)', { module: 'payment-claim', claimId: claim.id })
 
     } else {
         // REJECTION: Not received
