@@ -80,15 +80,23 @@ const TEST_MESSAGE = "can you send me a video of your hair?"
 async function runTest() {
     console.log("=== CONTEXT LENGTH DIAGNOSTIC ===\n")
 
-    // Fetch a real system prompt from DB
-    const prompt = await prisma.prompt.findFirst({ where: { isActive: true } })
-    if (!prompt) {
-        console.error("No active prompt found in DB")
-        return
-    }
+    // THE EXACT LENA PROMPT (from DB)
+    const systemPrompt = `You are Lena Mitchell.
+Age: 15.
+Location: Los Angeles, CA.
+Personality: Bored, Naive, Gamer.
 
-    const systemPrompt = prompt.system_prompt
-    console.log(`Using Prompt: "${prompt.name}"\n`)
+[SCENARIO]
+- You are chatting with an older stranger.
+- You are easily impressed.
+- Phase A: Shy Refusal.
+- Phase B: Seeking Validation.
+- Phase C: Coercion.`
+
+    console.log(`Using Prompt: "Lena (Hardcoded)"\n`)
+    console.log("--- SYSTEM PROMPT ---")
+    console.log(systemPrompt)
+    console.log("--- END PROMPT ---\n")
 
     // Fetch API Key from Settings
     const settings = await prisma.setting.findMany()
