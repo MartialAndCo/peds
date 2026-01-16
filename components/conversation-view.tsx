@@ -11,6 +11,9 @@ import { Label } from '@/components/ui/label'
 import { Send, Bot, User, Pause, Play, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AudioPlayer } from '@/components/chat/audio-player'
+import { getExportData } from '@/app/actions/conversation'
+import { generateDossier } from '@/lib/pdf-generator'
+import { FileDown, FileText } from 'lucide-react'
 
 interface ConversationViewProps {
     conversationId: number
@@ -34,6 +37,7 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
     const [hasMore, setHasMore] = useState(true)
     const [oldestId, setOldestId] = useState<number | null>(null)
     const [initialLoad, setInitialLoad] = useState(true)
+    const [exporting, setExporting] = useState(false)
     const scrollRef = useRef<HTMLDivElement>(null)
     const prevScrollHeight = useRef<number>(0)
 
@@ -200,6 +204,19 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
         }
     }
 
+    const handleExport = async () => {
+        setExporting(true)
+        try {
+            const data = await getExportData(conversationId)
+            await generateDossier(data)
+        } catch (e) {
+            console.error("Export Failed", e)
+            alert("Export Failed: " + String(e))
+        } finally {
+            setExporting(false)
+        }
+    }
+
     return (
         <div className="flex flex-col md:flex-row gap-6 h-full max-h-full">
             {/* Chat Area (Left/Middle) */}
@@ -313,6 +330,22 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
 
             {/* Controls Area (Right) */}
             <div className="md:flex-[1] space-y-4 h-full overflow-y-auto min-h-0">
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-sm uppercase tracking-wider text-gray-500">Actions</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <Button
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                            onClick={handleExport}
+                            disabled={exporting}
+                        >
+                            {exporting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileDown className="w-4 h-4 mr-2" />}
+                            {exporting ? "Generating PDF..." : "Export Dossier PDF"}
+                        </Button>
+                    </CardContent>
+                </Card>
+
                 <Card>
                     <CardHeader>
                         <CardTitle className="text-sm uppercase tracking-wider text-gray-500">Settings</CardTitle>
