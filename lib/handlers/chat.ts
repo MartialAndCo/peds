@@ -543,7 +543,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         const voiceText = responseText.replace(/\|\|\|/g, '. ')
         const existing = await voiceService.findReusableVoice(voiceText)
         if (existing) {
-            whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload?.messageKey).catch(() => { })
+            whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload?.key).catch(() => { })
             await whatsapp.sendVoice(contact.phone_whatsapp, existing.url, payload.id, agentId)
         } else {
             await voiceService.requestVoice(contact.phone_whatsapp, voiceText, lastContent, settings, agentId)
@@ -551,7 +551,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         }
     } else {
         // Text Send -> Via DB Queue (Reliable)
-        whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload?.messageKey).catch(() => { })
+        whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload?.key).catch(() => { })
 
         // We push the raw responseText (with |||) to DB. The Cron/Worker handles splitting.
         const queuedMsg = await prisma.messageQueue.create({
