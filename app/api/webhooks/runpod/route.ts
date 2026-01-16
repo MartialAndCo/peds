@@ -20,7 +20,7 @@ export async function POST(req: Request) {
         }
 
         if (!output || !output.audio_base64) {
-            logger.error(`RunPod Job ${jobId} completed but missing output`, { module: 'webhook_runpod' });
+            logger.error(`RunPod Job ${jobId} completed but missing output`, undefined, { module: 'webhook_runpod' });
             return NextResponse.json({ received: true });
         }
 
@@ -104,7 +104,8 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: true });
 
     } catch (error: any) {
-        logger.error('RunPod Webhook Error', { error: error.message, module: 'webhook_runpod' });
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        const errObj = error instanceof Error ? error : new Error(String(error));
+        logger.error('RunPod Webhook Error', errObj, { module: 'webhook_runpod' });
+        return NextResponse.json({ error: error.message || String(error) }, { status: 500 });
     }
 }
