@@ -26,6 +26,16 @@ const PROMPT_KEYS = [
     // Messages
     'msg_view_once_refusal',
     'msg_voice_refusal',
+    // Payment Methods
+    'payment_paypal_enabled',
+    'payment_paypal_username',
+    'payment_venmo_enabled',
+    'payment_venmo_username',
+    'payment_cashapp_enabled',
+    'payment_cashapp_username',
+    'payment_zelle_enabled',
+    'payment_zelle_username',
+    'payment_custom_methods',
 ]
 
 // GET /api/agents/[id]/settings - Fetch agent settings with global fallbacks
