@@ -12,8 +12,8 @@ import { logger } from '@/lib/logger'
 export class MessageRecoveryService {
 
     // How old a message must be before we consider it "orphaned" (in minutes)
-    // Updated to 2 hours (120m) to avoid unnatural "just got your message" responses after short delays.
-    private readonly ORPHAN_THRESHOLD_MINUTES = 120
+    // Reverted to 5m per user request, but handling response logic dynamically to avoid "sorry" spam.
+    private readonly ORPHAN_THRESHOLD_MINUTES = 5
 
     // Maximum number of conversations to recover per run (prevents overload)
     private readonly MAX_RECOVER_PER_RUN = 10
@@ -148,10 +148,23 @@ export class MessageRecoveryService {
             return { status: 'no_messages_to_recover' }
         }
 
+        // Calculate delay in hours for context
+        const lastMsgTime = new Date(orphan.lastMessageTime).getTime();
+        const now = Date.now();
+        const hoursDelayed = Math.floor((now - lastMsgTime) / (1000 * 60 * 60));
+
+        let instruction = "(RECOVERY - User sent messages that weren't answered. Respond naturally. DO NOT apologize for the delay, just continue conversation.)";
+
+        if (hoursDelayed >= 6) {
+            instruction = `(RECOVERY - It has been ${hoursDelayed} hours since the user messaged. Apologize for the delay and respond to their messages.)`;
+        } else if (hoursDelayed >= 12) {
+            instruction = `(RECOVERY - It has been ${hoursDelayed} hours. Sincerely apologize for the long wait and respond.)`;
+        }
+
         // Create a batched message for AI
         const batchedMessage = unansweredMessages.length > 1
-            ? `(RECOVERY - User sent ${unansweredMessages.length} messages that weren't answered, respond naturally to all):\n${unansweredMessages.map((m, i) => `[${i + 1}]: ${m}`).join('\n')}`
-            : unansweredMessages[0]
+            ? `${instruction}\nMessages:\n${unansweredMessages.map((m, i) => `[${i + 1}]: ${m}`).join('\n')}`
+            : `${instruction}\nMessage: "${unansweredMessages[0]}"`
 
         console.log(`[Recovery] Generating AI response for ${unansweredMessages.length} orphan messages`)
 
