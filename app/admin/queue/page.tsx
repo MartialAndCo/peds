@@ -131,9 +131,24 @@ export default function QueuePage() {
                                             </div>
                                         </TableCell>
                                         <TableCell className="max-w-[300px]">
-                                            <p className="truncate text-sm" title={item.content}>
-                                                {item.content}
-                                            </p>
+                                            <div className="flex flex-col gap-2">
+                                                {item.mediaUrl && (
+                                                    <div className="mb-1">
+                                                        {(item.mediaType === 'audio' || item.mediaType === 'ptt' || item.mediaUrl.endsWith('.wav') || item.mediaUrl.endsWith('.mp3')) ? (
+                                                            <audio controls src={item.mediaUrl} className="w-full h-8" />
+                                                        ) : (item.mediaType === 'image' || item.mediaType === 'video') ? (
+                                                            <a href={item.mediaUrl} target="_blank" rel="noreferrer">
+                                                                <img src={item.mediaUrl} alt="Media" className="h-16 w-auto object-cover rounded" />
+                                                            </a>
+                                                        ) : (
+                                                            <a href={item.mediaUrl} target="_blank" className="text-blue-500 underline text-xs">View Media</a>
+                                                        )}
+                                                    </div>
+                                                )}
+                                                <p className="truncate text-sm" title={item.content}>
+                                                    {item.content || <span className="italic text-muted-foreground">No caption</span>}
+                                                </p>
+                                            </div>
                                         </TableCell>
                                         <TableCell>
                                             <Badge variant={item.status === 'PENDING' ? 'secondary' : 'default'}>

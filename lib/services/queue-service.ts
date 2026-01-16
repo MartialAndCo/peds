@@ -58,9 +58,9 @@ export class QueueService {
     }
 
     /**
-     * Internal logic for one item
+     * Logic for one item (Exposed for 'Send Now' action)
      */
-    private async processedSingleItem(queueItem: any) {
+    public async processedSingleItem(queueItem: any) {
         const { content, contact, conversation, mediaUrl, mediaType, duration } = queueItem
         const phone = contact.phone_whatsapp
         const agentId = conversation?.agentId || undefined
