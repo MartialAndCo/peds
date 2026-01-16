@@ -335,10 +335,10 @@ export async function processWhatsAppPayload(payload: any, agentId: number, opti
                                 content: m.message_text
                             }))
 
-                            // Simplified instruction - keeps persona short
+                            // Simplified instruction - agent-agnostic, stays in persona
                             const instruction = status === 'REQUEST_NEW'
-                                ? `(SYSTEM: Say you'll check for that later. Keep it SHORT. Be shy.)`
-                                : `(SYSTEM: They're asking again. Say be patient cutely. Keep it SHORT.)`;
+                                ? `(SYSTEM: Say you'll check for that later. Keep response SHORT, max 15 words. Stay in character.)`
+                                : `(SYSTEM: They're asking again. Say be patient. Keep response SHORT, max 15 words. Stay in character.)`;
 
                             // Generate Response
                             const provider = settings.ai_provider || 'venice'
