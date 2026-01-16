@@ -59,6 +59,7 @@ model Contact {
   payments        Payment[]
   messageQueue    MessageQueue[]
   trustLogs       TrustLog[]
+  paymentClaims   PendingPaymentClaim[]
 
   @@index([status])
   @@index([source])
@@ -378,4 +379,21 @@ model IncomingQueue {
   @@index([status])
   @@index([createdAt])
   @@map("incoming_queue")
+}
+
+// Pending payment claims awaiting admin confirmation via reaction
+model PendingPaymentClaim {
+  id             String   @id @default(uuid())
+  contactId      String
+  contact        Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  conversationId Int?
+  waMessageId    String?  @unique // WhatsApp message ID sent to admin (for reaction tracking)
+  claimedAmount  Decimal?
+  claimedMethod  String?  // e.g. "PayPal", "CashApp", "Venmo"
+  status         String   @default("PENDING") // PENDING, CONFIRMED, REJECTED
+  createdAt      DateTime @default(now())
+  
+  @@index([status])
+  @@index([contactId])
+  @@map("pending_payment_claims")
 }

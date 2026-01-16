@@ -203,7 +203,18 @@ export async function handleChat(
 
     try {
         // AI GENERATION LOGIC
-        return await generateAndSendAI(conversation, contact, settings, messageText, payload, agentId)
+        const result = await generateAndSendAI(conversation, contact, settings, messageText, payload, agentId)
+
+        // 8. Payment Claim Detection (runs in background, non-blocking)
+        try {
+            const { processPaymentClaim } = require('@/lib/services/payment-claim-handler')
+            processPaymentClaim(messageText, contact, conversation, settings, agentId)
+                .catch((e: any) => console.error('[Chat] Payment claim processing failed (non-blocking):', e.message))
+        } catch (e) {
+            // Ignore errors - feature is optional
+        }
+
+        return result
     } finally {
         await releaseLock(conversation.id)
     }

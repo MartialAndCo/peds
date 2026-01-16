@@ -23,10 +23,36 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
+        // Handle Reaction Events (for payment claim confirmation)
+        if (body.event === 'message.reaction' || body.event === 'messages.reaction') {
+            try {
+                const { handlePaymentClaimReaction } = require('@/lib/services/payment-claim-handler')
+                const reactionData = body.payload || body
+                const messageId = reactionData.key?.id || reactionData.messageId || reactionData.id
+                const reaction = reactionData.reaction?.text || reactionData.text || reactionData.emoji
+                const agentId = body.sessionId ? parseInt(body.sessionId) : 1
+
+                // Get settings
+                const { settingsService } = require('@/lib/settings-cache')
+                const settings = await settingsService.getSettings()
+
+                if (messageId && reaction) {
+                    const handled = await handlePaymentClaimReaction(messageId, reaction, settings, agentId)
+                    if (handled) {
+                        logger.info('Payment claim reaction processed', { messageId, reaction, module: 'webhook' })
+                    }
+                }
+            } catch (e: any) {
+                console.error('[Webhook] Reaction handling failed:', e.message)
+            }
+            return NextResponse.json({ success: true, type: 'reaction' })
+        }
+
         // Ignore non-message events
         if (body.event !== 'message') {
             return NextResponse.json({ success: true, ignored: true })
         }
+
 
         const payload = body.payload
         const agentId = body.sessionId ? parseInt(body.sessionId) : 1
