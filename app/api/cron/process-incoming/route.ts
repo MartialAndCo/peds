@@ -19,10 +19,11 @@ export async function GET(req: Request) {
         // ATOMIC CLAIM: Use transaction to prevent race conditions
         // This ensures only ONE CRON invocation can claim each item.
         const pending = await prisma.$transaction(async (tx) => {
-            // Find items that are ready
+            // Find items that are ready - Take larger batch for bursts
+            // IMPORTANT: We must order by createdAt ASC to process in order
             const items = await tx.incomingQueue.findMany({
                 where: { status: 'PENDING' },
-                take: 5,
+                take: 50, // Increased from 5 to 50 to capture bursts
                 orderBy: { createdAt: 'asc' }
             })
 
@@ -37,47 +38,75 @@ export async function GET(req: Request) {
             return items
         })
 
+        // Group by Sender + AgentId (Burst logic)
+        const bursts = new Map<string, typeof pending>();
+
         for (const item of pending) {
-            // Item is already locked as PROCESSING by transaction above
-            try {
-                const payload = item.payload as any
-                const traceId = trace.generate()
+            const payload = item.payload as any;
+            // Identify sender key: AgentId + RemoteJid
+            // If from is missing, fallback to unique ID to treat as isolated
+            const from = payload.payload?.from || `unknown_${item.id}`;
+            const senderKey = `${item.agentId}:${from}`;
 
-                // Execute Logic
-                const result = await trace.runAsync(traceId, item.agentId, async () => {
-                    return await processWhatsAppPayload(payload.payload, item.agentId)
-                })
+            if (!bursts.has(senderKey)) bursts.set(senderKey, []);
+            bursts.get(senderKey)!.push(item);
+        }
 
-                // Check Result
-                if (result.status === 'async_job_started' && result.jobId) {
-                    // Switch to Async Mode
-                    console.log(`[CRON] Item ${item.id} switched to Async Job: ${result.jobId}`)
+        // Process each burst
+        for (const [key, items] of bursts.entries()) {
+            if (items.length > 1) {
+                console.log(`[CRON] Burst detected for ${key}: ${items.length} messages`)
+            }
+
+            for (let i = 0; i < items.length; i++) {
+                const item = items[i];
+                const isLast = i === items.length - 1;
+
+                // Skip AI for all items EXCEPT the last one in the burst.
+                // This ensures all messages are saved to DB context (preserving history),
+                // but only one AI response is triggered at the end.
+                const skipAI = !isLast;
+
+                try {
+                    const payload = item.payload as any
+                    const traceId = trace.generate()
+
+                    // Execute Logic with skipAI option
+                    const result = await trace.runAsync(traceId, item.agentId, async () => {
+                        return await processWhatsAppPayload(payload.payload, item.agentId, { skipAI })
+                    })
+
+                    // Check Result
+                    if (result.status === 'async_job_started' && result.jobId) {
+                        // Switch to Async Mode
+                        console.log(`[CRON] Item ${item.id} switched to Async Job: ${result.jobId}`)
+                        await prisma.incomingQueue.update({
+                            where: { id: item.id },
+                            data: {
+                                status: 'AI_PROCESSING',
+                                runpodJobId: result.jobId
+                            }
+                        })
+                    } else {
+                        // Regular Completion
+                        await prisma.incomingQueue.update({
+                            where: { id: item.id },
+                            data: { status: 'DONE', processedAt: new Date() }
+                        })
+                        processed++
+                    }
+
+                } catch (err: any) {
+                    console.error(`[CRON] Failed item ${item.id}:`, err)
                     await prisma.incomingQueue.update({
                         where: { id: item.id },
                         data: {
-                            status: 'AI_PROCESSING',
-                            runpodJobId: result.jobId
+                            status: item.attempts >= 2 ? 'FAILED' : 'PENDING',
+                            attempts: { increment: 1 },
+                            error: err.message
                         }
                     })
-                } else {
-                    // Regular Completion
-                    await prisma.incomingQueue.update({
-                        where: { id: item.id },
-                        data: { status: 'DONE', processedAt: new Date() }
-                    })
-                    processed++
                 }
-
-            } catch (err: any) {
-                console.error(`[CRON] Failed item ${item.id}:`, err)
-                await prisma.incomingQueue.update({
-                    where: { id: item.id },
-                    data: {
-                        status: item.attempts >= 2 ? 'FAILED' : 'PENDING',
-                        attempts: { increment: 1 },
-                        error: err.message
-                    }
-                })
             }
         }
 

@@ -5,6 +5,7 @@ import { rvcService } from '@/lib/rvc';
 import { mediaService } from '@/lib/media';
 import { anthropic } from '@/lib/anthropic';
 import { venice } from '@/lib/venice';
+import { settingsService } from '@/lib/settings-cache';
 
 const DEFAULT_VOICE_CHECK_PROMPT = `
 You are an intelligent assistant managing a WhatsApp conversation.
@@ -180,8 +181,11 @@ export async function GET(req: Request) {
                     console.log(`[VoiceCron] Job Done. Re-injecting to Admin Media Flow...`);
 
                     // Reuse existing logic (Scheduling, Captioning, Sending)
+                    const settingsSvc = await settingsService.getSettings();
+                    const reportPhone = settingsSvc.voice_source_number || settingsSvc.source_phone_number || 'AI_GENERATED';
+
                     await mediaService.processAdminMedia(
-                        'AI_GENERATED', // "Source" is AI
+                        reportPhone, // "Source" is AI, but report to Admin
                         ingestionResult
                     );
 

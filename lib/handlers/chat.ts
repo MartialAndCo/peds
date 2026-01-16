@@ -17,7 +17,8 @@ export async function handleChat(
     conversation: any,
     settings: any,
     messageTextInput: string, // The initial text (or transcribed voice from caller)
-    agentId?: number // Added: Agent Context
+    agentId?: number, // Added: Agent Context
+    options?: { skipAI?: boolean } // Added: Burst Mode Support
 ) {
     let messageText = messageTextInput
 
@@ -140,6 +141,13 @@ export async function handleChat(
     } catch (e: any) {
         if (e.code === 'P2002') return { handled: true, result: 'duplicate' }
         throw e
+    }
+
+    // BURST MODE: If we are processing a batch of messages, we might want to skip AI for all but the last one.
+    // The message is already saved above, so context is preserved.
+    if (options?.skipAI) {
+        logger.info('Burst Mode: Skipping AI generation for message', { module: 'chat', contactId: contact.id, method: 'burst_skip' })
+        return { handled: true, result: 'saved_skipped_ai' }
     }
 
     // 5. Checks (Paused/VoiceFail)

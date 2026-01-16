@@ -11,10 +11,11 @@ import { queueService } from '@/lib/services/queue-service'
  * Core processor for WhatsApp Webhook Payloads.
  * This function encapsulates the business logic previously in the route handler.
  */
-export async function processWhatsAppPayload(payload: any, agentId: number) {
+export async function processWhatsAppPayload(payload: any, agentId: number, options?: { skipAI?: boolean }) {
     logger.messageProcessing('Start handling message', { agentId, from: payload.from })
 
     try {
+
         // Ignore own messages
         if (payload.fromMe) return { status: 'ignored_from_me' }
 
@@ -104,8 +105,11 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
 
             // 2. Media/Voice Ingestion
             const { handleSourceMedia } = require('@/lib/handlers/media')
-            const mediaResult = await handleSourceMedia(payload, sourcePhone, normalizedPhone, settings)
-            if (mediaResult.handled) return { status: 'handled_media_ingest', type: mediaResult.type }
+            const mediaResult = await handleSourceMedia(payload, sourcePhone, normalizedPhone, settings, agentId)
+            if (mediaResult.handled) {
+                await queueService.processPendingMessages().catch((err: any) => console.error('[Processor] Queue Worker failed:', err))
+                return { status: 'handled_media_ingest', type: mediaResult.type }
+            }
 
             // 3. Lead Provider
             const isLeadProvider = leadProviderPhone && normalizedPhone.includes(leadProviderPhone.replace('+', ''))
@@ -403,7 +407,7 @@ export async function processWhatsAppPayload(payload: any, agentId: number) {
 
         console.log('[Processor] Handing off to Chat Handler...')
         const { handleChat } = require('@/lib/handlers/chat')
-        const chatResult = await handleChat(payload, contact, conversation, settings, messageText, agentId)
+        const chatResult = await handleChat(payload, contact, conversation, settings, messageText, agentId, options)
         console.log('[Processor] Chat Result:', chatResult)
 
         // ...

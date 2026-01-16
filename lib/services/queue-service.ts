@@ -146,6 +146,19 @@ export class QueueService {
             data: { status: 'SENT' }
         })
 
+        // Log to History (for Dashboard visibility)
+        if (queueItem.conversationId) {
+            await prisma.message.create({
+                data: {
+                    conversationId: queueItem.conversationId,
+                    sender: 'ai',
+                    message_text: content || (mediaUrl ? (mediaType?.includes('audio') ? "[Voice Message]" : "[Media Message]") : "[Message]"),
+                    mediaUrl: mediaUrl,
+                    timestamp: new Date()
+                }
+            }).catch((e: any) => console.error("Failed to log sent message to history", e))
+        }
+
         return { id: queueItem.id, status: 'success' }
     }
 

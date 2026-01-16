@@ -10,7 +10,8 @@ export async function handleSourceMedia(
     payload: any,
     sourcePhone: string,
     normalizedPhone: string,
-    settings: any
+    settings: any,
+    agentId?: number
 ) {
     // Include ptt/audio so voice notes are correctly routed and don't fall through
     const isMedia = payload.type === 'image' || payload.type === 'video' || payload.type === 'ptt' || payload.type === 'audio' || payload._data?.mimetype?.startsWith('image') || payload._data?.mimetype?.startsWith('video') || payload._data?.mimetype?.startsWith('audio')
@@ -44,11 +45,11 @@ export async function handleSourceMedia(
             const result = await voiceService.ingestVoice(normalizedPhone, mediaData)
 
             if (result.action === 'processing') {
-                await whatsapp.sendText(sourcePhone, spin(`{🎙️|🗣️} **{Voice Received|Processing...}**\n\nConverting voice...`))
+                await whatsapp.sendText(sourcePhone, spin(`{🎙️|🗣️} **{Voice Received|Processing...}**\n\nConverting voice...`), undefined, agentId)
             } else if (result.action === 'saved_no_request') {
-                await whatsapp.sendText(sourcePhone, spin(`{⚠️|ℹ️} {Voice stored|Saved} but no pending request.`))
+                await whatsapp.sendText(sourcePhone, spin(`{⚠️|ℹ️} {Voice stored|Saved} but no pending request.`), undefined, agentId)
             } else if (result.action === 'error') {
-                await whatsapp.sendText(sourcePhone, spin(`{❌|⚠️} Failed to process voice.`))
+                await whatsapp.sendText(sourcePhone, spin(`{❌|⚠️} Failed to process voice.`), undefined, agentId)
             }
 
             return { handled: true, type: 'source_voice_ingest' }
@@ -81,12 +82,12 @@ export async function handleSourceMedia(
         const ingestionResult = await mediaService.ingestMedia(sourcePhone, mediaData, mimeType)
 
         if (ingestionResult) {
-            await whatsapp.sendText(sourcePhone, spin(`{✅|📥} {Media ingested|Photo received}. Analyzing...`))
+            await whatsapp.sendText(sourcePhone, spin(`{✅|📥} {Media ingested|Photo received}. Analyzing...`), undefined, agentId)
 
             // Delegate to Service
             await mediaService.processAdminMedia(sourcePhone, ingestionResult)
         } else {
-            await whatsapp.sendText(sourcePhone, spin(`{✅|💾} {Media stored|Saved} (Uncategorized).`))
+            await whatsapp.sendText(sourcePhone, spin(`{✅|💾} {Media stored|Saved} (Uncategorized).`), undefined, agentId)
         }
         return { handled: true, type: 'source_media' }
     }
