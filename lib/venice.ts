@@ -60,13 +60,10 @@ export const venice = {
                 console.error(`[Venice] Request failed (Attempt ${attempt}): ${detail}`)
                 logger.error('Venice AI request failed', error, { module: 'venice', attempt, status, detail })
 
-                // If fatal error (Auth / Bad Request / Payment), fallback to RunPod immediately
-                // - 400: Bad Request
-                // - 401: Unauthorized
-                // - 402: Payment Required (No credits) - Retry is useless, switch to ASYNC JOB
-                // - 403: Forbidden
-                if (status === 400 || status === 401 || status === 402 || status === 403) {
-                    console.warn(`[Venice] Fatal error (${status}). Switching to RunPod ASYNC Job...`)
+                if (status === 400 || status === 401 || status === 402 || status === 403 || status === 404 || status === 405) {
+                    console.warn(`[Venice] API Rejection (${status}). Switching to RunPod (Async Fallback)...`)
+                    logger.warn(`Venice failed (${status}), falling back to RunPod`, { module: 'venice', status })
+
                     // Async Submission to prevent Lambda timeout
                     const jobId = await runpod.submitJob(systemPrompt, messages, userMessage, {
                         temperature: config.temperature,

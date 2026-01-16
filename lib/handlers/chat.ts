@@ -462,24 +462,34 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 }
 
 async function callAI(settings: any, conv: any, sys: string, ctx: any[], last: string) {
-    // Force RunPod as primary LLM provider (OpenRouter only for vision)
-    const provider = settings.ai_provider === 'anthropic' ? 'anthropic' : 'runpod'
+    // PRIMARY PROVIDER: VENICE
+    // Fallback logic is handled inside venice.ts (to RunPod)
+
+    // Explicitly check for 'runpod' override setting only if needed, otherwise default to Venice.
+    // User requested: Venice Principal, RunPod Secondaire (fallback), OpenRouter Dégage.
+
+    // However, we respect the 'ai_provider' setting specifically if it forces runpod.
+    // If it's 'anthropic' or 'openrouter', we FORCE Venice anyway based on user request "OpenRouter dégage".
+
+    const provider = settings.ai_provider === 'runpod' ? 'runpod' : 'venice'
 
     const params = {
-        apiKey: provider === 'anthropic' ? settings.anthropic_api_key : settings.runpod_api_key,
-        model: provider === 'anthropic' ? settings.anthropic_model : conv.prompt?.model,
+        apiKey: provider === 'runpod' ? settings.runpod_api_key : settings.venice_api_key,
+        model: provider === 'runpod' ? (conv.prompt?.model || 'runpod/model') : (settings.venice_model || 'venice-uncensored'),
         temperature: settings.ai_temperature ? Number(settings.ai_temperature) : Number(conv.prompt?.temperature || 0.7),
         max_tokens: conv.prompt?.max_tokens || 500
     }
 
-    console.log(`[Chat] Provider Selection: ${provider}`)
+    console.log(`[Chat] Provider Selection: ${provider.toUpperCase()}`)
     console.log(`[Chat] API Key Present: ${params.apiKey ? 'YES' : 'NO'}`)
 
     let txt = ""
-    if (provider === 'anthropic') {
-        txt = await anthropic.chatCompletion(sys, ctx, last, params)
+    if (provider === 'venice') {
+        const { venice } = require('@/lib/venice')
+        // Venice wrapper handles the fallback to RunPod internally on failure (402, 500, etc.)
+        txt = await venice.chatCompletion(sys, ctx, last, params)
     } else {
-        // RunPod as default
+        // RunPod Direct
         const { runpod } = require('@/lib/runpod')
         txt = await runpod.chatCompletion(sys, ctx, last, params)
     }
