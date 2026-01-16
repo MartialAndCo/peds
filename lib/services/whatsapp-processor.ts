@@ -324,9 +324,21 @@ export async function processWhatsAppPayload(payload: any, agentId: number, opti
                                 include: { prompt: true }
                             })
 
+                            // FIX: Fetch conversation history to maintain persona
+                            const lastMessages = await prisma.message.findMany({
+                                where: { conversationId: currentConversation?.id },
+                                orderBy: { timestamp: 'desc' },
+                                take: 15 // Enough for persona, not too much
+                            })
+                            const history = lastMessages.reverse().map((m: any) => ({
+                                role: m.sender === 'contact' ? 'user' : 'assistant',
+                                content: m.message_text
+                            }))
+
+                            // Simplified instruction - keeps persona short
                             const instruction = status === 'REQUEST_NEW'
-                                ? `(SYSTEM: User wants photo of ${analysis.intentCategory}. You don't have it. Say you'll check later. Be natural, shy. Don't say AI.)`
-                                : `(SYSTEM: User asking AGAIN for ${analysis.intentCategory}. Tell them to be patient. Be cute.)`;
+                                ? `(SYSTEM: Say you'll check for that later. Keep it SHORT. Be shy.)`
+                                : `(SYSTEM: They're asking again. Say be patient cutely. Keep it SHORT.)`;
 
                             // Generate Response
                             const provider = settings.ai_provider || 'venice'
@@ -336,14 +348,14 @@ export async function processWhatsAppPayload(payload: any, agentId: number, opti
                             if (provider === 'anthropic') {
                                 responseText = await anthropic.chatCompletion(
                                     currentConversation?.prompt?.system_prompt || "You are a helpful assistant.",
-                                    [],
+                                    history, // <-- Pass history!
                                     userMessageForAI,
                                     { apiKey: settings.anthropic_api_key, model: settings.anthropic_model || 'claude-3-haiku-20240307' }
                                 );
                             } else {
                                 responseText = await venice.chatCompletion(
                                     currentConversation?.prompt?.system_prompt || "You are a helpful assistant.",
-                                    [],
+                                    history, // <-- Pass history!
                                     userMessageForAI,
                                     { apiKey: settings.venice_api_key, model: settings.venice_model || 'venice-uncensored' }
                                 );
