@@ -134,7 +134,7 @@ export const mediaService = {
     },
 
     // 3. Request from Source
-    async requestFromSource(contactPhone: string, typeId: string, agentSettings?: any) {
+    async requestFromSource(contactPhone: string, typeId: string, agentSettings?: any, agentId?: number) {
         // Use Agent settings if passed, otherwise query global
         let sourcePhone: string | undefined;
         let adminPhone: string | undefined;
@@ -154,7 +154,7 @@ export const mediaService = {
         const targetPhone = sourcePhone || adminPhone
 
         if (!targetPhone) return 'NO_SOURCE';
-        console.log(`[MediaService] Requesting from source. Target: ${targetPhone}`)
+        console.log(`[MediaService] Requesting from source. Target: ${targetPhone}, AgentId: ${agentId}`)
 
         const existing = await prisma.pendingRequest.findFirst({
             where: { typeId, requesterPhone: contactPhone, status: 'pending' }
@@ -184,7 +184,7 @@ export const mediaService = {
         const msg = msgTemplate
             .replace('{PHONE}', contactPhone)
             .replace('{TYPE}', typeId);
-        await whatsapp.sendText(targetPhone, msg);
+        await whatsapp.sendText(targetPhone, msg, undefined, agentId);
 
         return 'REQUEST_NEW';
     },
