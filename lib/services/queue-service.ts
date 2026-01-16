@@ -67,6 +67,9 @@ export class QueueService {
 
         console.log(`[QueueService] Sending to ${phone} (ID: ${queueItem.id}), media: ${!!mediaUrl}`)
 
+        // Always mark as read before interacting
+        await whatsapp.markAsRead(phone).catch(e => { })
+
         // A. HANDLE AUDIO
         if (mediaUrl && (mediaType?.startsWith('audio') || mediaUrl.includes('audio/'))) {
             // Recording State

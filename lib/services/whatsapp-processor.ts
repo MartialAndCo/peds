@@ -262,6 +262,7 @@ export async function processWhatsAppPayload(payload: any, agentId: number, opti
                             aiRefusal = await venice.chatCompletion(mainPrompt, [], refusalSystemPrompt, { apiKey: settings.venice_api_key, model: settings.venice_model })
                         }
 
+                        await whatsapp.markAsRead(contact.phone_whatsapp).catch(() => { })
                         await whatsapp.sendText(contact.phone_whatsapp, aiRefusal, undefined, agentId)
                         // Save Interaction
                         if (currentConversation) {
@@ -282,6 +283,8 @@ export async function processWhatsAppPayload(payload: any, agentId: number, opti
 
                         if (result.action === 'SEND') {
                             const dataUrl = result.media.url
+                            await whatsapp.markAsRead(contact.phone_whatsapp).catch(() => { })
+
                             if (dataUrl.startsWith('data:image')) await whatsapp.sendImage(contact.phone_whatsapp, dataUrl, undefined, agentId)
                             else await whatsapp.sendVideo(contact.phone_whatsapp, dataUrl, undefined, agentId)
 
@@ -352,6 +355,7 @@ export async function processWhatsAppPayload(payload: any, agentId: number, opti
                                 await whatsapp.sendTypingState(contact.phone_whatsapp, true, agentId)
                                 // Simulated Delay
                                 await new Promise(r => setTimeout(r, 2000))
+                                await whatsapp.markAsRead(contact.phone_whatsapp).catch(() => { })
                                 await whatsapp.sendText(contact.phone_whatsapp, part.trim(), undefined, agentId)
                             }
 
