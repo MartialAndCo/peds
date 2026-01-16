@@ -428,45 +428,61 @@ export const mediaService = {
         const settings: any = await settingsService.getSettings();
 
         // Updated Prompt: Enforce variety and natural behavior
-        const defaultSchedulingPrompt = `(SYSTEM: You received the photo the user asked for (${ingestionResult.type}). Goal: Send it now, but BE NATURAL.
+        const isVoice = ingestionResult.mediaType.startsWith('audio') || ingestionResult.type === 'voice_note' || ingestionResult.type === 'ptt';
+
+        let sched: any = { delay_minutes: 2, caption: "", reasoning: "Voice Default", strategy: "DIRECT", pre_text: null };
+
+        if (isVoice) {
+            // BYPASS AI for Voice: Just send it.
+            sched = {
+                delay_minutes: 0, // Instant
+                caption: "",      // No text
+                strategy: "DIRECT",
+                reasoning: "Voice Note - Immediate Send (Bypass)"
+            };
+        } else {
+            const mediaLabel = "photo"; // Audio handled above
+            const actionLabel = "Send photo";
+
+            const defaultSchedulingPrompt = `(SYSTEM: You received the ${mediaLabel} the user asked for (${ingestionResult.type}). Goal: Send it now, but BE NATURAL.
 Task: Choose a Strategy and write the text.
 
 Strategies (Pick one randomly):
-1. "DIRECT": Send photo with short caption (e.g. "Here you go!").
-2. "SILENT": Send photo with NO text at all.
-3. "TEASE": Send a text first (e.g. "Ok wait... found it"), delay 30s, then send photo.
-4. "QUESTION": Send photo, then ask a simple question (e.g. "Do you like it?").
+1. "DIRECT": ${actionLabel} with short caption (e.g. "Here you go!").
+2. "SILENT": ${actionLabel} with NO text at all.
+3. "TEASE": Send a text first (e.g. "Ok wait... found it"), delay 30s, then ${actionLabel}.
+4. "QUESTION": ${actionLabel}, then ask a simple question (e.g. "Do you like it?").
 
 Output JSON:
 { 
   "reasoning": "Strategy reasoning...",
   "strategy": "DIRECT" | "SILENT" | "TEASE" | "QUESTION",
   "delay_minutes": 2, 
-  "pre_text": "Optional text to send BEFORE photo (for TEASE)",
-  "caption": "Text to send WITH photo (keep it short < 10 words)" 
+  "pre_text": "Optional text to send BEFORE ${mediaLabel} (for TEASE)",
+  "caption": "Text to send WITH ${mediaLabel} (keep it short < 10 words)" 
 })`;
 
-        const schedulingPromptTemplate = settings.prompt_media_scheduling || defaultSchedulingPrompt;
-        const schedulingPrompt = schedulingPromptTemplate
-            .replace('{TYPE}', ingestionResult.type)
-            .replace('{TIME}', nowLA)
-            .replace('{HISTORY}', history);
-        const provider = settings.ai_provider || 'venice';
+            const schedulingPromptTemplate = settings.prompt_media_scheduling || defaultSchedulingPrompt;
+            const schedulingPrompt = schedulingPromptTemplate
+                .replace('{TYPE}', ingestionResult.type)
+                .replace('{TIME}', nowLA)
+                .replace('{HISTORY}', history);
+            const provider = settings.ai_provider || 'venice';
 
-        let aiResponseText = "{}";
-        try {
-            if (provider === 'anthropic') {
-                aiResponseText = await anthropic.chatCompletion(conversation.prompt.system_prompt, [], schedulingPrompt, { apiKey: settings.anthropic_api_key, model: settings.anthropic_model });
-            } else {
-                aiResponseText = await venice.chatCompletion(conversation.prompt.system_prompt, [], schedulingPrompt, { apiKey: settings.venice_api_key, model: settings.venice_model });
-            }
-        } catch (e: any) { logger.error("AI Sched Failed", e, { module: 'media_service' }); }
+            let aiResponseText = "{}";
+            try {
+                if (provider === 'anthropic') {
+                    aiResponseText = await anthropic.chatCompletion(conversation.prompt.system_prompt, [], schedulingPrompt, { apiKey: settings.anthropic_api_key, model: settings.anthropic_model });
+                } else {
+                    aiResponseText = await venice.chatCompletion(conversation.prompt.system_prompt, [], schedulingPrompt, { apiKey: settings.venice_api_key, model: settings.venice_model });
+                }
+            } catch (e: any) { logger.error("AI Sched Failed", e, { module: 'media_service' }); }
 
-        let sched: any = { delay_minutes: 2, caption: "Here!", reasoning: "Default", strategy: "DIRECT", pre_text: null };
-        try {
-            const match = aiResponseText.match(new RegExp('\\{[\\s\\S]*\\}'));
-            if (match) sched = JSON.parse(match[0]);
-        } catch (e) { }
+            try {
+                const match = aiResponseText.match(new RegExp('\\{[\\s\\S]*\\}'));
+                if (match) sched = JSON.parse(match[0]);
+            } catch (e) { }
+        }
 
         // --- EXECUTE STRATEGY ---
 
