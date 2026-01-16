@@ -3,14 +3,14 @@ import autoTable from 'jspdf-autotable'
 
 interface ExportData {
     contact: {
-        name: string
+        name: string | null
         phone_whatsapp: string
         status: string
         createdAt: Date
-        notes?: string
-        trustScore?: number
+        notes?: string | null
+        trustScore?: number | null
     }
-    photos: { url: string, timestamp: Date }[]
+    photos: { url: string | null, timestamp: Date }[]
     history: { timestamp: Date, sender: string, text: string, media: string | null }[]
 }
 
@@ -24,7 +24,7 @@ export async function generateDossier(data: ExportData) {
     doc.text("DOSSIER DE CONTACT", margin, 20)
 
     doc.setFontSize(16)
-    doc.text(data.contact.name, margin, 35)
+    doc.text(data.contact.name || 'Unknown Contact', margin, 35)
 
     doc.setFontSize(10)
     doc.text(`Phone: ${data.contact.phone_whatsapp}`, margin, 42)
@@ -52,6 +52,7 @@ export async function generateDossier(data: ExportData) {
                 // Fetch image data explicitly to avoid CORS issues if possible, or assume Base64/Public URL
                 // If it's a URL, jsPDF addImage might fail if tainted.
                 // Best practice: fetch blob, convert to base64.
+                if (!photo.url) continue
                 const imgData = await fetchImageAsBase64(photo.url)
 
                 if (imgData) {
@@ -104,7 +105,7 @@ export async function generateDossier(data: ExportData) {
     })
 
     // Save
-    doc.save(`Dossier_${data.contact.name.replace(/\s+/g, '_')}.pdf`)
+    doc.save(`Dossier_${(data.contact.name || 'Unknown').replace(/\s+/g, '_')}.pdf`)
 }
 
 async function fetchImageAsBase64(url: string): Promise<string | null> {
