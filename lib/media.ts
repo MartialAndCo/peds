@@ -510,7 +510,7 @@ Output JSON:
         // Try Notify Source
         try {
             const strategyInfo = sched.strategy === 'TEASE' ? `TEASE (Pre: "${sched.pre_text}")` : sched.strategy;
-            await whatsapp.sendText(sourcePhone, `📅 Scheduled: ${scheduledAt.toLocaleTimeString()} (${delay}m).\nStrats: ${strategyInfo}`);
+            // await whatsapp.sendText(sourcePhone, `📅 Scheduled: ${scheduledAt.toLocaleTimeString()} (${delay}m).\nStrats: ${strategyInfo}`);
         } catch (e) { logger.warn("Failed to notify source", { module: 'media_service' }); }
 
         return newItem;

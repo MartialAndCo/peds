@@ -86,12 +86,12 @@ export async function handleSourceMedia(
         const ingestionResult = await mediaService.ingestMedia(sourcePhone, mediaData, mimeType)
 
         if (ingestionResult) {
-            await whatsapp.sendText(sourcePhone, spin(`{✅|📥} {Media ingested|Photo received}. Analyzing...`), undefined, agentId)
+            // await whatsapp.sendText(sourcePhone, spin(`{✅|📥} {Media ingested|Photo received}. Analyzing...`), undefined, agentId)
 
             // Delegate to Service
             await mediaService.processAdminMedia(sourcePhone, ingestionResult)
         } else {
-            await whatsapp.sendText(sourcePhone, spin(`{✅|💾} {Media stored|Saved} (Uncategorized).`), undefined, agentId)
+            // await whatsapp.sendText(sourcePhone, spin(`{✅|💾} {Media stored|Saved} (Uncategorized).`), undefined, agentId)
         }
         return { handled: true, type: 'source_media' }
     }
