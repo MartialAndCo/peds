@@ -12,7 +12,8 @@ import { logger } from '@/lib/logger'
 export class MessageRecoveryService {
 
     // How old a message must be before we consider it "orphaned" (in minutes)
-    private readonly ORPHAN_THRESHOLD_MINUTES = 5
+    // Updated to 2 hours (120m) to avoid unnatural "just got your message" responses after short delays.
+    private readonly ORPHAN_THRESHOLD_MINUTES = 120
 
     // Maximum number of conversations to recover per run (prevents overload)
     private readonly MAX_RECOVER_PER_RUN = 10

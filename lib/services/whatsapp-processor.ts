@@ -306,6 +306,7 @@ export async function processWhatsAppPayload(payload: any, agentId: number, opti
                                         conversationId: activeConv.id,
                                         sender: 'ai',
                                         message_text: `[Sent Media: ${analysis.intentCategory}]`,
+                                        mediaUrl: result.media.url || dataUrl, // Add mediaUrl here
                                         timestamp: new Date()
                                     }
                                 }).catch((e: any) => console.error("Failed to save system media msg", e))

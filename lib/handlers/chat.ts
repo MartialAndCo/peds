@@ -477,6 +477,17 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
                             data: { sentTo: { push: contact.phone_whatsapp } }
                         })
                     }
+
+                    // 3. Save Message to Database (So it shows in UI)
+                    await prisma.message.create({
+                        data: {
+                            conversationId: conversation.id,
+                            sender: 'ai',
+                            message_text: `[Sent Media: ${keyword}]`,
+                            mediaUrl: result.media.url || dataUrl, // Store URL or Base64 (prefer URL if available)
+                            timestamp: new Date()
+                        }
+                    })
                 } else if (result.action === 'REQUEST_SOURCE') {
                     console.log(`[Chat] No media for "${typeId}". Requesting source...`)
                     await mediaService.requestFromSource(contact.phone_whatsapp, typeId, settings, agentId)
