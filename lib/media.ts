@@ -427,15 +427,24 @@ export const mediaService = {
 
         const settings: any = await settingsService.getSettings();
 
-        // Updated Prompt: Enforce brevity
-        const defaultSchedulingPrompt = `(SYSTEM: You received the photo the user asked for (${ingestionResult.type}). Goal: Send it now.
-Task: Write a VERY SHORT caption (max 10 words).
-Rules:
-- CASUAL & SHORT.
-- NO "Here is the photo".
-- NO "I hope you like it".
-- Examples: "Found it! 📸", "Here you go 😊", "Better late than never!", "Look what I found..."
-Output JSON: { "reasoning": "...", "delay_minutes": 2, "caption": "..." })`;
+        // Updated Prompt: Enforce variety and natural behavior
+        const defaultSchedulingPrompt = `(SYSTEM: You received the photo the user asked for (${ingestionResult.type}). Goal: Send it now, but BE NATURAL.
+Task: Choose a Strategy and write the text.
+
+Strategies (Pick one randomly):
+1. "DIRECT": Send photo with short caption (e.g. "Here you go!").
+2. "SILENT": Send photo with NO text at all.
+3. "TEASE": Send a text first (e.g. "Ok wait... found it"), delay 30s, then send photo.
+4. "QUESTION": Send photo, then ask a simple question (e.g. "Do you like it?").
+
+Output JSON:
+{ 
+  "reasoning": "Strategy reasoning...",
+  "strategy": "DIRECT" | "SILENT" | "TEASE" | "QUESTION",
+  "delay_minutes": 2, 
+  "pre_text": "Optional text to send BEFORE photo (for TEASE)",
+  "caption": "Text to send WITH photo (keep it short < 10 words)" 
+})`;
 
         const schedulingPromptTemplate = settings.prompt_media_scheduling || defaultSchedulingPrompt;
         const schedulingPrompt = schedulingPromptTemplate
@@ -453,22 +462,43 @@ Output JSON: { "reasoning": "...", "delay_minutes": 2, "caption": "..." })`;
             }
         } catch (e: any) { logger.error("AI Sched Failed", e, { module: 'media_service' }); }
 
-        let sched = { delay_minutes: 2, caption: "Here!", reasoning: "Default" };
+        let sched: any = { delay_minutes: 2, caption: "Here!", reasoning: "Default", strategy: "DIRECT", pre_text: null };
         try {
             const match = aiResponseText.match(new RegExp('\\{[\\s\\S]*\\}'));
             if (match) sched = JSON.parse(match[0]);
         } catch (e) { }
 
-        const delay = Math.max(1, sched.delay_minutes || 2);
-        const scheduledAt = new Date(Date.now() + delay * 60 * 1000); // Wait delay minutes
+        // --- EXECUTE STRATEGY ---
 
-        logger.info(`Queueing item`, { module: 'media_service', contactId: contact.id, scheduledAt });
+        // 1. Pre-Text (Immediate or Short Delay)
+        if (sched.pre_text && (sched.strategy === 'TEASE' || sched.pre_text.length > 0)) {
+            logger.info(`Queueing PRE-TEXT item`, { module: 'media_service', contactId: contact.id });
+            await prisma.messageQueue.create({
+                data: {
+                    contactId: contact.id,
+                    conversationId: conversation.id,
+                    content: sched.pre_text,
+                    scheduledAt: new Date(Date.now() + 5000), // 5s delay
+                    status: 'PENDING'
+                }
+            });
+        }
+
+        // 2. Media Item
+        const delay = Math.max(1, sched.delay_minutes || 2);
+        const scheduledAt = new Date(Date.now() + delay * 60 * 1000);
+
+        // Fix Caption based on Strategy
+        let finalCaption = sched.caption || "";
+        if (sched.strategy === 'SILENT') finalCaption = "";
+
+        logger.info(`Queueing MEDIA item`, { module: 'media_service', contactId: contact.id, scheduledAt, strategy: sched.strategy });
 
         const newItem = await prisma.messageQueue.create({
             data: {
                 contactId: contact.id,
                 conversationId: conversation.id,
-                content: sched.caption || "Sent.",
+                content: finalCaption,
                 mediaUrl: ingestionResult.mediaUrl,
                 mediaType: ingestionResult.mediaType,
                 duration: ingestionResult.duration,
@@ -477,10 +507,11 @@ Output JSON: { "reasoning": "...", "delay_minutes": 2, "caption": "..." })`;
             }
         });
 
-        // Try Notify Source (Optional, swallow errors)
+        // Try Notify Source
         try {
-            await whatsapp.sendText(sourcePhone, `📅 Scheduled: ${scheduledAt.toLocaleTimeString()} (${delay}m).\nReason: ${sched.reasoning}`);
-        } catch (e) { logger.warn("Failed to notify source (WAHA error?), but Queue Item created.", { module: 'media_service' }); }
+            const strategyInfo = sched.strategy === 'TEASE' ? `TEASE (Pre: "${sched.pre_text}")` : sched.strategy;
+            await whatsapp.sendText(sourcePhone, `📅 Scheduled: ${scheduledAt.toLocaleTimeString()} (${delay}m).\nStrats: ${strategyInfo}`);
+        } catch (e) { logger.warn("Failed to notify source", { module: 'media_service' }); }
 
         return newItem;
     }
