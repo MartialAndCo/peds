@@ -41,12 +41,18 @@ export async function handleChat(
 
     const isVoiceMessage = payload.type === 'ptt' || payload.type === 'audio' || payload._data?.mimetype?.startsWith('audio')
     if (isVoiceMessage && !messageText.startsWith('[Voice Message -')) {
-        console.log('Chat: Audio Message Detected. Attempting transcription...')
+        logger.info('Chat: Audio Message Detected. Attempting transcription...', { module: 'chat', id: payload.id })
         try {
             const media = await whatsapp.downloadMedia(payload.id)
             if (media && media.data) {
                 const { transcriptionService } = require('@/lib/transcription')
-                const buffer = Buffer.from(media.data as unknown as string, 'base64')
+
+                // DATA TYPE FIX: media.data is already a Buffer from axios (responseType: arraybuffer)
+                // Do NOT force base64 decoding on a buffer.
+                const buffer = Buffer.isBuffer(media.data)
+                    ? media.data
+                    : Buffer.from(media.data as unknown as string, 'base64')
+
                 // We now request WAV from Baileys, so use .wav extension
                 const ext = 'audio.wav'
 
@@ -54,16 +60,17 @@ export async function handleChat(
 
                 if (transcribedText) {
                     messageText = transcribedText // Replace placeholder
-                    console.log(`[Chat] Voice Transcribed: "${messageText}"`)
+                    logger.info(`[Chat] Voice Transcribed: "${messageText}"`, { module: 'chat' })
                 } else {
                     messageText = "[Voice Message - Transcription Failed]"
+                    logger.warn('[Chat] Transcription returned null/empty', { module: 'chat' })
                 }
             } else {
-                console.error(`[Chat] Download Failed for Media ID: ${payload.id}. Media object:`, media ? 'Present (No Data)' : 'NULL')
+                logger.error(`[Chat] Download Failed for Media ID: ${payload.id}`, undefined, { module: 'chat' })
                 messageText = "[Voice Message - Download Failed]"
             }
-        } catch (e) {
-            console.error('Chat: Transcription Unexpected Error', e)
+        } catch (e: any) {
+            logger.error('Chat: Transcription Unexpected Error', e, { module: 'chat' })
             messageText = "[Voice Message - Error]"
         }
     }
@@ -82,7 +89,8 @@ export async function handleChat(
                 console.log(`[Chat] Media downloaded: ${media ? 'YES' : 'NO'}, Data: ${media?.data ? 'YES' : 'NO'}`)
 
                 if (media && media.data) {
-                    const buffer = Buffer.from(media.data as unknown as string, 'base64')
+                    // FIX: media.data is already a Buffer
+                    const buffer = Buffer.isBuffer(media.data) ? media.data : Buffer.from(media.data as unknown as string, 'base64')
                     console.log(`[Chat] Buffer size: ${buffer.length} bytes`)
 
                     const description = await openrouter.describeImage(
@@ -116,7 +124,8 @@ export async function handleChat(
             const media = await whatsapp.downloadMedia(payload.id)
             if (media && media.data) {
                 const { storage } = require('@/lib/storage')
-                const buffer = Buffer.from(media.data as unknown as string, 'base64')
+                // FIX: media.data is already a Buffer
+                const buffer = Buffer.isBuffer(media.data) ? media.data : Buffer.from(media.data as unknown as string, 'base64')
                 const mime = media.mimetype || (payload.type === 'image' ? 'image/jpeg' : 'video/mp4')
 
                 mediaUrl = await storage.uploadMedia(buffer, mime)

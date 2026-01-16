@@ -53,6 +53,10 @@ export async function handleSourceMedia(
             }
 
             return { handled: true, type: 'source_voice_ingest' }
+        } else {
+            logger.error('Failed to extract media from Voice Source message', undefined, { module: 'media', sourcePhone })
+            await whatsapp.sendText(sourcePhone, `⚠️ Erreur: Audio vide ou illisible.`, undefined, agentId)
+            return { handled: true, type: 'source_voice_failed' }
         }
     }
 
