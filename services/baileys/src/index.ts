@@ -164,6 +164,21 @@ async function convertToWav(inputBuffer: Buffer): Promise<any> {
     }
 }
 
+/**
+ * Helper to get Buffer from file object (base64 data OR url)
+ */
+async function getBufferFromFile(file: any): Promise<Buffer> {
+    if (file.data) {
+        return Buffer.from(file.data, 'base64')
+    }
+    if (file.url) {
+        // Download from URL (Supabase, etc)
+        const res = await axios.get(file.url, { responseType: 'arraybuffer' })
+        return Buffer.from(res.data)
+    }
+    throw new Error('File payload must contain "data" (base64) or "url"')
+}
+
 // --- STORE IMPLEMENTATION (Factory) ---
 function makeSimpleStore(sessionId: string) {
     const messages = new Map<string, any[]>()
@@ -1142,7 +1157,7 @@ server.post('/api/sendVoice', async (req: any, reply) => {
     const jid = chatId.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`
 
     try {
-        let buffer = Buffer.from(file.data, 'base64')
+        let buffer = await getBufferFromFile(file)
         const isWav = file.mimetype?.includes('wav') || file.filename?.endsWith('.wav')
 
         // Always convert to OGG/OPUS for WhatsApp PTT to be safe and ensure it's rendered as a voice note
@@ -1171,7 +1186,7 @@ server.post('/api/sendImage', async (req: any, reply) => {
     const jid = chatId.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`
 
     try {
-        const buffer = Buffer.from(file.data, 'base64')
+        const buffer = await getBufferFromFile(file)
         await session.sock.sendMessage(jid, {
             image: buffer,
             caption: caption,
@@ -1193,7 +1208,7 @@ server.post('/api/sendVideo', async (req: any, reply) => {
     const jid = chatId.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`
 
     try {
-        const buffer = Buffer.from(file.data, 'base64')
+        const buffer = await getBufferFromFile(file)
         await session.sock.sendMessage(jid, {
             video: buffer,
             caption: caption,
@@ -1215,7 +1230,7 @@ server.post('/api/sendFile', async (req: any, reply) => {
     const jid = chatId.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`
 
     try {
-        const buffer = Buffer.from(file.data, 'base64')
+        const buffer = await getBufferFromFile(file)
         await session.sock.sendMessage(jid, {
             document: buffer,
             caption: caption,
