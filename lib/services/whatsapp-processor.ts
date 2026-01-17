@@ -11,7 +11,7 @@ import { queueService } from '@/lib/services/queue-service'
  * Core processor for WhatsApp Webhook Payloads.
  * This function encapsulates the business logic previously in the route handler.
  */
-export async function processWhatsAppPayload(payload: any, agentId: number, options?: { skipAI?: boolean }) {
+export async function processWhatsAppPayload(payload: any, agentId: number, options?: { skipAI?: boolean, previousResponse?: string }) {
     logger.messageProcessing('Start handling message', { agentId, from: payload.from })
 
     try {
@@ -442,6 +442,12 @@ export async function processWhatsAppPayload(payload: any, agentId: number, opti
 
         console.log('[Processor] Handing off to Chat Handler...')
         const { handleChat } = require('@/lib/handlers/chat')
+
+        // CONTEXT INJECTION: If this processor instance just generated a response (e.g. from Media Request or previous burst part),
+        // we should pass it to handleChat so it doesn't repeat itself.
+        // Currently, media request Logic returns early, so we only need to worry about BURST logic which handles this inside the CRON loop.
+        // The CRON loop will pass `lastResponse` in `options`.
+
         const chatResult = await handleChat(payload, contact, conversation, settings, messageText, agentId, options)
         console.log('[Processor] Chat Result:', chatResult)
 
@@ -471,7 +477,8 @@ export async function processWhatsAppPayload(payload: any, agentId: number, opti
         return {
             status: chatResult.result,
             jobId: chatResult.jobId,
-            conversationId: conversation.id
+            conversationId: conversation.id,
+            textBody: chatResult.textBody // Pass through the generated text
         }
 
     } catch (error: any) {

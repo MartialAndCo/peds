@@ -18,6 +18,9 @@ export async function GET(req: Request) {
         // --- PART 1: Process NEW Messages (PENDING) ---
         // ATOMIC CLAIM: Use transaction to prevent race conditions
         // This ensures only ONE CRON invocation can claim each item.
+        // --- PART 1: Process NEW Messages (PENDING) ---
+        // ATOMIC CLAIM: Use transaction to prevent race conditions
+        // This ensures only ONE CRON invocation can claim each item.
         const pending = await prisma.$transaction(async (tx) => {
             // Find items that are ready - Take larger batch for bursts
             // IMPORTANT: We must order by createdAt ASC to process in order
@@ -56,7 +59,11 @@ export async function GET(req: Request) {
         for (const [key, items] of bursts.entries()) {
             if (items.length > 1) {
                 console.log(`[CRON] Burst detected for ${key}: ${items.length} messages`)
+            } else {
+                // No debug logging for single items
             }
+
+            let lastResponse: string | undefined = undefined; // Track last AI response for this burst
 
             for (let i = 0; i < items.length; i++) {
                 const item = items[i];
@@ -71,10 +78,18 @@ export async function GET(req: Request) {
                     const payload = item.payload as any
                     const traceId = trace.generate()
 
-                    // Execute Logic with skipAI option
+                    // Execute Logic with skipAI option AND previous response context
                     const result = await trace.runAsync(traceId, item.agentId, async () => {
-                        return await processWhatsAppPayload(payload.payload, item.agentId, { skipAI })
+                        return await processWhatsAppPayload(payload.payload, item.agentId, {
+                            skipAI,
+                            previousResponse: lastResponse // Pass the memory
+                        })
                     })
+
+                    // Capture response for next iteration if AI generated something
+                    if (result.status === 'sent' && result.textBody) {
+                        lastResponse = result.textBody
+                    }
 
                     // Check Result
                     if (result.status === 'async_job_started' && result.jobId) {

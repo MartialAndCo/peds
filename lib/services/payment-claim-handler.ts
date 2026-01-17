@@ -171,7 +171,9 @@ export async function handlePaymentClaimReaction(
         // REJECTION: Not received
 
         // Generate "didn't receive" response (AI, not hardcoded)
-        const rejectPrompt = `(SYSTEM: The user claimed they sent payment, but you haven't received it yet. Express confusion/concern naturally. Don't accuse them. Suggest maybe there's a delay or ask them to double-check. Stay in character and be gentle.)`
+        // Generate "didn't receive" response (AI, not hardcoded)
+        // User Request: "Ultimately I looked at my account and I have nothing. You might be lying."
+        const rejectPrompt = `(SYSTEM: You just checked your actual bank account and confirmed NO money has arrived. The user is claiming they sent it, but you verify you have NOT received it. Say: "Actually, I just looked at my account and I see nothing." or "I checked my balance and it's not there." Be direct.)`
 
         try {
             let notReceivedMsg = await venice.chatCompletion(

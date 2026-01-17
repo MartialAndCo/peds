@@ -135,10 +135,21 @@ export class QueueService {
 
             for (let i = 0; i < parts.length; i++) {
                 const part = parts[i]
+
+                // Dynamic Typing Delay for EACH bubble
+                // Approx 60ms per char + 500ms Buffer
+                // Min 1.5s, Max 12s
+                const typingMs = Math.max(1500, Math.min(part.length * 60, 12000))
+
+                await whatsapp.sendTypingState(phone, true, agentId).catch(e => { })
+                await new Promise(r => setTimeout(r, typingMs))
+
                 await whatsapp.sendText(phone, part.trim(), undefined, agentId)
 
+                // Small pause BETWEEN bubbles (reading time/finding next words)
                 if (i < parts.length - 1) {
-                    await new Promise(r => setTimeout(r, 1000 + Math.random() * 500))
+                    await whatsapp.sendTypingState(phone, false, agentId).catch(e => { }) // Stop, then think
+                    await new Promise(r => setTimeout(r, 800 + Math.random() * 800))
                 }
             }
             await whatsapp.sendTypingState(phone, false, agentId).catch(e => { })

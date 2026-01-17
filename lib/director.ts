@@ -229,7 +229,8 @@ ${transcript}
         const tContext = mergedSettings.prompt_context_template || "**2. CONTEXT**\nUser: {{USER_NAME}}"
         const tMission = mergedSettings.prompt_mission_template || "**3. MISSION**\n{{DYNAMIC_GOAL_BLOCK}}"
         const tGuardrails = mergedSettings.prompt_guardrails || "**4. GUARDRAILS**..."
-        const tGlobal = mergedSettings.prompt_global_rules || "[CRITICAL]: Real Person, Match Language."
+        const tGlobal = mergedSettings.prompt_global_rules || "[CRITICAL]: Real Person, Match Language.\n[SHORT-TERM MEMORY]: If the history shows you JUST answered, do NOT repeat yourself. Acknowledge the spam or ignore."
+
 
         // 3. Get Phase Goal (Defined in Plan)
         let phaseGoal = ""
@@ -315,6 +316,22 @@ STRATEGY: Keep him happy.
         if (activeMethods.length > 0) {
             pRules += `\n\n[PAYMENT METHODS]:\n${activeMethods.join('\n')}\n[IMPORTANT]: Do NOT list these like a robot. Only if he asks "how can I send money?" or in Phase 3/4.`
         }
+
+        // PAYMENT REALITY CHECK INJECTION
+        // Check for recent successful payments (last 24h) to prevent hallucinations
+        let paymentNote = ""
+        if (contact.payments && Array.isArray(contact.payments)) {
+            const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
+            const recent = contact.payments.find((p: any) => p.status === 'completed' && new Date(p.createdAt) > oneDayAgo)
+
+            if (recent) {
+                paymentNote = `\n\n[REALITY CHECK - PAYMENT]: ✅ SYSTEM CONFIRMED: User sent ${recent.amount} ${recent.currency} recently. You have received it. Say THANK YOU.`
+            } else {
+                paymentNote = `\n\n[REALITY CHECK - PAYMENT]: ❌ SYSTEM ALERT: No successful payment found in the last 24h. The bank balance is unchanged.\nIF USER SAYS HE SENT MONEY: He might be lying, or it failed. Do NOT say "I got it". Say "I don't see anything yet" or "Are you sure?".`
+            }
+        }
+        pRules += paymentNote;
+
         const vPolicy = mergedSettings.prompt_voice_note_policy || ""
         const sInstructions = mergedSettings.prompt_style_instructions || ""
 

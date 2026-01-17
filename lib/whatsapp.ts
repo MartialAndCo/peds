@@ -360,18 +360,30 @@ export const whatsapp = {
 
     async markAsRead(chatId: string, agentId?: number, messageKey?: any) {
         const { endpoint, apiKey, defaultSession } = await getConfig()
-        try {
-            const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
-            await axios.post(`${endpoint}/api/markSeen`, {
-                sessionId: agentId?.toString() || defaultSession,
-                chatId: formattedChatId,
-                messageKey, // Pass the full key if available
-                all: true  // SAFETY NET: Mark everything as read for this chat
-            }, {
-                headers: { 'X-Api-Key': apiKey }
-            })
-        } catch (error: any) {
-            logger.error('MarkRead Error', error, { module: 'whatsapp' })
+        const MAX_RETRIES = 3
+
+        for (let i = 0; i < MAX_RETRIES; i++) {
+            try {
+                const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
+                await axios.post(`${endpoint}/api/markSeen`, {
+                    sessionId: agentId?.toString() || defaultSession,
+                    chatId: formattedChatId,
+                    messageKey, // Pass the full key if available
+                    all: true  // SAFETY NET: Mark everything as read for this chat
+                }, {
+                    headers: { 'X-Api-Key': apiKey }
+                })
+
+                // If successful, break
+                return
+            } catch (error: any) {
+                if (i === MAX_RETRIES - 1) {
+                    logger.error(`MarkRead Failed after ${MAX_RETRIES} attempts`, error, { module: 'whatsapp' })
+                } else {
+                    // Wait small delay before retry
+                    await new Promise(r => setTimeout(r, 1000 * (i + 1)))
+                }
+            }
         }
     },
 

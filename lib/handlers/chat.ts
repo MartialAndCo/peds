@@ -242,7 +242,8 @@ export async function handleChat(
 
     try {
         // AI GENERATION LOGIC
-        const result = await generateAndSendAI(conversation, contact, settings, messageText, payload, agentId)
+        // Pass options (containing previousResponse) to the generator
+        const result = await generateAndSendAI(conversation, contact, settings, messageText, payload, agentId, options)
 
         // 8. Payment Claim Detection: MOVED to Tag-Based in generateAndSendAI
         // We no longer scan user text. We listen for [PAYMENT_RECEIVED] from AI.
@@ -274,7 +275,7 @@ async function releaseLock(convId: number) {
     await prisma.conversation.update({ where: { id: convId }, data: { processingLock: null } })
 }
 
-async function generateAndSendAI(conversation: any, contact: any, settings: any, lastMessageText: string, payload: any, agentId?: number) {
+async function generateAndSendAI(conversation: any, contact: any, settings: any, lastMessageText: string, payload: any, agentId?: number, options?: any) {
     // 1. Fetch History
     const historyDesc = await prisma.message.findMany({
         where: { conversationId: conversation.id },
@@ -290,6 +291,16 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         const prev = uniqueHistory[uniqueHistory.length - 1]
         const curr = history[i]
         if (prev.sender !== curr.sender || prev.message_text.trim() !== curr.message_text.trim()) uniqueHistory.push(curr)
+    }
+
+    // CONTEXT INJECTION: Append the in-memory previous response if available (from Burst/Media logic)
+    if (options?.previousResponse) {
+        console.log('[Chat] Injecting previous in-memory response into context to prevent repetition.')
+        uniqueHistory.push({
+            sender: 'ai',
+            message_text: options.previousResponse,
+            timestamp: new Date() // Fake timestamp
+        })
     }
 
     const messagesForAI = uniqueHistory.map((m: any) => ({
@@ -602,7 +613,8 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         console.log(`[Chat] Message Queued for delivery. QueueID: ${queuedMsg.id}`)
     }
 
-    return { handled: true, result: 'sent' }
+    // Final return
+    return { handled: true, result: 'sent', textBody: responseText }
 }
 
 async function callAI(settings: any, conv: any, sys: string, ctx: any[], last: string) {
