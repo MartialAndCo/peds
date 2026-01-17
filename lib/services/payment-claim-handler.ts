@@ -24,20 +24,34 @@ export async function processPaymentClaim(
         return { processed: false }
     }
 
-    logger.info('Payment claim detected', {
+    return notifyPaymentClaim(contact, conversation, settings, detection.amount || null, detection.method || null, agentId)
+}
+
+/**
+ * Manually trigger a payment claim notification (e.g. from AI Tag)
+ */
+export async function notifyPaymentClaim(
+    contact: any,
+    conversation: any,
+    settings: any,
+    amount: number | null,
+    method: string | null,
+    agentId?: number
+): Promise<{ processed: boolean; claimId?: string }> {
+    logger.info('Payment claim detected (Triggered)', {
         module: 'payment-claim',
         contactId: contact.id,
-        amount: detection.amount,
-        method: detection.method
+        amount,
+        method
     })
 
     // Build notification message for admin
     const contactName = contact.name || contact.phone_whatsapp
-    const amountStr = detection.amount ? `${detection.amount}` : '?'
-    const methodStr = detection.method || 'unknown method'
+    const amountStr = amount ? `${amount}` : '?'
+    const methodStr = method || 'unknown method'
 
     // Simple format as requested: "Tom dit avoir payé 50€ via WhatsApp"
-    const notificationMsg = `💰 ${contactName} claims to have paid ${amountStr} via ${methodStr}`
+    const notificationMsg = `💰 ${contactName} payment detected/claimed: ${amountStr} via ${methodStr}`
 
     // Send to admin
     const adminPhone = settings.source_phone_number
@@ -56,8 +70,8 @@ export async function processPaymentClaim(
                 contactId: contact.id,
                 conversationId: conversation?.id,
                 waMessageId: waMessageId,
-                claimedAmount: detection.amount || null,
-                claimedMethod: detection.method || null,
+                claimedAmount: amount || null,
+                claimedMethod: method || null,
                 status: 'PENDING'
             }
         })

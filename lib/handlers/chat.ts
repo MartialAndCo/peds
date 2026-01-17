@@ -141,8 +141,9 @@ export async function handleChat(
 
     console.log(`[Chat] Handling Message from ${contact.phone_whatsapp}. ID: ${payload.id}`)
 
-    // ROBUST DEDUPLICATION
-    // Check if this message ID (or identical content recently) was already processed.
+    // ROBUST DEDUPLICATION DISABLED (User Request)
+    // The user prefers to allow retries/duplicates rather than blocking valid messages that failed previously.
+    /*
     const existingMsg = await prisma.message.findFirst({
         where: {
             OR: [
@@ -162,6 +163,7 @@ export async function handleChat(
         console.warn(`[Chat] Duplicate message detected (ID: ${payload.id}, Existing: ${existingMsg.id}). Ignoring.`)
         return { handled: true, result: 'duplicate_found_early' }
     }
+    */
 
     try {
         await prisma.message.create({
@@ -242,14 +244,8 @@ export async function handleChat(
         // AI GENERATION LOGIC
         const result = await generateAndSendAI(conversation, contact, settings, messageText, payload, agentId)
 
-        // 8. Payment Claim Detection (runs in background, non-blocking)
-        try {
-            const { processPaymentClaim } = require('@/lib/services/payment-claim-handler')
-            processPaymentClaim(messageText, contact, conversation, settings, agentId)
-                .catch((e: any) => console.error('[Chat] Payment claim processing failed (non-blocking):', e.message))
-        } catch (e) {
-            // Ignore errors - feature is optional
-        }
+        // 8. Payment Claim Detection: MOVED to Tag-Based in generateAndSendAI
+        // We no longer scan user text. We listen for [PAYMENT_RECEIVED] from AI.
 
         return result
     } finally {
@@ -473,6 +469,17 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
             .catch(err => console.error('[Chat] Failed to send reaction:', err))
 
         console.log(`[Chat] AI sent reaction: ${emoji}`)
+    }
+
+    // Payment Confirmation Logic ([PAYMENT_RECEIVED])
+    if (responseText.includes('[PAYMENT_RECEIVED]')) {
+        responseText = responseText.replace('[PAYMENT_RECEIVED]', '').trim()
+        console.log(`[Chat] AI acknowledged payment. Triggering notification...`)
+
+        // Fire & Forget Notification
+        const { notifyPaymentClaim } = require('@/lib/services/payment-claim-handler')
+        notifyPaymentClaim(contact, conversation, settings, null, 'AI_DETECTED', agentId)
+            .catch((e: any) => console.error('[Chat] Failed to notify payment claim:', e))
     }
 
     // Image Logic ([IMAGE:keyword])

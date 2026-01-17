@@ -83,18 +83,58 @@ export const whatsapp = {
 
         try {
             const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
-            const base64Data = audioDataUrl.split(',')[1] || audioDataUrl
+            let base64Data = audioDataUrl.split(',')[1] || audioDataUrl
             const mime = audioDataUrl.match(/^data:(.*?);base64,/)?.[1] || 'audio/mpeg'
             const ext = mime.split('/')[1] || 'mp3'
+
+            // --- PAYLOAD OPTIMIZATION (Supabase Upload) ---
+            // If the voice note is large, upload it to Supabase Storage first and send the URL.
+            // This bypasses the 100kb/1mb body limit of the WhatsApp Server.
+            let filePayload: any = {
+                mimetype: mime,
+                data: base64Data,
+                filename: `voice.${ext}`
+            }
+
+            // Check if Supabase keys exist
+            const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
+            const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+            if (sbUrl && sbKey && base64Data.length > 50000) { // Optimize if > ~37KB
+                try {
+                    const { createClient } = require('@supabase/supabase-js')
+                    const supabase = createClient(sbUrl, sbKey)
+                    const buffer = Buffer.from(base64Data, 'base64')
+                    const fileName = `voice_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`
+
+                    // Upload
+                    const { error: uploadError } = await supabase.storage
+                        .from('voice-uploads')
+                        .upload(fileName, buffer, { contentType: mime, upsert: true })
+
+                    if (!uploadError) {
+                        const { data: publicData } = supabase.storage.from('voice-uploads').getPublicUrl(fileName)
+                        if (publicData?.publicUrl) {
+                            logger.info(`[WhatsApp] Optimized Voice Upload: ${publicData.publicUrl}`, { module: 'whatsapp' })
+                            // Replace "data" with "url"
+                            filePayload = {
+                                mimetype: mime,
+                                url: publicData.publicUrl,
+                                filename: `voice.${ext}`
+                            }
+                        }
+                    } else {
+                        logger.warn('[WhatsApp] Voice Upload Failed (falling back to direct)', uploadError)
+                    }
+                } catch (e) {
+                    logger.warn('[WhatsApp] Voice Upload Error', e)
+                }
+            }
 
             await axios.post(`${endpoint}/api/sendVoice`, {
                 sessionId: agentId?.toString(),
                 chatId: formattedChatId,
-                file: {
-                    mimetype: mime,
-                    data: base64Data,
-                    filename: `voice.${ext}`
-                },
+                file: filePayload,
                 replyTo
             }, {
                 headers: { 'X-Api-Key': apiKey }
