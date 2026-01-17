@@ -1,10 +1,11 @@
-import makeWASocket, { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } from '@whiskeysockets/baileys';
+import { makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, downloadMediaMessage } from '@whiskeysockets/baileys';
 import fastify from 'fastify';
 import { pino } from 'pino';
 import axios from 'axios';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
+import ffmpeg from 'fluent-ffmpeg';
 import { setupLogIngestion } from './log-receiver.js';
 dotenv.config();
 const PORT = 3001;
@@ -20,6 +21,11 @@ process.on('uncaughtException', (err) => {
     console.error('Uncaught Exception:', err);
 });
 process.on('unhandledRejection', (reason, promise) => {
+    // Filter known harmless errors during repair
+    if (reason?.message?.includes('Connection Closed')) {
+        console.log('[IGNORE] Connection closed during operation - expected during repair');
+        return;
+    }
     console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 const BASE_AUTH_DIR = 'auth_info_baileys';
@@ -34,6 +40,38 @@ function addToLogBuffer(line) {
     if (logBuffer.length > LOG_BUFFER_SIZE)
         logBuffer.shift();
 }
+// --- PERSISTENCE UTILS ---
+const LID_MAP_FILE = 'lid_map.json';
+const LID_MAP_PATH = path.join(BASE_AUTH_DIR, LID_MAP_FILE);
+function loadLidMap() {
+    if (fs.existsSync(LID_MAP_PATH)) {
+        try {
+            const data = fs.readFileSync(LID_MAP_PATH, 'utf-8');
+            const json = JSON.parse(data);
+            return new Map(Object.entries(json));
+        }
+        catch (e) {
+            server.log.error({ err: e }, 'Failed to load LID map');
+        }
+    }
+    return new Map();
+}
+// Debounce save to avoid thrashing disk
+let saveLidTimeout = null;
+function saveLidMap(map) {
+    if (saveLidTimeout)
+        clearTimeout(saveLidTimeout);
+    saveLidTimeout = setTimeout(() => {
+        try {
+            const obj = Object.fromEntries(map);
+            fs.writeFileSync(LID_MAP_PATH, JSON.stringify(obj, null, 2));
+            server.log.info({ count: map.size }, 'LID Map saved to disk');
+        }
+        catch (e) {
+            server.log.error({ err: e }, 'Failed to save LID map');
+        }
+    }, 5000); // Save after 5 seconds of inactivity
+}
 // Map<agentId, SessionData>
 const sessions = new Map();
 const server = fastify({
@@ -43,7 +81,8 @@ const server = fastify({
 // Logging Hook
 server.addHook('onResponse', async (request, reply) => {
     const urlPath = request.url.split('?')[0];
-    if (['/status', '/api/status', '/health'].includes(urlPath))
+    // Skip noisy polling endpoints
+    if (['/status', '/api/status', '/health', '/api/logs'].includes(urlPath))
         return;
     addToLogBuffer(`${new Date().toISOString()} [${request.method}] ${request.url} - ${reply.statusCode}`);
 });
@@ -59,6 +98,47 @@ server.addHook('preHandler', async (request, reply) => {
 });
 // Setup Log Ingestion Endpoint
 setupLogIngestion(server);
+/**
+ * Helper to convert audio buffer to WAV using ffmpeg
+ */
+async function convertToWav(inputBuffer) {
+    const tempIn = path.join('/tmp', `input_${Date.now()}.ogg`);
+    const tempOut = path.join('/tmp', `output_${Date.now()}.wav`);
+    try {
+        if (!fs.existsSync('/tmp'))
+            fs.mkdirSync('/tmp', { recursive: true });
+        fs.writeFileSync(tempIn, inputBuffer);
+        await new Promise((resolve, reject) => {
+            ffmpeg(tempIn)
+                .toFormat('wav')
+                .on('end', resolve)
+                .on('error', reject)
+                .save(tempOut);
+        });
+        const outputBuffer = fs.readFileSync(tempOut);
+        return outputBuffer;
+    }
+    finally {
+        if (fs.existsSync(tempIn))
+            fs.unlinkSync(tempIn);
+        if (fs.existsSync(tempOut))
+            fs.unlinkSync(tempOut);
+    }
+}
+/**
+ * Helper to get Buffer from file object (base64 data OR url)
+ */
+async function getBufferFromFile(file) {
+    if (file.data) {
+        return Buffer.from(file.data, 'base64');
+    }
+    if (file.url) {
+        // Download from URL (Supabase, etc)
+        const res = await axios.get(file.url, { responseType: 'arraybuffer' });
+        return Buffer.from(res.data);
+    }
+    throw new Error('File payload must contain "data" (base64) or "url"');
+}
 // --- STORE IMPLEMENTATION (Factory) ---
 function makeSimpleStore(sessionId) {
     const messages = new Map();
@@ -119,6 +199,134 @@ function makeSimpleStore(sessionId) {
         }
     };
 }
+// --- SESSION REPAIR FUNCTIONS ---
+/**
+ * Clean corrupted session parts WITHOUT deleting main credentials.
+ * This allows repair without requiring a new QR scan.
+ * It deletes:
+ * - sender-keys/ (group encryption keys)
+ * - app-state-sync-*.json (app state)
+ * - pre-keys that may be corrupted
+ */
+async function cleanCorruptedSessionParts(sessionId) {
+    const authPath = path.join(BASE_AUTH_DIR, `session_${sessionId}`);
+    const cleaned = [];
+    const kept = [];
+    if (!fs.existsSync(authPath)) {
+        return { cleaned: [], kept: [] };
+    }
+    const files = fs.readdirSync(authPath);
+    for (const file of files) {
+        const filePath = path.join(authPath, file);
+        const stat = fs.statSync(filePath);
+        // Keep essential credentials
+        if (file === 'creds.json') {
+            kept.push('creds.json');
+            continue;
+        }
+        // Delete sender-keys directory
+        if (file === 'sender-key-memory.json' || file.startsWith('sender-key')) {
+            if (stat.isDirectory()) {
+                fs.rmSync(filePath, { recursive: true });
+            }
+            else {
+                fs.unlinkSync(filePath);
+            }
+            cleaned.push(file);
+            continue;
+        }
+        // KEEP app-state-sync files (removing them can cause more issues)
+        if (file.startsWith('app-state-sync')) {
+            kept.push(file);
+            continue;
+        }
+        // Delete pre-key files (will be regenerated)
+        if (file.startsWith('pre-key-') || file === 'pre-keys.json') {
+            fs.unlinkSync(filePath);
+            cleaned.push(file);
+            continue;
+        }
+        // Delete session files per contact (will be re-negotiated)
+        if (file.startsWith('session-')) {
+            fs.unlinkSync(filePath);
+            cleaned.push(file);
+            continue;
+        }
+        // Keep everything else
+        kept.push(file);
+    }
+    return { cleaned, kept };
+}
+/**
+ * Repair a session by cleaning corrupted parts and reconnecting.
+ * This should fix "Waiting for this message" issues without QR rescan.
+ */
+async function repairSession(sessionId) {
+    const session = sessions.get(sessionId);
+    // Check if repair already in progress
+    if (session?.isRepairing) {
+        return { success: false, message: 'Repair already in progress', details: {} };
+    }
+    // Check cooldown (minimum 10 seconds between repairs)
+    const now = Date.now();
+    if (session && (now - session.lastRepairTime) < 10000) {
+        const waitTime = Math.ceil((10000 - (now - session.lastRepairTime)) / 1000);
+        return { success: false, message: `Repair cooldown active. Wait ${waitTime}s`, details: {} };
+    }
+    console.log(`[Recovery] Starting session repair for ${sessionId}...`);
+    if (session) {
+        session.isRepairing = true;
+        session.lastRepairTime = now;
+    }
+    try {
+        // Step 1: Disconnect current session if active
+        if (session) {
+            try {
+                session.sock.end(undefined);
+            }
+            catch (e) {
+                // Ignore disconnect errors
+            }
+            sessions.delete(sessionId);
+        }
+        // Step 2: Clean corrupted session parts (keep creds.json)
+        const cleanResult = await cleanCorruptedSessionParts(sessionId);
+        console.log(`[Recovery] Cleaned: ${cleanResult.cleaned.join(', ') || 'nothing'}`);
+        console.log(`[Recovery] Kept: ${cleanResult.kept.join(', ')}`);
+        // Step 3: Wait a moment for cleanup to complete
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Step 4: Restart session
+        await startSession(sessionId);
+        // Reset error counters on the new session
+        const newSession = sessions.get(sessionId);
+        if (newSession) {
+            newSession.badMacCount = 0;
+            newSession.decryptErrors = 0;
+            newSession.isRepairing = false;
+            newSession.lastRepairTime = now; // Persist repair time for grace period check
+        }
+        console.log(`[Recovery] Session ${sessionId} repair complete`);
+        return {
+            success: true,
+            message: 'Session repaired successfully. No QR rescan needed.',
+            details: {
+                cleaned: cleanResult.cleaned,
+                kept: cleanResult.kept
+            }
+        };
+    }
+    catch (error) {
+        console.error(`[Recovery] Repair failed for ${sessionId}:`, error);
+        if (session) {
+            session.isRepairing = false;
+        }
+        return {
+            success: false,
+            message: `Repair failed: ${error.message}`,
+            details: {}
+        };
+    }
+}
 // --- SESSION STARTUP LOGIC ---
 async function startSession(sessionId) {
     if (sessions.has(sessionId)) {
@@ -126,39 +334,40 @@ async function startSession(sessionId) {
         return sessions.get(sessionId);
     }
     server.log.info({ sessionId }, 'Starting session...');
-    // Auth folder: auth_info_baileys/session_{id}
-    const authPath = path.join(BASE_AUTH_DIR, `session_${sessionId}`);
-    if (!fs.existsSync(authPath))
-        fs.mkdirSync(authPath, { recursive: true });
-    const { state, saveCreds } = await useMultiFileAuthState(authPath);
-    const { version } = await fetchLatestBaileysVersion();
-    // Custom Store for this session
-    const store = makeSimpleStore(sessionId);
-    const STORE_FILE = path.join(authPath, 'store.json');
-    store.readFromFile(STORE_FILE);
-    // Local persistence interval
-    const storeInterval = setInterval(() => store.writeToFile(STORE_FILE), 30_000);
-    // Msg Retry Cache
-    const retryMap = new Map();
-    const msgRetryCounterCache = {
-        get: (key) => retryMap.get(key),
-        set: (key, value) => { retryMap.set(key, value); },
-        del: (key) => { retryMap.delete(key); },
-        flushAll: () => { retryMap.clear(); }
-    };
+    const authFolder = path.join(BASE_AUTH_DIR, `session_${sessionId}`);
+    if (!fs.existsSync(authFolder)) {
+        fs.mkdirSync(authFolder, { recursive: true });
+    }
+    const { state, saveCreds } = await useMultiFileAuthState(authFolder);
+    const { version, isLatest } = await fetchLatestBaileysVersion();
     const sock = makeWASocket({
         version,
-        printQRInTerminal: false,
         auth: {
             creds: state.creds,
-            keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' }))
+            keys: makeCacheableSignalKeyStore(state.keys, server.log),
         },
-        msgRetryCounterCache,
+        printQRInTerminal: true,
         logger: pino({ level: 'silent' }),
-        generateHighQualityLinkPreview: false,
-        connectTimeoutMs: 60_000
+        generateHighQualityLinkPreview: true,
+        getMessage: async (key) => {
+            if (store) {
+                const msg = await store.loadMessage(key.remoteJid, key.id);
+                return msg?.message || undefined;
+            }
+            return { conversation: 'hello' };
+        }
     });
+    // Custom Store with persistence
+    const store = makeSimpleStore(sessionId);
+    const STORE_FILE = path.join(authFolder, 'store.json');
+    store.readFromFile(STORE_FILE);
+    // Save every 30s
+    const storeInterval = setInterval(() => {
+        store.writeToFile(STORE_FILE);
+    }, 30_000);
     store.bind(sock.ev);
+    // Load LID Map from disk
+    const persistentLidMap = loadLidMap();
     const sessionData = {
         id: sessionId,
         sock,
@@ -166,11 +375,14 @@ async function startSession(sessionId) {
         qr: null,
         store,
         messageCache: new Map(),
-        lidToPnMap: new Map(),
-        wasConnected: false // Will be set to true when connection opens
+        lidToPnMap: persistentLidMap, // Initialize with loaded map
+        wasConnected: false,
+        badMacCount: 0,
+        decryptErrors: 0,
+        lastRepairTime: 0,
+        isRepairing: false
     };
     sessions.set(sessionId, sessionData);
-    // Event Handlers
     sock.ev.on('creds.update', saveCreds);
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
@@ -189,6 +401,9 @@ async function startSession(sessionId) {
             const wasConnected = sessionData.wasConnected;
             sessions.delete(sessionId);
             clearInterval(storeInterval);
+            // Note: We don't clear the interval here because it's defined inside startSession but not stored on sessionData
+            // However, it's scoped to this closure, so it's tricky.
+            // In the original code, storeInterval IS cleared. I must have missed re-implementing it here.
             // Only auto-reconnect if:
             // 1. Not logged out
             // 2. Session was previously connected (authenticated) OR it's not a QR timeout
@@ -209,32 +424,48 @@ async function startSession(sessionId) {
             sessionData.status = 'CONNECTED';
             sessionData.qr = null;
             sessionData.wasConnected = true; // Mark as successfully authenticated
+            sessionData.isRepairing = false;
+            sessionData.decryptErrors = 0; // Reset error counters
+            sessionData.badMacCount = 0;
             server.log.info({ sessionId }, 'Connection OPEN - session authenticated');
         }
     });
     // Listen for Contact Updates to build LID->PN Map
     sock.ev.on('contacts.upsert', (contacts) => {
+        let changed = false;
         for (const c of contacts) {
             // Check if contact has both LID and phone number
             if (c.lid && c.id && c.id.endsWith('@s.whatsapp.net')) {
                 const pn = c.id.replace('@s.whatsapp.net', '');
                 sessionData.lidToPnMap.set(c.lid, pn);
                 server.log.info({ sessionId, lid: c.lid, pn }, 'Mapped LID to PN from contacts.upsert');
+                changed = true;
             }
         }
+        if (changed)
+            saveLidMap(sessionData.lidToPnMap);
     });
     sock.ev.on('contacts.update', (updates) => {
+        let changed = false;
         for (const c of updates) {
             if (c.lid && c.id && c.id.endsWith('@s.whatsapp.net')) {
                 const pn = c.id.replace('@s.whatsapp.net', '');
                 sessionData.lidToPnMap.set(c.lid, pn);
                 server.log.info({ sessionId, lid: c.lid, pn }, 'Updated LID to PN mapping from contacts.update');
+                changed = true;
             }
         }
+        if (changed)
+            saveLidMap(sessionData.lidToPnMap);
     });
     sock.ev.on('messages.upsert', async (m) => {
         // DEBUG: Log ALL incoming messages
         server.log.info({ sessionId, type: m.type, count: m.messages.length }, 'messages.upsert event received');
+        // FIX: Only process NEW messages (notify), skip re-delivered ones (append)
+        if (m.type !== 'notify') {
+            server.log.info({ sessionId, type: m.type }, 'Ignoring non-notify upsert (re-delivered/append message)');
+            return;
+        }
         if (!WEBHOOK_URL) {
             server.log.warn({ sessionId }, 'WEBHOOK_URL not configured - messages will NOT be forwarded!');
             return;
@@ -242,7 +473,44 @@ async function startSession(sessionId) {
         try {
             const msg = m.messages[0];
             if (!msg.message) {
-                server.log.info({ sessionId, msgId: msg.key.id }, 'Message has no content (status update/receipt)');
+                // DEBUG: Log full message structure to understand what we're receiving
+                server.log.info({
+                    sessionId,
+                    msgId: msg.key.id,
+                    fullKey: msg.key,
+                    hasMessageField: 'message' in msg,
+                    messageType: msg.messageStubType,
+                    status: msg.status,
+                    rawKeys: Object.keys(msg)
+                }, 'Message has no content - DEBUG');
+                // REACTIVE AUTO-REPAIR: messageStubType 2 = CIPHERTEXT (decryption failed)
+                if (msg.messageStubType === 2) {
+                    const now = Date.now();
+                    // GRACE PERIOD: Ignore errors if we just repaired recently (e.g. within 20s)
+                    if (now - sessionData.lastRepairTime < 60000) { // 60s grace period for key resync
+                        server.log.warn({ sessionId, timeSinceRepair: now - sessionData.lastRepairTime }, 'Ignoring decrypt error during post-repair grace period');
+                        return;
+                    }
+                    sessionData.decryptErrors++;
+                    server.log.warn({ sessionId, decryptErrors: sessionData.decryptErrors }, 'Decrypt error detected (CIPHERTEXT stub)');
+                    // AGGRESSIVE: Trigger repair on FIRST error
+                    if (sessionData.decryptErrors >= 1 && !sessionData.isRepairing) {
+                        server.log.warn({ sessionId }, 'Critical error (Bad MAC) - triggering IMMEDIATE auto-repair');
+                        repairSession(sessionId).then(result => {
+                            server.log.info({ sessionId, result: result.message }, 'Auto-repair completed');
+                        }).catch(err => {
+                            server.log.error({ sessionId, err: err.message }, 'Auto-repair failed');
+                        });
+                    }
+                }
+                return;
+            }
+            // FIX: Ignore old messages delivered during reconnection sync
+            const msgTimestamp = msg.messageTimestamp;
+            const nowSeconds = Math.floor(Date.now() / 1000);
+            const msgAgeSeconds = msgTimestamp ? nowSeconds - Number(msgTimestamp) : 0;
+            if (msgAgeSeconds > 30) {
+                server.log.info({ sessionId, msgId: msg.key.id, ageSeconds: msgAgeSeconds }, 'Ignoring stale message (older than 30s, likely reconnection sync)');
                 return;
             }
             // Determine Body
@@ -305,6 +573,7 @@ async function startSession(sessionId) {
                     // Self-heal: Save to map for future lookups
                     const lidKey = remoteJid.split('@')[0];
                     sessionData.lidToPnMap.set(lidKey, resolvedPhoneNumber);
+                    saveLidMap(sessionData.lidToPnMap); // Save on discovery
                     server.log.info({ sessionId, method: 'senderPn', pn: resolvedPhoneNumber }, 'LID resolved via senderPn (self-healed)');
                 }
                 if (!resolvedPhoneNumber) {
@@ -321,23 +590,94 @@ async function startSession(sessionId) {
                     body,
                     fromMe: msg.key.fromMe,
                     type,
+                    messageKey: msg.key, // Full key for read receipts
                     _data: {
                         notifyName: msg.pushName,
                         phoneNumber: resolvedPhoneNumber // Include resolved phone number for LID messages
                     }
                 }
             };
+            // Cache for media retrieval BEFORE webhook (so it's available when app requests download)
+            if (msg.key.id) {
+                sessionData.messageCache.set(msg.key.id, msg);
+                server.log.info({ sessionId, msgId: msg.key.id, cacheSize: sessionData.messageCache.size }, 'Message cached for media retrieval');
+                setTimeout(() => sessionData.messageCache.delete(msg.key.id), 600000); // 10min TTL for media
+            }
             server.log.info({ sessionId, webhookUrl: WEBHOOK_URL }, 'Sending to webhook...');
             const response = await axios.post(WEBHOOK_URL, payload, { headers: { 'x-internal-secret': WEBHOOK_SECRET || '' } });
             server.log.info({ sessionId, status: response.status }, 'Webhook call successful');
-            // Cache for media retrieval
-            if (msg.key.id) {
-                sessionData.messageCache.set(msg.key.id, msg);
-                setTimeout(() => sessionData.messageCache.delete(msg.key.id), 300000); // 5min
-            }
         }
         catch (e) {
             server.log.error({ sessionId, err: e.message, response: e.response?.data }, 'Webhook call FAILED');
+        }
+    });
+    // Listen for Reactions (for payment claim confirmation)
+    sock.ev.on('messages.reaction', async (reactions) => {
+        if (!WEBHOOK_URL)
+            return;
+        for (const reaction of reactions) {
+            try {
+                server.log.info({ sessionId, reaction }, 'Reaction event received');
+                const payload = {
+                    sessionId,
+                    event: 'message.reaction',
+                    payload: {
+                        key: reaction.key,
+                        messageId: reaction.key?.id,
+                        reaction: {
+                            text: reaction.reaction?.text,
+                            key: reaction.reaction?.key
+                        },
+                        fromMe: reaction.key?.fromMe
+                    }
+                };
+                const response = await axios.post(WEBHOOK_URL, payload, {
+                    headers: { 'x-internal-secret': WEBHOOK_SECRET || '' }
+                });
+                server.log.info({ sessionId, status: response.status }, 'Reaction webhook sent');
+            }
+            catch (e) {
+                server.log.error({ sessionId, err: e.message }, 'Reaction webhook FAILED');
+            }
+        }
+    });
+    // Listen for Message Status Updates (Read Receipts / Delivery)
+    sock.ev.on('messages.update', async (updates) => {
+        if (!WEBHOOK_URL)
+            return;
+        for (const update of updates) {
+            try {
+                // We only care about status updates (READ, DELIVERY_ACK, etc)
+                if (!update.update.status)
+                    continue;
+                server.log.info({ sessionId, update }, 'Message Status Update received');
+                // Map Baileys status to our status
+                // 3 = READ, 2 = DELIVERED_SERVER/DEVICE
+                let status = 'UNKNOWN';
+                if (update.update.status === 3)
+                    status = 'READ';
+                else if (update.update.status >= 2)
+                    status = 'DELIVERED';
+                const payload = {
+                    sessionId,
+                    event: 'message.update',
+                    payload: {
+                        key: update.key,
+                        id: update.key.id,
+                        fromMe: update.key.fromMe,
+                        remoteJid: update.key.remoteJid,
+                        status: status,
+                        rawStatus: update.update.status
+                    }
+                };
+                const response = await axios.post(WEBHOOK_URL, payload, {
+                    headers: { 'x-internal-secret': WEBHOOK_SECRET || '' }
+                });
+                server.log.info({ sessionId, status: response.status, msgId: update.key.id, newStatus: status }, 'Status Update webhook sent');
+            }
+            catch (e) {
+                server.log.error({ sessionId, err: e.message }, 'Status Update webhook FAILED');
+            }
         }
     });
     return sessionData;
@@ -422,6 +762,18 @@ server.post('/api/sessions/delete', async (req, reply) => {
     // NO restart - session is gone forever
     return { success: true, message: 'Session deleted permanently' };
 });
+// Repair Session (Clean corrupted parts WITHOUT full reset - no QR rescan needed)
+server.post('/api/sessions/repair', async (req, reply) => {
+    const { sessionId } = req.body;
+    if (!sessionId)
+        return reply.code(400).send({ error: 'Missing sessionId' });
+    server.log.info({ sessionId }, 'Repairing session (cleaning corrupted parts)...');
+    const result = await repairSession(sessionId);
+    if (!result.success) {
+        return reply.code(400).send(result);
+    }
+    return result;
+});
 // Get Status (Compat with multiple)
 server.get('/api/sessions/:sessionId/status', async (req, reply) => {
     const { sessionId } = req.params;
@@ -429,6 +781,67 @@ server.get('/api/sessions/:sessionId/status', async (req, reply) => {
     if (!session)
         return { status: 'UNKNOWN' };
     return { status: session.status, qr: session.qr };
+});
+// Proactive Session Maintenance - Cleans old per-contact session files
+server.post('/api/sessions/:sessionId/maintenance', async (req, reply) => {
+    const { sessionId } = req.params;
+    const { maxAgeDays } = req.body || {};
+    const maxAge = (maxAgeDays || 7) * 24 * 60 * 60 * 1000; // Default 7 days
+    server.log.info({ sessionId, maxAgeDays: maxAgeDays || 7 }, 'Running proactive session maintenance');
+    const authPath = path.join(BASE_AUTH_DIR, `session_${sessionId}`);
+    if (!fs.existsSync(authPath)) {
+        return reply.code(404).send({ error: 'Session folder not found' });
+    }
+    const now = Date.now();
+    const cleaned = [];
+    const kept = [];
+    try {
+        const files = fs.readdirSync(authPath);
+        for (const file of files) {
+            const filePath = path.join(authPath, file);
+            const stat = fs.statSync(filePath);
+            // Keep essential files: creds.json, store.json
+            if (file === 'creds.json' || file === 'store.json') {
+                kept.push(file);
+                continue;
+            }
+            // Check age of session-*.json files (per-contact encryption keys)
+            if (file.startsWith('session-')) {
+                const fileAge = now - stat.mtimeMs;
+                if (fileAge > maxAge) {
+                    fs.unlinkSync(filePath);
+                    cleaned.push(file);
+                    server.log.info({ sessionId, file, ageDays: Math.floor(fileAge / (24 * 60 * 60 * 1000)) }, 'Cleaned old session file');
+                }
+                else {
+                    kept.push(file);
+                }
+                continue;
+            }
+            // Clean old pre-key files (>7 days)
+            if (file.startsWith('pre-key-')) {
+                const fileAge = now - stat.mtimeMs;
+                if (fileAge > maxAge) {
+                    fs.unlinkSync(filePath);
+                    cleaned.push(file);
+                }
+                continue;
+            }
+            kept.push(file);
+        }
+        server.log.info({ sessionId, cleaned: cleaned.length, kept: kept.length }, 'Maintenance complete');
+        return {
+            success: true,
+            cleaned: cleaned.length,
+            kept: kept.length,
+            cleanedFiles: cleaned.slice(0, 20), // Limit response size
+            message: `Cleaned ${cleaned.length} old files`
+        };
+    }
+    catch (e) {
+        server.log.error({ sessionId, err: e.message }, 'Maintenance failed');
+        return reply.code(500).send({ error: e.message });
+    }
 });
 // Global Status (Fallback for single-session legacy calls)
 server.get('/status', async (req, reply) => {
@@ -441,6 +854,12 @@ server.get('/status', async (req, reply) => {
         return { status: 'DISCONNECTED', qr: null, message: 'No active sessions' };
     }
     return { status: targetSession.status, qr: targetSession.qr };
+});
+// Get Logs (for admin dashboard)
+server.get('/api/logs', async (req, reply) => {
+    const lines = parseInt(req.query.lines) || 100;
+    const recentLogs = logBuffer.slice(-lines);
+    return { success: true, lines: recentLogs };
 });
 // Send Text (Must include sessionId)
 server.post('/api/sendText', async (req, reply) => {
@@ -466,24 +885,75 @@ server.post('/api/sendText', async (req, reply) => {
         return reply.code(500).send({ error: e.message });
     }
 });
-// Mark as Read/Seen
-server.post('/api/markSeen', async (req, reply) => {
-    const { sessionId, chatId } = req.body;
-    const session = sessions.get(sessionId || 'default');
+// Send Reaction (Like/Heart/Emoji)
+server.post('/api/sendReaction', async (req, reply) => {
+    const { sessionId, chatId, messageId, emoji } = req.body;
+    let targetSessionId = sessionId;
+    if (!targetSessionId) {
+        if (sessions.size === 1)
+            targetSessionId = sessions.keys().next().value;
+        else if (sessions.has('default'))
+            targetSessionId = 'default';
+    }
+    const session = sessions.get(targetSessionId);
     if (!session)
-        return reply.code(404).send({ error: 'Session not found' });
+        return reply.code(404).send({ error: 'Session not found', targetSessionId });
     const jid = chatId.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`;
     try {
-        // Try to read from store or cache to get the last message key
-        // Simple fallback: send presence update 'available' (user comes online)
-        // Note: Real 'read' receipt requires message key. 
-        // We will just update presence for now as 'mark read' logic is complex without message ID context.
-        // Or if we have a key in req, we use it.
-        // Future: Frontend should pass messageId(s) to mark read.
-        // For now, at least prevent 404
+        // Baileys sendMessage with react type
+        await session.sock.sendMessage(jid, {
+            react: {
+                text: emoji, // Empty string removes reaction
+                key: {
+                    remoteJid: jid,
+                    id: messageId,
+                    fromMe: false
+                }
+            }
+        });
+        server.log.info({ sessionId: targetSessionId, chatId, messageId, emoji }, 'Reaction sent');
         return { success: true };
     }
     catch (e) {
+        server.log.error({ err: e, sessionId: targetSessionId, chatId }, 'Failed to send reaction');
+        return reply.code(500).send({ error: e.message });
+    }
+});
+// Mark as Read/Seen
+server.post('/api/markSeen', async (req, reply) => {
+    const { sessionId, chatId, messageId, messageKey } = req.body;
+    const session = sessions.get(sessionId || 'default');
+    if (!session)
+        return reply.code(404).send({ error: 'Session not found' });
+    try {
+        // Best case: Full messageKey provided by caller (from webhook payload)
+        if (messageKey && messageKey.remoteJid && messageKey.id) {
+            await session.sock.readMessages([messageKey]);
+            server.log.info({ sessionId, messageKey }, 'Marked message as read (direct key)');
+            return { success: true, method: 'direct_key' };
+        }
+        // If messageId is provided, try to get the message from cache
+        if (messageId && session.messageCache.has(messageId)) {
+            const cachedMsg = session.messageCache.get(messageId);
+            if (cachedMsg?.key) {
+                await session.sock.readMessages([cachedMsg.key]);
+                server.log.info({ sessionId, chatId, messageId }, 'Marked message as read (cache)');
+                return { success: true, method: 'cache' };
+            }
+        }
+        // Fallback: construct key from chatId
+        const jid = chatId?.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`;
+        const fallbackKey = {
+            remoteJid: jid,
+            id: messageId || 'unknown',
+            fromMe: false
+        };
+        await session.sock.readMessages([fallbackKey]);
+        server.log.info({ sessionId, chatId, fallbackKey }, 'Marked as read (fallback key)');
+        return { success: true, method: 'fallback' };
+    }
+    catch (e) {
+        server.log.error({ err: e, sessionId, chatId }, 'Failed to mark as read');
         return reply.code(500).send({ error: e.message });
     }
 });
@@ -502,13 +972,218 @@ server.post('/api/sendStateTyping', async (req, reply) => {
         return reply.code(500).send({ error: e.message });
     }
 });
+// Recording State
+server.post('/api/sendStateRecording', async (req, reply) => {
+    const { sessionId, chatId, isRecording } = req.body;
+    const session = sessions.get(sessionId || 'default');
+    if (!session)
+        return reply.code(404).send({ error: 'Session not found' });
+    const jid = chatId.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`;
+    try {
+        await session.sock.sendPresenceUpdate(isRecording ? 'recording' : 'available', jid);
+        return { success: true };
+    }
+    catch (e) {
+        return reply.code(500).send({ error: e.message });
+    }
+});
+/**
+ * Helper to convert ANY audio to OGG/OPUS (for WhatsApp PTT)
+ */
+async function convertToOggOpus(inputBuffer) {
+    const tempIn = path.join('/tmp', `to_ogg_in_${Date.now()}`);
+    const tempOut = path.join('/tmp', `to_ogg_out_${Date.now()}.ogg`);
+    try {
+        if (!fs.existsSync('/tmp'))
+            fs.mkdirSync('/tmp', { recursive: true });
+        fs.writeFileSync(tempIn, inputBuffer);
+        await new Promise((resolve, reject) => {
+            ffmpeg(tempIn)
+                .toFormat('opus')
+                .outputOptions([
+                '-acodec libopus',
+                '-ac 1',
+                '-ar 48000'
+            ])
+                .on('end', resolve)
+                .on('error', reject)
+                .save(tempOut);
+        });
+        const outputBuffer = fs.readFileSync(tempOut);
+        return outputBuffer;
+    }
+    finally {
+        if (fs.existsSync(tempIn))
+            fs.unlinkSync(tempIn);
+        if (fs.existsSync(tempOut))
+            fs.unlinkSync(tempOut);
+    }
+}
+// Send Voice (PTT)
+server.post('/api/sendVoice', async (req, reply) => {
+    const { sessionId, chatId, file, replyTo } = req.body;
+    const session = sessions.get(sessionId || 'default');
+    if (!session)
+        return reply.code(404).send({ error: 'Session not found' });
+    const jid = chatId.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`;
+    try {
+        let buffer = await getBufferFromFile(file);
+        const isWav = file.mimetype?.includes('wav') || file.filename?.endsWith('.wav');
+        // Always convert to OGG/OPUS for WhatsApp PTT to be safe and ensure it's rendered as a voice note
+        server.log.info({ sessionId, chatId }, 'Converting outgoing voice to OGG/OPUS...');
+        buffer = (await convertToOggOpus(buffer));
+        await session.sock.sendMessage(jid, {
+            audio: buffer,
+            mimetype: 'audio/ogg; codecs=opus',
+            ptt: true
+        }, { quoted: replyTo ? { key: { id: replyTo } } : undefined });
+        return { success: true };
+    }
+    catch (e) {
+        server.log.error({ error: e.message }, 'Failed to send voice');
+        return reply.code(500).send({ error: e.message });
+    }
+});
+// Send Image
+server.post('/api/sendImage', async (req, reply) => {
+    const { sessionId, chatId, file, caption, replyTo } = req.body;
+    const session = sessions.get(sessionId || 'default');
+    if (!session)
+        return reply.code(404).send({ error: 'Session not found' });
+    const jid = chatId.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`;
+    try {
+        const buffer = await getBufferFromFile(file);
+        await session.sock.sendMessage(jid, {
+            image: buffer,
+            caption: caption,
+            mimetype: file.mimetype || 'image/jpeg'
+        }, { quoted: replyTo ? { key: { id: replyTo } } : undefined });
+        return { success: true };
+    }
+    catch (e) {
+        return reply.code(500).send({ error: e.message });
+    }
+});
+// Send Video
+server.post('/api/sendVideo', async (req, reply) => {
+    const { sessionId, chatId, file, caption, replyTo } = req.body;
+    const session = sessions.get(sessionId || 'default');
+    if (!session)
+        return reply.code(404).send({ error: 'Session not found' });
+    const jid = chatId.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`;
+    try {
+        const buffer = await getBufferFromFile(file);
+        await session.sock.sendMessage(jid, {
+            video: buffer,
+            caption: caption,
+            mimetype: file.mimetype || 'video/mp4'
+        }, { quoted: replyTo ? { key: { id: replyTo } } : undefined });
+        return { success: true };
+    }
+    catch (e) {
+        return reply.code(500).send({ error: e.message });
+    }
+});
+// Send File (Generic Document)
+server.post('/api/sendFile', async (req, reply) => {
+    const { sessionId, chatId, file, caption, replyTo } = req.body;
+    const session = sessions.get(sessionId || 'default');
+    if (!session)
+        return reply.code(404).send({ error: 'Session not found' });
+    const jid = chatId.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`;
+    try {
+        const buffer = await getBufferFromFile(file);
+        await session.sock.sendMessage(jid, {
+            document: buffer,
+            caption: caption,
+            mimetype: file.mimetype || 'application/octet-stream',
+            fileName: file.filename || 'file'
+        }, { quoted: replyTo ? { key: { id: replyTo } } : undefined });
+        return { success: true };
+    }
+    catch (e) {
+        return reply.code(500).send({ error: e.message });
+    }
+});
+// Download Media from Cached Message
+server.get('/api/messages/:messageId/media', async (req, reply) => {
+    const { messageId } = req.params;
+    const sessionIdParam = req.query.sessionId;
+    server.log.info({ messageId, sessionIdParam }, 'Media download request');
+    // Find the message in session caches
+    let targetSession;
+    let cachedMessage;
+    if (sessionIdParam) {
+        targetSession = sessions.get(sessionIdParam);
+        cachedMessage = targetSession?.messageCache.get(messageId);
+    }
+    else {
+        // Search all sessions
+        for (const [id, session] of sessions) {
+            const msg = session.messageCache.get(messageId);
+            if (msg) {
+                targetSession = session;
+                cachedMessage = msg;
+                server.log.info({ messageId, foundInSession: id }, 'Message found in cache');
+                break;
+            }
+        }
+    }
+    if (!cachedMessage || !targetSession) {
+        server.log.warn({ messageId }, 'Message not found in any session cache');
+        return reply.code(404).send({ error: 'Message not found in cache. It may have expired (5min TTL).' });
+    }
+    try {
+        // Use Baileys' downloadMediaMessage utility
+        const buffer = await downloadMediaMessage(cachedMessage, 'buffer', {}, {
+            logger: pino({ level: 'silent' }),
+            reuploadRequest: targetSession.sock.updateMediaMessage
+        });
+        // Determine mimetype from message
+        const msg = cachedMessage.message;
+        let mimetype = 'application/octet-stream';
+        if (msg?.audioMessage)
+            mimetype = msg.audioMessage.mimetype || 'audio/ogg; codecs=opus';
+        if (msg?.imageMessage)
+            mimetype = msg.imageMessage.mimetype || 'image/jpeg';
+        if (msg?.videoMessage)
+            mimetype = msg.videoMessage.mimetype || 'video/mp4';
+        if (msg?.documentMessage)
+            mimetype = msg.documentMessage.mimetype || 'application/octet-stream';
+        if (msg?.stickerMessage)
+            mimetype = 'image/webp';
+        server.log.info({ messageId, mimetype, size: buffer.length }, 'Media downloaded successfully');
+        // Handle WAV conversion if requested
+        if (req.query.format === 'wav' && mimetype.startsWith('audio/')) {
+            server.log.info({ messageId }, 'Converting audio to WAV...');
+            try {
+                const wavBuffer = await convertToWav(buffer);
+                server.log.info({ messageId, originalSize: buffer.length, wavSize: wavBuffer.length }, 'Converted to WAV successfully');
+                reply.header('Content-Type', 'audio/wav');
+                return reply.send(wavBuffer);
+            }
+            catch (convErr) {
+                server.log.error({ messageId, error: convErr.message }, 'WAV conversion failed, falling back to original');
+            }
+        }
+        reply.header('Content-Type', mimetype);
+        return reply.send(buffer);
+    }
+    catch (e) {
+        server.log.error({ messageId, error: e.message, stack: e.stack }, 'Media download failed');
+        return reply.code(500).send({ error: 'Failed to download media: ' + e.message });
+    }
+});
 // Admin Action
 server.post('/api/admin/action', async (req, reply) => {
     const { action, sessionId } = req.body;
     server.log.info({ action, sessionId }, 'Admin Action Request');
     // Some actions might be global, others session specific
     if (action === 'restart') {
-        process.exit(0); // Docker will restart
+        setTimeout(() => {
+            process.exit(0); // Docker will restart
+        }, 1000);
+        return { success: true, message: 'Restarting container...' };
     }
     return { success: true };
 });
@@ -541,4 +1216,79 @@ server.listen({ port: PORT, host: '0.0.0.0' }, (err, address) => {
     catch (e) {
         console.error('Failed to auto-start sessions', e);
     }
+    // Periodic health check - auto-repair every 5 minutes if issues detected
+    setInterval(async () => {
+        for (const [sessionId, session] of sessions) {
+            // Skip if already repairing or not connected
+            if (session.isRepairing || session.status !== 'CONNECTED')
+                continue;
+            // Check if session has accumulated errors
+            if (session.decryptErrors > 3 || session.badMacCount > 3) {
+                console.log(`[AutoRepair] Session ${sessionId} has ${session.decryptErrors} decrypt errors, ${session.badMacCount} Bad MAC errors. Auto-repairing...`);
+                try {
+                    await repairSession(sessionId);
+                }
+                catch (e) {
+                    console.error(`[AutoRepair] Failed to repair session ${sessionId}:`, e);
+                }
+            }
+        }
+    }, 5 * 60 * 1000); // Every 5 minutes
+    // Proactive session maintenance - clean old session files every 6 hours
+    setInterval(async () => {
+        console.log('[Maintenance] Running proactive session cleanup...');
+        for (const [sessionId, session] of sessions) {
+            if (session.status !== 'CONNECTED')
+                continue;
+            const authPath = path.join(BASE_AUTH_DIR, `session_${sessionId}`);
+            if (!fs.existsSync(authPath))
+                continue;
+            const MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
+            const now = Date.now();
+            let cleaned = 0;
+            try {
+                const files = fs.readdirSync(authPath);
+                for (const file of files) {
+                    if (!file.startsWith('session-') && !file.startsWith('pre-key-'))
+                        continue;
+                    if (file === 'creds.json' || file === 'store.json')
+                        continue;
+                    const filePath = path.join(authPath, file);
+                    const stat = fs.statSync(filePath);
+                    const fileAge = now - stat.mtimeMs;
+                    if (fileAge > MAX_AGE) {
+                        fs.unlinkSync(filePath);
+                        cleaned++;
+                    }
+                }
+                if (cleaned > 0) {
+                    console.log(`[Maintenance] Session ${sessionId}: Cleaned ${cleaned} old files`);
+                }
+            }
+            catch (e) {
+                console.error(`[Maintenance] Failed for ${sessionId}:`, e);
+            }
+        }
+    }, 30 * 60 * 1000); // Every 30 minutes
+    // Process incoming message queue - call Amplify CRON every 30 seconds
+    setInterval(async () => {
+        try {
+            const webhookUrl = WEBHOOK_URL?.replace('/api/webhooks/whatsapp', '/api/cron/process-incoming');
+            if (!webhookUrl)
+                return;
+            const response = await axios.get(webhookUrl, {
+                timeout: 60000, // 60s timeout for slow AI providers
+                headers: { 'x-cron-source': 'baileys' }
+            });
+            if (response.data?.processed > 0) {
+                console.log(`[CRON] Processed ${response.data.processed} incoming messages`);
+            }
+        }
+        catch (e) {
+            // Silent fail - it's just a CRON trigger
+            if (e.code !== 'ECONNABORTED') {
+                console.error('[CRON] Process-incoming failed:', e.message);
+            }
+        }
+    }, 30 * 1000); // Every 30 seconds
 });
