@@ -365,7 +365,8 @@ export const whatsapp = {
             await axios.post(`${endpoint}/api/markSeen`, {
                 sessionId: agentId?.toString() || defaultSession,
                 chatId: formattedChatId,
-                messageKey // Pass the full key if available
+                messageKey, // Pass the full key if available
+                all: true  // SAFETY NET: Mark everything as read for this chat
             }, {
                 headers: { 'X-Api-Key': apiKey }
             })

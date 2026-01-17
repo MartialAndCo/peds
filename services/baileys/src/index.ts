@@ -1068,38 +1068,63 @@ server.post('/api/sendReaction', async (req: any, reply) => {
 
 // Mark as Read/Seen
 server.post('/api/markSeen', async (req: any, reply) => {
-    const { sessionId, chatId, messageId, messageKey } = req.body
+    const { sessionId, chatId, messageId, messageKey, all } = req.body
     const session = sessions.get(sessionId || 'default')
     if (!session) return reply.code(404).send({ error: 'Session not found' })
 
+    const jid = chatId?.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`
+
     try {
-        // Best case: Full messageKey provided by caller (from webhook payload)
+        const keysToRead: any[] = []
+
+        // 1. If explicit messageKey is provided, use it
         if (messageKey && messageKey.remoteJid && messageKey.id) {
-            await session.sock.readMessages([messageKey])
-            server.log.info({ sessionId, messageKey }, 'Marked message as read (direct key)')
-            return { success: true, method: 'direct_key' }
+            keysToRead.push(messageKey)
         }
 
-        // If messageId is provided, try to get the message from cache
-        if (messageId && session.messageCache.has(messageId)) {
-            const cachedMsg = session.messageCache.get(messageId)
-            if (cachedMsg?.key) {
-                await session.sock.readMessages([cachedMsg.key])
-                server.log.info({ sessionId, chatId, messageId }, 'Marked message as read (cache)')
-                return { success: true, method: 'cache' }
+        // 2. If all=true, collect ALL messages for this JID from cache
+        if (all) {
+            for (const msg of session.messageCache.values()) {
+                if (msg.key.remoteJid === jid && !msg.key.fromMe) {
+                    keysToRead.push(msg.key)
+                }
             }
         }
 
-        // Fallback: construct key from chatId
-        const jid = chatId?.includes('@') ? chatId.replace('@c.us', '@s.whatsapp.net') : `${chatId}@s.whatsapp.net`
-        const fallbackKey = {
-            remoteJid: jid,
-            id: messageId || 'unknown',
-            fromMe: false
+        // 3. Fallback: if we have nothing, try to find the latest
+        if (keysToRead.length === 0) {
+            let latestKey = null
+            let latestTimestamp = 0
+            for (const msg of session.messageCache.values()) {
+                if (msg.key.remoteJid === jid && !msg.key.fromMe) {
+                    const ts = Number(msg.messageTimestamp)
+                    if (ts > latestTimestamp) {
+                        latestTimestamp = ts
+                        latestKey = msg.key
+                    }
+                }
+            }
+            if (latestKey) keysToRead.push(latestKey)
         }
-        await session.sock.readMessages([fallbackKey])
-        server.log.info({ sessionId, chatId, fallbackKey }, 'Marked as read (fallback key)')
-        return { success: true, method: 'fallback' }
+
+        // 4. Ultimate fallback: manual key construction if messageId exists
+        if (keysToRead.length === 0 && messageId) {
+            keysToRead.push({
+                remoteJid: jid,
+                id: messageId,
+                fromMe: false
+            })
+        }
+
+        if (keysToRead.length > 0) {
+            // Deduplicate keys by ID
+            const uniqueKeys = Array.from(new Map(keysToRead.map(k => [k.id, k])).values())
+            await session.sock.readMessages(uniqueKeys)
+            server.log.info({ sessionId, jid, count: uniqueKeys.length }, 'Marked messages as read (all/latest)')
+            return { success: true, count: uniqueKeys.length }
+        }
+
+        return { success: true, count: 0, method: 'none_found' }
     } catch (e: any) {
         server.log.error({ err: e, sessionId, chatId }, 'Failed to mark as read')
         return reply.code(500).send({ error: e.message })
