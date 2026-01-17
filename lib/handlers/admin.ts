@@ -6,8 +6,13 @@ import { anthropic } from '@/lib/anthropic'
 import { venice } from '@/lib/venice'
 import { getAdminProblemAck, getAdminCancelAck, getAdminZeroPending } from '@/lib/spintax'
 
-export async function handleAdminCommand(text: string, sourcePhone: string, settings: any, agentId?: number) {
+export async function handleAdminCommand(text: string, sourcePhone: string, settings: any, agentId?: number, messageKey?: any) {
     const upperText = text.toUpperCase()
+
+    // Mark as read immediately
+    if (upperText.includes('[PROBLEM]') || upperText.includes('[CANCEL]') || upperText.includes('[ANNULER]')) {
+        whatsapp.markAsRead(sourcePhone, agentId, messageKey).catch(() => { })
+    }
 
     // A. [PROBLEM] - Report a problem
     if (upperText.includes('[PROBLEM]')) {

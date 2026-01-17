@@ -16,8 +16,26 @@ export async function processWhatsAppPayload(payload: any, agentId: number, opti
 
     try {
 
-        // Ignore own messages
-        if (payload.fromMe) return { status: 'ignored_from_me' }
+        // Ignore own messages (unless it's a status update for our own message)
+        if (payload.fromMe && payload.event !== 'message.update') return { status: 'ignored_from_me' }
+
+        // --- NEW: Status Update Handling ---
+        if (payload.event === 'message.update') {
+            const { id, status } = payload.payload;
+            if (id && status) {
+                logger.info('Updating message status', { id, status, module: 'processor' });
+                await prisma.message.updateMany({
+                    where: { waha_message_id: id },
+                    data: { status: status }
+                });
+                return { status: 'status_updated' };
+            }
+            return { status: 'ignored_update_no_data' };
+        }
+        // -----------------------------------
+
+        // Ignore own messages (unless it's a status update for our own message)
+        if (payload.fromMe && payload.event !== 'message.update') return { status: 'ignored_from_me' }
 
         let from = payload.from // e.g. 33612345678@c.us or @s.whatsapp.net
 
@@ -100,7 +118,7 @@ export async function processWhatsAppPayload(payload: any, agentId: number, opti
 
             // 1. Admin Commands
             const { handleAdminCommand } = require('@/lib/handlers/admin')
-            const adminResult = await handleAdminCommand(text, sourcePhone, settings, agentId)
+            const adminResult = await handleAdminCommand(text, sourcePhone, settings, agentId, payload.messageKey)
             if (adminResult.handled) return { status: 'handled_admin', type: adminResult.type }
 
             // 2. Media/Voice Ingestion

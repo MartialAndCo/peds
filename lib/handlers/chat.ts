@@ -28,7 +28,7 @@ export async function handleChat(
         logger.info('ViewOnce message rejected', { module: 'chat', contactId: contact.id })
         await new Promise(r => setTimeout(r, 2000))
         const refusalMsg = settings.msg_view_once_refusal || "Mince ça bug mon tel, j'arrive pas à ouvrir les photos éphémères (View Once) 😕\n\nTu peux me la renvoyer en normal stp ?"
-        await whatsapp.markAsRead(contact.phone_whatsapp).catch(() => { })
+        await whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => { })
         await whatsapp.sendText(contact.phone_whatsapp, refusalMsg, undefined, agentId)
         return { handled: true, result: 'view_once_rejected' }
     }
@@ -197,7 +197,7 @@ export async function handleChat(
         // If it succeeded, messageText will be the actual text, so we skip this block.
         if (messageText.includes('Failed') || messageText.includes('Error') || messageText.includes('Disabled')) {
             const voiceRefusalMsg = settings.msg_voice_refusal || "Désolé, je ne peux pas écouter les messages vocaux pour le moment (Problème technique)."
-            await whatsapp.markAsRead(contact.phone_whatsapp).catch(() => { })
+            await whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => { })
             await whatsapp.sendText(contact.phone_whatsapp, voiceRefusalMsg, undefined, agentId)
             return { handled: true, result: 'voice_error' }
         }
@@ -395,7 +395,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
                 status: 'PENDING'
             }
         })
-        if (timing.shouldGhost) whatsapp.markAsRead(contact.phone_whatsapp, agentId).catch(() => { })
+        if (timing.shouldGhost) whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => { })
         return { handled: true, result: 'queued', scheduledAt }
     }
 
@@ -468,7 +468,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         responseText = responseText.replace(reactionMatch[0], '').trim()
 
         // Send reaction immediately
-        await whatsapp.markAsRead(contact.phone_whatsapp).catch(() => { })
+        await whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => { })
         whatsapp.sendReaction(contact.phone_whatsapp, payload.id, emoji, agentId)
             .catch(err => console.error('[Chat] Failed to send reaction:', err))
 
@@ -504,7 +504,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
                         dataUrl = `data:${result.media.mimeType || 'image/jpeg'};base64,${dataUrl}`
                     }
 
-                    await whatsapp.markAsRead(contact.phone_whatsapp).catch(() => { })
+                    await whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => { })
                     await whatsapp.sendImage(contact.phone_whatsapp, dataUrl, result.media.caption || '', agentId)
 
                     // 2. Mark as Sent
@@ -569,15 +569,17 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         const voiceText = responseText.replace(/\|\|\|/g, '. ')
         const existing = await voiceService.findReusableVoice(voiceText)
         if (existing) {
-            whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload?.key).catch(() => { })
+            whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => { })
             await whatsapp.sendVoice(contact.phone_whatsapp, existing.url, payload.id, agentId)
         } else {
+            // Mark as read immediately to acknowledge request
+            whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => { })
             await voiceService.requestVoice(contact.phone_whatsapp, voiceText, lastContent, settings, agentId)
             return { handled: true, result: 'voice_requested' }
         }
     } else {
         // Text Send -> Via DB Queue (Reliable)
-        whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload?.key).catch(() => { })
+        whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => { })
 
         // We push the raw responseText (with |||) to DB. The Cron/Worker handles splitting.
         const queuedMsg = await prisma.messageQueue.create({

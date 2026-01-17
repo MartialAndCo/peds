@@ -720,6 +720,47 @@ async function startSession(sessionId: string) {
         }
     })
 
+    // Listen for Message Status Updates (Read Receipts / Delivery)
+    sock.ev.on('messages.update', async (updates: any[]) => {
+        if (!WEBHOOK_URL) return
+
+        for (const update of updates) {
+            try {
+                // We only care about status updates (READ, DELIVERY_ACK, etc)
+                if (!update.update.status) continue
+
+                server.log.info({ sessionId, update }, 'Message Status Update received')
+
+                // Map Baileys status to our status
+                // 3 = READ, 2 = DELIVERED_SERVER/DEVICE
+                let status = 'UNKNOWN'
+                if (update.update.status === 3) status = 'READ'
+                else if (update.update.status >= 2) status = 'DELIVERED'
+
+                const payload = {
+                    sessionId,
+                    event: 'message.update',
+                    payload: {
+                        key: update.key,
+                        id: update.key.id,
+                        fromMe: update.key.fromMe,
+                        remoteJid: update.key.remoteJid,
+                        status: status,
+                        rawStatus: update.update.status
+                    }
+                }
+
+                const response = await axios.post(WEBHOOK_URL, payload, {
+                    headers: { 'x-internal-secret': WEBHOOK_SECRET || '' }
+                })
+                server.log.info({ sessionId, status: response.status, msgId: update.key.id, newStatus: status }, 'Status Update webhook sent')
+
+            } catch (e: any) {
+                server.log.error({ sessionId, err: e.message }, 'Status Update webhook FAILED')
+            }
+        }
+    })
+
     return sessionData
 }
 

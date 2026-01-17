@@ -18,6 +18,9 @@ export async function handleSourceMedia(
 
     if (!isMedia) return { handled: false }
 
+    // Mark as read immediately to acknowledge receipt
+    whatsapp.markAsRead(normalizedPhone, agentId, payload.messageKey).catch(() => { })
+
     const voiceSourcePhone = settings.voice_source_number || settings.source_phone_number
 
     // Check if it is a VOICE NOTE from Voice Source
