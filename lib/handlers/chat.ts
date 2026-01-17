@@ -567,9 +567,10 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     let isVoice = voiceEnabled && isPttMessage
     if (responseText.startsWith('[VOICE]')) { isVoice = true; responseText = responseText.replace('[VOICE]', '').trim() }
 
-    await prisma.message.create({
-        data: { conversationId: conversation.id, sender: 'ai', message_text: responseText.replace(/\|\|\|/g, '\n'), timestamp: new Date() }
-    })
+    // NOTE: Message is saved by queue-service AFTER sending, not here (avoids duplicates in dashboard)
+    // await prisma.message.create({
+    //     data: { conversationId: conversation.id, sender: 'ai', message_text: responseText.replace(/\|\|\|/g, '\n'), timestamp: new Date() }
+    // })
 
     if (isVoice) {
         const { voiceService } = require('@/lib/voice')

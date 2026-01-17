@@ -126,7 +126,8 @@ export class QueueService {
             // Unified Splitting Logic (Matches route.ts)
             let parts = content.split('|||').filter((p: string) => p.trim().length > 0)
             if (parts.length === 1 && content.length > 50) {
-                const paragraphs = content.split(/\n+/).filter((p: string) => p.trim().length > 0)
+                // Only split on DOUBLE newlines (paragraph breaks), not single newlines
+                const paragraphs = content.split(/\n\s*\n/).filter((p: string) => p.trim().length > 0)
                 if (paragraphs.length > 1) parts = paragraphs
             }
 
