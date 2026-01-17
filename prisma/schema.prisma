@@ -343,6 +343,7 @@ model Payment {
   
   contactId       String?
   contact         Contact? @relation(fields: [contactId], references: [id])
+  method          String?  // e.g. "PayPal", "CashApp"
   
   rawJson         String?  // Store full webhook payload for debugging
   createdAt       DateTime @default(now())

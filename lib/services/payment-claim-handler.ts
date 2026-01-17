@@ -147,7 +147,8 @@ export async function handlePaymentClaimReaction(
                 currency: 'USD',
                 status: 'COMPLETED',
                 payerName: claim.contact.name,
-                contactId: claim.contactId
+                contactId: claim.contactId,
+                method: claim.claimedMethod || 'manual'
             }
         })
 
@@ -165,7 +166,16 @@ export async function handlePaymentClaimReaction(
             data: { status: 'CONFIRMED' }
         })
 
-        logger.info('Payment claim confirmed (silent)', { module: 'payment-claim', claimId: claim.id })
+        // 4. Update Contact Phase to MONEYPOT
+        await prisma.contact.update({
+            where: { id: claim.contactId },
+            data: {
+                agentPhase: 'MONEYPOT',
+                lastPhaseUpdate: new Date()
+            }
+        })
+
+        logger.info('Payment claim confirmed (silent) & Contact moved to MONEYPOT', { module: 'payment-claim', claimId: claim.id })
 
     } else {
         // REJECTION: Not received

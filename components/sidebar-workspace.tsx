@@ -13,7 +13,8 @@ import {
     Image as ImageIcon,
     Users,
     ShieldCheck,
-    Clock
+    Clock,
+    TrendingUp
 } from 'lucide-react'
 import { useAgent } from '@/components/agent-provider'
 
@@ -34,6 +35,7 @@ export function SidebarWorkspace() {
                 { label: 'Queue', icon: Clock, href: `${baseUrl}/queue` },
                 { label: 'Conversations', icon: MessageSquare, href: `${baseUrl}/conversations` },
                 { label: 'Contacts', icon: Users, href: `${baseUrl}/contacts` },
+                { label: 'Payments', icon: TrendingUp, href: `${baseUrl}/payments` },
             ]
         },
         {
