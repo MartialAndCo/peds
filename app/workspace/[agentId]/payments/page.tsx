@@ -4,14 +4,9 @@ import { DollarSign, TrendingUp } from "lucide-react"
 
 export const dynamic = 'force-dynamic'
 
-interface Props {
-    params: {
-        agentId: string
-    }
-}
-
-export default async function AgentPaymentsPage({ params }: Props) {
-    const agentId = parseInt(params.agentId)
+export default async function AgentPaymentsPage({ params }: { params: Promise<{ agentId: string }> }) {
+    const { agentId } = await params
+    const id = parseInt(agentId)
 
     // Strategy: Verify agent ownership.
     // Since Phase 1 "Payment" model doesn't store agentId directly,
@@ -31,7 +26,7 @@ export default async function AgentPaymentsPage({ params }: Props) {
             contact: {
                 conversations: {
                     some: {
-                        agentId: agentId
+                        agentId: id
                     }
                 }
             }
@@ -48,7 +43,7 @@ export default async function AgentPaymentsPage({ params }: Props) {
     })
 
     const agent = await prisma.agent.findUnique({
-        where: { id: agentId },
+        where: { id: id },
         select: { name: true }
     })
 
