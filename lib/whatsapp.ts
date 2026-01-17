@@ -116,11 +116,11 @@ export const whatsapp = {
                         const { data: publicData } = supabase.storage.from('voice-uploads').getPublicUrl(fileName)
                         if (publicData?.publicUrl) {
                             logger.info(`[WhatsApp] Optimized Voice Upload: ${publicData.publicUrl}`, { module: 'whatsapp' })
-                            // Replace "data" with "url"
+                            // Replace "data" with "url" - force WAV mime since that's what we uploaded
                             filePayload = {
-                                mimetype: mime,
+                                mimetype: 'audio/wav',
                                 url: publicData.publicUrl,
-                                filename: `voice.${ext}`
+                                filename: 'voice.wav'
                             }
                         }
                     } else {
