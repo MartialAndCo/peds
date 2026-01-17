@@ -124,10 +124,10 @@ export const whatsapp = {
                             }
                         }
                     } else {
-                        logger.warn('[WhatsApp] Voice Upload Failed (falling back to direct)', uploadError)
+                        logger.warn('[WhatsApp] Voice Upload Failed (falling back to direct)', { error: uploadError })
                     }
-                } catch (e) {
-                    logger.warn('[WhatsApp] Voice Upload Error', e)
+                } catch (e: any) {
+                    logger.warn('[WhatsApp] Voice Upload Error', { error: e.message || e })
                 }
             }
 
