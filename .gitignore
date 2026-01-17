@@ -50,3 +50,7 @@ waha-server/.media
 waha-server/.sessions
 waha-server/dist
 
+# services/baileys
+services/baileys/node_modules
+services/baileys/dist
+
