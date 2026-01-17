@@ -148,7 +148,7 @@ export default function SystemPage() {
             interval = setInterval(() => {
                 fetchStatus()
                 fetchLogs()
-            }, 1000) // 1 second
+            }, 5000) // 5 seconds
         }
 
         return () => {
