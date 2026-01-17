@@ -168,14 +168,36 @@ async function convertToWav(inputBuffer: Buffer): Promise<any> {
  * Helper to get Buffer from file object (base64 data OR url)
  */
 async function getBufferFromFile(file: any): Promise<Buffer> {
+    server.log.info({ fileKeys: file ? Object.keys(file) : 'FILE_IS_UNDEFINED' }, '[getBufferFromFile] Received file object')
+
+    if (!file) {
+        throw new Error('File object is undefined or null')
+    }
+
     if (file.data) {
+        server.log.info({ dataLength: file.data.length }, '[getBufferFromFile] Using base64 data')
         return Buffer.from(file.data, 'base64')
     }
+
     if (file.url) {
-        // Download from URL (Supabase, etc)
-        const res = await axios.get(file.url, { responseType: 'arraybuffer' })
-        return Buffer.from(res.data)
+        server.log.info({ url: file.url }, '[getBufferFromFile] Downloading from URL...')
+        try {
+            const res = await axios.get(file.url, { responseType: 'arraybuffer', timeout: 30000 })
+            server.log.info({ status: res.status, dataSize: res.data?.length || 0 }, '[getBufferFromFile] Download response')
+
+            if (!res.data) {
+                throw new Error('URL download returned empty data')
+            }
+
+            const buffer = Buffer.from(res.data)
+            server.log.info({ bufferSize: buffer.length }, '[getBufferFromFile] Buffer created successfully')
+            return buffer
+        } catch (downloadErr: any) {
+            server.log.error({ url: file.url, error: downloadErr.message, code: downloadErr.code }, '[getBufferFromFile] URL download FAILED')
+            throw new Error(`Failed to download from URL: ${downloadErr.message}`)
+        }
     }
+
     throw new Error('File payload must contain "data" (base64) or "url"')
 }
 
