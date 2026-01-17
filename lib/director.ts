@@ -272,7 +272,14 @@ STRATEGY: Keep him happy.
         }
 
         // 4. Assemble Blocks & Replace Placeholders
-        const todayDate = new Date().toLocaleString('en-US', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+        const todayDate = new Date().toLocaleString('en-US', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZone: 'America/Los_Angeles'
+        })
 
         const pIdentity = tIdentity.replace('{{ROLE}}', baseRole)
         const pContext = tContext
