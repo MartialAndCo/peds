@@ -31,7 +31,6 @@ const adminRoutes = [
         title: "Data",
         routes: [
             { label: 'Contacts', icon: Users, href: '/admin/contacts' },
-            { label: 'Contacts', icon: Users, href: '/admin/contacts' },
             { label: 'Conversations', icon: Globe, href: '/admin/conversations' },
             { label: 'Payments', icon: TrendingUp, href: '/admin/payments' },
         ]
