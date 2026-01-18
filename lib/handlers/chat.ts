@@ -368,7 +368,13 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     // 3. Timing
     logger.info('Generating AI response', { module: 'chat', conversationId: conversation.id, phase })
     const lastUserDate = new Date() // Approx
-    let timing = TimingManager.analyzeContext(lastUserDate, phase)
+
+    // Check for Payment Intent or High Priority Keywords
+    const moneyKeywords = ['money', 'pay', 'paypal', 'cashapp', 'venmo', 'zelle', 'transfer', 'cash', 'dollars', 'usd', '$', 'price', 'cost', 'bank', 'card', 'crypto', 'bitcoin']
+    const isHighPriority = moneyKeywords.some(kw => lastContent.toLowerCase().includes(kw))
+    if (isHighPriority) console.log('[Timing] High Priority Keyword detected (Payment check). Speeding up.')
+
+    let timing = TimingManager.analyzeContext(lastUserDate, phase, isHighPriority)
 
     // Debug logging
     console.log(`[Timing] Contact testMode: ${contact.testMode}`)
