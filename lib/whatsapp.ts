@@ -59,7 +59,9 @@ export const whatsapp = {
             const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
 
             // Call our new microservice
-            const response = await axios.post(`${endpoint}/api/sendText`, {
+            const url = `${endpoint}/api/sendText`
+            console.log(`[WhatsApp] Posting to: ${url}`)
+            const response = await axios.post(url, {
                 sessionId: agentId?.toString() || defaultSession, // Use Agent ID or Default Session
                 chatId: formattedChatId,
                 text,
