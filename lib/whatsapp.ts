@@ -373,8 +373,7 @@ export const whatsapp = {
                     all: true
                 }
                 // Only attach key if we are NOT marking all (which we currently always do, but for future proofing)
-                // Actually, let's just ignore messageKey argument effectively since we hardcode all:true
-                // payload.messageKey = messageKey 
+                payload.messageKey = messageKey
 
                 await axios.post(`${endpoint}/api/markSeen`, payload, {
                     headers: { 'X-Api-Key': apiKey }
