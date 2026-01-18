@@ -370,9 +370,20 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     const lastUserDate = new Date() // Approx
 
     // Check for Payment Intent or High Priority Keywords
+    // Check for Payment Intent or High Priority Keywords
     const moneyKeywords = ['money', 'pay', 'paypal', 'cashapp', 'venmo', 'zelle', 'transfer', 'cash', 'dollars', 'usd', '$', 'price', 'cost', 'bank', 'card', 'crypto', 'bitcoin']
     const isHighPriority = moneyKeywords.some(kw => lastContent.toLowerCase().includes(kw))
-    if (isHighPriority) console.log('[Timing] High Priority Keyword detected (Payment check). Speeding up.')
+
+    if (isHighPriority) {
+        console.log('[Timing] High Priority Keyword detected (Payment check). Speeding up.')
+        // ALSO: Notify Admin immediately of potential payment/intention
+        const { notifyPaymentClaim } = require('@/lib/services/payment-claim-handler')
+        // We use a debounce key or check? 
+        // For now, let's just notify. The handler might dedup if needed, or we accept the noise for money.
+        // We pass 'KEYWORD_DETECTED' as source
+        notifyPaymentClaim(contact, conversation, settings, null, 'KEYWORD_DETECTED', agentId)
+            .catch((e: any) => console.error('[Chat] Failed to notify keyword payment claim:', e))
+    }
 
     let timing = TimingManager.analyzeContext(lastUserDate, phase, isHighPriority)
 

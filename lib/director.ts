@@ -332,6 +332,9 @@ STRATEGY: Keep him happy.
         }
         pRules += paymentNote;
 
+        // CRITICAL: PAYMENT NOTIFICATION PROTOCOL
+        pRules += `\n\n[ADMIN PROTOCOL]: IF the user claims to have sent money (e.g., "I sent $50", "Check your PayPal"), you MUST include the tag [PAYMENT_RECEIVED] at the end of your response. This triggers the verification system. Do NOT use this tag if he just talks about paying later.`
+
         const vPolicy = mergedSettings.prompt_voice_note_policy || ""
         const sInstructions = mergedSettings.prompt_style_instructions || ""
 

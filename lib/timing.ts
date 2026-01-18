@@ -66,8 +66,27 @@ export class TimingManager {
         return { start: todaySchoolStart, end: todaySchoolEnd }
     }
 
-    static analyzeContext(lastUserMessageTime: Date | null, phase: string): { mode: 'FAST' | 'NORMAL' | 'SLOW' | 'SLEEP' | 'INSTANT_TEST', delaySeconds: number, shouldGhost: boolean } {
+    static analyzeContext(lastUserMessageTime: Date | null, phase: string, isHighPriority: boolean = false): { mode: 'FAST' | 'NORMAL' | 'SLOW' | 'SLEEP' | 'INSTANT_TEST', delaySeconds: number, shouldGhost: boolean } {
         const nowLA = this.getLATime()
+        const dayOfWeek = nowLA.getDay() // 0 = Sunday, 6 = Saturday
+
+        // 0. PRIORITY OVERRIDE
+        if (isHighPriority) {
+            // Payment or Validation -> FAST (10s - 30s)
+            // Even if sleeping? Maybe not if deep sleep, but high priority implies "don't ghost for hours".
+            // Let's say if sleeping, we reduce wakeup delay? 
+            // User request: "Répond plus vite quand il y a texture argent".
+
+            // If sleeping, we shouldn't reply instantly (suspicious), but maybe wake up sooner?
+            // For now, let's treat it as FAST Flow if awake.
+            const sleep = this.getSleepWindow()
+            const isSleeping = nowLA >= sleep.start && nowLA <= sleep.end
+
+            if (!isSleeping) {
+                const delay = Math.floor(Math.random() * (30 - 10 + 1)) + 10 // 10s - 30s
+                return { mode: 'FAST', delaySeconds: delay, shouldGhost: true }
+            }
+        }
 
         // 1. Check Sleep
         const sleep = this.getSleepWindow()
@@ -89,26 +108,33 @@ export class TimingManager {
             return { mode: 'FAST', delaySeconds: delay, shouldGhost: true }
         }
 
-        // 3. Check School / Work
-        const school = this.getSchoolWindow()
-        const isSchool = nowLA >= school.start && nowLA <= school.end
+        // 3. Check School / Work (WEEKDAYS ONLY)
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
+        if (!isWeekend) {
+            const school = this.getSchoolWindow()
+            const isSchool = nowLA >= school.start && nowLA <= school.end
 
-        if (isSchool) {
-            // School Mode: 80% Ghosting, 20% Break
-            const isBreak = Math.random() > 0.8
-            if (isBreak) {
-                const delay = Math.floor(Math.random() * (120 - 30 + 1)) + 30 // 30s - 2m
-                return { mode: 'FAST', delaySeconds: delay, shouldGhost: true }
-            } else {
-                // Wait until school ends + buffer
-                const diffMs = school.end.getTime() - nowLA.getTime()
-                const delay = Math.max(0, Math.floor(diffMs / 1000)) + 60 * Math.floor(Math.random() * 30) // End + 0-30m
-                return { mode: 'SLOW', delaySeconds: delay, shouldGhost: true } // Mark read, reply later (Ghosting)
+            if (isSchool) {
+                // School Mode: 80% Ghosting, 20% Break
+                const isBreak = Math.random() > 0.8
+                if (isBreak) {
+                    const delay = Math.floor(Math.random() * (120 - 30 + 1)) + 30 // 30s - 2m
+                    return { mode: 'FAST', delaySeconds: delay, shouldGhost: true }
+                } else {
+                    // Wait until school ends + buffer
+                    const diffMs = school.end.getTime() - nowLA.getTime()
+                    const delay = Math.max(0, Math.floor(diffMs / 1000)) + 60 * Math.floor(Math.random() * 30) // End + 0-30m
+                    return { mode: 'SLOW', delaySeconds: delay, shouldGhost: true } // Mark read, reply later (Ghosting)
+                }
             }
         }
 
-        // 4. Default / Free Time
+        // 4. Default / Free Time (Weekend or After School)
         // Normal random variation: 2 min - 15 min
+        // Weekends -> Maybe slightly faster available? 
+        // User asked "Is it taken into account?". 
+        // Implementation: Effectively yes, because we SKIP School logic which imposes massive delays.
+        // So weekends = Free Time all day = 2-15m delays vs School (hours).
         const delay = Math.floor(Math.random() * (15 * 60 - 2 * 60 + 1)) + 2 * 60
         return { mode: 'NORMAL', delaySeconds: delay, shouldGhost: true }
     }

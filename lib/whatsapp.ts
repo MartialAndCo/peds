@@ -365,12 +365,18 @@ export const whatsapp = {
         for (let i = 0; i < MAX_RETRIES; i++) {
             try {
                 const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
-                await axios.post(`${endpoint}/api/markSeen`, {
+                // If 'all' is true, we should NOT pass messageKey, to force a chat-level "mark seen"
+                // which clears all unread messages. Passing a key might restrict it to "read up to this message".
+                const payload: any = {
                     sessionId: agentId?.toString() || defaultSession,
                     chatId: formattedChatId,
-                    messageKey, // Pass the full key if available
-                    all: true  // SAFETY NET: Mark everything as read for this chat
-                }, {
+                    all: true
+                }
+                // Only attach key if we are NOT marking all (which we currently always do, but for future proofing)
+                // Actually, let's just ignore messageKey argument effectively since we hardcode all:true
+                // payload.messageKey = messageKey 
+
+                await axios.post(`${endpoint}/api/markSeen`, payload, {
                     headers: { 'X-Api-Key': apiKey }
                 })
 
