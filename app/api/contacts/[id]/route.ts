@@ -142,13 +142,29 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
         const contact = await prisma.contact.findUnique({ where: { id } });
         if (contact && contact.phone_whatsapp) {
             const { memoryService } = require('@/lib/memory');
+            // Global
             await memoryService.deleteAll(contact.phone_whatsapp);
 
-            // Delete Pending Requests / Voice logic
+            // Agent-Specific Memories
+            // We need to find which agents were involved from the deleted conversations
+            // We already fetched conversations above, but only IDs. Let's fetch agentIds.
+            const convsWithAgents = await prisma.conversation.findMany({
+                where: { contactId: id },
+                select: { agentId: true }
+            })
+            const agentIds = [...new Set(convsWithAgents.map(c => c.agentId).filter(aid => aid !== null))]
+
+            for (const aid of agentIds) {
+                const uid = memoryService.buildUserId(contact.phone_whatsapp, aid!)
+                await memoryService.deleteAll(uid)
+            }
+
+            // Delete Other Related Records
             try {
                 await prisma.pendingRequest.deleteMany({ where: { requesterPhone: contact.phone_whatsapp } })
-                // We can't easily delete voice clips sent BY them unless we track sourcePhone perfectly.
-                // Assuming sourcePhone handles it.
+                await prisma.trustLog.deleteMany({ where: { contactId: id } })
+                await prisma.payment.deleteMany({ where: { contactId: id } })
+                await prisma.pendingPaymentClaim.deleteMany({ where: { contactId: id } })
             } catch (e) { console.error('Cleanup warning', e) }
         }
 
