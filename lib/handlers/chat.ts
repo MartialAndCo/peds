@@ -378,8 +378,6 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         console.log('[Timing] High Priority Keyword detected (Payment check). Speeding up.')
         // ALSO: Notify Admin immediately of potential payment/intention
         const { notifyPaymentClaim } = require('@/lib/services/payment-claim-handler')
-        // We use a debounce key or check? 
-        // For now, let's just notify. The handler might dedup if needed, or we accept the noise for money.
         // We pass 'KEYWORD_DETECTED' as source
         notifyPaymentClaim(contact, conversation, settings, null, 'KEYWORD_DETECTED', agentId)
             .catch((e: any) => console.error('[Chat] Failed to notify keyword payment claim:', e))

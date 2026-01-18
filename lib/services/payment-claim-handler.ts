@@ -62,8 +62,12 @@ export async function notifyPaymentClaim(
 
     try {
         const sendResult = await whatsapp.sendText(adminPhone, notificationMsg, undefined, agentId)
+
+        console.log('[PaymentClaim] Raw Send Result:', JSON.stringify(sendResult, null, 2))
+
         // Fix ID extraction: Baileys returns { id: { id: "..." } } or simplified { id: "..." }
         const waMessageId = sendResult?.id?.id || sendResult?.id || sendResult?.key?.id || null
+        console.log(`[PaymentClaim] Extracted waMessageId: "${waMessageId}"`)
 
         // Create pending claim record
         const claim = await prisma.pendingPaymentClaim.create({
@@ -181,16 +185,29 @@ export async function handlePaymentClaimReaction(
     } else {
         // REJECTION: Not received
 
-        // Generate "didn't receive" response (AI, not hardcoded)
-        // Generate "didn't receive" response (AI, not hardcoded)
-        // User Request: "Ultimately I looked at my account and I have nothing. You might be lying."
-        const rejectPrompt = `(SYSTEM: You just checked your actual bank account and confirmed NO money has arrived. The user is claiming they sent it, but you verify you have NOT received it. Say: "Actually, I just looked at my account and I see nothing." or "I checked my balance and it's not there." Be direct.)`
+        // Fetch recent history to ensure the response is personalized and context-aware
+        const history = conversation ? await prisma.message.findMany({
+            where: { conversationId: conversation.id },
+            orderBy: { timestamp: 'desc' },
+            take: 10
+        }) : []
+
+        const contextMessages = history.reverse().map((m: any) => ({
+            role: m.sender === 'contact' ? 'user' : 'ai',
+            content: m.message_text
+        }))
+
+        // Extract last user content for context
+        const lastContent = contextMessages[contextMessages.length - 1]?.content || 'I sent the money'
+
+        // User Request: "Tell Lilia he claimed to send money but she didn't receive it, so she answers personalized."
+        const rejectInstruction = `\n\n[SYSTEM UPDATE]: The user claims to have sent a payment (Money/Transfer). You just checked your ACTUAL bank account/wallet and NOTHING has arrived. The balance has not changed. You must tell the user that you have NOT received it. Be natural, reference the context if needed, but be firm that the money is not there.`
 
         try {
             let notReceivedMsg = await venice.chatCompletion(
-                systemPrompt + rejectPrompt,
-                [],
-                'I sent you the money!', // Dummy user msg for context
+                systemPrompt + rejectInstruction,
+                contextMessages,
+                lastContent || 'I sent the money', // Use actual last message if available, or fallback
                 { apiKey: settings.venice_api_key, model: settings.venice_model || 'venice-uncensored' }
             )
             notReceivedMsg = notReceivedMsg.replace(/\*[^*]+\*/g, '').trim()
