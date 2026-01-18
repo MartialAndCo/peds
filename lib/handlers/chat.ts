@@ -375,12 +375,21 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     const isHighPriority = moneyKeywords.some(kw => lastContent.toLowerCase().includes(kw))
 
     if (isHighPriority) {
-        console.log('[Timing] High Priority Keyword detected (Payment check). Speeding up.')
-        // ALSO: Notify Admin immediately of potential payment/intention
-        const { notifyPaymentClaim } = require('@/lib/services/payment-claim-handler')
-        // We pass 'KEYWORD_DETECTED' as source
-        notifyPaymentClaim(contact, conversation, settings, null, 'KEYWORD_DETECTED', agentId)
-            .catch((e: any) => console.error('[Chat] Failed to notify keyword payment claim:', e))
+        console.log('[Timing] High Priority Keyword detected. Running Smart Intent Verification...')
+
+        // Use verifying AI to prevent spam
+        const isVerified = await director.screenPaymentIntent(uniqueHistory, settings)
+
+        if (isVerified) {
+            console.log('[Timing] Smart Intent VERIFIED. Notifying Admin.')
+            // ALSO: Notify Admin immediately of potential payment/intention
+            const { notifyPaymentClaim } = require('@/lib/services/payment-claim-handler')
+            // We pass 'KEYWORD_DETECTED' as source (or SMART_DETECTED for clarity)
+            notifyPaymentClaim(contact, conversation, settings, null, 'SMART_DETECTED', agentId)
+                .catch((e: any) => console.error('[Chat] Failed to notify verification payment claim:', e))
+        } else {
+            console.log('[Timing] Smart Intent REJECTED (False Positive). No notification.')
+        }
     }
 
     let timing = TimingManager.analyzeContext(lastUserDate, phase, isHighPriority)
