@@ -62,7 +62,8 @@ export async function notifyPaymentClaim(
 
     try {
         const sendResult = await whatsapp.sendText(adminPhone, notificationMsg, undefined, agentId)
-        const waMessageId = sendResult?.id || sendResult?.key?.id || null
+        // Fix ID extraction: Baileys returns { id: { id: "..." } } or simplified { id: "..." }
+        const waMessageId = sendResult?.id?.id || sendResult?.id || sendResult?.key?.id || null
 
         // Create pending claim record
         const claim = await prisma.pendingPaymentClaim.create({
