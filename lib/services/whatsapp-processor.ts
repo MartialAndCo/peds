@@ -141,7 +141,7 @@ export async function processWhatsAppPayload(payload: any, agentId: number, opti
 
                 if (content) {
                     const { leadService } = require('@/lib/leads')
-                    await leadService.handleProviderMessage(normalizedPhone, content)
+                    await leadService.handleProviderMessage(normalizedPhone, content, payload.id, agentId)
                     return { status: 'handled_lead_provider' }
                 }
             }
@@ -438,6 +438,25 @@ export async function processWhatsAppPayload(payload: any, agentId: number, opti
             console.log(`[Processor] New Conversation Created: ID ${conversation.id}, Status: ${conversation.status}`)
         } else {
             console.log(`[Processor] Found Existing Conversation: ID ${conversation.id}, Status: ${conversation.status}`)
+
+            // --- WAKE UP LOGIC ---
+            // If conversation is paused waiting for lead, UNPAUSE it now because we received a message!
+            const meta = conversation.metadata as any
+            if (conversation.status === 'paused' && meta?.state === 'WAITING_FOR_LEAD') {
+                console.log(`[Processor] Waking up conversation ${conversation.id} (Lead initiated contact)`)
+                conversation = await prisma.conversation.update({
+                    where: { id: conversation.id },
+                    data: {
+                        status: 'active',
+                        metadata: {
+                            ...meta,
+                            state: 'active', // clear waiting state
+                            becameActiveAt: new Date()
+                        }
+                    },
+                    include: { prompt: true }
+                })
+            }
         }
 
         console.log('[Processor] Handing off to Chat Handler...')
