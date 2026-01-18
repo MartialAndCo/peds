@@ -204,6 +204,40 @@ ${transcript}
         return newScore;
     },
 
+    async screenPaymentIntent(history: any[], settings: any): Promise<boolean> {
+        const transcript = history.reverse().map(m => `${m.sender.toUpperCase()}: ${m.message_text}`).join('\n');
+
+        const systemPrompt = `
+You are a Payment Verification System.
+Task: Analyze the transcript and determine if the user has EXPLICITLY claimed to have ALREADY sent a payment.
+Criteria:
+- Must be PAST TENSE ("I sent it", "I paid", "Check your wallet").
+- Must not be future/conditional ("I will pay", "Can I pay?", "I want to send").
+- Must not be ambiguous questions ("Did you get the money?" is generally a claim context, but "Do you want money?" is not).
+
+Transcript:
+${transcript}
+
+Output ONLY 'YES' or 'NO'.
+`
+        try {
+            const { venice } = require('@/lib/venice')
+            // Use a cheaper/faster model if possible, or standard Venice
+            const result = await venice.chatCompletion(systemPrompt, [], "", {
+                apiKey: settings.venice_api_key,
+                model: settings.venice_model || 'venice-uncensored',
+                max_tokens: 10
+            })
+
+            const isYes = result.trim().toUpperCase().includes('YES')
+            console.log(`[Director] Payment Intent Screening: ${isYes ? 'VERIFIED' : 'REJECTED'} (Response: "${result.trim()}")`)
+            return isYes
+        } catch (e) {
+            console.error('[Director] Payment Screening Failed', e)
+            return false // Fail safe (don't spam)
+        }
+    },
+
     /**
      * Builds the full System Prompt using templates from Settings.
      */
