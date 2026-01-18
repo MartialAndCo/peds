@@ -50,8 +50,8 @@ export async function notifyPaymentClaim(
     const amountStr = amount ? `${amount}` : '?'
     const methodStr = method || 'unknown method'
 
-    // Simple format as requested: "Tom dit avoir payé 50€ via WhatsApp"
-    const notificationMsg = `💰 ${contactName} payment detected/claimed: ${amountStr} via ${methodStr}`
+    // Natural sentence format (English): "Tom paid 50$ with Paypal"
+    const notificationMsg = `${contactName} paid ${amountStr} with ${methodStr}`
 
     // Send to admin
     const adminPhone = settings.source_phone_number
