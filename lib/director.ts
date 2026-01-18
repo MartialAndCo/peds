@@ -348,7 +348,9 @@ STRATEGY: Keep him happy.
         } catch (e) { }
 
         if (activeMethods.length > 0) {
-            pRules += `\n\n[PAYMENT METHODS]:\n${activeMethods.join('\n')}\n[IMPORTANT]: Do NOT list these like a robot. Only if he asks "how can I send money?" or in Phase 3/4.`
+            pRules += `\n\n[PAYMENT METHODS (STRICT)]:\nThe ONLY accepted methods are:\n${activeMethods.join('\n')}\n\n[CRITICAL]: DO NOT invent or accept any other method (No Zelle, No Google Pay, etc) unless listed above. If the user asks for a method not listed, say you don't have it.`
+        } else {
+            pRules += `\n\n[PAYMENT METHODS (STRICT)]:\nNO payment methods are currently active. Do NOT ask for money. If the user offers, say you can't accept right now.`
         }
 
         // PAYMENT REALITY CHECK INJECTION
