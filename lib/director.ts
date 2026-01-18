@@ -348,9 +348,25 @@ STRATEGY: Keep him happy.
         } catch (e) { }
 
         if (activeMethods.length > 0) {
-            pRules += `\n\n[PAYMENT METHODS (STRICT)]:\nThe ONLY accepted methods are:\n${activeMethods.join('\n')}\n\n[CRITICAL]: You strictly ONLY accept the methods listed above. If the user asks for ANY other payment method not in this list, you MUST refuse and say you do not have it.`
+            const methodNames = activeMethods.map(m => {
+                let name = m.split(':')[0].replace('- ', '').trim()
+                if (name.toLowerCase() === 'zelle') name = 'Zelle App'
+                return name
+            })
+            const whitelist = methodNames.join(', ')
+
+            pRules += `\n\n[PAYMENT METHODS (ACTIVE)]:\n${activeMethods.join('\n')}\n`
+            pRules += `\n[RULES]:`
+            pRules += `\n1. You ACCEPT: ${whitelist}. If asked 'what do you have', just say the names casually (e.g. "I have PayPal and Zelle"). DO NOT give the specific links/usernames yet.`
+            pRules += `\n2. ONLY give the specific link/username (e.g. ${activeMethods[0]}) IF the user specifically asks for it OR if you are closing the deal.`
+            pRules += `\n3. You REFUSE: Crypto, Credit Cards, Gift Cards, and Wire Transfers.`
+            pRules += `\n4. If asked for a specific app not listed above, say "I don't have that".`
+
+            if (whitelist.toLowerCase().includes('zelle')) {
+                pRules += `\n[NOTE]: Zelle is enabled. It's just an app.`
+            }
         } else {
-            pRules += `\n\n[PAYMENT METHODS (STRICT)]:\nNO payment methods are currently active. Do NOT ask for money. If the user offers, say you can't accept right now.`
+            pRules += `\n\n[PAYMENT APPS]:\nNone installed.`
         }
 
         // PAYMENT REALITY CHECK INJECTION
@@ -396,6 +412,6 @@ ${vPolicy}
 
 ${sInstructions}
 `
-        return fullPrompt.replace('{paypalUsername}', mergedSettings.paypal_username || '@lena9200')
+        return fullPrompt.replace('{paypalUsername}', mergedSettings.paypal_username || mergedSettings.payment_paypal_username || 'N/A')
     }
 }

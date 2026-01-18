@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 
+export const dynamic = 'force-dynamic'
+
 // All prompt-related keys that can be overridden per agent
 const PROMPT_KEYS = [
     // Identity & Context
