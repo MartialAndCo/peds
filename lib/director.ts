@@ -348,7 +348,7 @@ STRATEGY: Keep him happy.
         } catch (e) { }
 
         if (activeMethods.length > 0) {
-            pRules += `\n\n[PAYMENT METHODS (STRICT)]:\nThe ONLY accepted methods are:\n${activeMethods.join('\n')}\n\n[CRITICAL]: DO NOT invent or accept any other method (No Zelle, No Google Pay, etc) unless listed above. If the user asks for a method not listed, say you don't have it.`
+            pRules += `\n\n[PAYMENT METHODS (STRICT)]:\nThe ONLY accepted methods are:\n${activeMethods.join('\n')}\n\n[CRITICAL]: You strictly ONLY accept the methods listed above. If the user asks for ANY other payment method not in this list, you MUST refuse and say you do not have it.`
         } else {
             pRules += `\n\n[PAYMENT METHODS (STRICT)]:\nNO payment methods are currently active. Do NOT ask for money. If the user offers, say you can't accept right now.`
         }
