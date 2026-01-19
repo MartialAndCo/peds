@@ -38,28 +38,22 @@ export function PWATabBar({ tabs, menuItems }: PWATabBarProps) {
 
     return (
         <>
-            <nav className="fixed bottom-0 left-0 right-0 z-50 bg-[#0f172a]/95 backdrop-blur-2xl border-t border-white/10 pwa-safe-area-bottom">
-                <div className="flex items-center justify-around h-16">
+            <nav className="fixed bottom-6 left-4 right-4 z-50 rounded-3xl bg-[#0f172a]/80 backdrop-blur-2xl border border-white/10 shadow-lg shadow-black/50 pwa-safe-area-bottom">
+                <div className="flex items-center justify-around h-16 px-2">
                     {tabs.map((tab) => {
                         const active = isActive(tab.href);
                         return (
                             <Link
                                 key={tab.href}
                                 href={tab.href}
-                                className="flex-1 flex flex-col items-center justify-center h-full gap-1 active:scale-95 transition-transform"
+                                className="flex-1 flex flex-col items-center justify-center h-full gap-1 active:scale-90 transition-all duration-200"
                             >
                                 <div className={cn(
-                                    "p-1.5 rounded-full transition-colors",
-                                    active ? "bg-white/10 text-white" : "text-white/40"
+                                    "p-2 rounded-2xl transition-all duration-300",
+                                    active ? "bg-white/20 text-white shadow-[0_0_15px_rgba(255,255,255,0.3)]" : "text-white/40"
                                 )}>
-                                    <tab.icon className="h-5 w-5" />
+                                    <tab.icon className={cn("h-6 w-6 transition-transform", active && "scale-110")} />
                                 </div>
-                                <span className={cn(
-                                    "text-[10px] font-medium tracking-wide",
-                                    active ? "text-white" : "text-white/40"
-                                )}>
-                                    {tab.label}
-                                </span>
                             </Link>
                         )
                     })}
@@ -67,14 +61,11 @@ export function PWATabBar({ tabs, menuItems }: PWATabBarProps) {
                     {/* More Button */}
                     <button
                         onClick={() => setIsMenuOpen(true)}
-                        className="flex-1 flex flex-col items-center justify-center h-full gap-1 active:scale-95 transition-transform"
+                        className="flex-1 flex flex-col items-center justify-center h-full gap-1 active:scale-90 transition-all duration-200"
                     >
-                        <div className="p-1.5 rounded-full text-white/40">
-                            <MoreHorizontal className="h-5 w-5" />
+                        <div className="p-2 rounded-2xl text-white/40">
+                            <MoreHorizontal className="h-6 w-6" />
                         </div>
-                        <span className="text-[10px] font-medium tracking-wide text-white/40">
-                            More
-                        </span>
                     </button>
                 </div>
             </nav>

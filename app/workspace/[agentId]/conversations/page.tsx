@@ -8,9 +8,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge'
 import { Plus, Search, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { usePWAMode } from '@/hooks/use-pwa-mode'
+import { MobileConversationList } from '@/components/pwa/pages/mobile-conversation-list'
 
 export default function WorkspaceConversationsPage() {
     const router = useRouter()
+    const { isPWAStandalone } = usePWAMode()
     const { agentId } = useParams()
     const [conversations, setConversations] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
@@ -37,6 +40,16 @@ export default function WorkspaceConversationsPage() {
         : conversations
 
     const needsContextCount = conversations.filter(c => c.status === 'paused').length
+
+    if (isPWAStandalone) {
+        return (
+            <MobileConversationList
+                conversations={filteredConversations}
+                loading={loading}
+                agentId={agentId as string}
+            />
+        )
+    }
 
     if (loading) return <div className="p-10 flex justify-center"><Loader2 className="animate-spin h-8 w-8 text-slate-400" /></div>
 

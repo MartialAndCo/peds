@@ -11,9 +11,12 @@ import { useRouter, useParams } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { ContextDialog } from '@/components/contacts/context-dialog'
 import { cn } from '@/lib/utils'
+import { usePWAMode } from '@/hooks/use-pwa-mode'
+import { MobileContactList } from '@/components/pwa/pages/mobile-contact-list'
 
 export default function WorkspaceContactsPage() {
     const router = useRouter()
+    const { isPWAStandalone } = usePWAMode()
     const { agentId } = useParams()
     const [contacts, setContacts] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
@@ -75,6 +78,19 @@ export default function WorkspaceContactsPage() {
 
     const goToContactDetail = (contactId: string) => {
         router.push(`/workspace/${agentId}/contacts/${contactId}`)
+    }
+
+    // PWA Render
+    if (isPWAStandalone) {
+        return (
+            <MobileContactList
+                contacts={contacts}
+                onSearch={(q) => fetchContacts(q)}
+                loading={loading}
+                agentId={agentId as string}
+                refresh={() => fetchContacts(search)}
+            />
+        )
     }
 
     return (
