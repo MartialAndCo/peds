@@ -233,8 +233,8 @@ export default function SettingsPage() {
                         {/* AI Provider Selection */}
                         <div className="glass rounded-2xl p-6">
                             <h3 className="text-white font-medium mb-4">AI Provider</h3>
-                            <div className="grid grid-cols-4 gap-3 mb-6">
-                                {['venice', 'anthropic', 'openrouter', 'groq'].map((provider) => (
+                            <div className="grid grid-cols-2 gap-3 mb-6">
+                                {['venice', 'groq'].map((provider) => (
                                     <button
                                         key={provider}
                                         type="button"
@@ -244,9 +244,7 @@ export default function SettingsPage() {
                                             : 'bg-white/[0.04] text-white/60 border-white/[0.08] hover:bg-white/[0.08]'
                                             }`}
                                     >
-                                        {provider === 'venice' ? 'Venice AI' :
-                                            provider === 'anthropic' ? 'Anthropic' :
-                                                provider === 'groq' ? 'Groq' : 'OpenRouter'}
+                                        {provider === 'venice' ? 'Venice AI' : 'Groq'}
                                     </button>
                                 ))}
                             </div>
@@ -274,58 +272,6 @@ export default function SettingsPage() {
                                             <Input
                                                 value={settings.venice_model}
                                                 onChange={(e) => setSettings({ ...settings, venice_model: e.target.value })}
-                                                className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/30"
-                                            />
-                                        </div>
-                                    </>
-                                )}
-                                {settings.ai_provider === 'anthropic' && (
-                                    <>
-                                        <div className="space-y-2">
-                                            <label className="text-white/60 text-xs font-medium uppercase tracking-wider">
-                                                Anthropic API Key
-                                            </label>
-                                            <Input
-                                                type="password"
-                                                value={settings.anthropic_api_key}
-                                                onChange={(e) => setSettings({ ...settings, anthropic_api_key: e.target.value })}
-                                                placeholder="••••••••"
-                                                className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/30"
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-white/60 text-xs font-medium uppercase tracking-wider">
-                                                Model
-                                            </label>
-                                            <Input
-                                                value={settings.anthropic_model}
-                                                onChange={(e) => setSettings({ ...settings, anthropic_model: e.target.value })}
-                                                className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/30"
-                                            />
-                                        </div>
-                                    </>
-                                )}
-                                {settings.ai_provider === 'openrouter' && (
-                                    <>
-                                        <div className="space-y-2">
-                                            <label className="text-white/60 text-xs font-medium uppercase tracking-wider">
-                                                OpenRouter API Key
-                                            </label>
-                                            <Input
-                                                type="password"
-                                                value={settings.openrouter_api_key}
-                                                onChange={(e) => setSettings({ ...settings, openrouter_api_key: e.target.value })}
-                                                placeholder="••••••••"
-                                                className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/30"
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-white/60 text-xs font-medium uppercase tracking-wider">
-                                                Model
-                                            </label>
-                                            <Input
-                                                value={settings.openrouter_model}
-                                                onChange={(e) => setSettings({ ...settings, openrouter_model: e.target.value })}
                                                 className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/30"
                                             />
                                         </div>
