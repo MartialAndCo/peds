@@ -243,22 +243,14 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
 
             {/* Info Sheet (Replaces Context/Settings Header) */}
             <Sheet open={infoOpen} onOpenChange={setInfoOpen}>
-                <SheetContent className="bg-[#0f172a] border-white/10 text-white p-6 rounded-t-[30px] h-[85vh] z-[100] overflow-y-auto">
-                    <SheetHeader className="mb-8">
-                        <SheetDescription className="hidden">Contact Details</SheetDescription>
-                        <div className="flex flex-col items-center">
-                            <div className="h-20 w-20 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-white/10 flex items-center justify-center mb-4">
-                                <span className="text-white font-bold text-3xl">
-                                    {conversation.contact.name.charAt(0).toUpperCase()}
-                                </span>
                             </div>
                             <SheetTitle className="text-2xl font-bold text-white mb-1">{conversation.contact.name}</SheetTitle>
                             <p className="text-white/50 font-mono text-sm">{conversation.contact.phone_whatsapp}</p>
-                        </div>
-                    </SheetHeader>
+                        </div >
+                    </SheetHeader >
 
-                    {/* Stats Grid */}
-                    <div className="grid grid-cols-2 gap-4 mb-8">
+        {/* Stats Grid */ }
+        < div className = "grid grid-cols-2 gap-4 mb-8" >
                         <div className="bg-white/5 rounded-2xl p-4 border border-white/5 flex flex-col items-center gap-2">
                             <Award className="h-6 w-6 text-yellow-400" />
                             <span className="text-xs font-bold uppercase tracking-widest text-white/40">Trust Score</span>
@@ -275,10 +267,10 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
                             <span className="text-xs font-bold uppercase tracking-widest text-white/40">Jours d'activité</span>
                             <span className="text-xl font-bold text-white">{daysActive} Jours</span>
                         </div>
-                    </div>
+                    </div >
 
-                    {/* Toggles Section */}
-                    <div className="space-y-6 mb-8">
+        {/* Toggles Section */ }
+        < div className = "space-y-6 mb-8" >
                         <div className="flex items-center justify-between">
                             <div className="flex flex-col">
                                 <Label className="text-white font-medium text-base">Statut Actif</Label>
@@ -314,10 +306,10 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
                                 disabled={isPending}
                             />
                         </div>
-                    </div>
+                    </div >
 
-                    {/* Actions */}
-                    <div className="space-y-3">
+        {/* Actions */ }
+        < div className = "space-y-3" >
                         <h3 className="text-sm font-bold text-white/40 uppercase tracking-widest px-1">Actions</h3>
                         <Button
                             variant="outline"
@@ -331,9 +323,10 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
                             <ShieldAlert className="mr-3 h-5 w-5 text-white/50" />
                             Report / Block
                         </Button>
-                    </div>
-                </SheetContent>
-            </Sheet>
-        </div>
+                    </div >
+                </div >
+            </SheetContent >
+        </Sheet >
+    </div >
     )
 }
