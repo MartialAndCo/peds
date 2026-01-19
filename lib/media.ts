@@ -492,12 +492,24 @@ Output JSON:
                 .replace('{HISTORY}', history);
             const provider = settings.ai_provider || 'venice';
 
+            // Use Director to build FULL prompt so scheduling (tease/shy) matches Phase
+            const { director } = require('@/lib/director')
+            const { phase, details } = await director.determinePhase(contact.phone_whatsapp)
+            const fullSystemPrompt = await director.buildSystemPrompt(
+                settings,
+                contact,
+                phase,
+                details,
+                conversation.prompt.system_prompt,
+                conversation.agentId
+            )
+
             let aiResponseText = "{}";
             try {
                 if (provider === 'anthropic') {
-                    aiResponseText = await anthropic.chatCompletion(conversation.prompt.system_prompt, [], schedulingPrompt, { apiKey: settings.anthropic_api_key, model: settings.anthropic_model });
+                    aiResponseText = await anthropic.chatCompletion(fullSystemPrompt, [], schedulingPrompt, { apiKey: settings.anthropic_api_key, model: settings.anthropic_model });
                 } else {
-                    aiResponseText = await venice.chatCompletion(conversation.prompt.system_prompt, [], schedulingPrompt, { apiKey: settings.venice_api_key, model: settings.venice_model });
+                    aiResponseText = await venice.chatCompletion(fullSystemPrompt, [], schedulingPrompt, { apiKey: settings.venice_api_key, model: settings.venice_model });
                 }
             } catch (e: any) { logger.error("AI Sched Failed", e, { module: 'media_service' }); }
 

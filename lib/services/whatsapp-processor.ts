@@ -263,21 +263,46 @@ export async function processWhatsAppPayload(payload: any, agentId: number, opti
                     if (!analysis.allowed) {
                         // Refusal Logic
                         const refusalReason = analysis.refusalReason || "forbidden content"
-                        const refusalSystemPrompt = `(SYSTEM: User requested FORBIDDEN media. Reason: "${refusalReason}". REFUSE GENTLY. Be shy, hesitant. Lowercase.)`
+                        const refusalSystemPrompt = `(SYSTEM: User requested FORBIDDEN media. Reason: "${refusalReason}". YOU MUST REFUSE GENTLY. Do not preach. Be shy/hesitant if that fits your role. Keep it SHORT.)`
 
                         let currentConversation = await prisma.conversation.findFirst({
                             where: { contactId: contact.id, status: { in: ['active', 'paused'] } },
                             include: { prompt: true }
                         })
 
+                        // Use Director to build FULL prompt (Phases, Style, etc.)
+                        const { director } = require('@/lib/director')
+                        const { phase, details, reason } = await director.determinePhase(contact.phone_whatsapp)
+                        const fullSystemPrompt = await director.buildSystemPrompt(
+                            settings,
+                            contact,
+                            phase,
+                            details,
+                            currentConversation?.prompt?.system_prompt || "You are a friend.",
+                            agentId,
+                            reason
+                        )
+
+                        // Pass Refusal Instruction as USER message to override behavior
+                        // We use the last few messages for context
+                        const lastMessages = await prisma.message.findMany({
+                            where: { conversationId: currentConversation?.id },
+                            orderBy: { timestamp: 'desc' },
+                            take: 10
+                        });
+                        const history = lastMessages.reverse().map(m => ({
+                            role: m.sender === 'contact' ? 'user' : 'assistant',
+                            content: m.message_text
+                        }));
+
                         const provider = settings.ai_provider || 'venice'
-                        const mainPrompt = currentConversation?.prompt?.system_prompt || "You are a friend."
                         let aiRefusal = ""
+                        const userMessageWithInstruction = `${messageText}\n\n${refusalSystemPrompt}`
 
                         if (provider === 'anthropic') {
-                            aiRefusal = await anthropic.chatCompletion(mainPrompt, [], refusalSystemPrompt, { apiKey: settings.anthropic_api_key, model: settings.anthropic_model })
+                            aiRefusal = await anthropic.chatCompletion(fullSystemPrompt, history, userMessageWithInstruction, { apiKey: settings.anthropic_api_key, model: settings.anthropic_model })
                         } else {
-                            aiRefusal = await venice.chatCompletion(mainPrompt, [], refusalSystemPrompt, { apiKey: settings.venice_api_key, model: settings.venice_model })
+                            aiRefusal = await venice.chatCompletion(fullSystemPrompt, history, userMessageWithInstruction, { apiKey: settings.venice_api_key, model: settings.venice_model })
                         }
 
                         await whatsapp.markAsRead(contact.phone_whatsapp).catch(() => { })
@@ -358,22 +383,34 @@ export async function processWhatsAppPayload(payload: any, agentId: number, opti
                                 ? `(SYSTEM: Say you'll check for that later. Keep response SHORT, max 15 words. Stay in character.)`
                                 : `(SYSTEM: They're asking again. Say be patient. Keep response SHORT, max 15 words. Stay in character.)`;
 
-                            // Generate Response
+                            // Generate Response using Director for Consistency
+                            const { director } = require('@/lib/director')
+                            const { phase, details, reason } = await director.determinePhase(contact.phone_whatsapp)
+                            const fullSystemPrompt = await director.buildSystemPrompt(
+                                settings,
+                                contact,
+                                phase,
+                                details,
+                                currentConversation?.prompt?.system_prompt || "You are a friend.",
+                                agentId,
+                                reason
+                            )
+
                             const provider = settings.ai_provider || 'venice'
                             let responseText = ""
                             const userMessageForAI = messageText + "\n\n" + instruction;
 
                             if (provider === 'anthropic') {
                                 responseText = await anthropic.chatCompletion(
-                                    currentConversation?.prompt?.system_prompt || "You are a helpful assistant.",
-                                    history, // <-- Pass history!
+                                    fullSystemPrompt,
+                                    history,
                                     userMessageForAI,
                                     { apiKey: settings.anthropic_api_key, model: settings.anthropic_model || 'claude-3-haiku-20240307' }
                                 );
                             } else {
                                 responseText = await venice.chatCompletion(
-                                    currentConversation?.prompt?.system_prompt || "You are a helpful assistant.",
-                                    history, // <-- Pass history!
+                                    fullSystemPrompt,
+                                    history,
                                     userMessageForAI,
                                     { apiKey: settings.venice_api_key, model: settings.venice_model || 'venice-uncensored' }
                                 );

@@ -146,14 +146,24 @@ export async function handlePaymentClaimReaction(
     const conversation = claim.conversationId
         ? await prisma.conversation.findUnique({
             where: { id: claim.conversationId },
-            include: { prompt: true }
+            include: { prompt: true, contact: true }
         })
         : await prisma.conversation.findFirst({
             where: { contactId: claim.contactId, status: 'active' },
-            include: { prompt: true }
+            include: { prompt: true, contact: true }
         })
 
-    const systemPrompt = conversation?.prompt?.system_prompt || "You are a friendly assistant."
+    const { director } = require('@/lib/director')
+    const effectiveAgentId = conversation?.agentId || agentId || claim.contact.id // Fallback 
+    const { phase, details } = await director.determinePhase(claim.contact.phone_whatsapp)
+    const systemPrompt = await director.buildSystemPrompt(
+        settings,
+        claim.contact,
+        phase,
+        details,
+        conversation?.prompt?.system_prompt || "You are a friendly assistant.",
+        effectiveAgentId
+    )
 
     if (isConfirm) {
         // 1. Create Payment record
