@@ -15,7 +15,12 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
         where: { id },
         include: {
             contact: true,
-            prompt: true
+            prompt: true,
+            messages: {
+                orderBy: {
+                    timestamp: 'asc'
+                }
+            }
         }
     })
 

@@ -7,7 +7,7 @@ import { ArrowLeft, Send, Info, Paperclip, Mic, MoreVertical, LogOut, ShieldAler
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 import { Badge } from '@/components/ui/badge'
 
 interface MobileChatViewProps {
@@ -113,7 +113,7 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
             </div>
 
             {/* Input Area */}
-            <div className="px-3 pb-6 pt-2 bg-[#000000] border-t border-white/5 flex items-end gap-2 pwa-safe-area-bottom">
+            <div className="px-3 pb-10 pt-2 bg-[#000000] border-t border-white/5 flex items-end gap-2 pwa-safe-area-bottom">
 
                 <div className="flex-1 bg-[#1a1a1a] rounded-[24px] flex items-center min-h-[48px] px-1 border border-white/5 transition-all focus-within:border-blue-500/50">
                     <div className="h-10 w-10 rounded-full flex items-center justify-center text-blue-500 cursor-pointer active:scale-90 transition-transform">
@@ -145,8 +145,9 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
 
             {/* Info Sheet (Replaces Context/Settings Header) */}
             <Sheet open={infoOpen} onOpenChange={setInfoOpen}>
-                <SheetContent className="bg-[#0f172a] border-white/10 text-white p-6 rounded-t-[30px] h-[70vh]">
+                <SheetContent className="bg-[#0f172a] border-white/10 text-white p-6 rounded-t-[30px] h-[70vh] z-[100]">
                     <SheetHeader className="mb-8">
+                        <SheetDescription className="hidden">Contact Details</SheetDescription>
                         <div className="flex flex-col items-center">
                             <div className="h-20 w-20 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-white/10 flex items-center justify-center mb-4">
                                 <span className="text-white font-bold text-3xl">
