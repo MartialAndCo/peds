@@ -1,18 +1,5 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import { useRouter } from "next/navigation"
-import { ArrowLeft, Send, Phone, MoreVertical, Paperclip, Mic } from 'lucide-react'
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { cn } from "@/lib/utils"
-// import { format } from "date-fns" // Assuming date-fns is available
-
-interface MobileChatViewProps {
-    conversation: any
-    agentId: string
-    onSendMessage: (text: string) => Promise<void>
-}
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from "next/navigation"
