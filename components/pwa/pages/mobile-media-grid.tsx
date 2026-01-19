@@ -29,8 +29,11 @@ export function MobileMediaGrid({ media, loading }: MobileMediaGridProps) {
     }
 
     return (
-        <div className="space-y-4 pb-24">
-            <h1 className="text-2xl font-bold text-white px-1 mb-4">Media Gallery</h1>
+        <div className="space-y-0 pb-24">
+            {/* Sticky Header */}
+            <div className="sticky top-0 z-10 bg-[#0f172a]/95 backdrop-blur-xl border-b border-white/[0.06] py-3 px-4 pwa-safe-area-top-margin mb-4">
+                <h1 className="text-2xl font-bold text-white">Media Gallery</h1>
+            </div>
 
             <div className="grid grid-cols-3 gap-0.5">
                 {media.map((item) => (

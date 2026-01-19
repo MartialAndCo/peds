@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Loader2, ArrowLeft, MessageSquare, Save, Trash, User, MapPin, Briefcase, Heart, Calendar } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Image from 'next/image'
+import { usePWAMode } from '@/hooks/use-pwa-mode'
+import { MobileContactDetails } from '@/components/pwa/pages/mobile-contact-details'
 
 export default function ContactDetailsPage() {
     const { contactId, agentId } = useParams()
@@ -15,6 +17,8 @@ export default function ContactDetailsPage() {
     const [loading, setLoading] = useState(true)
     const [mediaLoading, setMediaLoading] = useState(true)
     const [media, setMedia] = useState<any[]>([])
+
+    const { isPWAStandalone } = usePWAMode()
 
     // Data init
     useEffect(() => {
@@ -27,7 +31,6 @@ export default function ContactDetailsPage() {
 
                 // Fetch Media (Messages with mediaUrl)
                 // We'll need a way to filter messages for this contact. 
-                // Currently usually done via filtering messages from Conversations.
                 // Assuming we can fetch /api/contacts/[id]/media or filter messages
                 const resMedia = await axios.get(`/api/contacts/${contactId}/media`)
                 setMedia(resMedia.data)
@@ -43,6 +46,10 @@ export default function ContactDetailsPage() {
 
     if (loading) return <div className="p-20 flex justify-center"><Loader2 className="animate-spin text-white/20" /></div>
     if (!contact) return <div className="p-20 text-white text-center">Contact not found</div>
+
+    if (isPWAStandalone) {
+        return <MobileContactDetails contact={contact} media={media} agentId={agentId as string} />
+    }
 
     const profile = contact.profile || {}
     const phases = ['CONNECTION', 'VULNERABILITY', 'CRISIS', 'MONEYPOT']

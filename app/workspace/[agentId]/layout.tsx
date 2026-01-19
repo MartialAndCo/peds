@@ -30,45 +30,9 @@ export default function WorkspaceLayout({
 
     // PWA Render
     if (isPWAStandalone) {
-        // Dynamic Title based on path
-        const segments = pathname.split('/').filter(Boolean)
-        const lastSegment = segments[segments.length - 1]
-        const displayTitle = lastSegment === agentId ? 'Overview' :
-            lastSegment.charAt(0).toUpperCase() + lastSegment.slice(1)
-
-        const baseUrl = `/workspace/${agentId}`
-
-        const tabs = [
-            { label: 'Home', icon: LayoutDashboard, href: `${baseUrl}` },
-            { label: 'Chat', icon: MessageSquare, href: `${baseUrl}/conversations` },
-            { label: 'Contacts', icon: Users, href: `${baseUrl}/contacts` },
-            { label: 'Media', icon: ImageIcon, href: `${baseUrl}/media` },
-        ]
-
-        const menuItems = [
-            {
-                title: "Performance",
-                routes: [
-                    { label: 'Pipeline', icon: Zap, href: `${baseUrl}/pipeline` },
-                    { label: 'Queue', icon: Clock, href: `${baseUrl}/queue` },
-                    { label: 'Payments', icon: TrendingUp, href: `${baseUrl}/payments` },
-                ]
-            },
-            {
-                title: "Configuration",
-                routes: [
-                    { label: 'Identity', icon: Fingerprint, href: `${baseUrl}/identity` },
-                    { label: 'Connectivity', icon: Zap, href: `${baseUrl}/connection` },
-                    { label: 'Settings', icon: Settings, href: `${baseUrl}/settings` },
-                    { label: 'Moderation', icon: ShieldCheck, href: `${baseUrl}/moderation` },
-                ]
-            }
-        ]
-
         return (
             <AgentProvider>
                 <PWAShell variant="workspace">
-                    <PWAHeader title={displayTitle} showBack={lastSegment !== agentId} />
                     <PWAContent>
                         {children}
                     </PWAContent>

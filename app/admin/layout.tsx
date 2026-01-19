@@ -60,7 +60,7 @@ export default function AdminLayout({
         return (
             <AgentProvider>
                 <PWAShell variant="admin">
-                    <PWAHeader title={displayTitle} showBack={lastSegment !== 'admin'} />
+                    {/* <PWAHeader /> Removed for page-specific control */}
                     <PWAContent>
                         {children}
                     </PWAContent>

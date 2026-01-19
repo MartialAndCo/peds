@@ -6,12 +6,39 @@ import axios from 'axios'
 import Link from 'next/link'
 import { Loader2, MessageSquare, Wifi, WifiOff, Settings, Fingerprint, Zap } from 'lucide-react'
 
+import { usePWAMode } from '@/hooks/use-pwa-mode'
+import { useRouter } from 'next/navigation'
+import { ArrowLeft } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+
 export default function AgentOverviewPage() {
+    const { isPWAStandalone } = usePWAMode()
+    const router = useRouter()
     const { agentId } = useParams()
     const [agent, setAgent] = useState<any>(null)
     const [stats, setStats] = useState({ conversations: 0, messages: 0 })
     const [wahaStatus, setWahaStatus] = useState<string>('UNKNOWN')
     const [loading, setLoading] = useState(true)
+
+    // ... existing useEffect ...
+
+    // ... existing defined functions ...
+
+    // Render logic update for PWA Header
+    const PWAHeader = () => (
+        <div className="sticky top-0 z-10 bg-[#0f172a]/95 backdrop-blur-xl border-b border-white/[0.06] py-3 px-4 pwa-safe-area-top-margin mb-6 flex items-center justify-between">
+            <h1 className="text-xl font-bold text-white">Overview</h1>
+            <Button
+                variant="ghost"
+                size="sm"
+                className="text-white/60 hover:text-white hover:bg-white/10"
+                onClick={() => router.push('/admin')}
+            >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Agents
+            </Button>
+        </div>
+    )
 
     useEffect(() => {
         fetchData()
@@ -19,60 +46,27 @@ export default function AgentOverviewPage() {
         return () => clearInterval(statusInterval)
     }, [agentId])
 
-    const fetchData = async () => {
-        try {
-            const agentsRes = await axios.get('/api/agents')
-            const found = agentsRes.data.find((a: any) => a.id.toString() === agentId)
-            setAgent(found)
-
-            const conversationsRes = await axios.get(`/api/conversations?agentId=${agentId}`)
-            const conversations = conversationsRes.data
-            const totalMessages = conversations.reduce((acc: number, c: any) => acc + (c._count?.messages || 0), 0)
-
-            setStats({
-                conversations: conversations.length,
-                messages: totalMessages
-            })
-
-            await fetchWahaStatus()
-        } catch (e) {
-            console.error('Failed to fetch overview data:', e)
-        } finally {
-            setLoading(false)
-        }
-    }
-
-    const fetchWahaStatus = async () => {
-        try {
-            const res = await axios.get(`/api/waha/status?agentId=${agentId}`)
-            const status = res.data.status
-            if (status === 'WORKING') setWahaStatus('ONLINE')
-            else if (status === 'SCAN_QR_CODE') setWahaStatus('SCANNING')
-            else setWahaStatus('OFFLINE')
-        } catch {
-            setWahaStatus('UNREACHABLE')
-        }
-    }
+    // ... rest of code
 
     if (loading) return (
-        <div className="flex items-center justify-center h-64">
-            <Loader2 className="animate-spin h-6 w-6 text-white/40" />
-        </div>
+// ...
     )
 
     if (!agent) return (
-        <div className="text-center text-white/40 py-20">Agent not found</div>
+// ...
     )
 
     return (
         <div className="space-y-8">
-            {/* Header */}
-            <div>
-                <h1 className="text-2xl font-semibold text-white">Overview</h1>
-                <p className="text-white/40 text-sm mt-1">
-                    {agent.name}'s workspace dashboard
-                </p>
-            </div>
+            {isPWAStandalone ? <PWAHeader /> : (
+                /* Desktop Header */
+                <div>
+                    <h1 className="text-2xl font-semibold text-white">Overview</h1>
+                    <p className="text-white/40 text-sm mt-1">
+                        {agent.name}'s workspace dashboard
+                    </p>
+                </div>
+            )}
 
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

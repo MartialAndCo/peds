@@ -8,7 +8,6 @@ import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { ContextDialog } from '@/components/contacts/context-dialog'
 
 interface MobileContactListProps {
     contacts: any[]
@@ -23,7 +22,6 @@ export function MobileContactList({ contacts, onSearch, loading, agentId, refres
     const [search, setSearch] = useState('')
     const [selectedContact, setSelectedContact] = useState<any>(null)
     const [detailsOpen, setDetailsOpen] = useState(false)
-    const [contextOpen, setContextOpen] = useState(false)
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault()
@@ -37,20 +35,21 @@ export function MobileContactList({ contacts, onSearch, loading, agentId, refres
 
     return (
         <div className="space-y-4">
-            <h1 className="text-2xl font-bold text-white px-1">Contacts</h1>
+            {/* Sticky Header */}
+            <div className="sticky top-0 z-10 bg-[#0f172a]/95 backdrop-blur-xl border-b border-white/[0.06] pb-2 pt-2 px-1 pwa-safe-area-top-margin transition-all">
+                <h1 className="text-2xl font-bold text-white px-1 mb-2">Contacts</h1>
 
-            {/* Search Bar */}
-            <form onSubmit={handleSearch} className="sticky top-0 z-10 bg-[#0f172a]/80 backdrop-blur-md pb-2 pt-1">
-                <div className="relative">
+                {/* Search Bar */}
+                <form onSubmit={handleSearch} className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
                     <Input
                         placeholder="Search..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        className="pl-9 bg-white/5 border-white/10 rounded-xl text-white placeholder:text-white/20 focus:ring-white/20"
+                        className="pl-9 bg-white/5 border-white/10 rounded-xl text-white placeholder:text-white/20 focus:ring-white/20 h-10"
                     />
-                </div>
-            </form>
+                </form>
+            </div>
 
             {/* Contact List */}
             <div className="space-y-3 pb-24">
@@ -115,13 +114,10 @@ export function MobileContactList({ contacts, onSearch, loading, agentId, refres
                                     <div className="w-px h-8 bg-white/10" />
                                     <Button
                                         className="flex-1 bg-white/10 hover:bg-white/20 text-white border border-white/10 rounded-xl h-12"
-                                        onClick={() => {
-                                            setContextOpen(true)
-                                            // Keep sheet open ?
-                                        }}
+                                        onClick={() => router.push(`/workspace/${agentId}/contacts/${selectedContact.id}`)}
                                     >
                                         <User className="mr-2 h-5 w-5" />
-                                        Context
+                                        Contact
                                     </Button>
                                 </div>
                             </div>
@@ -150,13 +146,6 @@ export function MobileContactList({ contacts, onSearch, loading, agentId, refres
                     )}
                 </SheetContent>
             </Sheet>
-
-            <ContextDialog
-                contact={selectedContact}
-                open={contextOpen}
-                onOpenChange={setContextOpen}
-                onSaved={refresh}
-            />
         </div>
     )
 }

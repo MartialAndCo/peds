@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma"
 import { startOfMonth, subDays, format, startOfDay, endOfDay } from "date-fns"
 import { Users, Bot, MessageSquare, TrendingUp } from "lucide-react"
 import { AnalyticsGrid } from "@/components/dashboard/analytics-grid"
+import { MobileAdminDashboard } from "@/components/pwa/pages/mobile-admin-dashboard"
 
 export const dynamic = 'force-dynamic'
 
@@ -78,60 +79,67 @@ export default async function DashboardPage() {
 
         return (
             <div className="space-y-8">
-                {/* Header */}
-                <div>
-                    <h1 className="text-2xl font-semibold text-white">Overview</h1>
-                    <p className="text-white/40 text-sm mt-1">
-                        System-wide metrics across {agentsCount} active agents
-                    </p>
+                {/* Mobile View */}
+                <div className="md:hidden block">
+                    <MobileAdminDashboard stats={statsData} agentsCount={agentsCount} />
                 </div>
 
-                {/* Stats Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="glass rounded-2xl p-5">
-                        <div className="flex items-center justify-between mb-3">
-                            <span className="text-white/40 text-sm">Agents</span>
-                            <Bot className="h-4 w-4 text-white/20" />
-                        </div>
-                        <p className="text-3xl font-semibold text-white">{agentsCount}</p>
+                {/* Desktop View */}
+                <div className="hidden md:block">
+                    {/* Header */}
+                    <div>
+                        <h1 className="text-2xl font-semibold text-white">Overview</h1>
+                        <p className="text-white/40 text-sm mt-1">
+                            System-wide metrics across {agentsCount} active agents
+                        </p>
                     </div>
 
-                    <div className="glass rounded-2xl p-5">
-                        <div className="flex items-center justify-between mb-3">
-                            <span className="text-white/40 text-sm">Contacts</span>
-                            <Users className="h-4 w-4 text-white/20" />
+                    {/* Stats Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="glass rounded-2xl p-5">
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-white/40 text-sm">Agents</span>
+                                <Bot className="h-4 w-4 text-white/20" />
+                            </div>
+                            <p className="text-3xl font-semibold text-white">{agentsCount}</p>
                         </div>
-                        <p className="text-3xl font-semibold text-white">{contactsCount}</p>
+
+                        <div className="glass rounded-2xl p-5">
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-white/40 text-sm">Contacts</span>
+                                <Users className="h-4 w-4 text-white/20" />
+                            </div>
+                            <p className="text-3xl font-semibold text-white">{contactsCount}</p>
+                        </div>
+
+                        <div className="glass rounded-2xl p-5">
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-white/40 text-sm">Active Chats</span>
+                                <MessageSquare className="h-4 w-4 text-white/20" />
+                            </div>
+                            <p className="text-3xl font-semibold text-white">{activeConversationsCount}</p>
+                        </div>
+
+                        <div className="glass rounded-2xl p-5">
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-white/40 text-sm">Revenue</span>
+                                <TrendingUp className="h-4 w-4 text-white/20" />
+                            </div>
+                            <p className="text-3xl font-semibold text-white">{revenue.toFixed(0)}€</p>
+                        </div>
                     </div>
 
-                    <div className="glass rounded-2xl p-5">
-                        <div className="flex items-center justify-between mb-3">
-                            <span className="text-white/40 text-sm">Active Chats</span>
-                            <MessageSquare className="h-4 w-4 text-white/20" />
-                        </div>
-                        <p className="text-3xl font-semibold text-white">{activeConversationsCount}</p>
-                    </div>
-
-                    <div className="glass rounded-2xl p-5">
-                        <div className="flex items-center justify-between mb-3">
-                            <span className="text-white/40 text-sm">Revenue</span>
-                            <TrendingUp className="h-4 w-4 text-white/20" />
-                        </div>
-                        <p className="text-3xl font-semibold text-white">{revenue.toFixed(0)}€</p>
+                    {/* Analytics Grid */}
+                    <div className="glass rounded-2xl p-6">
+                        <AnalyticsGrid data={statsData} />
                     </div>
                 </div>
-
-                {/* Analytics Grid */}
-                <div className="glass rounded-2xl p-6">
-                    <AnalyticsGrid data={statsData} />
-                </div>
-            </div>
-        )
+                )
     } catch (error: any) {
         return (
-            <div className="flex items-center justify-center h-64">
-                <p className="text-red-400">Error loading dashboard: {error.message}</p>
-            </div>
-        )
+                <div className="flex items-center justify-center h-64">
+                    <p className="text-red-400">Error loading dashboard: {error.message}</p>
+                </div>
+                )
     }
 }
