@@ -1,6 +1,31 @@
 'use server'
 
 import { prisma } from "@/lib/prisma"
+import { revalidatePath } from "next/cache"
+
+export async function updateContactStatus(contactId: string, status: string) {
+    await prisma.contact.update({
+        where: { id: contactId },
+        data: { status }
+    })
+    revalidatePath('/workspace')
+}
+
+export async function updateConversationAi(conversationId: number, enabled: boolean) {
+    await prisma.conversation.update({
+        where: { id: conversationId },
+        data: { ai_enabled: enabled }
+    })
+    revalidatePath('/workspace')
+}
+
+export async function updateContactTestMode(contactId: string, enabled: boolean) {
+    await prisma.contact.update({
+        where: { id: contactId },
+        data: { testMode: enabled }
+    })
+    revalidatePath('/workspace')
+}
 
 export async function getExportData(conversationId: number) {
     // 1. Get Conversation to find Contact

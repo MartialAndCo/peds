@@ -1,14 +1,15 @@
-'use client'
-
-
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useTransition } from 'react'
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Send, Info, Paperclip, Mic, MoreVertical, LogOut, ShieldAlert, Award } from 'lucide-react'
+import { ArrowLeft, Send, Info, Paperclip, Mic, MoreVertical, LogOut, ShieldAlert, Award, FileText, Activity, Zap } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 import { Badge } from '@/components/ui/badge'
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
+import { updateContactStatus, updateConversationAi, updateContactTestMode, getExportData } from '@/app/actions/conversation'
+import { generateDossier } from '@/lib/pdf-generator'
 
 interface MobileChatViewProps {
     conversation: any
@@ -22,6 +23,7 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const [sending, setSending] = useState(false)
     const [infoOpen, setInfoOpen] = useState(false)
+    const [isPending, startTransition] = useTransition()
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -79,6 +81,34 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
         const date = new Date(dateStr)
         return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
     }
+
+    // Toggle Handlers
+    const toggleStatus = (checked: boolean) => {
+        startTransition(async () => {
+            await updateContactStatus(conversation.contactId, checked ? 'active' : 'paused')
+        })
+    }
+
+    const toggleAi = (checked: boolean) => {
+        startTransition(async () => {
+            await updateConversationAi(conversation.id, checked)
+        })
+    }
+
+    const toggleTestMode = (checked: boolean) => {
+        startTransition(async () => {
+            await updateContactTestMode(conversation.contactId, checked)
+        })
+    }
+
+    const handleExport = async () => {
+        const data = await getExportData(conversation.id)
+        generateDossier(data)
+    }
+
+    // Calculated fields
+    const daysActive = Math.floor((new Date().getTime() - new Date(conversation.contact.createdAt).getTime()) / (1000 * 60 * 60 * 24))
+    const isContactActive = conversation.contact.status === 'active'
 
     return (
         <div className="flex flex-col h-[100dvh] bg-[#0f172a] fixed inset-0 z-[60]">
@@ -213,7 +243,7 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
 
             {/* Info Sheet (Replaces Context/Settings Header) */}
             <Sheet open={infoOpen} onOpenChange={setInfoOpen}>
-                <SheetContent className="bg-[#0f172a] border-white/10 text-white p-6 rounded-t-[30px] h-[70vh] z-[100]">
+                <SheetContent className="bg-[#0f172a] border-white/10 text-white p-6 rounded-t-[30px] h-[85vh] z-[100] overflow-y-auto">
                     <SheetHeader className="mb-8">
                         <SheetDescription className="hidden">Contact Details</SheetDescription>
                         <div className="flex flex-col items-center">
@@ -227,24 +257,75 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
                         </div>
                     </SheetHeader>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    {/* Stats Grid */}
+                    <div className="grid grid-cols-2 gap-4 mb-8">
                         <div className="bg-white/5 rounded-2xl p-4 border border-white/5 flex flex-col items-center gap-2">
                             <Award className="h-6 w-6 text-yellow-400" />
-                            <span className="text-xs font-bold uppercase tracking-widest text-white/40">Score</span>
-                            <span className="text-xl font-bold text-white">85</span>
+                            <span className="text-xs font-bold uppercase tracking-widest text-white/40">Trust Score</span>
+                            <span className="text-xl font-bold text-white">{conversation.contact.trustScore}</span>
                         </div>
                         <div className="bg-white/5 rounded-2xl p-4 border border-white/5 flex flex-col items-center gap-2">
-                            <ShieldAlert className="h-6 w-6 text-blue-400" />
-                            <span className="text-xs font-bold uppercase tracking-widest text-white/40">Status</span>
-                            <Badge variant="outline" className="border-blue-500/30 text-blue-400">{conversation.status}</Badge>
+                            <Activity className="h-6 w-6 text-blue-400" />
+                            <span className="text-xs font-bold uppercase tracking-widest text-white/40">Phase</span>
+                            <Badge variant="outline" className="border-blue-500/30 text-blue-400 uppercase text-[10px]">
+                                {conversation.contact.agentPhase}
+                            </Badge>
+                        </div>
+                        <div className="bg-white/5 rounded-2xl p-4 border border-white/5 flex flex-col items-center gap-2 col-span-2">
+                            <span className="text-xs font-bold uppercase tracking-widest text-white/40">Jours d'activité</span>
+                            <span className="text-xl font-bold text-white">{daysActive} Jours</span>
                         </div>
                     </div>
 
-                    <div className="mt-8 space-y-3">
+                    {/* Toggles Section */}
+                    <div className="space-y-6 mb-8">
+                        <div className="flex items-center justify-between">
+                            <div className="flex flex-col">
+                                <Label className="text-white font-medium text-base">Statut Actif</Label>
+                                <span className="text-xs text-white/40">Mettre en pause ou activer</span>
+                            </div>
+                            <Switch
+                                checked={isContactActive}
+                                onCheckedChange={toggleStatus}
+                                disabled={isPending}
+                            />
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                            <div className="flex flex-col">
+                                <Label className="text-white font-medium text-base">IA Réponse</Label>
+                                <span className="text-xs text-white/40">L'IA répond automatiquement</span>
+                            </div>
+                            <Switch
+                                checked={conversation.ai_enabled}
+                                onCheckedChange={toggleAi}
+                                disabled={isPending}
+                            />
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                            <div className="flex flex-col">
+                                <Label className="text-white font-medium text-base">Mode Test (Fast)</Label>
+                                <span className="text-xs text-white/40">Réponses immédiates (No delay)</span>
+                            </div>
+                            <Switch
+                                checked={conversation.contact.testMode}
+                                onCheckedChange={toggleTestMode}
+                                disabled={isPending}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="space-y-3">
                         <h3 className="text-sm font-bold text-white/40 uppercase tracking-widest px-1">Actions</h3>
-                        <Button variant="outline" className="w-full justify-start h-14 rounded-xl bg-white/5 border-white/5 hover:bg-white/10 text-white">
-                            <LogOut className="mr-3 h-5 w-5 text-white/50" />
-                            Export Conversation
+                        <Button
+                            variant="outline"
+                            className="w-full justify-start h-14 rounded-xl bg-white/5 border-white/5 hover:bg-white/10 text-white"
+                            onClick={handleExport}
+                        >
+                            <FileText className="mr-3 h-5 w-5 text-white/50" />
+                            Export PDF Dossier
                         </Button>
                         <Button variant="outline" className="w-full justify-start h-14 rounded-xl bg-white/5 border-white/5 hover:bg-white/10 text-white">
                             <ShieldAlert className="mr-3 h-5 w-5 text-white/50" />
