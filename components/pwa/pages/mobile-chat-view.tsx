@@ -43,19 +43,30 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
     }
 
     const [dragOffset, setDragOffset] = useState(0)
-    const touchStart = useRef<number | null>(null)
+    const touchStart = useRef<{ x: number, y: number } | null>(null)
 
     const handleTouchStart = (e: React.TouchEvent) => {
-        touchStart.current = e.touches[0].clientX
+        touchStart.current = {
+            x: e.touches[0].clientX,
+            y: e.touches[0].clientY
+        }
     }
 
     const handleTouchMove = (e: React.TouchEvent) => {
         if (!touchStart.current) return
         const currentX = e.touches[0].clientX
-        const diff = touchStart.current - currentX
-        // Only allow dragging left (positive diff) up to 60px
-        if (diff > 0 && diff < 80) {
-            setDragOffset(diff)
+        const currentY = e.touches[0].clientY
+
+        const diffX = touchStart.current.x - currentX
+        const diffY = Math.abs(touchStart.current.y - currentY)
+
+        // If vertical scroll is dominant, don't drag
+        if (diffY > diffX) return
+
+        // Only allow dragging left (positive diff) up to 80px
+        // Trigger threshold: must move at least 30px horizontally to start effect
+        if (diffX > 30 && diffX < 80) {
+            setDragOffset(diffX)
         }
     }
 
@@ -170,7 +181,7 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
             </div>
 
             {/* Input Area */}
-            <div className="px-3 pb-10 pt-2 bg-[#0f172a] border-t border-white/5 flex items-end gap-2 pwa-safe-area-bottom">
+            <div className="px-3 pb-20 pt-2 bg-[#0f172a] border-t border-white/5 flex items-end gap-2 pwa-safe-area-bottom">
 
                 <div className="flex-1 bg-[#1a1a1a] rounded-[24px] flex items-center min-h-[48px] px-1 border border-white/5 transition-all focus-within:border-blue-500/50">
                     <div className="h-10 w-10 rounded-full flex items-center justify-center text-blue-500 cursor-pointer active:scale-90 transition-transform">
