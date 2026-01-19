@@ -243,90 +243,107 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
 
             {/* Info Sheet (Replaces Context/Settings Header) */}
             <Sheet open={infoOpen} onOpenChange={setInfoOpen}>
+                <SheetContent side="right" className="bg-[#0f172a] border-none text-white w-full max-w-full p-0 h-full z-[100] overflow-y-auto sm:max-w-full">
+                    <div className="p-6">
+                        <SheetHeader className="mb-8 relative">
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="absolute left-0 top-0 text-white hover:bg-white/10 -ml-2 rounded-full"
+                                onClick={() => setInfoOpen(false)}
+                            >
+                                <ArrowLeft className="h-6 w-6" />
+                            </Button>
+                            <SheetDescription className="hidden">Contact Details</SheetDescription>
+                            <div className="flex flex-col items-center pt-2">
+                                <div className="h-20 w-20 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-white/10 flex items-center justify-center mb-4">
+                                    <span className="text-white font-bold text-3xl">
+                                        {conversation.contact.name.charAt(0).toUpperCase()}
+                                    </span>
+                                </div>
+                                <SheetTitle className="text-2xl font-bold text-white mb-1">{conversation.contact.name}</SheetTitle>
+                                <p className="text-white/50 font-mono text-sm">{conversation.contact.phone_whatsapp}</p>
                             </div>
-                            <SheetTitle className="text-2xl font-bold text-white mb-1">{conversation.contact.name}</SheetTitle>
-                            <p className="text-white/50 font-mono text-sm">{conversation.contact.phone_whatsapp}</p>
-                        </div >
-                    </SheetHeader >
+                        </SheetHeader>
 
-        {/* Stats Grid */ }
-        < div className = "grid grid-cols-2 gap-4 mb-8" >
-                        <div className="bg-white/5 rounded-2xl p-4 border border-white/5 flex flex-col items-center gap-2">
-                            <Award className="h-6 w-6 text-yellow-400" />
-                            <span className="text-xs font-bold uppercase tracking-widest text-white/40">Trust Score</span>
-                            <span className="text-xl font-bold text-white">{conversation.contact.trustScore}</span>
-                        </div>
-                        <div className="bg-white/5 rounded-2xl p-4 border border-white/5 flex flex-col items-center gap-2">
-                            <Activity className="h-6 w-6 text-blue-400" />
-                            <span className="text-xs font-bold uppercase tracking-widest text-white/40">Phase</span>
-                            <Badge variant="outline" className="border-blue-500/30 text-blue-400 uppercase text-[10px]">
-                                {conversation.contact.agentPhase}
-                            </Badge>
-                        </div>
-                        <div className="bg-white/5 rounded-2xl p-4 border border-white/5 flex flex-col items-center gap-2 col-span-2">
-                            <span className="text-xs font-bold uppercase tracking-widest text-white/40">Jours d'activité</span>
-                            <span className="text-xl font-bold text-white">{daysActive} Jours</span>
-                        </div>
-                    </div >
-
-        {/* Toggles Section */ }
-        < div className = "space-y-6 mb-8" >
-                        <div className="flex items-center justify-between">
-                            <div className="flex flex-col">
-                                <Label className="text-white font-medium text-base">Statut Actif</Label>
-                                <span className="text-xs text-white/40">Mettre en pause ou activer</span>
+                        {/* Stats Grid */}
+                        <div className="grid grid-cols-2 gap-4 mb-8">
+                            <div className="bg-white/5 rounded-2xl p-4 border border-white/5 flex flex-col items-center gap-2">
+                                <Award className="h-6 w-6 text-yellow-400" />
+                                <span className="text-xs font-bold uppercase tracking-widest text-white/40">Trust Score</span>
+                                <span className="text-xl font-bold text-white">{conversation.contact.trustScore}</span>
                             </div>
-                            <Switch
-                                checked={isContactActive}
-                                onCheckedChange={toggleStatus}
-                                disabled={isPending}
-                            />
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                            <div className="flex flex-col">
-                                <Label className="text-white font-medium text-base">IA Réponse</Label>
-                                <span className="text-xs text-white/40">L'IA répond automatiquement</span>
+                            <div className="bg-white/5 rounded-2xl p-4 border border-white/5 flex flex-col items-center gap-2">
+                                <Activity className="h-6 w-6 text-blue-400" />
+                                <span className="text-xs font-bold uppercase tracking-widest text-white/40">Phase</span>
+                                <Badge variant="outline" className="border-blue-500/30 text-blue-400 uppercase text-[10px]">
+                                    {conversation.contact.agentPhase}
+                                </Badge>
                             </div>
-                            <Switch
-                                checked={conversation.ai_enabled}
-                                onCheckedChange={toggleAi}
-                                disabled={isPending}
-                            />
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                            <div className="flex flex-col">
-                                <Label className="text-white font-medium text-base">Mode Test (Fast)</Label>
-                                <span className="text-xs text-white/40">Réponses immédiates (No delay)</span>
+                            <div className="bg-white/5 rounded-2xl p-4 border border-white/5 flex flex-col items-center gap-2 col-span-2">
+                                <span className="text-xs font-bold uppercase tracking-widest text-white/40">Jours d'activité</span>
+                                <span className="text-xl font-bold text-white">{daysActive} Jours</span>
                             </div>
-                            <Switch
-                                checked={conversation.contact.testMode}
-                                onCheckedChange={toggleTestMode}
-                                disabled={isPending}
-                            />
                         </div>
-                    </div >
 
-        {/* Actions */ }
-        < div className = "space-y-3" >
-                        <h3 className="text-sm font-bold text-white/40 uppercase tracking-widest px-1">Actions</h3>
-                        <Button
-                            variant="outline"
-                            className="w-full justify-start h-14 rounded-xl bg-white/5 border-white/5 hover:bg-white/10 text-white"
-                            onClick={handleExport}
-                        >
-                            <FileText className="mr-3 h-5 w-5 text-white/50" />
-                            Export PDF Dossier
-                        </Button>
-                        <Button variant="outline" className="w-full justify-start h-14 rounded-xl bg-white/5 border-white/5 hover:bg-white/10 text-white">
-                            <ShieldAlert className="mr-3 h-5 w-5 text-white/50" />
-                            Report / Block
-                        </Button>
-                    </div >
-                </div >
-            </SheetContent >
-        </Sheet >
-    </div >
+                        {/* Toggles Section */}
+                        <div className="space-y-6 mb-8">
+                            <div className="flex items-center justify-between">
+                                <div className="flex flex-col">
+                                    <Label className="text-white font-medium text-base">Statut Actif</Label>
+                                    <span className="text-xs text-white/40">Mettre en pause ou activer</span>
+                                </div>
+                                <Switch
+                                    checked={isContactActive}
+                                    onCheckedChange={toggleStatus}
+                                    disabled={isPending}
+                                />
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                                <div className="flex flex-col">
+                                    <Label className="text-white font-medium text-base">IA Réponse</Label>
+                                    <span className="text-xs text-white/40">L'IA répond automatiquement</span>
+                                </div>
+                                <Switch
+                                    checked={conversation.ai_enabled}
+                                    onCheckedChange={toggleAi}
+                                    disabled={isPending}
+                                />
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                                <div className="flex flex-col">
+                                    <Label className="text-white font-medium text-base">Mode Test (Fast)</Label>
+                                    <span className="text-xs text-white/40">Réponses immédiates (No delay)</span>
+                                </div>
+                                <Switch
+                                    checked={conversation.contact.testMode}
+                                    onCheckedChange={toggleTestMode}
+                                    disabled={isPending}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="space-y-3">
+                            <h3 className="text-sm font-bold text-white/40 uppercase tracking-widest px-1">Actions</h3>
+                            <Button
+                                variant="outline"
+                                className="w-full justify-start h-14 rounded-xl bg-white/5 border-white/5 hover:bg-white/10 text-white"
+                                onClick={handleExport}
+                            >
+                                <FileText className="mr-3 h-5 w-5 text-white/50" />
+                                Export PDF Dossier
+                            </Button>
+                            <Button variant="outline" className="w-full justify-start h-14 rounded-xl bg-white/5 border-white/5 hover:bg-white/10 text-white">
+                                <ShieldAlert className="mr-3 h-5 w-5 text-white/50" />
+                                Report / Block
+                            </Button>
+                        </div>
+                    </div>
+                </SheetContent>
+            </Sheet>
+        </div >
     )
 }
