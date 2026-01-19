@@ -28,6 +28,32 @@ export default function WorkspaceLayout({
     const { agentId } = useParams()
     const pathname = usePathname()
 
+    const tabs = [
+        { label: 'Overview', icon: LayoutDashboard, href: `/workspace/${agentId}` },
+        { label: 'Contacts', icon: Users, href: `/workspace/${agentId}/contacts` },
+        { label: 'Chats', icon: MessageSquare, href: `/workspace/${agentId}/conversations` },
+        { label: 'Media', icon: ImageIcon, href: `/workspace/${agentId}/media` },
+    ]
+
+    const menuItems = [
+        {
+            title: "Agent Systems",
+            routes: [
+                { label: 'Connectivity', icon: Zap, href: `/workspace/${agentId}/connection` },
+                { label: 'Identity', icon: Fingerprint, href: `/workspace/${agentId}/identity` },
+                { label: 'Settings', icon: Settings, href: `/workspace/${agentId}/settings` },
+            ]
+        },
+        {
+            title: "Data",
+            routes: [
+                { label: 'Queue', icon: Clock, href: `/workspace/${agentId}/queue` },
+                { label: 'Payments', icon: TrendingUp, href: `/workspace/${agentId}/payments` },
+                { label: 'Moderation', icon: ShieldCheck, href: `/workspace/${agentId}/moderation` },
+            ]
+        }
+    ]
+
     // PWA Render
     if (isPWAStandalone) {
         return (
