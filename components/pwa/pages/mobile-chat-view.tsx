@@ -107,7 +107,7 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
     }
 
     // Calculated fields
-    const daysActive = Math.floor((new Date().getTime() - new Date(conversation.contact.createdAt).getTime()) / (1000 * 60 * 60 * 24))
+    const daysActive = Math.ceil((new Date().getTime() - new Date(conversation.contact.createdAt).getTime()) / (1000 * 60 * 60 * 24))
     const isContactActive = conversation.contact.status === 'active'
 
     return (
