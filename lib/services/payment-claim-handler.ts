@@ -65,8 +65,19 @@ export async function notifyPaymentClaim(
 
         console.log('[PaymentClaim] Raw Send Result:', JSON.stringify(sendResult, null, 2))
 
-        // Fix ID extraction: Baileys returns { id: { id: "..." } } or simplified { id: "..." }
-        const waMessageId = sendResult?.id?.id || sendResult?.id || sendResult?.key?.id || null
+        // Fix ID extraction: Support flat ID, nested ID, or key.id
+        // Baileys 'sendMessage' usually returns { key: { id: "..." } } 
+        // Our Microservice might wrap it in { id: "..." } or { id: { id: "..." } }
+        let waMessageId: string | null = null
+
+        if (sendResult?.key?.id) {
+            waMessageId = sendResult.key.id
+        } else if (typeof sendResult?.id === 'string') {
+            waMessageId = sendResult.id
+        } else if (sendResult?.id?.id) {
+            waMessageId = sendResult.id.id
+        }
+
         console.log(`[PaymentClaim] Extracted waMessageId: "${waMessageId}"`)
 
         // Create pending claim record
@@ -113,6 +124,7 @@ export async function handlePaymentClaimReaction(
     })
 
     if (!claim) {
+        logger.warn('Reaction received but no matching Pending Claim found', { messageId, reaction, module: 'payment-claim' })
         return false // Not a payment claim message
     }
 
