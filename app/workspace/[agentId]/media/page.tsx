@@ -43,7 +43,89 @@ export default function WorkspaceMediaPage() {
         fetchMedia()
     }, [])
 
-    // ... (rest of the functions remain the same)
+    const handleCreate = async () => {
+        if (!newCategory.id) return
+        setCreating(true)
+        try {
+            await axios.post('/api/media', {
+                id: newCategory.id,
+                description: newCategory.description,
+                keywords: newCategory.keywords.split(',').map(k => k.trim())
+            })
+            setIsCreateOpen(false)
+            setNewCategory({ id: '', description: '', keywords: '' })
+            fetchMedia()
+        } catch (error) {
+            alert('Failed to create category')
+        } finally {
+            setCreating(false)
+        }
+    }
+
+    const handleDeleteCategory = async (categoryId: string) => {
+        if (!confirm(`Are you sure you want to delete category "${categoryId}" and all its media?`)) return
+
+        try {
+            await axios.delete(`/api/media/${categoryId}`)
+            setMediaTypes(prev => prev.filter(t => t.id !== categoryId))
+        } catch (error) {
+            alert('Failed to delete category')
+            console.error(error)
+        }
+    }
+
+    const handleDeleteMedia = async (mediaId: number) => {
+        if (!confirm('Delete this media?')) return
+
+        try {
+            await axios.delete(`/api/media/item/${mediaId}`)
+            fetchMedia() // Refresh to be safe or update local state deeply
+        } catch (error) {
+            console.error(error)
+            alert('Failed to delete media')
+        }
+    }
+
+    const handleDrop = async (e: React.DragEvent, categoryId: string) => {
+        e.preventDefault()
+        e.stopPropagation()
+        setDragActive(false)
+
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            const file = e.dataTransfer.files[0]
+            await handleUpload(file, categoryId)
+        }
+    }
+
+    const handleUpload = async (file: File, categoryId: string) => {
+        setUploading(true)
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('categoryId', categoryId)
+
+        try {
+            await axios.post('/api/media/upload', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            })
+            fetchMedia()
+        } catch (error) {
+            console.error(error)
+            alert('Upload failed')
+        } finally {
+            setUploading(false)
+        }
+    }
+
+    const handleDrag = (e: React.DragEvent) => {
+        e.preventDefault()
+        e.stopPropagation()
+        if (e.type === "dragenter" || e.type === "dragover") {
+            setDragActive(true)
+        } else if (e.type === "dragleave") {
+            setDragActive(false)
+        }
+    }
+
 
     if (isPWAStandalone) {
         // Flatten media for mobile grid for now, or we could group sections
@@ -60,22 +142,6 @@ export default function WorkspaceMediaPage() {
 
     return (
         <div className="space-y-10 pb-20 max-w-7xl mx-auto">
-            if (!newCategory.id) return
-            setCreating(true)
-            try {
-                await axios.post('/api/media', {
-                    id: newCategory.id,
-                    description: newCategory.description,
-                    keywords: newCategory.keywords.split(',').map(k => k.trim())
-                })
-            setIsCreateOpen(false)
-            setNewCategory({id: '', description: '', keywords: '' })
-            fetchMedia()
-        } catch (error) {
-                alert('Failed to create category')
-            } finally {
-                setCreating(false)
-            }
     }
 
     const handleDeleteCategory = async (categoryId: string) => {
