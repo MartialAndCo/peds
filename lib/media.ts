@@ -32,19 +32,38 @@ async function getCachedMediaTypes() {
 }
 
 export const mediaService = {
-    // 1. Analyze Request (Smart Logic)
-    async analyzeRequest(text: string) {
-        console.log(`[MediaService] Analyzing request: "${text}"`)
-        logger.info(`Analyzing request: "${text}"`, { module: 'media_service' });
+    // 1. Analyze Request (Smart Logic) - Now phase-aware
+    async analyzeRequest(text: string, contactPhone?: string) {
+        console.log(`[MediaService] Analyzing request: "${text}" (Contact: ${contactPhone || 'unknown'})`)
+        logger.info(`Analyzing request: "${text}"`, { module: 'media_service', contactPhone });
+
+        // Fetch contact's current phase (default to CONNECTION if unknown)
+        let contactPhase = 'CONNECTION';
+        if (contactPhone) {
+            const contact = await prisma.contact.findUnique({
+                where: { phone_whatsapp: contactPhone },
+                select: { agentPhase: true }
+            });
+            if (contact?.agentPhase) {
+                contactPhase = contact.agentPhase;
+            }
+        }
+        console.log(`[MediaService] Contact phase: ${contactPhase}`)
 
         // Fetch Cached Data (Parallelize for Cold Start Optimization)
-        const [blacklist, settings, mediaTypes] = await Promise.all([
+        const [allBlacklistRules, settings, mediaTypes] = await Promise.all([
             getCachedBlacklist(),
             settingsService.getSettings(),
             getCachedMediaTypes()
         ]);
-        const availableCategories = mediaTypes.map((t: any) => `${t.id} (${t.description})`).join(', ');
 
+        // Filter blacklist rules by phase: include rules for current phase OR 'all'
+        const blacklist = allBlacklistRules.filter((b: any) =>
+            b.phase === 'all' || b.phase === contactPhase
+        );
+        console.log(`[MediaService] Filtered blacklist: ${blacklist.length} rules (from ${allBlacklistRules.length} total)`)
+
+        const availableCategories = mediaTypes.map((t: any) => `${t.id} (${t.description})`).join(', ');
         const blacklistText = blacklist.map((b: any) => `- ${b.term} (Forbidden in ${b.mediaType})`).join('\n');
 
         const defaultAnalysisPrompt = `You are a Content Safety and Intent Analyzer for a personal media banking system.
@@ -53,15 +72,18 @@ export const mediaService = {
         1. Check if the user's request violates any BLACKLIST rules.
         2. If allowed, identify the intent category from the available list.
         
-        Blacklist Rules (STRICTLY FORBIDDEN):
-        ${blacklistText}
+        CURRENT PHASE: ${contactPhase}
+        
+        Blacklist Rules (STRICTLY FORBIDDEN for this phase):
+        ${blacklistText || '(No restrictions for this phase)'}
 
         Available Categories:
         ${availableCategories}
 
         Instructions:
         - If the request violates the blacklist, set "allowed" to false and explain why briefly.
-        - If the request is safe, set "allowed" to true.
+        - If the request is NOT in the blacklist, set "allowed" to true.
+        - IMPORTANT: Only refuse what's EXPLICITLY in the blacklist. Accept everything else.
         - If "allowed" is true, try to match the user's intent to one of the Available Categories. Look for semantic meaning (e.g. "ankles" -> "photo_pieds"). 
         - If no category matches, set "intentCategory" to null.
         - If the user is NOT asking for media (just chatting), set "isMediaRequest" to false.
@@ -76,8 +98,9 @@ export const mediaService = {
 
         const systemPromptTemplate = settings.prompt_media_analysis || defaultAnalysisPrompt;
         const systemPrompt = systemPromptTemplate
-            .replace('{BLACKLIST}', blacklistText)
-            .replace('{CATEGORIES}', availableCategories);
+            .replace('{BLACKLIST}', blacklistText || '(No restrictions for this phase)')
+            .replace('{CATEGORIES}', availableCategories)
+            .replace('{PHASE}', contactPhase);
 
         try {
             // Use Venice or Anthropic based on settings preference

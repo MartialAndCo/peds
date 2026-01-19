@@ -301,11 +301,12 @@ model BlacklistRule {
   id        Int      @id @default(autoincrement())
   term      String   // The forbidden concept or keyword
   mediaType String   @default("all") // 'image', 'video', 'all'
+  phase     String   @default("all") // 'CONNECTION', 'VULNERABILITY', 'CRISIS', 'MONEYPOT', 'all'
   agentId   Int?     // If null, applies globally (or legacy)
   agent     Agent?   @relation(fields: [agentId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 
-
+  @@index([phase])
   @@map("blacklist_rules")
 }
 

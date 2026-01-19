@@ -257,7 +257,7 @@ export async function processWhatsAppPayload(payload: any, agentId: number, opti
 
         if (payload.type === 'chat') {
             try {
-                const analysis = await mediaService.analyzeRequest(messageText)
+                const analysis = await mediaService.analyzeRequest(messageText, contact.phone_whatsapp)
 
                 if (analysis && analysis.isMediaRequest) {
                     if (!analysis.allowed) {
