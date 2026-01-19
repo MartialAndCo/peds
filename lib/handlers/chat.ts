@@ -513,9 +513,9 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         console.log(`[Chat] AI acknowledged payment. Tag found. Original: "${originalText.substring(0, 30)}...". Cleaned: "${responseText.substring(0, 30)}..."`)
         console.log(`[Chat] Triggering notification...`)
 
-        // Fire & Forget Notification
+        // Fire & Forget Notification -> MUST AWAIT in Serverless/Next.js to avoid freeze
         const { notifyPaymentClaim } = require('@/lib/services/payment-claim-handler')
-        notifyPaymentClaim(contact, conversation, settings, null, 'AI_DETECTED', agentId)
+        await notifyPaymentClaim(contact, conversation, settings, null, 'AI_DETECTED', agentId)
             .catch((e: any) => console.error('[Chat] Failed to notify payment claim:', e))
     }
 
