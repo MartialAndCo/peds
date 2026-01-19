@@ -39,6 +39,7 @@ export default function ModerationPage() {
 function BlacklistManager({ agentId }: { agentId: number }) {
     const [rules, setRules] = useState<any[]>([])
     const [newItem, setNewItem] = useState('')
+    const [selectedPhase, setSelectedPhase] = useState('all')
     const [loading, setLoading] = useState(false)
 
     const fetchRules = useCallback(() => {
@@ -52,13 +53,14 @@ function BlacklistManager({ agentId }: { agentId: number }) {
         fetchRules()
     }, [fetchRules])
 
-    const addRule = async (type: 'image' | 'video') => {
+    const addRule = async () => {
         if (!newItem.trim()) return
         setLoading(true)
         try {
             await axios.post('/api/blacklist', {
                 term: newItem,
-                mediaType: type,
+                mediaType: 'all',
+                phase: selectedPhase,
                 agentId
             })
             setNewItem('')
@@ -73,83 +75,81 @@ function BlacklistManager({ agentId }: { agentId: number }) {
         fetchRules()
     }
 
-    const photoRules = rules.filter(r => r.mediaType === 'image' || r.mediaType === 'all')
-    const videoRules = rules.filter(r => r.mediaType === 'video' || r.mediaType === 'all')
+    const phases = ['all', 'CONNECTION', 'VULNERABILITY', 'CRISIS', 'MONEYPOT']
+
+    // Filter rules for current view
+    const currentRules = rules.filter(r => r.phase === selectedPhase)
 
     return (
         <div className="space-y-6">
+            {/* Phase Tabs */}
+            <div className="flex flex-wrap gap-2 border-b border-white/10 pb-4">
+                {phases.map(p => (
+                    <button
+                        key={p}
+                        onClick={() => setSelectedPhase(p)}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedPhase === p
+                                ? 'bg-red-500 text-white'
+                                : 'bg-white/5 text-white/60 hover:text-white hover:bg-white/10'
+                            }`}
+                    >
+                        {p === 'all' ? 'GLOBAL' : p}
+                        <span className="ml-2 opacity-50 text-[10px]">
+                            {rules.filter(r => r.phase === p).length}
+                        </span>
+                    </button>
+                ))}
+            </div>
+
+            {/* Add Rule Input */}
             <div className="flex gap-2">
                 <Input
-                    placeholder="Forbidden term (e.g. nudity, face)"
+                    placeholder={`Block term for ${selectedPhase === 'all' ? 'GLOBAL' : selectedPhase} phase...`}
                     value={newItem}
                     onChange={(e) => setNewItem(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && addRule()}
                     className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/30"
                 />
                 <Button
                     type="button"
                     disabled={loading}
-                    onClick={() => addRule('image')}
+                    onClick={addRule}
                     className="bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 whitespace-nowrap"
                 >
-                    + Photo Rule
-                </Button>
-                <Button
-                    type="button"
-                    disabled={loading}
-                    onClick={() => addRule('video')}
-                    className="bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 whitespace-nowrap"
-                >
-                    + Video Rule
+                    + Block Term
                 </Button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/10">
-                    <h4 className="font-medium text-red-400 mb-3 text-sm flex items-center justify-between">
-                        Blocked for Photos
-                        <span className="bg-red-500/20 text-red-300 text-[10px] px-2 py-0.5 rounded-full">{photoRules.length}</span>
-                    </h4>
-                    <ul className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                        {photoRules.length === 0 && (
-                            <p className="text-white/30 text-xs italic">No rules defined</p>
-                        )}
-                        {photoRules.map(rule => (
-                            <li key={rule.id} className="flex justify-between items-center text-sm bg-white/[0.04] p-2 rounded-lg group">
-                                <span className="text-white/80">{rule.term}</span>
-                                <button
-                                    type="button"
-                                    onClick={() => deleteRule(rule.id)}
-                                    className="text-white/20 hover:text-red-400 transition-colors"
-                                >
-                                    ×
-                                </button>
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-                <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/10">
-                    <h4 className="font-medium text-red-400 mb-3 text-sm flex items-center justify-between">
-                        Blocked for Videos
-                        <span className="bg-red-500/20 text-red-300 text-[10px] px-2 py-0.5 rounded-full">{videoRules.length}</span>
-                    </h4>
-                    <ul className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                        {videoRules.length === 0 && (
-                            <p className="text-white/30 text-xs italic">No rules defined</p>
-                        )}
-                        {videoRules.map(rule => (
-                            <li key={rule.id} className="flex justify-between items-center text-sm bg-white/[0.04] p-2 rounded-lg group">
-                                <span className="text-white/80">{rule.term}</span>
-                                <button
-                                    type="button"
-                                    onClick={() => deleteRule(rule.id)}
-                                    className="text-white/20 hover:text-red-400 transition-colors"
-                                >
-                                    ×
-                                </button>
-                            </li>
-                        ))}
-                    </ul>
-                </div>
+            {/* Rules List */}
+            <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/10 min-h-[300px]">
+                <h4 className="font-medium text-red-400 mb-4 text-sm flex items-center justify-between">
+                    Blacklist for {selectedPhase === 'all' ? 'GLOBAL (All Phases)' : selectedPhase}
+                    <span className="bg-red-500/20 text-red-300 text-[10px] px-2 py-0.5 rounded-full">{currentRules.length}</span>
+                </h4>
+
+                <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {currentRules.length === 0 && (
+                        <p className="col-span-full text-center text-white/30 text-sm italic py-10">
+                            No forbidden terms defined for this phase.
+                        </p>
+                    )}
+                    {currentRules.map(rule => (
+                        <li key={rule.id} className="flex justify-between items-center text-sm bg-white/[0.04] p-3 rounded-lg group border border-transparent hover:border-red-500/20 transition-colors">
+                            <span className="text-white/90 font-medium">{rule.term}</span>
+                            <button
+                                type="button"
+                                onClick={() => deleteRule(rule.id)}
+                                className="h-6 w-6 flex items-center justify-center rounded-full bg-red-500/10 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 hover:text-white"
+                            >
+                                ×
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+
+            <div className="text-xs text-white/30 italic">
+                * Global rules apply to ALL phases. Specific phase rules apply IN ADDITION to global rules.
             </div>
         </div>
     )

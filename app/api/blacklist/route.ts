@@ -29,7 +29,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
     try {
         const body = await req.json();
-        const { term, mediaType, agentId } = body;
+        const { term, mediaType, agentId, phase } = body;
 
         if (!term) return NextResponse.json({ error: 'Term is required' }, { status: 400 });
 
@@ -37,6 +37,7 @@ export async function POST(req: Request) {
             data: {
                 term,
                 mediaType: mediaType || 'all',
+                phase: phase || 'all',
                 agentId: agentId ? parseInt(agentId) : null
             }
         });
