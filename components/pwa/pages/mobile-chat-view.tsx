@@ -45,33 +45,41 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
     return (
         <div className="flex flex-col h-[100dvh] bg-[#0f172a] fixed inset-0 z-[60]">
             {/* Instagram Style Header */}
-            <header className="h-14 px-2 flex items-center justify-between bg-[#0f172a]/95 backdrop-blur-xl border-b border-white/[0.06] flex-shrink-0 pwa-safe-area-top-margin">
-                <div className="flex items-center gap-2">
+            <header className="h-16 px-4 flex items-center justify-between bg-[#0f172a]/95 backdrop-blur-xl border-b border-white/[0.06] flex-shrink-0 z-50 sticky top-0 pwa-safe-area-top-margin">
+                <div className="flex items-center gap-3">
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="text-white hover:bg-white/10 -ml-1"
+                        className="text-white hover:bg-white/10 -ml-2 rounded-full h-10 w-10"
                         onClick={() => router.back()}
                     >
                         <ArrowLeft className="h-6 w-6" />
                     </Button>
 
                     <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-white/10 flex items-center justify-center">
-                            <span className="text-white text-xs font-bold">
-                                {conversation.contact.name.charAt(0).toUpperCase()}
+                        <div className="relative">
+                            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 border border-white/20 flex items-center justify-center shadow-lg">
+                                <span className="text-white text-sm font-bold">
+                                    {conversation.contact.name.charAt(0).toUpperCase()}
+                                </span>
+                            </div>
+                            <div className="absolute bottom-0 right-0 h-2.5 w-2.5 bg-green-500 border-2 border-[#0f172a] rounded-full"></div>
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-white font-bold text-sm tracking-wide leading-none">
+                                {conversation.contact.name}
+                            </span>
+                            <span className="text-white/40 text-[10px] uppercase font-medium tracking-wider mt-0.5">
+                                Active Now
                             </span>
                         </div>
-                        <span className="text-white font-semibold text-sm">
-                            {conversation.contact.name}
-                        </span>
                     </div>
                 </div>
 
                 <Button
                     variant="ghost"
                     size="icon"
-                    className="text-white hover:bg-white/10"
+                    className="text-white hover:bg-white/10 rounded-full h-10 w-10"
                     onClick={() => setInfoOpen(true)}
                 >
                     <Info className="h-6 w-6" />
@@ -79,22 +87,22 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
             </header>
 
             {/* Chat Area */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#0f172a]">
+            <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-[#000000]">
                 {conversation.messages?.map((msg: any) => {
                     const isMe = msg.from_me
                     return (
                         <div
                             key={msg.id}
                             className={cn(
-                                "flex w-full mb-2",
+                                "flex w-full mb-1 items-end",
                                 isMe ? "justify-end" : "justify-start"
                             )}
                         >
                             <div className={cn(
-                                "max-w-[85%] px-4 py-2.5 rounded-[20px] text-[15px] leading-snug relative",
+                                "max-w-[75%] px-5 py-3 rounded-[22px] text-[15px] leading-[1.3] relative shadow-md transition-all",
                                 isMe
-                                    ? "bg-[#3797f0] text-white" // Instagram Blue
-                                    : "bg-[#262626] text-white" // Instagram Dark Grey
+                                    ? "bg-gradient-to-br from-blue-600 to-blue-500 text-white rounded-br-none"
+                                    : "bg-[#262626] text-white rounded-bl-none border border-white/5"
                             )}>
                                 <p>{msg.message_text}</p>
                             </div>
@@ -105,31 +113,32 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
             </div>
 
             {/* Input Area */}
-            <div className="p-3 pb-6 bg-[#0f172a] border-t border-white/10 flex items-end gap-3 pwa-safe-area-bottom">
-                <div className="h-10 w-10 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0 text-white/50">
-                    <Paperclip className="h-5 w-5" />
-                </div>
+            <div className="px-3 pb-6 pt-2 bg-[#000000] border-t border-white/5 flex items-end gap-2 pwa-safe-area-bottom">
 
-                <div className="flex-1 bg-[#262626] rounded-3xl flex items-center min-h-[44px] px-4 border border-white/5">
+                <div className="flex-1 bg-[#1a1a1a] rounded-[24px] flex items-center min-h-[48px] px-1 border border-white/5 transition-all focus-within:border-blue-500/50">
+                    <div className="h-10 w-10 rounded-full flex items-center justify-center text-blue-500 cursor-pointer active:scale-90 transition-transform">
+                        <Paperclip className="h-5 w-5" />
+                    </div>
                     <Input
                         value={message}
                         onChange={(e) => setMessage(e.target.value)}
                         placeholder="Message..."
-                        className="bg-transparent border-0 focus-visible:ring-0 text-white placeholder:text-white/40 h-auto py-3 text-[15px]"
+                        className="flex-1 bg-transparent border-0 focus-visible:ring-0 text-white placeholder:text-white/30 h-auto py-3 text-[16px]"
                         onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
                     />
+                    {!message.trim() && (
+                        <div className="h-10 w-10 rounded-full flex items-center justify-center text-white/40">
+                            <Mic className="h-5 w-5" />
+                        </div>
+                    )}
                 </div>
 
-                {message.trim() ? (
+                {message.trim() && (
                     <div
-                        className="h-10 w-10 text-[#3797f0] font-semibold flex items-center justify-center cursor-pointer transition-transform active:scale-95"
+                        className="h-12 w-12 bg-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-blue-900/40 active:scale-95 transition-all cursor-pointer"
                         onClick={handleSend}
                     >
-                        Send
-                    </div>
-                ) : (
-                    <div className="h-10 w-10 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0 text-white/50">
-                        <Mic className="h-5 w-5" />
+                        <Send className="h-5 w-5 text-white ml-0.5" />
                     </div>
                 )}
             </div>

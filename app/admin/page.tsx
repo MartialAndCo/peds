@@ -85,9 +85,9 @@ export default async function DashboardPage() {
                 </div>
 
                 {/* Desktop View */}
-                <div className="hidden md:block">
+                <div className="hidden md:block space-y-8">
                     {/* Header */}
-                    <div>
+                    <div className="mb-8">
                         <h1 className="text-2xl font-semibold text-white">Overview</h1>
                         <p className="text-white/40 text-sm mt-1">
                             System-wide metrics across {agentsCount} active agents

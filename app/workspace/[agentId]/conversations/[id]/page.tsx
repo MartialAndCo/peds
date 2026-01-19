@@ -1,4 +1,4 @@
-import { ConversationView } from "@/components/conversation-view"
+import { ConversationPageClient } from "@/components/pwa/conversation-page-client"
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
@@ -24,8 +24,10 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
     }
 
     return (
-        <div className="h-[calc(100vh-12rem)] max-h-[calc(100vh-12rem)]">
-            <ConversationView conversationId={id} initialData={conversation} />
-        </div>
+        <ConversationPageClient
+            conversation={conversation}
+            agentId={idStr}
+            id={id}
+        />
     )
 }
