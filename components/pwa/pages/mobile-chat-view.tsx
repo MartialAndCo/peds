@@ -18,6 +18,30 @@ interface MobileChatViewProps {
 
 export function MobileChatView({ conversation, agentId, onSendMessage }: MobileChatViewProps) {
     const router = useRouter()
+    const [message, setMessage] = useState('')
+    const messagesEndRef = useRef<HTMLDivElement>(null)
+    const [sending, setSending] = useState(false)
+    const [infoOpen, setInfoOpen] = useState(false)
+
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+    }
+
+    useEffect(() => {
+        scrollToBottom()
+    }, [conversation.messages])
+
+    const handleSend = async () => {
+        if (!message.trim() || sending) return
+        setSending(true)
+        try {
+            await onSendMessage(message)
+            setMessage('')
+        } finally {
+            setSending(false)
+        }
+    }
+
     const [dragOffset, setDragOffset] = useState(0)
     const touchStart = useRef<number | null>(null)
 
