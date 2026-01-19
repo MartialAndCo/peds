@@ -507,9 +507,10 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     }
 
     // Payment Confirmation Logic ([PAYMENT_RECEIVED])
-    if (responseText.includes('[PAYMENT_RECEIVED]')) { // Keep simple check for speed
+    const paymentTagRegex = /\[\s*PAYMENT[ _]RECEIVED\s*\]/gi
+    if (paymentTagRegex.test(responseText)) {
         const originalText = responseText
-        responseText = responseText.replace(/\[\s*PAYMENT_RECEIVED\s*\]/gi, '').trim()
+        responseText = responseText.replace(paymentTagRegex, '').trim()
         console.log(`[Chat] AI acknowledged payment. Tag found. Original: "${originalText.substring(0, 30)}...". Cleaned: "${responseText.substring(0, 30)}..."`)
         console.log(`[Chat] Triggering notification...`)
 
