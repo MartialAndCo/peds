@@ -10,9 +10,6 @@ export async function GET(req: Request) {
         if (agentId) {
             where.agentId = parseInt(agentId);
         } else {
-            // Implicitly, no agentId means global? Or should we show all?
-            // For now, let's assume if no agentId provided, we return global rules (agentId: null).
-            // Or maybe existing rules have null agentId.
             where.agentId = null;
         }
 
