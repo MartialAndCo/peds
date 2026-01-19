@@ -40,6 +40,41 @@ export default function AgentOverviewPage() {
         </div>
     )
 
+    const fetchData = async () => {
+        try {
+            const agentsRes = await axios.get('/api/agents')
+            const found = agentsRes.data.find((a: any) => a.id.toString() === agentId)
+            setAgent(found)
+
+            const conversationsRes = await axios.get(`/api/conversations?agentId=${agentId}`)
+            const conversations = conversationsRes.data
+            const totalMessages = conversations.reduce((acc: number, c: any) => acc + (c._count?.messages || 0), 0)
+
+            setStats({
+                conversations: conversations.length,
+                messages: totalMessages
+            })
+
+            await fetchWahaStatus()
+        } catch (e) {
+            console.error('Failed to fetch overview data:', e)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const fetchWahaStatus = async () => {
+        try {
+            const res = await axios.get(`/api/waha/status?agentId=${agentId}`)
+            const status = res.data.status
+            if (status === 'WORKING') setWahaStatus('ONLINE')
+            else if (status === 'SCAN_QR_CODE') setWahaStatus('SCANNING')
+            else setWahaStatus('OFFLINE')
+        } catch {
+            setWahaStatus('UNREACHABLE')
+        }
+    }
+
     useEffect(() => {
         fetchData()
         const statusInterval = setInterval(fetchWahaStatus, 5000)
