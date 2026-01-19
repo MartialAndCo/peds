@@ -135,7 +135,7 @@ export default async function DashboardPage() {
                     </div>
                 </div>
             </div>
-            </div >
+
         )
     } catch (error: any) {
         return (
