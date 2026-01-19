@@ -49,11 +49,13 @@ export default function AgentOverviewPage() {
     // ... rest of code
 
     if (loading) return (
-// ...
+        <div className="flex items-center justify-center h-64">
+            <Loader2 className="animate-spin h-6 w-6 text-white/40" />
+        </div>
     )
 
     if (!agent) return (
-// ...
+        <div className="text-center text-white/40 py-20">Agent not found</div>
     )
 
     return (

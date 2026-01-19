@@ -134,12 +134,14 @@ export default async function DashboardPage() {
                         <AnalyticsGrid data={statsData} />
                     </div>
                 </div>
-                )
+            </div>
+            </div >
+        )
     } catch (error: any) {
         return (
-                <div className="flex items-center justify-center h-64">
-                    <p className="text-red-400">Error loading dashboard: {error.message}</p>
-                </div>
-                )
+            <div className="flex items-center justify-center h-64">
+                <p className="text-red-400">Error loading dashboard: {error.message}</p>
+            </div>
+        )
     }
 }
