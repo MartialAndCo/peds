@@ -239,17 +239,27 @@ export async function processWhatsAppPayload(payload: any, agentId: number, opti
             }
         }
 
+        const isSystemNumber =
+            (adminPhone && cleanSender === adminPhone.replace('+', '')) ||
+            (mediaSourcePhone && cleanSender === mediaSourcePhone.replace('+', '')) ||
+            (voiceSourcePhone && cleanSender === voiceSourcePhone.replace('+', '')) ||
+            (leadProviderPhone && cleanSender === leadProviderPhone.replace('+', ''));
+
         const contact = await prisma.contact.upsert({
             where: { phone_whatsapp: normalizedPhone },
             update: {
                 // Update the phone number if we resolved it from LID
-                ...(wasLidResolved ? { phone_whatsapp: normalizedPhone } : {})
+                ...(wasLidResolved ? { phone_whatsapp: normalizedPhone } : {}),
+                // Ensure system numbers stay hidden if they were somehow unhidden? Or just set it?
+                // Better to just set it on create, but maybe update too if it became a system number?
+                ...(isSystemNumber ? { isHidden: true } : {})
             },
             create: {
                 phone_whatsapp: normalizedPhone,
                 name: payload._data?.notifyName || "Inconnu",
                 source: 'WhatsApp Incoming',
-                status: 'new'
+                status: 'new',
+                isHidden: isSystemNumber || false
             }
         })
 

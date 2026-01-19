@@ -159,4 +159,26 @@
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
   }
+
+  /* PWA Native Utilities */
+  .pwa-safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  
+  .pwa-safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .pwa-safe-area-top-margin {
+    margin-top: env(safe-area-inset-top);
+  }
+
+  .pwa-hide-scrollbar {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+
+  .pwa-hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 }
