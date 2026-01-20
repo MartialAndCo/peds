@@ -101,10 +101,21 @@ export default function WorkspaceMediaPage() {
         setUploading(true)
 
         // Initialize Supabase Client for Client-Side Upload
-        const supabase = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        )
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+        console.log('Supabase Config:', {
+            url: supabaseUrl,
+            keyLength: supabaseKey?.length || 0
+        })
+
+        if (!supabaseUrl || !supabaseKey) {
+            alert(`Missing Configuration: SUPABASE_URL or SUPABASE_ANON_KEY is missing. \nURL: ${supabaseUrl}\nKey Set: ${!!supabaseKey}`)
+            setUploading(false)
+            return
+        }
+
+        const supabase = createClient(supabaseUrl, supabaseKey)
 
         try {
             // 1. Upload to Supabase Storage
