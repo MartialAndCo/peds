@@ -97,6 +97,7 @@ export default function WorkspaceMediaPage() {
     }
 
     const handleUpload = async (file: File, categoryId: string) => {
+        console.log('Starting upload for:', file.name, 'Size:', file.size)
         setUploading(true)
 
         // Initialize Supabase Client for Client-Side Upload
@@ -298,7 +299,7 @@ export default function WorkspaceMediaPage() {
                                 </Button>
 
                                 <div className="flex items-center gap-4">
-                                    <h2 className="text-2xl font-bold text-white">{selectedCategory.id}</h2>
+                                    <h2 className="text-2xl font-bold text-white">{selectedCategory.id} <span className="text-xs opacity-50">v2 (Supabase)</span></h2>
                                     <Button
                                         variant="ghost"
                                         size="icon"
