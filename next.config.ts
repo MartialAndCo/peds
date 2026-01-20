@@ -28,10 +28,11 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  serverActions: {
-    bodySizeLimit: '100mb',
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '100mb',
+    },
   },
-  experimental: {},
   // Increase Limits for API Routes (App Router uses native Request limits mostly, but this might help if migrating)
 };
 

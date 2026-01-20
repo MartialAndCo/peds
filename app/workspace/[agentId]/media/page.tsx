@@ -10,7 +10,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Switch } from "@/components/ui/switch"
 import { cn } from '@/lib/utils'
 import { Plus, Image as ImageIcon, Trash2, ArrowLeft, Video, Film, Grid, MoreVertical, Edit2 } from 'lucide-react'
-import { getMediaTypes, createMediaType, deleteMediaType, deleteMedia, uploadMedia } from '@/app/actions/media'
+import { getMediaTypes, createMediaType, deleteMediaType, deleteMedia, saveMedia } from '@/app/actions/media'
+import { createClient } from '@supabase/supabase-js'
+import { v4 as uuidv4 } from 'uuid'
 import { usePWAMode } from '@/hooks/use-pwa-mode'
 import { MobileMediaGrid } from '@/components/pwa/pages/mobile-media-grid'
 
@@ -96,24 +98,44 @@ export default function WorkspaceMediaPage() {
 
     const handleUpload = async (file: File, categoryId: string) => {
         setUploading(true)
-        const formData = new FormData()
-        formData.append('file', file)
-        formData.append('categoryId', categoryId)
+
+        // Initialize Supabase Client for Client-Side Upload
+        const supabase = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        )
 
         try {
-            await uploadMedia(formData)
+            // 1. Upload to Supabase Storage
+            const fileExt = file.name.split('.').pop()
+            const fileName = `${Date.now()}_${uuidv4()}.${fileExt}`
+            const filePath = `${categoryId}/${fileName}`
+
+            const { error: uploadError } = await supabase.storage
+                .from('media')
+                .upload(filePath, file)
+
+            if (uploadError) throw uploadError
+
+            // 2. Get Public URL
+            const { data: { publicUrl } } = supabase.storage
+                .from('media')
+                .getPublicUrl(filePath)
+
+            // 3. Save Metadata to DB
+            await saveMedia(publicUrl, categoryId)
+
             fetchMedia()
 
-            // Update local state immediately for better UX if possible, but fetchMedia handles it
+            // Update local state immediately for better UX
             if (selectedCategory?.id === categoryId) {
-                // Re-fetch logic needs to update selectedCategory too if we want live updates inside
                 const data = await getMediaTypes()
-                const updated = data.find(c => c.id === categoryId)
+                const updated = data.find((c: any) => c.id === categoryId)
                 if (updated) setSelectedCategory(updated)
             }
         } catch (error) {
-            console.error(error)
-            alert('Upload failed')
+            console.error('Upload Error:', error)
+            alert('Upload failed: ' + (error as any).message)
         } finally {
             setUploading(false)
         }

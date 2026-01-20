@@ -12,26 +12,18 @@ async function checkAuth() {
     }
 }
 
-export async function uploadMedia(formData: FormData) {
+export async function saveMedia(url: string, categoryId: string) {
     await checkAuth()
-    const file = formData.get('file') as File
-    const categoryId = formData.get('categoryId') as string
 
-    if (!file || !categoryId) {
-        throw new Error('File and categoryId required')
+    if (!url || !categoryId) {
+        throw new Error('URL and categoryId required')
     }
 
     try {
-        const bytes = await file.arrayBuffer()
-        const buffer = Buffer.from(bytes)
-        const mimeType = file.type || 'application/octet-stream'
-        const base64Data = buffer.toString('base64')
-        const dataUrl = `data:${mimeType};base64,${base64Data}`
-
         const media = await prisma.media.create({
             data: {
                 typeId: categoryId,
-                url: dataUrl,
+                url: url,
                 sentTo: []
             }
         })
@@ -39,7 +31,7 @@ export async function uploadMedia(formData: FormData) {
         revalidatePath('/workspace/[agentId]/media')
         return { success: true, media }
     } catch (error: any) {
-        console.error('Upload error:', error)
+        console.error('Save Media Error:', error)
         throw new Error(error.message)
     }
 }
