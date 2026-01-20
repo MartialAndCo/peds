@@ -29,6 +29,14 @@ const nextConfig = {
       },
     ];
   },
+  async rewrites() {
+    return [
+      {
+        source: '/supabase-proxy/:path*',
+        destination: 'http://16.171.66.98:8000/:path*',
+      },
+    ]
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: '100mb',

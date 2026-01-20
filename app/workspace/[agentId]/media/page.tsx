@@ -101,8 +101,14 @@ export default function WorkspaceMediaPage() {
         setUploading(true)
 
         // Initialize Supabase Client for Client-Side Upload
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+        let supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
         const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+        // [FIX] Mixed Content: If we are on HTTPS and target is HTTP, use the proxy
+        if (typeof window !== 'undefined' && window.location.protocol === 'https:' && supabaseUrl?.startsWith('http:')) {
+            console.log('Switching to Proxy for Mixed Content compatibility')
+            supabaseUrl = window.location.origin + '/supabase-proxy'
+        }
 
         console.log('Supabase Config:', {
             url: supabaseUrl,
