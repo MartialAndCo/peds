@@ -80,9 +80,30 @@ export async function deleteMediaType(categoryId: string) {
     }
 }
 
+import { supabase } from '@/lib/storage'
+
 export async function deleteMedia(mediaId: number) {
     await checkAuth()
     try {
+        // 1. Get media to find the URL
+        const media = await prisma.media.findUnique({
+            where: { id: mediaId }
+        })
+
+        if (!media) throw new Error('Media not found')
+
+        // 2. Delete from Supabase Storage
+        if (media.url.includes('/media/')) {
+            // Extract path: http://.../media/category/filename.ext -> category/filename.ext
+            const path = media.url.split('/media/').pop()
+            if (path && supabase) {
+                await supabase.storage
+                    .from('media')
+                    .remove([path])
+            }
+        }
+
+        // 3. Delete from DB
         await prisma.media.delete({
             where: { id: mediaId }
         })

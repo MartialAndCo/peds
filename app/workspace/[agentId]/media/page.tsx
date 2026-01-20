@@ -180,6 +180,14 @@ export default function WorkspaceMediaPage() {
         fetchMedia()
     }
 
+    // Helper to proxy media URLs to avoid Mixed Content (HTTPS -> HTTP)
+    const getProxiedUrl = (url: string) => {
+        if (typeof window !== 'undefined' && window.location.protocol === 'https:' && url.startsWith('http://16.171.66.98:8000')) {
+            return url.replace('http://16.171.66.98:8000', window.location.origin + '/supabase-proxy')
+        }
+        return url
+    }
+
     // --- RENDERERS ---
 
     // 1. Folder Icon Component
@@ -202,9 +210,9 @@ export default function WorkspaceMediaPage() {
                                 <div key={i} className="rounded-lg bg-black/20 overflow-hidden relative aspect-square">
                                     {item && (
                                         item.url.includes('video') || item.url.endsWith('.mp4') ? (
-                                            <video src={item.url} className="w-full h-full object-cover opacity-80" />
+                                            <video src={getProxiedUrl(item.url)} className="w-full h-full object-cover opacity-80" />
                                         ) : (
-                                            <img src={item.url} className="w-full h-full object-cover opacity-80" alt="" />
+                                            <img src={getProxiedUrl(item.url)} className="w-full h-full object-cover opacity-80" alt="" />
                                         )
                                     )}
                                 </div>
@@ -358,13 +366,13 @@ export default function WorkspaceMediaPage() {
                                         <div key={media.id} className="aspect-square relative group rounded-xl overflow-hidden bg-black/40 border border-white/5">
                                             {media.url.includes('video') || media.url.endsWith('.mp4') ? (
                                                 <video
-                                                    src={media.url}
+                                                    src={getProxiedUrl(media.url)}
                                                     className="w-full h-full object-cover"
                                                     controls
                                                 />
                                             ) : (
                                                 <img
-                                                    src={media.url}
+                                                    src={getProxiedUrl(media.url)}
                                                     alt="media"
                                                     className="w-full h-full object-cover"
                                                 />
