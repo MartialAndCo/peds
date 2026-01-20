@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
+const nextConfig = {
   env: {
     // Force bake build-time env vars into the runtime for Amplify
     DATABASE_URL: process.env.DATABASE_URL,
