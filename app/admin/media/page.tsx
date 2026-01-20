@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import axios from 'axios'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -11,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { getMediaTypes, createMediaType } from '@/app/actions/media'
 
 export default function MediaPage() {
     const [mediaTypes, setMediaTypes] = useState<any[]>([])
@@ -19,12 +19,16 @@ export default function MediaPage() {
     const [newCategory, setNewCategory] = useState({ id: '', description: '', keywords: '' })
     const [creating, setCreating] = useState(false)
 
-    const fetchMedia = () => {
+    const fetchMedia = async () => {
         setLoading(true)
-        axios.get('/api/media')
-            .then(res => setMediaTypes(res.data))
-            .catch(err => console.error(err))
-            .finally(() => setLoading(false))
+        try {
+            const data = await getMediaTypes()
+            setMediaTypes(data)
+        } catch (err) {
+            console.error(err)
+        } finally {
+            setLoading(false)
+        }
     }
 
     useEffect(() => {
@@ -35,7 +39,7 @@ export default function MediaPage() {
         if (!newCategory.id) return
         setCreating(true)
         try {
-            await axios.post('/api/media', {
+            await createMediaType({
                 id: newCategory.id,
                 description: newCategory.description,
                 keywords: newCategory.keywords.split(',').map(k => k.trim())

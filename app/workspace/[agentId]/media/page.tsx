@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import axios from 'axios'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -16,6 +15,7 @@ import { Switch } from "@/components/ui/switch"
 import { usePWAMode } from '@/hooks/use-pwa-mode'
 import { MobileMediaGrid } from '@/components/pwa/pages/mobile-media-grid'
 import { cn } from '@/lib/utils'
+import { getMediaTypes, createMediaType, deleteMediaType, deleteMedia, uploadMedia } from '@/app/actions/media'
 
 export default function WorkspaceMediaPage() {
     const { isPWAStandalone } = usePWAMode()
@@ -29,12 +29,16 @@ export default function WorkspaceMediaPage() {
     const [dragActive, setDragActive] = useState(false)
     const [uploading, setUploading] = useState(false)
 
-    const fetchMedia = () => {
+    const fetchMedia = async () => {
         setLoading(true)
-        axios.get('/api/media')
-            .then(res => setMediaTypes(res.data))
-            .catch(err => console.error(err))
-            .finally(() => setLoading(false))
+        try {
+            const data = await getMediaTypes()
+            setMediaTypes(data)
+        } catch (err) {
+            console.error(err)
+        } finally {
+            setLoading(false)
+        }
     }
 
     useEffect(() => {
@@ -45,7 +49,7 @@ export default function WorkspaceMediaPage() {
         if (!newCategory.id) return
         setCreating(true)
         try {
-            await axios.post('/api/media', {
+            await createMediaType({
                 id: newCategory.id,
                 description: newCategory.description,
                 keywords: newCategory.keywords.split(',').map(k => k.trim())
@@ -64,7 +68,7 @@ export default function WorkspaceMediaPage() {
         if (!confirm(`Are you sure you want to delete category "${categoryId}" and all its media?`)) return
 
         try {
-            await axios.delete(`/api/media/${categoryId}`)
+            await deleteMediaType(categoryId)
             setMediaTypes(prev => prev.filter(t => t.id !== categoryId))
         } catch (error) {
             alert('Failed to delete category')
@@ -76,7 +80,7 @@ export default function WorkspaceMediaPage() {
         if (!confirm('Delete this media?')) return
 
         try {
-            await axios.delete(`/api/media/item/${mediaId}`)
+            await deleteMedia(mediaId)
             fetchMedia() // Refresh to be safe or update local state deeply
         } catch (error) {
             console.error(error)
@@ -102,9 +106,7 @@ export default function WorkspaceMediaPage() {
         formData.append('categoryId', categoryId)
 
         try {
-            await axios.post('/api/media/upload', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            })
+            await uploadMedia(formData)
             fetchMedia()
         } catch (error) {
             console.error(error)
