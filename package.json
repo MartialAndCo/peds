@@ -33,6 +33,7 @@
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
     "form-data": "^4.0.5",
+    "framer-motion": "^12.27.5",
     "fuse.js": "^7.1.0",
     "jspdf": "^4.0.0",
     "jspdf-autotable": "^5.0.7",
