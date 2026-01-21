@@ -77,7 +77,7 @@ export function AnalyticsGrid({ data }: { data: any }) {
                     <h3 className="text-sm font-medium text-white/60 mb-4">Funnel Distribution</h3>
                     <div className="h-[200px]">
                         {phaseDistribution && phaseDistribution.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={100}>
                                 <BarChart data={phaseDistribution}>
                                     <XAxis dataKey="name" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
                                     <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
@@ -129,7 +129,7 @@ export function AnalyticsGrid({ data }: { data: any }) {
                 <h3 className="text-sm font-medium text-white/60 mb-4">Daily Activity (Last 7 Days)</h3>
                 <div className="h-[300px]">
                     {dailyActivity && dailyActivity.length > 0 ? (
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={100}>
                             <LineChart data={dailyActivity}>
                                 <XAxis dataKey="date" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
                                 <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />

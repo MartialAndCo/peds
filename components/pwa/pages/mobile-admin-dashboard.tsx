@@ -20,11 +20,13 @@ export function MobileAdminDashboard({ stats, agentsCount }: MobileAdminDashboar
     const hour = new Date().getHours()
     const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
 
-    // Format daily activity for chart
-    const chartData = stats.dailyActivity.map((d: any) => ({
-        name: d.date,
-        messages: d.count
-    }))
+    // Format daily activity for chart - with safety check
+    const chartData = Array.isArray(stats?.dailyActivity)
+        ? stats.dailyActivity.map((d: any) => ({
+            name: d.date || '',
+            messages: d.count || 0
+        }))
+        : []
 
     return (
         <div className="min-h-screen pb-24 space-y-8">
@@ -131,37 +133,43 @@ export function MobileAdminDashboard({ stats, agentsCount }: MobileAdminDashboar
                         <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 font-mono text-xs">+12.5%</Badge>
                     </div>
 
-                    <div className="h-[200px] w-full min-w-0 min-h-[200px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={chartData}>
-                                <defs>
-                                    <linearGradient id="colorMessages" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <XAxis
-                                    dataKey="name"
-                                    tick={{ fill: '#ffffff40', fontSize: 10 }}
-                                    axisLine={false}
-                                    tickLine={false}
-                                    tickMargin={10}
-                                />
-                                <YAxis hide />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }}
-                                    itemStyle={{ color: '#fff' }}
-                                />
-                                <Area
-                                    type="monotone"
-                                    dataKey="messages"
-                                    stroke="#3b82f6"
-                                    strokeWidth={3}
-                                    fillOpacity={1}
-                                    fill="url(#colorMessages)"
-                                />
-                            </AreaChart>
-                        </ResponsiveContainer>
+                    <div className="h-[200px] w-full" style={{ minWidth: 100, minHeight: 100 }}>
+                        {chartData.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={100}>
+                                <AreaChart data={chartData}>
+                                    <defs>
+                                        <linearGradient id="colorMessages" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <XAxis
+                                        dataKey="name"
+                                        tick={{ fill: '#ffffff40', fontSize: 10 }}
+                                        axisLine={false}
+                                        tickLine={false}
+                                        tickMargin={10}
+                                    />
+                                    <YAxis hide />
+                                    <Tooltip
+                                        contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }}
+                                        itemStyle={{ color: '#fff' }}
+                                    />
+                                    <Area
+                                        type="monotone"
+                                        dataKey="messages"
+                                        stroke="#3b82f6"
+                                        strokeWidth={3}
+                                        fillOpacity={1}
+                                        fill="url(#colorMessages)"
+                                    />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <div className="flex items-center justify-center h-full text-white/30 text-sm">
+                                No activity data
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
