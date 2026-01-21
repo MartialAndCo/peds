@@ -71,7 +71,7 @@ export default function SystemPage() {
                 return
             }
             const data = await res.json()
-            if (data.success && data.lines) {
+            if (data.success && Array.isArray(data.lines)) {
                 setLogs(data.lines)
                 // Auto-scroll to bottom
                 if (logsRef.current) {
@@ -80,7 +80,7 @@ export default function SystemPage() {
             }
         } catch (e) {
             console.error('Failed to fetch logs:', e)
-            // Don't crash - just leave logs as empty
+            setLogs([])
         }
     }
 

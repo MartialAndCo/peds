@@ -30,19 +30,22 @@ export default function ConversationsPage() {
                 ? `/api/conversations?agentId=${selectedAgent.id}`
                 : `/api/conversations`
             const res = await axios.get(url)
-            setConversations(res.data)
+            setConversations(Array.isArray(res.data) ? res.data : [])
         } catch (error) {
             console.error(error)
+            setConversations([])
         } finally {
             setLoading(false)
         }
     }
 
-    const filteredConversations = showNeedsContext
+    const filteredConversations = showNeedsContext && Array.isArray(conversations)
         ? conversations.filter(c => c.status === 'paused')
-        : conversations
+        : (Array.isArray(conversations) ? conversations : [])
 
-    const needsContextCount = conversations.filter(c => c.status === 'paused').length
+    const needsContextCount = Array.isArray(conversations)
+        ? conversations.filter(c => c.status === 'paused').length
+        : 0
 
     return (
         <div className="space-y-8 max-w-7xl mx-auto">

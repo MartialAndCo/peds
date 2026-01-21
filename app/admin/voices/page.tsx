@@ -37,7 +37,9 @@ function VoiceManager() {
     const [editForm, setEditForm] = useState<any>(null)
 
     const fetchVoices = useCallback(() => {
-        axios.get('/api/voices').then(res => setVoices(res.data)).catch(() => { })
+        axios.get('/api/voices')
+            .then(res => setVoices(Array.isArray(res.data) ? res.data : []))
+            .catch(() => setVoices([]))
     }, [])
 
     useEffect(() => { fetchVoices() }, [fetchVoices])
@@ -350,7 +352,9 @@ function VoiceTester({ voices }: { voices: any[] }) {
     const [history, setHistory] = useState<any[]>([])
 
     const fetchHistory = useCallback(() => {
-        axios.get('/api/voices/generations').then(res => setHistory(res.data)).catch(() => { })
+        axios.get('/api/voices/generations')
+            .then(res => setHistory(Array.isArray(res.data) ? res.data : []))
+            .catch(() => setHistory([]))
     }, [])
 
     useEffect(() => { fetchHistory() }, [fetchHistory])

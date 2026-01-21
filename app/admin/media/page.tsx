@@ -23,9 +23,10 @@ export default function MediaPage() {
         setLoading(true)
         try {
             const data = await getMediaTypes()
-            setMediaTypes(data)
+            setMediaTypes(Array.isArray(data) ? data : [])
         } catch (err) {
             console.error(err)
+            setMediaTypes([])
         } finally {
             setLoading(false)
         }

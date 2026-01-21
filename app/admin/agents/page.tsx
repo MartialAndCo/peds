@@ -22,16 +22,19 @@ export default function AgentsLobbyPage() {
     const fetchAgents = async () => {
         try {
             const res = await axios.get('/api/agents')
-            setAgents(res.data)
-            fetchStatuses(res.data)
+            const agentsData = Array.isArray(res.data) ? res.data : []
+            setAgents(agentsData)
+            fetchStatuses(agentsData)
         } catch (e) {
             console.error(e)
+            setAgents([])
         } finally {
             setLoading(false)
         }
     }
 
     const fetchStatuses = async (agentsList: any[]) => {
+        if (!Array.isArray(agentsList) || agentsList.length === 0) return
         try {
             const statuses: Record<string, string> = {}
             // Fetch status for each agent individually

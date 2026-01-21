@@ -27,9 +27,10 @@ export default function ContactsPage() {
         try {
             const params = query ? { search: query } : {}
             const res = await axios.get('/api/contacts', { params })
-            setContacts(res.data)
+            setContacts(Array.isArray(res.data) ? res.data : [])
         } catch (error) {
             console.error(error)
+            setContacts([])
         } finally {
             setLoading(false)
         }
