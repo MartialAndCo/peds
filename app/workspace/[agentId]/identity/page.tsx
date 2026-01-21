@@ -39,7 +39,8 @@ export default function AgentIdentityPage() {
                     axios.get(`/api/agents/${agentId}/settings`)
                 ])
 
-                const found = agentRes.data.find((a: any) => a.id.toString() === agentId)
+                const agentsData = Array.isArray(agentRes.data) ? agentRes.data : []
+                const found = agentsData.find((a: any) => a.id.toString() === agentId)
                 if (found) {
                     setAgent(found)
                     setFormData({ name: found.name, color: found.color })

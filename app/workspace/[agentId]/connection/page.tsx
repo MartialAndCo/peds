@@ -25,7 +25,8 @@ export default function AgentConnectionPage() {
         const fetchAgent = async () => {
             try {
                 const res = await axios.get('/api/agents')
-                const found = res.data.find((a: any) => a.id.toString() === agentId)
+                const agentsData = Array.isArray(res.data) ? res.data : []
+                const found = agentsData.find((a: any) => a.id.toString() === agentId)
                 if (found) {
                     setAgent(found)
                     const s = { ...settings }

@@ -148,7 +148,8 @@ export default function WorkspaceMediaPage() {
             // Update local state immediately for better UX
             if (selectedCategory?.id === categoryId) {
                 const data = await getMediaTypes()
-                const updated = data.find((c: any) => c.id === categoryId)
+                const dataArray = Array.isArray(data) ? data : []
+                const updated = dataArray.find((c: any) => c.id === categoryId)
                 if (updated) setSelectedCategory(updated)
             }
         } catch (error) {
@@ -161,7 +162,7 @@ export default function WorkspaceMediaPage() {
 
     // Update selected category when mediaTypes changes (e.g. after upload/delete)
     useEffect(() => {
-        if (selectedCategory) {
+        if (selectedCategory && Array.isArray(mediaTypes)) {
             const updated = mediaTypes.find(c => c.id === selectedCategory.id)
             if (updated) setSelectedCategory(updated)
         }

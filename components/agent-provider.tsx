@@ -41,7 +41,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     const fetchAgents = async () => {
         try {
             const res = await axios.get('/api/agents')
-            const fetchedAgents = res.data
+            const fetchedAgents = Array.isArray(res.data) ? res.data : []
 
             setAgents(fetchedAgents)
 
@@ -49,7 +49,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
             const storedId = localStorage.getItem('selectedAgentId')
             let toSelect = null
 
-            if (storedId) {
+            if (storedId && fetchedAgents.length > 0) {
                 toSelect = fetchedAgents.find((a: Agent) => a.id === parseInt(storedId))
             }
 

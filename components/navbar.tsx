@@ -12,7 +12,7 @@ const Navbar = () => {
     const { agents } = useAgent();
 
     const isWorkspace = pathname.startsWith('/workspace');
-    const currentAgent = agents.find(a => a.id.toString() === agentId);
+    const currentAgent = Array.isArray(agents) ? agents.find(a => a.id.toString() === agentId) : null;
 
     // Path to readable label mapping
     const PATH_LABELS: Record<string, string> = {

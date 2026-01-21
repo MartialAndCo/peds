@@ -23,7 +23,7 @@ export function SidebarWorkspace() {
     const { agentId } = useParams()
     const { agents } = useAgent()
 
-    const currentAgent = agents.find(a => a.id.toString() === agentId)
+    const currentAgent = Array.isArray(agents) ? agents.find(a => a.id.toString() === agentId) : null
     const baseUrl = `/workspace/${agentId}`
 
     const workspaceRoutes = [

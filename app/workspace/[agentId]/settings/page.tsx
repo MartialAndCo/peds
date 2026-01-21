@@ -42,7 +42,8 @@ export default function AgentSettingsPage() {
                     axios.get('/api/voices')
                 ])
 
-                const found = agentRes.data.find((a: any) => a.id.toString() === agentId)
+                const agentsData = Array.isArray(agentRes.data) ? agentRes.data : []
+                const found = agentsData.find((a: any) => a.id.toString() === agentId)
                 if (found) {
                     setAgent(found)
                     setVoiceState({

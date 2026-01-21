@@ -43,7 +43,8 @@ export default function AgentOverviewPage() {
     const fetchData = async () => {
         try {
             const agentsRes = await axios.get('/api/agents')
-            const found = agentsRes.data.find((a: any) => a.id.toString() === agentId)
+            const agentsData = Array.isArray(agentsRes.data) ? agentsRes.data : []
+            const found = agentsData.find((a: any) => a.id.toString() === agentId)
             setAgent(found)
 
             const conversationsRes = await axios.get(`/api/conversations?agentId=${agentId}`)
