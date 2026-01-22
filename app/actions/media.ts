@@ -244,7 +244,7 @@ export async function generateAutoContext(mediaId: number, agentId: number) {
         const description = await openrouter.describeImage(
             buffer,
             mimeType,
-            undefined, // Use env key
+            apiKey, // Pass DB API key
             systemInstruction, // Pass custom prompt as the "User Message" for Vision
             true // Throw on error for debugging
         )
