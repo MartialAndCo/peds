@@ -37,7 +37,12 @@ export async function detectPaymentClaim(
     const s = settings || await settingsService.getSettings()
 
     const systemPrompt = `You are a payment claim detector. Analyze the user's message and determine if they are claiming to have made a payment/sent money.
-
+    
+    CRITICAL: You must extract the EXACT numeric amount.
+    - "100$" -> 100
+    - "97 000 $" -> 97000
+    - "50 euros" -> 50
+    
 Output ONLY valid JSON:
 {
     "claimed": boolean,  // true if user says they paid/sent money
@@ -47,11 +52,12 @@ Output ONLY valid JSON:
 }
 
 Examples:
-- "I just sent you 50 on PayPal" → {"claimed": true, "amount": 50, "method": "PayPal", "confidence": 0.95}
-- "j'ai envoyé 100€" → {"claimed": true, "amount": 100, "method": null, "confidence": 0.9}
-- "payment done!" → {"claimed": true, "amount": null, "method": null, "confidence": 0.8}
-- "how do I pay you?" → {"claimed": false, "amount": null, "method": null, "confidence": 0.95}
-- "I'll pay you tomorrow" → {"claimed": false, "amount": null, "method": null, "confidence": 0.9}`
+- "I just sent you 50 on PayPal" -> {"claimed": true, "amount": 50, "method": "PayPal", "confidence": 0.95}
+- "j'ai envoyé 100€" -> {"claimed": true, "amount": 100, "method": null, "confidence": 0.9}
+- "payment done!" -> {"claimed": true, "amount": null, "method": null, "confidence": 0.8}
+- "here is 97 000 $" -> {"claimed": true, "amount": 97000, "method": null, "confidence": 0.95}
+- "how do I pay you?" -> {"claimed": false, "amount": null, "method": null, "confidence": 0.95}
+- "I'll pay you tomorrow" -> {"claimed": false, "amount": null, "method": null, "confidence": 0.9}`
 
     try {
         const response = await venice.chatCompletion(
@@ -61,7 +67,7 @@ Examples:
             {
                 apiKey: s.venice_api_key,
                 model: s.venice_model || 'venice-uncensored',
-                max_tokens: 100
+                max_tokens: 150
             }
         )
 
