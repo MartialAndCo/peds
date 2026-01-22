@@ -50,6 +50,7 @@
     "react-hook-form": "^7.69.0",
     "recharts": "^3.6.0",
     "tailwind-merge": "^3.4.0",
+    "web-push": "^3.6.7",
     "zod": "^4.2.1"
   },
   "devDependencies": {
@@ -60,6 +61,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/uuid": "^10.0.0",
+    "@types/web-push": "^3.6.4",
     "dotenv": "^17.2.3",
     "eslint": "^9",
     "eslint-config-next": "16.1.1",

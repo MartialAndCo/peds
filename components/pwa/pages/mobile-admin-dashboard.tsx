@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Bell, TrendingUp, Users, MessageSquare, Bot, ArrowRight, Activity, DollarSign } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -13,8 +13,11 @@ interface MobileAdminDashboardProps {
     agentsCount: number
 }
 
+import { NotificationManager } from '@/components/notification-manager'
+
 export function MobileAdminDashboard({ stats, agentsCount }: MobileAdminDashboardProps) {
     const router = useRouter()
+    const [unreadCount, setUnreadCount] = useState(0)
 
     // Quick greeting based on time
     const hour = new Date().getHours()
@@ -28,8 +31,20 @@ export function MobileAdminDashboard({ stats, agentsCount }: MobileAdminDashboar
         }))
         : []
 
+    useEffect(() => {
+        // Fetch unread count
+        fetch('/api/notifications?limit=1')
+            .then(res => res.json())
+            .then(data => {
+                if (data.unreadCount) setUnreadCount(data.unreadCount)
+            })
+            .catch(console.error)
+    }, [])
+
     return (
         <div className="min-h-screen pb-24 space-y-8">
+            <NotificationManager />
+
             {/* Header Section */}
             <div className="pt-2 px-5 pwa-safe-area-top-margin flex justify-between items-start">
                 <div>
@@ -37,9 +52,16 @@ export function MobileAdminDashboard({ stats, agentsCount }: MobileAdminDashboar
                     <p className="text-white/40 text-sm mt-1 font-medium">Here's what's happening today.</p>
                 </div>
                 <div className="relative">
-                    <Button variant="ghost" size="icon" className="rounded-full bg-white/5 hover:bg-white/10 text-white relative">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="rounded-full bg-white/5 hover:bg-white/10 text-white relative"
+                        onClick={() => router.push('/admin/notifications')}
+                    >
                         <Bell className="h-5 w-5" />
-                        <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-red-500 box-shadow-glow-red" />
+                        {unreadCount > 0 && (
+                            <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-red-500 box-shadow-glow-red animate-pulse" />
+                        )}
                     </Button>
                 </div>
             </div>

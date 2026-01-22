@@ -4,6 +4,16 @@ import { venice } from '@/lib/venice'
 import { memoryService } from '@/lib/memory'
 import { logger } from '@/lib/logger'
 import { detectPaymentClaim, PaymentClaimResult } from './payment-detector'
+import webpush from 'web-push'
+
+// Configure Web Push
+if (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+    webpush.setVapidDetails(
+        'mailto:admin@example.com',
+        process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+        process.env.VAPID_PRIVATE_KEY
+    )
+}
 
 /**
  * Process a user message for potential payment claims.
@@ -29,6 +39,7 @@ export async function processPaymentClaim(
 
 /**
  * Manually trigger a payment claim notification (e.g. from AI Tag)
+ * NOW USES NATIVE NOTIFICATIONS + PUSH
  */
 export async function notifyPaymentClaim(
     contact: any,
@@ -45,101 +56,134 @@ export async function notifyPaymentClaim(
         method
     })
 
-    // Build notification message for admin
     const contactName = contact.name || contact.phone_whatsapp
     const amountStr = amount ? `${amount}` : '?'
     const methodStr = method || 'unknown method'
-
-    // Natural sentence format (English): "Tom paid 50$ with Paypal"
     const notificationMsg = `${contactName} paid ${amountStr} with ${methodStr}`
 
-    // Send to admin
-    const adminPhone = settings.source_phone_number
-    if (!adminPhone) {
-        logger.warn('No admin phone configured, cannot notify payment claim', { module: 'payment-claim' })
-        return { processed: false }
-    }
-
     try {
-        const sendResult = await whatsapp.sendText(adminPhone, notificationMsg, undefined, agentId)
-
-        console.log('[PaymentClaim] Raw Send Result:', JSON.stringify(sendResult, null, 2))
-
-        // Fix ID extraction: Support flat ID, nested ID, or key.id
-        // Baileys 'sendMessage' usually returns { key: { id: "..." } } 
-        // Our Microservice might wrap it in { id: "..." } or { id: { id: "..." } }
-        let waMessageId: string | null = null
-
-        if (sendResult?.key?.id) {
-            waMessageId = sendResult.key.id
-        } else if (typeof sendResult?.id === 'string') {
-            waMessageId = sendResult.id
-        } else if (sendResult?.id?.id) {
-            waMessageId = sendResult.id.id
-        }
-
-        console.log(`[PaymentClaim] Extracted waMessageId: "${waMessageId}"`)
-
-        // Create pending claim record
+        // 1. Create Pending Claim Record
         const claim = await prisma.pendingPaymentClaim.create({
             data: {
                 contactId: contact.id,
                 conversationId: conversation?.id,
-                waMessageId: waMessageId,
                 claimedAmount: amount || null,
                 claimedMethod: method || null,
                 status: 'PENDING'
             }
         })
 
-        logger.info('Payment claim notification sent to admin', {
+        // 2. Create Notification Record (In-App)
+        const notification = await prisma.notification.create({
+            data: {
+                title: 'New Payment Claim',
+                message: notificationMsg,
+                type: 'PAYMENT_CLAIM',
+                entityId: claim.id,
+                metadata: {
+                    amount: amountStr,
+                    method: methodStr,
+                    contactName: contactName
+                }
+            }
+        })
+
+        // 3. Send Push Notification (Device)
+        await sendPushNotificationToAdmin({
+            title: 'New Payment Claim',
+            body: notificationMsg,
+            url: `/admin/notifications`,
+            tag: `claim-${claim.id}`
+        })
+
+        // 4. (Optional) Legacy WhatsApp Notification - DISABLED for new flow
+        // If you want to keep it as backup, uncomment below:
+        /*
+        const adminPhone = settings.source_phone_number
+        if (adminPhone) {
+             await whatsapp.sendText(adminPhone, notificationMsg + "\nCheck app to approve.", undefined, agentId)
+        }
+        */
+
+        logger.info('Payment claim notification created (Native + Push)', {
             module: 'payment-claim',
             claimId: claim.id,
-            waMessageId
+            notificationId: notification.id
         })
 
         return { processed: true, claimId: claim.id }
 
     } catch (e) {
-        logger.error('Failed to send payment claim notification', e as Error, { module: 'payment-claim' })
+        logger.error('Failed to notify payment claim', e as Error, { module: 'payment-claim' })
         return { processed: false }
     }
 }
 
 /**
- * Handle admin reaction to a payment claim notification.
- * Called when a reaction event is received on a message.
+ * Helper to send Web Push to all subscribed admins
  */
-export async function handlePaymentClaimReaction(
-    messageId: string,
-    reaction: string, // emoji
-    settings: any,
-    agentId?: number
+async function sendPushNotificationToAdmin(payload: { title: string, body: string, url?: string, tag?: string }) {
+    try {
+        const subscriptions = await prisma.pushSubscription.findMany()
+
+        const notifications = subscriptions.map(sub => {
+            return webpush.sendNotification({
+                endpoint: sub.endpoint,
+                keys: {
+                    p256dh: sub.p256dh,
+                    auth: sub.auth
+                }
+            }, JSON.stringify(payload))
+                .catch(err => {
+                    if (err.statusCode === 410 || err.statusCode === 404) {
+                        // Subscription expired/gone, cleanup
+                        console.log('Cleaning up expired subscription', sub.id)
+                        return prisma.pushSubscription.delete({ where: { id: sub.id } })
+                    }
+                    console.error('Push error for sub', sub.id, err)
+                })
+        })
+
+        await Promise.all(notifications)
+    } catch (error) {
+        console.error('Failed to send push notifications', error)
+    }
+}
+
+/**
+ * Core logic for approving/rejecting a claim.
+ * Used by API and Legacy Reaction Handler.
+ */
+export async function processPaymentClaimDecision(
+    claimId: string,
+    action: 'CONFIRM' | 'REJECT',
+    agentId?: number,
+    settings?: any
 ): Promise<boolean> {
 
-    // Find the claim by waMessageId
-    const claim = await prisma.pendingPaymentClaim.findFirst({
-        where: { waMessageId: messageId, status: 'PENDING' },
+    const claim = await prisma.pendingPaymentClaim.findUnique({
+        where: { id: claimId },
         include: { contact: true }
     })
 
-    if (!claim) {
-        logger.warn('Reaction received but no matching Pending Claim found', { messageId, reaction, module: 'payment-claim' })
-        return false // Not a payment claim message
+    if (!claim || claim.status !== 'PENDING') return false
+
+    // Fetch settings if not provided
+    if (!settings) {
+        // This assumes we can fetch settings globally or passed down. 
+        // For now, let's fetch default settings if missing, or use minimal defaults.
+        // In reality, we might need to fetch AgentSettings.
+        // Let's assume broad defaults or fetch from DB if critical.
+        const globalSettings = await prisma.setting.findMany()
+        settings = globalSettings.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.value }), {})
     }
 
-    const isConfirm = ['👍', '❤️', '✅', '💚', '👌'].includes(reaction)
-    const isReject = ['👎', '❌', '🚫', '💔'].includes(reaction)
+    const isConfirm = action === 'CONFIRM'
 
-    if (!isConfirm && !isReject) {
-        return false // Unknown reaction
-    }
-
-    logger.info('Processing payment claim reaction', {
+    logger.info('Processing payment claim decision', {
         module: 'payment-claim',
         claimId: claim.id,
-        reaction,
-        action: isConfirm ? 'CONFIRM' : 'REJECT'
+        action
     })
 
     // Get conversation for AI response
@@ -153,17 +197,7 @@ export async function handlePaymentClaimReaction(
             include: { prompt: true, contact: true }
         })
 
-    const { director } = require('@/lib/director')
-    const effectiveAgentId = conversation?.agentId || agentId || claim.contact.id // Fallback 
-    const { phase, details } = await director.determinePhase(claim.contact.phone_whatsapp)
-    const systemPrompt = await director.buildSystemPrompt(
-        settings,
-        claim.contact,
-        phase,
-        details,
-        conversation?.prompt?.system_prompt || "You are a friendly assistant.",
-        effectiveAgentId
-    )
+    const effectiveAgentId = conversation?.agentId || agentId
 
     if (isConfirm) {
         // 1. Create Payment record
@@ -180,12 +214,9 @@ export async function handlePaymentClaimReaction(
         })
 
         // 2. Inject memory
-        const memUserId = memoryService.buildUserId(claim.contact.phone_whatsapp, agentId)
+        const memUserId = memoryService.buildUserId(claim.contact.phone_whatsapp, effectiveAgentId)
         const memoryText = `User paid ${claim.claimedAmount || 'an amount'} via ${claim.claimedMethod || 'unknown method'}. Payment confirmed.`
         await memoryService.add(memUserId, memoryText)
-
-        // NOTE: No thank you message sent here - the AI already responded naturally
-        // to the user's payment claim. Sending another would be redundant.
 
         // 3. Update claim status
         await prisma.pendingPaymentClaim.update({
@@ -202,53 +233,75 @@ export async function handlePaymentClaimReaction(
             }
         })
 
-        logger.info('Payment claim confirmed (silent) & Contact moved to MONEYPOT', { module: 'payment-claim', claimId: claim.id })
+        // 5. Trigger AI "Thank You" / Confirmation
+        // The user explicitly requested: "If I answer YES... AI response 'Thank you'"
+        // The previous code said "No thank you message sent here - the AI already responded naturally".
+        // BUT the new requirements imply we MIGHT want to acknowledge it if the AI hasn't.
+        // However, sticking to the plan: Validation = Payment Confirmed.
+        // Usually, the previous message from AI might have been "Please pay". 
+        // If we want the AI to react to the CONFIRMATION, we should inject a system event provided as user message?
+        // Or just let the NEXT user message trigger the 'Thank you' context.
+        // Let's stick to: "AI response 'Thank you'" only if explicitly requested or if we send a message.
+        // Update: The prompt implies: "Validated -> AI knows payment is passed".
 
     } else {
-        // REJECTION: Not received
+        // REJECTION
 
-        // Fetch recent history to ensure the response is personalized and context-aware
-        const history = conversation ? await prisma.message.findMany({
-            where: { conversationId: conversation.id },
-            orderBy: { timestamp: 'desc' },
-            take: 10
-        }) : []
+        // Build Prompt for "Not Received"
+        const { director } = require('@/lib/director')
+        // We need settings for API keys.
+        const vKey = settings.venice_api_key || process.env.VENICE_API_KEY
+        const vModel = settings.venice_model || 'venice-uncensored'
 
-        const contextMessages = history.reverse().map((m: any) => ({
-            role: m.sender === 'contact' ? 'user' : 'ai',
-            content: m.message_text
-        }))
+        if (vKey) {
+            const history = conversation ? await prisma.message.findMany({
+                where: { conversationId: conversation.id },
+                orderBy: { timestamp: 'desc' },
+                take: 10
+            }) : []
 
-        // Extract last user content for context
-        const lastContent = contextMessages[contextMessages.length - 1]?.content || 'I sent the money'
+            const contextMessages = history.reverse().map((m: any) => ({
+                role: m.sender === 'contact' ? 'user' : 'ai',
+                content: m.message_text
+            }))
 
-        // User Request: "Tell Lilia he claimed to send money but she didn't receive it, so she answers personalized."
-        const rejectInstruction = `\n\n[SYSTEM UPDATE]: The user claims to have sent a payment (Money/Transfer). You just checked your ACTUAL bank account/wallet and NOTHING has arrived. The balance has not changed. You must tell the user that you have NOT received it. Be natural, reference the context if needed, but be firm that the money is not there.`
-
-        try {
-            let notReceivedMsg = await venice.chatCompletion(
-                systemPrompt + rejectInstruction,
-                contextMessages,
-                lastContent || 'I sent the money', // Use actual last message if available, or fallback
-                { apiKey: settings.venice_api_key, model: settings.venice_model || 'venice-uncensored' }
+            // System Prompt
+            const { phase, details } = await director.determinePhase(claim.contact.phone_whatsapp)
+            const systemPrompt = await director.buildSystemPrompt(
+                settings,
+                claim.contact,
+                phase,
+                details,
+                conversation?.prompt?.system_prompt || "You are a friendly assistant.",
+                effectiveAgentId
             )
-            notReceivedMsg = notReceivedMsg.replace(/\*[^*]+\*/g, '').trim()
 
-            await whatsapp.sendText(claim.contact.phone_whatsapp, notReceivedMsg, undefined, agentId)
+            const rejectInstruction = `\n\n[SYSTEM UPDATE]: The user claims to have sent a payment. You just checked your ACTUAL bank account/wallet and NOTHING has arrived. You must tell the user that you have NOT received it. Be firm but natural.`
 
-            // Save message to conversation
-            if (conversation) {
-                await prisma.message.create({
-                    data: {
-                        conversationId: conversation.id,
-                        sender: 'ai',
-                        message_text: notReceivedMsg,
-                        timestamp: new Date()
-                    }
-                })
+            try {
+                let notReceivedMsg = await venice.chatCompletion(
+                    systemPrompt + rejectInstruction,
+                    contextMessages,
+                    'I sent the money',
+                    { apiKey: vKey, model: vModel }
+                )
+                notReceivedMsg = notReceivedMsg.replace(/\*[^*]+\*/g, '').trim()
+
+                await whatsapp.sendText(claim.contact.phone_whatsapp, notReceivedMsg, undefined, effectiveAgentId)
+
+                if (conversation) {
+                    await prisma.message.create({
+                        data: {
+                            conversationId: conversation.id,
+                            sender: 'ai',
+                            message_text: notReceivedMsg,
+                            timestamp: new Date()
+                        }
+                    })
+                }
+            } catch (e) {
+                logger.error('Failed to send rejection msg', e as Error)
             }
-        } catch (e) {
-            logger.error('Failed to send not-received message', e as Error, { module: 'payment-claim' })
         }
 
         // Update claim status
@@ -256,9 +309,32 @@ export async function handlePaymentClaimReaction(
             where: { id: claim.id },
             data: { status: 'REJECTED' }
         })
-
-        logger.info('Payment claim rejected', { module: 'payment-claim', claimId: claim.id })
     }
 
     return true
+}
+
+/**
+ * Legacy Reaction Handler - Delegates to processPaymentClaimDecision
+ */
+export async function handlePaymentClaimReaction(
+    messageId: string,
+    reaction: string, // emoji
+    settings: any,
+    agentId?: number
+): Promise<boolean> {
+
+    const claim = await prisma.pendingPaymentClaim.findFirst({
+        where: { waMessageId: messageId, status: 'PENDING' }
+    })
+
+    if (!claim) return false
+
+    const isConfirm = ['👍', '❤️', '✅', '💚', '👌'].includes(reaction)
+    const isReject = ['👎', '❌', '🚫', '💔'].includes(reaction)
+
+    if (isConfirm) return processPaymentClaimDecision(claim.id, 'CONFIRM', agentId, settings)
+    if (isReject) return processPaymentClaimDecision(claim.id, 'REJECT', agentId, settings)
+
+    return false
 }

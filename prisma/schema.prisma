@@ -397,7 +397,38 @@ model PendingPaymentClaim {
   status         String   @default("PENDING") // PENDING, CONFIRMED, REJECTED
   createdAt      DateTime @default(now())
   
-  @@index([status])
   @@index([contactId])
   @@map("pending_payment_claims")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  title     String
+  message   String
+  type      String   // 'PAYMENT_CLAIM', 'SYSTEM', 'INFO'
+  
+  // Reference to related entities
+  entityId  String?  // ID of the related entity (e.g. pending_claim_id)
+  metadata  Json?    // Extra data (e.g. amount, contact_name)
+
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid())
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  
+  // Optional: Link to a user if we have multi-user admin later
+  userId    String?  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("push_subscriptions")
 }
