@@ -245,8 +245,7 @@ export async function generateAutoContext(mediaId: number, agentId: number) {
             buffer,
             mimeType,
             apiKey, // Pass DB API key
-            systemInstruction, // Pass custom prompt as the "User Message" for Vision
-            true // Throw on error for debugging
+            systemInstruction // Pass custom prompt as the "User Message" for Vision
         )
 
         if (!description) {
@@ -266,6 +265,8 @@ export async function generateAutoContext(mediaId: number, agentId: number) {
         return { success: true, context: description }
 
     } catch (error: any) {
+        // console.error('Auto-Context Error:', error) 
+        // Silent fail mostly, or just log
         console.error('Auto-Context Error:', error)
         return { success: false, error: error.message }
     }

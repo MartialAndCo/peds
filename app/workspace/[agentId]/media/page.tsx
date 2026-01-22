@@ -174,13 +174,11 @@ export default function WorkspaceMediaPage() {
                         setContextText(ctx.context)
                         toast({ title: "Context Generated", description: "Review and save." })
                     } else {
-                        // Explicit error alert
-                        alert(`Auto-Context Failed: ${ctx.error || 'Unknown error'}`)
-                        console.error("AutoContext Failed (Server):", ctx.error)
+                        toast({ title: "Auto-Context Failed", description: ctx.error || "Unknown error", variant: "destructive" })
                     }
                 } catch (e) {
                     console.error("AutoContext Failed (Client)", e)
-                    alert(`Auto-Context Failed (Client): ${(e as any).message}`)
+                    toast({ title: "Auto-Context Error", description: "Could not generate context.", variant: "destructive" })
                 } finally {
                     setGeneratingContext(false)
                 }
