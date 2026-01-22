@@ -217,7 +217,18 @@ export async function generateAutoContext(mediaId: number, agentId: number) {
             buffer = Buffer.from(arrayBuffer)
         }
 
+        if (buffer.length < 100) {
+            throw new Error(`Downloaded buffer is too small (${buffer.length} bytes). Path: ${storagePath}`);
+        }
+
         console.log(`[AutoContext] Buffer size: ${buffer.length} bytes`)
+
+        // Derive mimetype
+        const ext = media.url.split('.').pop()?.toLowerCase() || 'jpeg';
+        let mimeType = 'image/jpeg';
+        if (ext === 'png') mimeType = 'image/png';
+        if (ext === 'webp') mimeType = 'image/webp';
+        if (ext === 'gif') mimeType = 'image/gif';
 
         // 3. Generate Description with OpenRouter Vision
         // "You are [Identity]. This is a photo from your gallery. Describe it briefly in the first person..."
@@ -227,7 +238,7 @@ export async function generateAutoContext(mediaId: number, agentId: number) {
 
         const description = await openrouter.describeImage(
             buffer,
-            'image/jpeg', // Assumption, but describeImage handles buffers generally
+            mimeType,
             undefined, // Use env key
             systemInstruction // Pass custom prompt as the "User Message" for Vision
         )
