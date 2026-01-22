@@ -34,14 +34,19 @@ export async function detectPaymentClaim(
     }
 
     // AI Analysis
-    const s = settings || await settingsService.getSettings()
-
     const systemPrompt = `You are a payment claim detector. Analyze the user's message and determine if they are claiming to have made a payment/sent money.
     
-    CRITICAL: You must extract the EXACT numeric amount.
+    CRITICAL: You must extract the EXACT numeric amount if possible.
     - "100$" -> 100
     - "97 000 $" -> 97000
     - "50 euros" -> 50
+    - "2 barres" -> 20 (slang for 20?) OR if they mean 2 million/200 depends on context, usually 1 barre = 100 or 1000? Context: "2 barres" in french street slang is often 200€ or 2000€. If unsure, extract raw number 2. (Actually "1 barre" = 100€ usually, "1 brique" = 10k or 100 old francs... stick to explicit numbers if possible, or best guess).
+    - "54" -> 54
+    
+    HANDLE SLANG & IMPLICIT (French/English):
+    - "C'est fait" (It's done) -> Claimed: true
+    - "Je t'ai envoyé les 50 balles" -> Claimed: true, Amount: 50
+    - "Check ton paypal" -> Claimed: true
     
 Output ONLY valid JSON:
 {
@@ -56,8 +61,9 @@ Examples:
 - "j'ai envoyé 100€" -> {"claimed": true, "amount": 100, "method": null, "confidence": 0.9}
 - "payment done!" -> {"claimed": true, "amount": null, "method": null, "confidence": 0.8}
 - "here is 97 000 $" -> {"claimed": true, "amount": 97000, "method": null, "confidence": 0.95}
-- "how do I pay you?" -> {"claimed": false, "amount": null, "method": null, "confidence": 0.95}
-- "I'll pay you tomorrow" -> {"claimed": false, "amount": null, "method": null, "confidence": 0.9}`
+- "je t'ai envoyé 2 barres" -> {"claimed": true, "amount": 200, "method": null, "confidence": 0.85} (Assuming 1 barre = 100)
+- "c'est envoyé" -> {"claimed": true, "amount": null, "method": null, "confidence": 0.9}
+- "how do I pay you?" -> {"claimed": false, "amount": null, "method": null, "confidence": 0.95}`
 
     try {
         const response = await venice.chatCompletion(

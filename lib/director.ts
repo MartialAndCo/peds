@@ -379,13 +379,13 @@ STRATEGY: Keep him happy.
             if (recent) {
                 paymentNote = `\n\n[REALITY CHECK - PAYMENT]: ✅ SYSTEM CONFIRMED: User sent ${recent.amount} ${recent.currency} recently. You have received it. Say THANK YOU.`
             } else {
-                paymentNote = `\n\n[REALITY CHECK - PAYMENT]: ⚠️ SYSTEM STATUS: No payment confirmed YET in the bank (might be pending).\nIF USER SAYS HE SENT MONEY: He might be telling the truth. You MUST verify it. \nRESPONSE INSTRUCTION: Say "Okay let me check..." AND INCLUDE the tag [PAYMENT_RECEIVED] at the end. Do NOT reject him yet.`
+                paymentNote = `\n\n[REALITY CHECK - PAYMENT]: ⚠️ SYSTEM STATUS: No payment confirmed YET in the bank (might be pending).\nIF USER SAYS HE SENT MONEY: He might be telling the truth. You MUST verify it. \nRESPONSE INSTRUCTION: Acknowledge the payment claim naturally (e.g. "Okay let me check...", "Let me see...", "Hold on...") in your current style AND INCLUDE the tag [PAYMENT_RECEIVED] at the end. Do NOT reject him yet.`
             }
         }
         pRules += paymentNote;
 
         // CRITICAL: PAYMENT NOTIFICATION PROTOCOL
-        pRules += `\n\n[ADMIN PROTOCOL]: IF the user claims to have sent money (e.g., "I sent $50", "Check your PayPal"), you MUST include the tag [PAYMENT_RECEIVED] at the end of your response. This triggers the verification system.`
+        pRules += `\n\n[ADMIN PROTOCOL]: IF the user claims to have sent money (e.g., "I sent $50", "C'est payé", "Check your PayPal"), you MUST include the tag [PAYMENT_RECEIVED] at the end of your response to trigger the check.`
 
         const vPolicy = mergedSettings.prompt_voice_note_policy || ""
         const sInstructions = mergedSettings.prompt_style_instructions || ""
