@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { openrouter } from '@/lib/openrouter'
+import { supabase } from '@/lib/storage'
 
 async function checkAuth() {
     const session = await getServerSession(authOptions)
@@ -169,13 +170,53 @@ export async function generateAutoContext(mediaId: number, agentId: number) {
 
         console.log(`[AutoContext] Generating for Agent ${agentId} (${city})...`)
 
-        // 2. Download Image Buffer
-        // If URL is Supabase: fetch it.
-        const response = await fetch(media.url)
-        if (!response.ok) throw new Error(`Failed to fetch image: ${response.statusText}`)
-        const arrayBuffer = await response.arrayBuffer()
-        const buffer = Buffer.from(arrayBuffer)
+        // 2. Download Image Buffer via Supabase SDK (Bypass Proxy/URL issues)
+        let buffer: Buffer;
 
+        // Try to extract path from URL
+        // Format: .../media/category/filename.ext or similar
+        // If using Supabase Storage, the path is usually after the bucket name or part of the URL.
+        // We know we save it as publicUrl.
+        // Let's try to extract the relative path: "category/filename"
+        // Common pattern: https://.../storage/v1/object/public/media/category/file.jpg
+
+        let storagePath = '';
+        if (media.url.includes('/media/')) {
+            storagePath = media.url.split('/media/')[1]; // Get everything after /media/
+        } else {
+            // Fallback: try last 2 segments if structure is simple
+            const parts = media.url.split('/');
+            if (parts.length >= 2) storagePath = `${parts[parts.length - 2]}/${parts[parts.length - 1]}`;
+        }
+
+        console.log(`[AutoContext] Attempting download from storage path: ${storagePath}`)
+
+        if (supabase && storagePath) {
+            const { data: blob, error: downloadError } = await supabase.storage
+                .from('media')
+                .download(storagePath)
+
+            if (downloadError || !blob) {
+                console.warn(`[AutoContext] Supabase SDK download failed: ${downloadError?.message}. Falling back to fetch.`)
+                // Fallback to fetch
+                const response = await fetch(media.url)
+                if (!response.ok) throw new Error(`Failed to fetch image: ${response.statusText}`)
+                const arrayBuffer = await response.arrayBuffer()
+                buffer = Buffer.from(arrayBuffer)
+            } else {
+                const arrayBuffer = await blob.arrayBuffer()
+                buffer = Buffer.from(arrayBuffer)
+            }
+        } else {
+            // Fallback if no supabase client or path extraction failed
+            console.log('[AutoContext] direct fetch fallback (no supabase client or path)')
+            const response = await fetch(media.url)
+            if (!response.ok) throw new Error(`Failed to fetch image: ${response.statusText}`)
+            const arrayBuffer = await response.arrayBuffer()
+            buffer = Buffer.from(arrayBuffer)
+        }
+
+        console.log(`[AutoContext] Buffer size: ${buffer.length} bytes`)
 
         // 3. Generate Description with OpenRouter Vision
         // "You are [Identity]. This is a photo from your gallery. Describe it briefly in the first person..."
