@@ -184,7 +184,7 @@ export async function generateAutoContext(mediaId: number, agentId: number) {
 
         let timelineContext = "No specific known events. You are free to invent consistent locations.";
         if (events.length > 0) {
-            timelineContext = "KNOWN TIMELINE (DO NOT CONTRADICT):\n" + events.map(e =>
+            timelineContext = "KNOWN TIMELINE (DO NOT CONTRADICT):\n" + events.map((e: any) =>
                 `- ${e.title} at ${e.location} (${e.startDate.toLocaleDateString()} - ${e.endDate?.toLocaleDateString() || 'Day Trip'})`
             ).join('\n')
         }
@@ -299,5 +299,100 @@ export async function generateAutoContext(mediaId: number, agentId: number) {
         // Silent fail mostly, or just log
         console.error('Auto-Context Error:', error)
         return { success: false, error: error.message }
+    }
+}
+
+// [NEW] Smart Organize Action
+export async function smartOrganizeMedia(publicUrl: string, agentId: number) {
+    await checkAuth()
+
+    // 1. Fetch Metadata
+    const categories = await prisma.mediaType.findMany({ select: { id: true, keywords: true } });
+    const events = await prisma.agentEvent.findMany({ where: { agentId }, orderBy: { startDate: 'desc' } });
+    const globalSettings = await settingsService.getSettings();
+    const apiKey = globalSettings.openrouter_api_key as string | undefined;
+
+    // Timeline Summary
+    const timelineSummary = events.map((e: any) => `${e.title} in ${e.location} (${e.startDate.toISOString().split('T')[0]})`).join('\n');
+    const categoriesSummary = categories.map((c: any) => c.id).join(', ');
+
+    // 2. Download Image (Need buffer for Vision)
+    // For simplicity/speed in prototype, we might try to send URL if OpenRouter supports it? 
+    // Usually OpenRouter/LLM vision supports URL. Let's try sending URL first to save bandwidth.
+    // Actually, `openrouter.describeImage` expects buffer. We must download.
+    // Re-use download logic (simplified)
+    const response = await fetch(publicUrl);
+    if (!response.ok) throw new Error('Failed to fetch image for analysis');
+    const buffer = Buffer.from(await response.arrayBuffer());
+
+    // 3. AI Analysis
+    const prompt = `
+    Analyze this image for an influencer's gallery.
+    
+    KNOWN TIMELINE:
+    ${timelineSummary}
+
+    EXISTING FOLDERS:
+    ${categoriesSummary}
+
+    TASK:
+    1. Identify what is in the photo (Selfie, Landscape, Food, etc).
+    2. Determine WHERE and WHEN this likely happened based on the Timeline (Match visual cues).
+    3. Choose the BEST Folder Name:
+       - Use an EXISTING folder if it matches perfectly.
+       - Create a NEW folder name (snake_case) if it's a new distinct event/vibe.
+    4. Write a Context/Caption (First person, consistent with timeline).
+
+    OUTPUT JSON ONLY:
+    {
+        "folder": "string (folder_id)",
+        "context": "string (caption)"
+    }
+    `;
+
+    try {
+        const aiResponse = await openrouter.describeImage(
+            buffer,
+            'image/jpeg', // Assumption, robust handling needed for png etc
+            apiKey,
+            prompt // System/User prompt
+        );
+
+        // Parse JSON (Naive regex or JSON.parse if clean)
+        // LLM might be chatty, let's try to extract JSON
+        const jsonMatch = aiResponse?.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error("AI did not return JSON");
+
+        const result = JSON.parse(jsonMatch[0]);
+        const folderId = result.folder.toLowerCase().replace(/\s/g, '_');
+        const context = result.context;
+
+        // 4. Create Folder if needed
+        const existingCat = await prisma.mediaType.findUnique({ where: { id: folderId } });
+        if (!existingCat) {
+            await prisma.mediaType.create({
+                data: {
+                    id: folderId,
+                    description: "Auto-created by Smart Upload",
+                    keywords: []
+                }
+            });
+        }
+
+        // 5. Save Media
+        const savedMedia = await saveMedia(publicUrl, folderId);
+
+        // 6. Save Context
+        if (savedMedia.success && savedMedia.media) {
+            await updateMediaContext(savedMedia.media.id, context);
+        }
+
+        revalidatePath('/workspace/[agentId]/media');
+        return { success: true, folder: folderId, context: context };
+
+    } catch (e: any) {
+        console.error("Smart Organize Failed:", e);
+        // Fallback: Dump in "smart_import_fallback"
+        return { success: false, error: e.message };
     }
 }
