@@ -17,6 +17,9 @@ import { createClient } from '@supabase/supabase-js'
 import { v4 as uuidv4 } from 'uuid'
 import { usePWAMode } from '@/hooks/use-pwa-mode'
 import { MobileMediaGrid } from '@/components/pwa/pages/mobile-media-grid'
+import { getAgentEvents, createAgentEvent, deleteAgentEvent } from '@/app/actions/events'
+import { CalendarIcon, MapPinIcon, Trash2, Plus } from 'lucide-react'
+import { format } from 'date-fns'
 
 export default function WorkspaceMediaPage() {
     const params = useParams()
@@ -28,14 +31,22 @@ export default function WorkspaceMediaPage() {
     const [generatingContext, setGeneratingContext] = useState(false) // New state for overlay
 
     // Navigation State
-    const [activeTab, setActiveTab] = useState<'photos' | 'videos'>('photos')
+    const [activeTab, setActiveTab] = useState<'photos' | 'videos' | 'timeline'>('photos')
+    const [selectedCategory, setSelectedCategory] = useState<any | null>(null) // If null, we are in "Root" view
     const [selectedCategory, setSelectedCategory] = useState<any | null>(null) // If null, we are in "Root" view
 
     // Creation / Edition State
     const [isCreateOpen, setIsCreateOpen] = useState(false)
     const [newCategory, setNewCategory] = useState({ id: '', description: '', keywords: '', type: 'photos' }) // Added type
     const [creating, setCreating] = useState(false)
+    const [creating, setCreating] = useState(false)
     const [uploading, setUploading] = useState(false)
+
+    // Timeline State
+    const [events, setEvents] = useState<any[]>([])
+    const [isEventDialogOpen, setIsEventDialogOpen] = useState(false)
+    const [newEvent, setNewEvent] = useState({ title: '', location: '', startDate: '', endDate: '', description: '' })
+    const [creatingEvent, setCreatingEvent] = useState(false)
 
     // Context Edition State
     const [contextMedia, setContextMedia] = useState<any | null>(null)
@@ -603,6 +614,61 @@ export default function WorkspaceMediaPage() {
                 </div>
             )}
         </div>
+    )
+}
+
+{/* Event Creation Dialog */ }
+<Dialog open={isEventDialogOpen} onOpenChange={setIsEventDialogOpen}>
+    <DialogContent className="bg-zinc-950 border-zinc-800 text-zinc-100">
+        <DialogTitle>Add Timeline Event</DialogTitle>
+        <div className="space-y-4 py-2">
+            <div className="space-y-2">
+                <Label>Event Title</Label>
+                <Input
+                    placeholder="e.g. Trip to Bali"
+                    className="bg-white/5 border-white/10"
+                    value={newEvent.title}
+                    onChange={e => setNewEvent({ ...newEvent, title: e.target.value })}
+                />
+            </div>
+            <div className="space-y-2">
+                <Label>Location</Label>
+                <Input
+                    placeholder="e.g. Ubud, Indonesia"
+                    className="bg-white/5 border-white/10"
+                    value={newEvent.location}
+                    onChange={e => setNewEvent({ ...newEvent, location: e.target.value })}
+                />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label>Start Date</Label>
+                    <Input
+                        type="date"
+                        className="bg-white/5 border-white/10"
+                        value={newEvent.startDate}
+                        onChange={e => setNewEvent({ ...newEvent, startDate: e.target.value })}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label>End Date (Optional)</Label>
+                    <Input
+                        type="date"
+                        className="bg-white/5 border-white/10"
+                        value={newEvent.endDate}
+                        onChange={e => setNewEvent({ ...newEvent, endDate: e.target.value })}
+                    />
+                </div>
+            </div>
+        </div>
+        <DialogFooter>
+            <Button onClick={handleCreateEvent} disabled={creatingEvent} className="bg-white text-black hover:bg-zinc-200">
+                {creatingEvent ? 'Adding...' : 'Add Event'}
+            </Button>
+        </DialogFooter>
+    </DialogContent>
+</Dialog>
+        </div >
     )
 }
 
