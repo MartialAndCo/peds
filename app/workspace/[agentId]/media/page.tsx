@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Switch } from "@/components/ui/switch"
 import { cn } from '@/lib/utils'
 import { Plus, Image as ImageIcon, Trash2, ArrowLeft, Video, Film, Grid, MoreVertical, Edit2 } from 'lucide-react'
-import { getMediaTypes, createMediaType, deleteMediaType, deleteMedia, saveMedia } from '@/app/actions/media'
+import { getMediaTypes, createMediaType, deleteMediaType, deleteMedia, saveMedia, updateMediaContext } from '@/app/actions/media'
 import { createClient } from '@supabase/supabase-js'
 import { v4 as uuidv4 } from 'uuid'
 import { usePWAMode } from '@/hooks/use-pwa-mode'
@@ -30,6 +30,11 @@ export default function WorkspaceMediaPage() {
     const [newCategory, setNewCategory] = useState({ id: '', description: '', keywords: '', type: 'photos' }) // Added type
     const [creating, setCreating] = useState(false)
     const [uploading, setUploading] = useState(false)
+
+    // Context Edition State
+    const [contextMedia, setContextMedia] = useState<any | null>(null)
+    const [contextText, setContextText] = useState('')
+    const [savingContext, setSavingContext] = useState(false)
 
     // Fetch Data
     const fetchMedia = async () => {
@@ -179,6 +184,28 @@ export default function WorkspaceMediaPage() {
         await deleteMediaType(categoryId)
         setSelectedCategory(null) // Go back to root
         fetchMedia()
+    }
+
+    const handleSaveContext = async () => {
+        if (!contextMedia) return
+        setSavingContext(true)
+        try {
+            await updateMediaContext(contextMedia.id, contextText)
+            setContextMedia(null)
+            setContextText('')
+            fetchMedia()
+            // Update local state
+            if (selectedCategory) {
+                const updatedMedias = selectedCategory.medias.map((m: any) =>
+                    m.id === contextMedia.id ? { ...m, context: contextText } : m
+                )
+                setSelectedCategory({ ...selectedCategory, medias: updatedMedias })
+            }
+        } catch (error) {
+            alert('Failed to save context')
+        } finally {
+            setSavingContext(false)
+        }
     }
 
     // Helper to proxy media URLs to avoid Mixed Content (HTTPS -> HTTP)
@@ -379,16 +406,38 @@ export default function WorkspaceMediaPage() {
                                                 />
                                             )}
 
-                                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                                                <Button
+                                                    size="icon"
+                                                    variant="secondary"
+                                                    className="h-8 w-8 rounded-full shadow-lg bg-black/50 hover:bg-black/80 text-white"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        setContextMedia(media)
+                                                        setContextText(media.context || '')
+                                                    }}
+                                                >
+                                                    <Edit2 className="h-3 w-3" />
+                                                </Button>
                                                 <Button
                                                     size="icon"
                                                     variant="destructive"
                                                     className="h-8 w-8 rounded-full shadow-lg"
-                                                    onClick={() => handleDeleteMedia(media.id)}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        handleDeleteMedia(media.id)
+                                                    }}
                                                 >
                                                     <Trash2 className="h-4 w-4" />
                                                 </Button>
                                             </div>
+                                            {media.context && (
+                                                <div className="absolute bottom-2 left-2 right-2">
+                                                    <div className="bg-black/60 backdrop-blur-sm px-2 py-1 rounded text-[10px] text-white/90 truncate">
+                                                        {media.context}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
                                 </div>
@@ -437,6 +486,45 @@ export default function WorkspaceMediaPage() {
                     <DialogFooter>
                         <Button onClick={handleCreate} disabled={!newCategory.id || creating} className="w-full bg-white text-black hover:bg-white/90">
                             {creating ? 'Creating...' : 'Create Folder'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+            {/* Context Edit Dialog */}
+            <Dialog open={!!contextMedia} onOpenChange={(open) => !open && setContextMedia(null)}>
+                <DialogContent className="glass-strong text-white border-white/10">
+                    <DialogHeader>
+                        <DialogTitle>Edit Image Context</DialogTitle>
+                        <DialogDescription>
+                            Add hidden context for the AI. This helps it answer questions like "Where is this?" or "Who is this?".
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="aspect-video w-full rounded-lg overflow-hidden bg-black/40 relative">
+                            {contextMedia && (
+                                contextMedia.url.includes('video') || contextMedia.url.endsWith('.mp4') ? (
+                                    <video src={getProxiedUrl(contextMedia.url)} className="w-full h-full object-contain" />
+                                ) : (
+                                    <img src={getProxiedUrl(contextMedia.url)} className="w-full h-full object-contain" alt="" />
+                                )
+                            )}
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Context / Story</Label>
+                            <Textarea
+                                placeholder="e.g. This was at the beach in Miami, summer 2023. I was with high school friends."
+                                value={contextText}
+                                onChange={e => setContextText(e.target.value)}
+                                className="bg-white/5 border-white/10 text-white min-h-[100px]"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button onClick={() => setContextMedia(null)} variant="ghost" className="text-white/50 hover:text-white">
+                            Cancel
+                        </Button>
+                        <Button onClick={handleSaveContext} disabled={savingContext} className="bg-white text-black hover:bg-white/90">
+                            {savingContext ? 'Saving...' : 'Save Context'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

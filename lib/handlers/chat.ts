@@ -303,10 +303,36 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         })
     }
 
-    const messagesForAI = uniqueHistory.map((m: any) => ({
-        role: m.sender === 'contact' ? 'user' : 'ai',
-        content: m.message_text
-    }))
+    // 1.5 Fetch Media Contexts
+    const mediaUrls = uniqueHistory
+        .filter((m: any) => m.mediaUrl && m.mediaUrl.length > 0)
+        .map((m: any) => m.mediaUrl)
+
+    let mediaContextMap: Record<string, string> = {}
+    if (mediaUrls.length > 0) {
+        try {
+            const medias = await prisma.media.findMany({
+                where: { url: { in: mediaUrls } },
+                select: { url: true, context: true }
+            })
+            medias.forEach((m: any) => {
+                if (m.context) mediaContextMap[m.url] = m.context
+            })
+        } catch (e) {
+            console.error('Failed to fetch media contexts', e)
+        }
+    }
+
+    const messagesForAI = uniqueHistory.map((m: any) => {
+        let content = m.message_text
+        if (m.mediaUrl && mediaContextMap[m.mediaUrl]) {
+            content += `\n\n[SYSTEM NOTE - IMAGE CONTEXT]: The user can see the image you sent. Secret Context: "${mediaContextMap[m.mediaUrl]}"`
+        }
+        return {
+            role: m.sender === 'contact' ? 'user' : 'ai',
+            content: content
+        }
+    })
     const contextMessages = messagesForAI.slice(0, -1)
     const lastContent = messagesForAI[messagesForAI.length - 1]?.content || lastMessageText
 

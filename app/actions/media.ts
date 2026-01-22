@@ -36,6 +36,21 @@ export async function saveMedia(url: string, categoryId: string) {
     }
 }
 
+export async function updateMediaContext(mediaId: number, context: string) {
+    await checkAuth()
+    try {
+        const media = await prisma.media.update({
+            where: { id: mediaId },
+            data: { context }
+        })
+        revalidatePath('/workspace/[agentId]/media')
+        return { success: true, media }
+    } catch (error: any) {
+        console.error('Update Media Context Error:', error)
+        throw new Error(error.message)
+    }
+}
+
 export async function getMediaTypes() {
     await checkAuth()
     try {

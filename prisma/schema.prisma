@@ -253,6 +253,7 @@ model Media {
   url         String
   sentTo      String[]  @default([]) // Array of phone numbers
   createdAt   DateTime  @default(now())
+  context     String?   @db.Text // Context for AI (invisible to user)
   
   type        MediaType @relation(fields: [typeId], references: [id])
 
