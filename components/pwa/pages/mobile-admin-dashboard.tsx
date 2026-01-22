@@ -31,14 +31,19 @@ export function MobileAdminDashboard({ stats, agentsCount }: MobileAdminDashboar
         }))
         : []
 
-    useEffect(() => {
-        // Fetch unread count
+    const fetchUnread = () => {
         fetch('/api/notifications?limit=1')
             .then(res => res.json())
             .then(data => {
-                if (data.unreadCount) setUnreadCount(data.unreadCount)
+                if (data.unreadCount !== undefined) setUnreadCount(data.unreadCount)
             })
             .catch(console.error)
+    }
+
+    useEffect(() => {
+        fetchUnread()
+        const interval = setInterval(fetchUnread, 10000) // Poll every 10s
+        return () => clearInterval(interval)
     }, [])
 
     return (

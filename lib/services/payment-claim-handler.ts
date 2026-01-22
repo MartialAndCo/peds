@@ -96,12 +96,11 @@ export async function notifyPaymentClaim(
             tag: `claim-${claim.id}`
         })
 
-        // 4. (Optional) Legacy WhatsApp Notification - DISABLED for new flow
-        // If you want to keep it as backup, uncomment below:
+        // 4. (Optional) Legacy WhatsApp Notification - DISABLED
         /*
         const adminPhone = settings.source_phone_number
         if (adminPhone) {
-             await whatsapp.sendText(adminPhone, notificationMsg + "\nCheck app to approve.", undefined, agentId)
+            await whatsapp.sendText(adminPhone, notificationMsg + "\nCheck app to approve.", undefined, agentId)
         }
         */
 
