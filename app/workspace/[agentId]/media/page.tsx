@@ -529,6 +529,7 @@ export default function WorkspaceMediaPage() {
             {/* Context Edit Dialog (Premium Dark) */}
             <Dialog open={!!contextMedia} onOpenChange={(open) => !open && setContextMedia(null)}>
                 <DialogContent className="sm:max-w-md bg-zinc-950 border-zinc-800 text-zinc-100 p-0 overflow-hidden shadow-2xl">
+                    <DialogTitle className="sr-only">Edit Image Context</DialogTitle>
                     <div className="relative h-48 w-full bg-zinc-900">
                         {contextMedia && (
                             <>
