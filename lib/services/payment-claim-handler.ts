@@ -311,7 +311,7 @@ export async function processPaymentClaimDecision(
                 effectiveAgentId
             )
 
-            const rejectInstruction = `\n\n[SYSTEM UPDATE]: The user claims to have sent a payment. You just checked your ACTUAL bank account/wallet and NOTHING has arrived. You must tell the user that you have NOT received it. Be firm but natural.`
+            const rejectInstruction = `\n\n[SYSTEM UPDATE]: The user claims to have sent a payment${claim.claimedMethod ? ` via ${claim.claimedMethod}` : ''}. You just checked your ACTUAL ${claim.claimedMethod ? `${claim.claimedMethod} account` : 'bank account/wallet'} and NOTHING has arrived. You must tell the user that you have NOT received it${claim.claimedMethod ? ` on ${claim.claimedMethod}` : ''}. Be firm but natural.`
 
             try {
                 let notReceivedMsg = await venice.chatCompletion(
