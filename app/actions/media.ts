@@ -245,9 +245,13 @@ export async function generateAutoContext(mediaId: number, agentId: number) {
         2. **WHERE**: You MUST include a specific location name. NOT "the park". Use: "Central Park", "My trip to Tulum", "The Ritz Paris", "Downtown Chicago".
         
         CRITICAL INSTRUCTIONS:
+        - **CHECK TIMELINE**: Review the KNOWN TIMELINE above. If the photo matches a known location (e.g. Paris), you MUST use that date/event.
+        - **NO BILOCATION**: If the timeline says I was in "Bali" in Summer 2024, do NOT say "Summer 2024 in New York".
         - **ANALYZE FIRST**: If the image shows a landmark (Eiffel Tower), USE IT. If it shows a specific event (Wedding), use "My cousin's wedding in June".
-        - **INVENT IF GENERIC**: If it's just a generic room/street, YOU MUST HALLUCINATE a plausible location consistent with my bio (${city}).
+        - **INVENT IF GENERIC**: If it's just a generic room/street and NOT in the timeline, YOU MUST HALLUCINATE a plausible location consistent with my bio (${city}).
         - **Format**: "[Event/Vibe] at [Location], [Date]. [Emotional/Casual Comment]."
+        
+        ${timelineContext}
         
         Example: "My outfit for the Gala at The Met, May 2024. Felt absolutely stunning!"
         Example: "Chillin' at Venice Beach, Summer '23. Best vibes ever."

@@ -92,8 +92,28 @@ model Agent {
   agentPrompts  AgentPrompt[]
   settings      AgentSetting[]
   blacklistRules BlacklistRule[]
+  events        AgentEvent[]
   
   @@map("agents")
+}
+
+model AgentEvent {
+  id          Int      @id @default(autoincrement())
+  agentId     Int
+  title       String   // e.g. "Trip to Bali", "Prom"
+  location    String   // e.g. "Bali", "Paris"
+  startDate   DateTime
+  endDate     DateTime? // If null, single day event
+  description String?  @db.Text
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId])
+  @@index([startDate])
+  @@map("agent_events")
 }
 
 model VoiceModel {
