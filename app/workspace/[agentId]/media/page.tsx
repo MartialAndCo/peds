@@ -23,7 +23,9 @@ export default function WorkspaceMediaPage() {
     const { toast } = useToast()
     const { isPWAStandalone } = usePWAMode()
     const [mediaTypes, setMediaTypes] = useState<any[]>([])
+    const [mediaTypes, setMediaTypes] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
+    const [generatingContext, setGeneratingContext] = useState(false) // New state for overlay
 
     // Navigation State
     const [activeTab, setActiveTab] = useState<'photos' | 'videos'>('photos')
@@ -157,8 +159,10 @@ export default function WorkspaceMediaPage() {
             console.log('[AutoContext] File Type:', file.type)
 
             // 4. Trigger Auto-Context (Async)
+            // 4. Trigger Auto-Context (Async)
             if (result.success && result.media && params.agentId && file.type.startsWith('image/')) {
                 console.log('[AutoContext] Triggering generation...')
+                setGeneratingContext(true) // Show overlay
                 toast({ title: "✨ Generating Context...", description: "Analyzing image with AI..." })
 
                 // Don't await strictly to keep UI responsive, but we want to open the dialog when done.
@@ -169,9 +173,16 @@ export default function WorkspaceMediaPage() {
                         setContextMedia({ ...result.media, context: ctx.context })
                         setContextText(ctx.context)
                         toast({ title: "Context Generated", description: "Review and save." })
+                    } else {
+                        // Explicit error alert
+                        alert(`Auto-Context Failed: ${ctx.error || 'Unknown error'}`)
+                        console.error("AutoContext Failed (Server):", ctx.error)
                     }
                 } catch (e) {
-                    console.error("AutoContext Failed", e)
+                    console.error("AutoContext Failed (Client)", e)
+                    alert(`Auto-Context Failed (Client): ${(e as any).message}`)
+                } finally {
+                    setGeneratingContext(false)
                 }
             }
 
@@ -556,6 +567,17 @@ export default function WorkspaceMediaPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            {/* Loading Overlay */}
+            {generatingContext && (
+                <div className="fixed inset-0 bg-black/50 z-[200] flex flex-col items-center justify-center p-4">
+                    <div className="bg-white rounded-xl p-8 flex flex-col items-center gap-4 text-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+                        <h3 className="font-bold text-lg">Generating Context with AI...</h3>
+                        <p className="text-sm text-gray-500">Analyzing your image against agent identity.</p>
+                        <p className="text-xs text-gray-400">Please wait (can take 10-20s)</p>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
