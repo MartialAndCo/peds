@@ -96,11 +96,13 @@ export const openrouter = {
         imageBuffer: Buffer,
         mimeType: string,
         apiKey?: string,
-        customPrompt?: string
+        customPrompt?: string,
+        throwOnError: boolean = false
     ): Promise<string | null> {
         const key = apiKey || process.env.OPENROUTER_API_KEY;
         if (!key) {
             console.error("[OpenRouter Vision] No API key available");
+            if (throwOnError) throw new Error("No OpenRouter API key available");
             return null;
         }
 
@@ -141,10 +143,14 @@ export const openrouter = {
                 console.log(`[OpenRouter Vision] Description: ${content.substring(0, 100)}...`);
                 return content;
             }
+
+            if (throwOnError) throw new Error("Result content is not a string");
             return null;
 
         } catch (error: any) {
-            console.error("[OpenRouter Vision] Error:", error.response?.data || error.message);
+            const msg = error.response?.data?.error?.message || error.response?.data || error.message;
+            console.error("[OpenRouter Vision] Error:", msg);
+            if (throwOnError) throw new Error(`OpenRouter API Error: ${JSON.stringify(msg)}`);
             return null;
         }
     }

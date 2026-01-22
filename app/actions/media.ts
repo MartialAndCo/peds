@@ -240,7 +240,8 @@ export async function generateAutoContext(mediaId: number, agentId: number) {
             buffer,
             mimeType,
             undefined, // Use env key
-            systemInstruction // Pass custom prompt as the "User Message" for Vision
+            systemInstruction, // Pass custom prompt as the "User Message" for Vision
+            true // Throw on error for debugging
         )
 
         if (!description) {
