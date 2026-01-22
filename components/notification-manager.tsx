@@ -40,7 +40,17 @@ export function NotificationManager() {
 
     const subscribeToPush = async () => {
         try {
+            console.log('Requesting notification permission...')
+            const permission = await Notification.requestPermission()
+            if (permission !== 'granted') {
+                toast({ title: "Permission Denied", description: "You need to allow notifications in browser settings.", variant: "destructive" })
+                return
+            }
+
+            console.log('Waiting for Service Worker...')
             const registration = await navigator.serviceWorker.ready
+            console.log('Service Worker ready:', registration)
+
             const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
 
             if (!vapidKey) {
@@ -48,10 +58,12 @@ export function NotificationManager() {
                 return
             }
 
+            console.log('Subscribing to PushManager...')
             const subscription = await registration.pushManager.subscribe({
                 userVisibleOnly: true,
                 applicationServerKey: urlBase64ToUint8Array(vapidKey)
             })
+            console.log('Subscription object:', subscription)
 
             // Send to server
             await fetch('/api/notifications/subscribe', {
