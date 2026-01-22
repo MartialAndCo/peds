@@ -17,18 +17,20 @@ export async function POST(req: Request) {
 
         // Save or update subscription
         // We use endpoint as unique key
+        const userId = (session.user as any)?.id || session.user?.email || 'admin'
+
         await prisma.pushSubscription.upsert({
             where: { endpoint: subscription.endpoint },
             create: {
                 endpoint: subscription.endpoint,
                 p256dh: subscription.keys.p256dh,
                 auth: subscription.keys.auth,
-                userId: session.user?.id || 'admin'
+                userId: userId
             },
             update: {
                 p256dh: subscription.keys.p256dh,
                 auth: subscription.keys.auth,
-                userId: session.user?.id || 'admin',
+                userId: userId,
                 updatedAt: new Date()
             }
         })
