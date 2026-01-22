@@ -9,8 +9,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Switch } from "@/components/ui/switch"
 import { cn } from '@/lib/utils'
-import { Plus, Image as ImageIcon, Trash2, ArrowLeft, Video, Film, Grid, MoreVertical, Edit2 } from 'lucide-react'
-import { getMediaTypes, createMediaType, deleteMediaType, deleteMedia, saveMedia, updateMediaContext, generateAutoContext } from '@/app/actions/media'
+import { Plus, Image as ImageIcon, Trash2, ArrowLeft, Video, Film, Grid, MoreVertical, Edit2, CloudLightning, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
+import { getMediaTypes, createMediaType, deleteMediaType, deleteMedia, saveMedia, updateMediaContext, generateAutoContext, smartOrganizeMedia } from '@/app/actions/media'
 import { useParams } from 'next/navigation'
 import { useToast } from "@/components/ui/use-toast"
 import { createClient } from '@supabase/supabase-js'
@@ -39,6 +39,10 @@ export default function WorkspaceMediaPage() {
     const [newCategory, setNewCategory] = useState({ id: '', description: '', keywords: '', type: 'photos' }) // Added type
     const [creating, setCreating] = useState(false)
     const [uploading, setUploading] = useState(false)
+
+    // Smart Upload State
+    const [isSmartUploadOpen, setIsSmartUploadOpen] = useState(false)
+    const [smartUploadFiles, setSmartUploadFiles] = useState<{ file: File, status: 'pending' | 'uploading' | 'analyzing' | 'done' | 'error', result?: string }[]>([])
 
     // Timeline State
     const [events, setEvents] = useState<any[]>([])
@@ -222,6 +226,74 @@ export default function WorkspaceMediaPage() {
         }
     }
 
+    // --- SMART UPLOAD LOGIC ---
+    const handleSmartUploadFiles = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        if (!event.target.files?.length) return
+        const files = Array.from(event.target.files)
+
+        // Init Queue
+        setSmartUploadFiles(files.map(f => ({ file: f, status: 'pending' })))
+        setIsSmartUploadOpen(true)
+
+        // Process sequentially
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i]
+
+            // Update Status: Uploading
+            setSmartUploadFiles(prev => prev.map((item, idx) => idx === i ? { ...item, status: 'uploading' } : item))
+
+            try {
+                // 1. Upload to Supabase (temp 'inbox')
+                // Re-init client logic locally
+                let supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+                const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+                // Proxy check
+                if (typeof window !== 'undefined' && window.location.protocol === 'https:' && supabaseUrl?.startsWith('http:')) {
+                    supabaseUrl = window.location.origin + '/supabase-proxy'
+                }
+                if (!supabaseUrl || !supabaseKey) throw new Error("Missing Supabase Config")
+
+                const supabase = createClient(supabaseUrl, supabaseKey)
+                const fileExt = file.name.split('.').pop()
+                const fileName = `inbox/${Date.now()}_${uuidv4()}.${fileExt}` // Use inbox folder or just root inbox prefix
+
+                const { error: uploadError } = await supabase.storage
+                    .from('media')
+                    .upload(fileName, file)
+
+                if (uploadError) throw uploadError
+
+                const { data: { publicUrl } } = supabase.storage
+                    .from('media')
+                    .getPublicUrl(fileName)
+
+                // Update Status: Analyzing
+                setSmartUploadFiles(prev => prev.map((item, idx) => idx === i ? { ...item, status: 'analyzing' } : item))
+
+                // 2. Call Server Action
+                const result = await smartOrganizeMedia(publicUrl, Number(params.agentId))
+
+                if (result.success) {
+                    setSmartUploadFiles(prev => prev.map((item, idx) =>
+                        idx === i ? { ...item, status: 'done', result: `Moved to ${result.folder}` } : item
+                    ))
+                } else {
+                    throw new Error(result.error || "AI Organization failed")
+                }
+
+            } catch (error: any) {
+                console.error("Smart Upload Error:", error)
+                setSmartUploadFiles(prev => prev.map((item, idx) =>
+                    idx === i ? { ...item, status: 'error', result: error.message } : item
+                ))
+            }
+        }
+
+        // Refresh at end
+        fetchMedia()
+    }
+
+
     // Update selected category when mediaTypes changes (e.g. after upload/delete)
     useEffect(() => {
         if (selectedCategory && Array.isArray(mediaTypes)) {
@@ -380,13 +452,30 @@ export default function WorkspaceMediaPage() {
                 </div>
 
                 <div className="flex gap-3">
+                    {/* NEW: Smart Upload & Create Folder Group */}
                     {!selectedCategory && activeTab !== 'timeline' && (
-                        <Button
-                            onClick={() => setIsCreateOpen(true)}
-                            className="bg-white/10 hover:bg-white/20 text-white border border-white/10 rounded-full px-6"
-                        >
-                            <Plus className="mr-2 h-4 w-4" /> New Folder
-                        </Button>
+                        <>
+                            <div className="relative">
+                                <input
+                                    type="file"
+                                    multiple
+                                    className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                                    onChange={handleSmartUploadFiles}
+                                />
+                                <Button
+                                    className="bg-indigo-600 hover:bg-indigo-500 text-white border border-indigo-400/30 rounded-full px-6 shadow-[0_0_15px_rgba(99,102,241,0.3)] transition-all transform hover:scale-105"
+                                >
+                                    <CloudLightning className="mr-2 h-4 w-4 text-yellow-300" /> Smart Import
+                                </Button>
+                            </div>
+
+                            <Button
+                                onClick={() => setIsCreateOpen(true)}
+                                className="bg-white/10 hover:bg-white/20 text-white border border-white/10 rounded-full px-6"
+                            >
+                                <Plus className="mr-2 h-4 w-4" /> New Folder
+                            </Button>
+                        </>
                     )}
                 </div>
             </div>
@@ -587,6 +676,44 @@ export default function WorkspaceMediaPage() {
                     </AnimatePresence>
                 )}
             </div>
+
+            {/* Smart Upload Progress Dialog */}
+            <Dialog open={isSmartUploadOpen} onOpenChange={(open) => { if (!open && smartUploadFiles.every(f => f.status === 'done' || f.status === 'error')) { setIsSmartUploadOpen(false); setSmartUploadFiles([]); } }}>
+                <DialogContent className="glass-strong text-white border-white/10 max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle>Smart Import in Progress</DialogTitle>
+                        <DialogDescription>
+                            AI is analyzing your content and organizing it automatically.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4 space-y-3 max-h-[60vh] overflow-y-auto custom-scrollbar pr-2">
+                        {smartUploadFiles.map((item, idx) => (
+                            <div key={idx} className="flex items-center gap-3 bg-white/5 p-3 rounded-lg border border-white/5">
+                                <div className="h-10 w-10 flex-shrink-0 bg-black/30 rounded flex items-center justify-center overflow-hidden">
+                                    {/* Can't easily preview file object here without URL.createObjectURL, let's just show icon */}
+                                    <ImageIcon className="text-white/30" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">{item.file.name}</p>
+                                    <p className="text-xs text-white/40">{(item.file.size / 1024 / 1024).toFixed(2)} MB</p>
+                                </div>
+                                <div className="flex-shrink-0 w-32 flex justify-end">
+                                    {item.status === 'pending' && <span className="text-xs text-white/30 italic">Pending...</span>}
+                                    {item.status === 'uploading' && <span className="text-xs text-blue-400 animate-pulse">Uploading...</span>}
+                                    {item.status === 'analyzing' && <span className="text-xs text-purple-400 animate-pulse flex items-center gap-1"><CloudLightning className="w-3 h-3" /> Analyzing...</span>}
+                                    {item.status === 'done' && (
+                                        <div className="text-right">
+                                            <span className="text-emerald-400 text-xs flex items-center gap-1 justify-end"><CheckCircle2 className="w-3 h-3" /> Done</span>
+                                            <span className="text-[10px] text-white/50 block">{item.result}</span>
+                                        </div>
+                                    )}
+                                    {item.status === 'error' && <span className="text-red-400 text-xs flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {item.result}</span>}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             {/* Create Dialog */}
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
