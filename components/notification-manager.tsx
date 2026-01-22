@@ -33,6 +33,15 @@ export function NotificationManager() {
     }, [])
 
     const checkSubscription = async () => {
+        // Explicitly register service worker if not ready
+        if ('serviceWorker' in navigator) {
+            try {
+                await navigator.serviceWorker.register('/sw.js')
+            } catch (err) {
+                console.error('SW registration failed', err)
+            }
+        }
+
         const registration = await navigator.serviceWorker.ready
         const subscription = await registration.pushManager.getSubscription()
         setIsSubscribed(!!subscription)
