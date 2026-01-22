@@ -326,27 +326,36 @@ export async function smartOrganizeMedia(publicUrl: string, agentId: number) {
     const buffer = Buffer.from(await response.arrayBuffer());
 
     // 3. AI Analysis with Retry Logic
+    // 3. AI Analysis with Retry Logic
     const prompt = `
     Analyze this image for an influencer's gallery.
     
     KNOWN TIMELINE (Context Only):
     ${timelineSummary}
 
-    EXISTING FOLDERS (PREFER THESE):
+    EXISTING FOLDERS:
     ${categoriesSummary}
 
     TASK:
     1. Identify content (Selfie, Landscape, Food, etc).
     2. Check Timeline for "When/Where" context (for the caption only).
-    3. **CATEGORIZATION RULES**:
-       - **ALWAYS PREFER EXISTING FOLDERS**. Do not create new folders for every Trip/Event.
-       - Group by THEME, not Location.
-       - Example: If "Trip to Milan" and "Trip to Paris", put BOTH in "travel" or "lifestyle_luxury".
-       - Example: If "Basketball Game", put in "sports" or "activity".
-       - ONLY create a new folder if the content fits NOWHERE in the existing list.
-       - New Folder Format: snake_case (e.g. "travel_vlog", "gym_fitness").
+    3. **CATEGORIZATION RULES (CRITICAL)**:
+       - **GOAL**: We want BROAD, GLOBAL CATEGORIES. Do NOT create specific event folders.
+       - **Standard Categories** to use (Create if missing):
+         - "travel" (For ALL trips: Paris, Milan, Cabo, etc.)
+         - "sports" (For ALL sports: Basketball, Gym, Hiking)
+         - "lifestyle" (Daily life, chill, home, outfits)
+         - "selfie" (Selfies, portraits)
+         - "food" (Restaurants, cooking)
+         - "social" (Parties, friends, events)
+       - **Mapping Rule**:
+         - Photo of Eiffel Tower -> Folder: "travel" (NOT "paris_trip")
+         - Photo of Basketball Game -> Folder: "sports" (NOT "varsity_game")
+         - Photo of Coffee -> Folder: "lifestyle" (NOT "morning_coffee")
+       - ONLY create a new folder if it is a NEW BROAD CATEGORY (e.g. "art", "work"). Format: snake_case.
 
     4. Write a Context/Caption (First person, consistent with timeline).
+       - The SPECIFIC details (Paris, Basketball Final) go HERE in the text, NOT in the folder name.
 
     OUTPUT JSON ONLY:
     {
