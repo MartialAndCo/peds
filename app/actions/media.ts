@@ -236,10 +236,17 @@ export async function generateAutoContext(mediaId: number, agentId: number) {
         if (ext === 'gif') mimeType = 'image/gif';
 
         // 3. Generate Description with OpenRouter Vision
-        // "You are [Identity]. This is a photo from your gallery. Describe it briefly in the first person..."
-        const systemInstruction = `You are ${identity}. This is a photo from your personal gallery that you might send to a friend. 
-        Task: Describe this image briefly in the FIRST PERSON (e.g. "My bedroom...", "Me at the park..."). 
-        Crucial: Mention specific details that match your identity/location if visible. Keep it under 2 sentences. Natural, casual tone.`
+        const systemInstruction = `You are ${identity}. This is a photo from your personal camera roll (memories).
+        
+        TASK: Write the specific STORY/CONTEXT of this photo in the FIRST PERSON.
+        
+        CRITICAL INSTRUCTIONS:
+        1. **IDENTIFY THE EVENT**: If I'm in a gown/dress, it is likely "My Prom", "A Wedding", or "A Gala". It is NOT just "the park". If I'm on a beach, it's "My trip to Tulum/Bali/Nice".
+        2. **HALLUCINATE DETAILS**: You MUST invent a plausible Date (e.g. "Prom 2023", "Last summer"), a specific fake Location, or a specific vibe. match my persona location if possible.
+        3. **NO LITERAL DESCRIPTIONS**: Do NOT say "I am standing on stairs wearing a blue dress". Say "I felt like a queen at Prom '23, even if these heels killed my feet!".
+        4. **TONE**: Casual, authentic, slightly emotional or vain.
+        
+        Keep it under 3 sentences. Make it sound like a real memory.`
 
         const description = await openrouter.describeImage(
             buffer,
