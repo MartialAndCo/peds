@@ -14,10 +14,13 @@ interface MobileAdminDashboardProps {
 }
 
 import { NotificationManager } from '@/components/notification-manager'
+import { useToast } from '@/components/ui/use-toast'
 
 export function MobileAdminDashboard({ stats, agentsCount }: MobileAdminDashboardProps) {
     const router = useRouter()
+    const { toast } = useToast()
     const [unreadCount, setUnreadCount] = useState(0)
+    const [lastNotifId, setLastNotifId] = useState<string | null>(null)
 
     // Quick greeting based on time
     const hour = new Date().getHours()
@@ -36,6 +39,20 @@ export function MobileAdminDashboard({ stats, agentsCount }: MobileAdminDashboar
             .then(res => res.json())
             .then(data => {
                 if (data.unreadCount !== undefined) setUnreadCount(data.unreadCount)
+
+                // Toast logic for new notifications
+                if (data.notifications && data.notifications.length > 0) {
+                    const latest = data.notifications[0]
+                    // If we have a previous ID, and this one is different and unread, show toast
+                    if (lastNotifId && latest.id !== lastNotifId && !latest.isRead) {
+                        toast({
+                            title: latest.type === 'PAYMENT_CLAIM' ? "💰 New Payment Claim" : latest.title,
+                            description: latest.message || "New activity detected",
+                            variant: "default",
+                        })
+                    }
+                    setLastNotifId(latest.id)
+                }
             })
             .catch(console.error)
     }

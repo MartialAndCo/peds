@@ -10,13 +10,17 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Switch } from "@/components/ui/switch"
 import { cn } from '@/lib/utils'
 import { Plus, Image as ImageIcon, Trash2, ArrowLeft, Video, Film, Grid, MoreVertical, Edit2 } from 'lucide-react'
-import { getMediaTypes, createMediaType, deleteMediaType, deleteMedia, saveMedia, updateMediaContext } from '@/app/actions/media'
+import { getMediaTypes, createMediaType, deleteMediaType, deleteMedia, saveMedia, updateMediaContext, generateAutoContext } from '@/app/actions/media'
+import { useParams } from 'next/navigation'
+import { useToast } from "@/components/ui/use-toast"
 import { createClient } from '@supabase/supabase-js'
 import { v4 as uuidv4 } from 'uuid'
 import { usePWAMode } from '@/hooks/use-pwa-mode'
 import { MobileMediaGrid } from '@/components/pwa/pages/mobile-media-grid'
 
 export default function WorkspaceMediaPage() {
+    const params = useParams()
+    const { toast } = useToast()
     const { isPWAStandalone } = usePWAMode()
     const [mediaTypes, setMediaTypes] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
@@ -146,7 +150,25 @@ export default function WorkspaceMediaPage() {
                 .getPublicUrl(filePath)
 
             // 3. Save Metadata to DB
-            await saveMedia(publicUrl, categoryId)
+            const result = await saveMedia(publicUrl, categoryId)
+
+            // 4. Trigger Auto-Context (Async)
+            if (result.success && result.media && params.agentId && file.type.startsWith('image/')) {
+                toast({ title: "✨ Generating Context...", description: "Analyzing image with AI..." })
+
+                // Don't await strictly to keep UI responsive, but we want to open the dialog when done.
+                // Actually, let's wait so we can pop the dialog immediately.
+                try {
+                    const ctx = await generateAutoContext(result.media.id, Number(params.agentId))
+                    if (ctx.success && ctx.context) {
+                        setContextMedia({ ...result.media, context: ctx.context })
+                        setContextText(ctx.context)
+                        toast({ title: "Context Generated", description: "Review and save." })
+                    }
+                } catch (e) {
+                    console.error("AutoContext Failed", e)
+                }
+            }
 
             fetchMedia()
 
