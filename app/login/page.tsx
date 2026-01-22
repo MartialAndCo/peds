@@ -36,7 +36,7 @@ export default function LoginPage() {
                 setError('Invalid credentials. Access denied.')
                 setIsLoading(false)
             } else {
-                router.push('/dashboard')
+                router.push('/admin')
             }
         } catch (error) {
             setError('Something went wrong')
