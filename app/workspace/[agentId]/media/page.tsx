@@ -661,13 +661,9 @@ export default function WorkspaceMediaPage() {
                 </div>
             </div>
         </div>
-        <DialogFooter>
-            <Button onClick={handleCreateEvent} disabled={creatingEvent} className="bg-white text-black hover:bg-zinc-200">
-                {creatingEvent ? 'Adding...' : 'Add Event'}
-            </Button>
-        </DialogFooter>
-    </DialogContent>
-</Dialog>
+    </DialogFooter>
+</DialogContent>
+            </Dialog >
         </div >
     )
 }
