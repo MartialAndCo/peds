@@ -6,6 +6,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { openrouter } from '@/lib/openrouter'
 import { supabase } from '@/lib/storage'
+import { settingsService } from '@/lib/settings-cache'
 
 async function checkAuth() {
     const session = await getServerSession(authOptions)
@@ -144,6 +145,10 @@ export async function generateAutoContext(mediaId: number, agentId: number) {
             where: { id: agentId },
             include: { agentPrompts: { include: { prompt: true } }, settings: true }
         })
+
+        // 2. Fetch Global Settings (for API Key)
+        const globalSettings = await settingsService.getSettings()
+        const apiKey = globalSettings.openrouter_api_key as string | undefined
 
         // Fallback identity if no agent found (shouldn't happen in workspace)
         let identity = "a young woman living in the city"
