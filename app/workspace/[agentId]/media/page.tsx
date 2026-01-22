@@ -23,7 +23,7 @@ export default function WorkspaceMediaPage() {
     const { toast } = useToast()
     const { isPWAStandalone } = usePWAMode()
     const [mediaTypes, setMediaTypes] = useState<any[]>([])
-    const [mediaTypes, setMediaTypes] = useState<any[]>([])
+
     const [loading, setLoading] = useState(true)
     const [generatingContext, setGeneratingContext] = useState(false) // New state for overlay
 
@@ -159,7 +159,7 @@ export default function WorkspaceMediaPage() {
             console.log('[AutoContext] File Type:', file.type)
 
             // 4. Trigger Auto-Context (Async)
-            // 4. Trigger Auto-Context (Async)
+
             if (result.success && result.media && params.agentId && file.type.startsWith('image/')) {
                 console.log('[AutoContext] Triggering generation...')
                 setGeneratingContext(true) // Show overlay
