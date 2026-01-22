@@ -18,7 +18,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { usePWAMode } from '@/hooks/use-pwa-mode'
 import { MobileMediaGrid } from '@/components/pwa/pages/mobile-media-grid'
 import { getAgentEvents, createAgentEvent, deleteAgentEvent } from '@/app/actions/events'
-import { CalendarIcon, MapPinIcon, Trash2, Plus } from 'lucide-react'
+import { CalendarIcon, MapPinIcon } from 'lucide-react'
 import { format } from 'date-fns'
 
 export default function WorkspaceMediaPage() {
@@ -33,12 +33,10 @@ export default function WorkspaceMediaPage() {
     // Navigation State
     const [activeTab, setActiveTab] = useState<'photos' | 'videos' | 'timeline'>('photos')
     const [selectedCategory, setSelectedCategory] = useState<any | null>(null) // If null, we are in "Root" view
-    const [selectedCategory, setSelectedCategory] = useState<any | null>(null) // If null, we are in "Root" view
 
     // Creation / Edition State
     const [isCreateOpen, setIsCreateOpen] = useState(false)
     const [newCategory, setNewCategory] = useState({ id: '', description: '', keywords: '', type: 'photos' }) // Added type
-    const [creating, setCreating] = useState(false)
     const [creating, setCreating] = useState(false)
     const [uploading, setUploading] = useState(false)
 
@@ -66,9 +64,21 @@ export default function WorkspaceMediaPage() {
         }
     }
 
+    // Initial Fetch (Media + Events)
     useEffect(() => {
         fetchMedia()
-    }, [])
+        fetchEvents()
+    }, [params.agentId])
+
+    const fetchEvents = async () => {
+        if (!params.agentId) return
+        try {
+            const data = await getAgentEvents(Number(params.agentId))
+            setEvents(data)
+        } catch (e) {
+            console.error("Failed to fetch events", e)
+        }
+    }
 
     // Logic to filter categories based on the Active Tab
     const filteredCategories = useMemo(() => {
@@ -255,6 +265,35 @@ export default function WorkspaceMediaPage() {
         }
     }
 
+    // Timeline Handlers
+    const handleCreateEvent = async () => {
+        if (!newEvent.title || !newEvent.location || !newEvent.startDate) return alert("Title, Location and Start Date are required")
+        setCreatingEvent(true)
+        try {
+            await createAgentEvent(Number(params.agentId), {
+                title: newEvent.title,
+                location: newEvent.location,
+                startDate: new Date(newEvent.startDate),
+                endDate: newEvent.endDate ? new Date(newEvent.endDate) : undefined,
+                description: newEvent.description
+            })
+            setNewEvent({ title: '', location: '', startDate: '', endDate: '', description: '' })
+            setIsEventDialogOpen(false)
+            fetchEvents()
+            toast({ title: "Event Added", description: "Added to timeline." })
+        } catch (e) {
+            alert('Failed to create event')
+        } finally {
+            setCreatingEvent(false)
+        }
+    }
+
+    const handleDeleteEvent = async (id: number) => {
+        if (!confirm('Delete this event?')) return
+        await deleteAgentEvent(id)
+        fetchEvents()
+    }
+
     // Helper to proxy media URLs to avoid Mixed Content (HTTPS -> HTTP)
     const getProxiedUrl = (url: string) => {
         if (typeof window !== 'undefined' && window.location.protocol === 'https:' && url.startsWith('http://16.171.66.98:8000')) {
@@ -329,10 +368,19 @@ export default function WorkspaceMediaPage() {
                     >
                         Videos
                     </button>
+                    <button
+                        onClick={() => { setActiveTab('timeline'); setSelectedCategory(null); }}
+                        className={cn(
+                            "px-8 py-2 rounded-full text-xs font-bold uppercase tracking-widest transition-all",
+                            activeTab === 'timeline' ? "bg-white text-black shadow-lg" : "text-white/50 hover:text-white"
+                        )}
+                    >
+                        Timeline
+                    </button>
                 </div>
 
                 <div className="flex gap-3">
-                    {!selectedCategory && (
+                    {!selectedCategory && activeTab !== 'timeline' && (
                         <Button
                             onClick={() => setIsCreateOpen(true)}
                             className="bg-white/10 hover:bg-white/20 text-white border border-white/10 rounded-full px-6"
@@ -345,153 +393,199 @@ export default function WorkspaceMediaPage() {
 
             {/* Main Content Area */}
             <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar pb-20">
-                <AnimatePresence mode="wait">
+                {activeTab === 'timeline' ? (
+                    <div className="p-4 space-y-4">
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-white font-bold text-lg">Known History</h2>
+                            <Button onClick={() => setIsEventDialogOpen(true)} size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white gap-2">
+                                <Plus className="w-4 h-4" /> Add Event
+                            </Button>
+                        </div>
 
-                    {/* VIEW: ROOT (Folder Grid) */}
-                    {!selectedCategory ? (
-                        <motion.div
-                            key="root"
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 md:gap-10 p-4"
-                        >
-                            {/* Create Button as a Folder (Optional, maybe at start) */}
-                            <div
-                                onClick={() => setIsCreateOpen(true)}
-                                className="flex flex-col gap-3 group px-2 cursor-pointer opacity-50 hover:opacity-100 transition-opacity"
+                        <div className="space-y-3">
+                            {events.length === 0 ? (
+                                <div className="text-center py-10 text-white/30 border border-dashed border-white/10 rounded-xl">
+                                    No events recorded. <br /> Add trips, holidays, or milestones to guide the AI.
+                                </div>
+                            ) : (
+                                events.map((event) => (
+                                    <div key={event.id} className="bg-white/5 border border-white/10 rounded-xl p-4 flex gap-4">
+                                        <div className="flex-col items-center justify-center pt-1 hidden sm:flex">
+                                            <div className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400">
+                                                <CalendarIcon className="w-5 h-5" />
+                                            </div>
+                                            <div className="w-0.5 h-full bg-white/5 mt-2 flex-grow"></div>
+                                        </div>
+                                        <div className="flex-1 space-y-1">
+                                            <div className="flex justify-between items-start">
+                                                <h3 className="text-white font-semibold text-base">{event.title}</h3>
+                                                <Button variant="ghost" size="icon" className="h-6 w-6 text-white/30 hover:text-red-400" onClick={() => handleDeleteEvent(event.id)}>
+                                                    <Trash2 className="w-3 h-3" />
+                                                </Button>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-xs text-white/60">
+                                                <MapPinIcon className="w-3 h-3" />
+                                                {event.location}
+                                                <span className="w-1 h-1 bg-white/20 rounded-full mx-1"></span>
+                                                {format(new Date(event.startDate), 'MMM yyyy')}
+                                                {event.endDate && ` - ${format(new Date(event.endDate), 'MMM yyyy')}`}
+                                            </div>
+                                            {event.description && <p className="text-xs text-white/40 pt-1">{event.description}</p>}
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                ) : (
+                    <AnimatePresence mode="wait">
+
+                        {/* VIEW: ROOT (Folder Grid) */}
+                        {!selectedCategory ? (
+                            <motion.div
+                                key="root"
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95 }}
+                                className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 md:gap-10 p-4"
                             >
-                                <div className="aspect-square bg-transparent border-2 border-dashed border-white/20 rounded-[2rem] flex items-center justify-center group-hover:border-white/40">
-                                    <Plus className="w-10 h-10 text-white/30" />
-                                </div>
-                                <div className="text-center">
-                                    <h3 className="text-sm font-medium text-white/50">New Folder</h3>
-                                </div>
-                            </div>
-
-                            {filteredCategories.map(cat => (
-                                <FolderIcon
-                                    key={cat.id}
-                                    category={cat}
-                                    onClick={() => setSelectedCategory(cat)}
-                                />
-                            ))}
-                        </motion.div>
-                    ) : (
-
-                        /* VIEW: FOLDER DETAIL */
-                        <motion.div
-                            key="folder"
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, y: 20 }}
-                            className="space-y-6 h-full flex flex-col"
-                        >
-                            {/* Folder Header */}
-                            <div className="flex items-center justify-between px-4 shrink-0">
-                                <Button
-                                    variant="ghost"
-                                    onClick={() => setSelectedCategory(null)}
-                                    className="text-white/60 hover:text-white hover:bg-white/5 -ml-4 gap-2 pl-3 rounded-full"
+                                {/* Create Button as a Folder (Optional, maybe at start) */}
+                                <div
+                                    onClick={() => setIsCreateOpen(true)}
+                                    className="flex flex-col gap-3 group px-2 cursor-pointer opacity-50 hover:opacity-100 transition-opacity"
                                 >
-                                    <ArrowLeft className="w-5 h-5" />
-                                    <span className="text-lg font-medium">Library</span>
-                                </Button>
+                                    <div className="aspect-square bg-transparent border-2 border-dashed border-white/20 rounded-[2rem] flex items-center justify-center group-hover:border-white/40">
+                                        <Plus className="w-10 h-10 text-white/30" />
+                                    </div>
+                                    <div className="text-center">
+                                        <h3 className="text-sm font-medium text-white/50">New Folder</h3>
+                                    </div>
+                                </div>
 
-                                <div className="flex items-center gap-4">
-                                    <h2 className="text-2xl font-bold text-white">{selectedCategory.id} <span className="text-xs opacity-50">v2 (Supabase)</span></h2>
+                                {filteredCategories.map(cat => (
+                                    <FolderIcon
+                                        key={cat.id}
+                                        category={cat}
+                                        onClick={() => setSelectedCategory(cat)}
+                                    />
+                                ))}
+                            </motion.div>
+                        ) : (
+
+                            /* VIEW: FOLDER DETAIL */
+                            <motion.div
+                                key="folder"
+                                initial={{ opacity: 0, scale: 0.95 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, y: 20 }}
+                                className="space-y-6 h-full flex flex-col"
+                            >
+                                {/* Folder Header */}
+                                <div className="flex items-center justify-between px-4 shrink-0">
                                     <Button
                                         variant="ghost"
-                                        size="icon"
-                                        onClick={() => handleDeleteCategory(selectedCategory.id)}
-                                        className="text-red-500/50 hover:text-red-500 hover:bg-red-500/10"
+                                        onClick={() => setSelectedCategory(null)}
+                                        className="text-white/60 hover:text-white hover:bg-white/5 -ml-4 gap-2 pl-3 rounded-full"
                                     >
-                                        <Trash2 className="w-4 h-4" />
+                                        <ArrowLeft className="w-5 h-5" />
+                                        <span className="text-lg font-medium">Library</span>
                                     </Button>
-                                </div>
-                            </div>
 
-                            {/* Folder Content Grid */}
-                            <div className="flex-1 overflow-y-auto p-4 bg-black/20 rounded-3xl border border-white/5 shadow-inner">
-                                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-
-                                    {/* Upload Button */}
-                                    <div className="aspect-square relative flex items-center justify-center bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 cursor-pointer overflow-hidden group">
-                                        <input
-                                            type="file"
-                                            className="absolute inset-0 opacity-0 cursor-pointer z-10"
-                                            onChange={(e) => {
-                                                if (e.target.files?.[0]) handleUpload(e.target.files[0], selectedCategory.id)
-                                            }}
-                                        />
-                                        {uploading ? (
-                                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white" />
-                                        ) : (
-                                            <div className="flex flex-col items-center gap-2">
-                                                <div className="p-3 rounded-full bg-white/10 group-hover:bg-blue-500 transition-colors">
-                                                    <Plus className="w-6 h-6 text-white" />
-                                                </div>
-                                                <span className="text-xs font-bold uppercase tracking-widest text-white/40">Add Media</span>
-                                            </div>
-                                        )}
+                                    <div className="flex items-center gap-4">
+                                        <h2 className="text-2xl font-bold text-white">{selectedCategory.id} <span className="text-xs opacity-50">v2 (Supabase)</span></h2>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => handleDeleteCategory(selectedCategory.id)}
+                                            className="text-red-500/50 hover:text-red-500 hover:bg-red-500/10"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </Button>
                                     </div>
+                                </div>
 
-                                    {/* Media Items */}
-                                    {selectedCategory.medias.map((media: any) => (
-                                        <div key={media.id} className="aspect-square relative group rounded-xl overflow-hidden bg-black/40 border border-white/5">
-                                            {media.url.includes('video') || media.url.endsWith('.mp4') ? (
-                                                <video
-                                                    src={getProxiedUrl(media.url)}
-                                                    className="w-full h-full object-cover"
-                                                    controls
-                                                />
+                                {/* Folder Content Grid */}
+                                <div className="flex-1 overflow-y-auto p-4 bg-black/20 rounded-3xl border border-white/5 shadow-inner">
+                                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+
+                                        {/* Upload Button */}
+                                        <div className="aspect-square relative flex items-center justify-center bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 cursor-pointer overflow-hidden group">
+                                            <input
+                                                type="file"
+                                                className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                                                onChange={(e) => {
+                                                    if (e.target.files?.[0]) handleUpload(e.target.files[0], selectedCategory.id)
+                                                }}
+                                            />
+                                            {uploading ? (
+                                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white" />
                                             ) : (
-                                                <img
-                                                    src={getProxiedUrl(media.url)}
-                                                    alt="media"
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            )}
-
-                                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-                                                <Button
-                                                    size="icon"
-                                                    variant="secondary"
-                                                    className="h-8 w-8 rounded-full shadow-lg bg-black/50 hover:bg-black/80 text-white"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation()
-                                                        setContextMedia(media)
-                                                        setContextText(media.context || '')
-                                                    }}
-                                                >
-                                                    <Edit2 className="h-3 w-3" />
-                                                </Button>
-                                                <Button
-                                                    size="icon"
-                                                    variant="destructive"
-                                                    className="h-8 w-8 rounded-full shadow-lg"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation()
-                                                        handleDeleteMedia(media.id)
-                                                    }}
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                            {media.context && (
-                                                <div className="absolute bottom-2 left-2 right-2">
-                                                    <div className="bg-black/60 backdrop-blur-sm px-2 py-1 rounded text-[10px] text-white/90 truncate">
-                                                        {media.context}
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <div className="p-3 rounded-full bg-white/10 group-hover:bg-blue-500 transition-colors">
+                                                        <Plus className="w-6 h-6 text-white" />
                                                     </div>
+                                                    <span className="text-xs font-bold uppercase tracking-widest text-white/40">Add Media</span>
                                                 </div>
                                             )}
                                         </div>
-                                    ))}
+
+                                        {/* Media Items */}
+                                        {selectedCategory.medias.map((media: any) => (
+                                            <div key={media.id} className="aspect-square relative group rounded-xl overflow-hidden bg-black/40 border border-white/5">
+                                                {media.url.includes('video') || media.url.endsWith('.mp4') ? (
+                                                    <video
+                                                        src={getProxiedUrl(media.url)}
+                                                        className="w-full h-full object-cover"
+                                                        controls
+                                                    />
+                                                ) : (
+                                                    <img
+                                                        src={getProxiedUrl(media.url)}
+                                                        alt="media"
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                )}
+
+                                                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                                                    <Button
+                                                        size="icon"
+                                                        variant="secondary"
+                                                        className="h-8 w-8 rounded-full shadow-lg bg-black/50 hover:bg-black/80 text-white"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            setContextMedia(media)
+                                                            setContextText(media.context || '')
+                                                        }}
+                                                    >
+                                                        <Edit2 className="h-3 w-3" />
+                                                    </Button>
+                                                    <Button
+                                                        size="icon"
+                                                        variant="destructive"
+                                                        className="h-8 w-8 rounded-full shadow-lg"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            handleDeleteMedia(media.id)
+                                                        }}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                                {media.context && (
+                                                    <div className="absolute bottom-2 left-2 right-2">
+                                                        <div className="bg-black/60 backdrop-blur-sm px-2 py-1 rounded text-[10px] text-white/90 truncate">
+                                                            {media.context}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                )}
             </div>
 
             {/* Create Dialog */}
@@ -594,6 +688,59 @@ export default function WorkspaceMediaPage() {
                     </div>
                 </DialogContent>
             </Dialog>
+
+            {/* Event Creation Dialog */}
+            <Dialog open={isEventDialogOpen} onOpenChange={setIsEventDialogOpen}>
+                <DialogContent className="bg-zinc-950 border-zinc-800 text-zinc-100">
+                    <DialogTitle>Add Timeline Event</DialogTitle>
+                    <div className="space-y-4 py-2">
+                        <div className="space-y-2">
+                            <Label>Event Title</Label>
+                            <Input
+                                placeholder="e.g. Trip to Bali"
+                                className="bg-white/5 border-white/10"
+                                value={newEvent.title}
+                                onChange={e => setNewEvent({ ...newEvent, title: e.target.value })}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Location</Label>
+                            <Input
+                                placeholder="e.g. Ubud, Indonesia"
+                                className="bg-white/5 border-white/10"
+                                value={newEvent.location}
+                                onChange={e => setNewEvent({ ...newEvent, location: e.target.value })}
+                            />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label>Start Date</Label>
+                                <Input
+                                    type="date"
+                                    className="bg-white/5 border-white/10"
+                                    value={newEvent.startDate}
+                                    onChange={e => setNewEvent({ ...newEvent, startDate: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>End Date (Optional)</Label>
+                                <Input
+                                    type="date"
+                                    className="bg-white/5 border-white/10"
+                                    value={newEvent.endDate}
+                                    onChange={e => setNewEvent({ ...newEvent, endDate: e.target.value })}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button onClick={handleCreateEvent} disabled={creatingEvent} className="bg-white text-black hover:bg-zinc-200">
+                            {creatingEvent ? 'Adding...' : 'Add Event'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             {/* Loading Overlay (Click outside to dismiss if stuck) */}
             {generatingContext && (
                 <div
@@ -616,60 +763,3 @@ export default function WorkspaceMediaPage() {
         </div>
     )
 }
-
-{/* Event Creation Dialog */ }
-<Dialog open={isEventDialogOpen} onOpenChange={setIsEventDialogOpen}>
-    <DialogContent className="bg-zinc-950 border-zinc-800 text-zinc-100">
-        <DialogTitle>Add Timeline Event</DialogTitle>
-        <div className="space-y-4 py-2">
-            <div className="space-y-2">
-                <Label>Event Title</Label>
-                <Input
-                    placeholder="e.g. Trip to Bali"
-                    className="bg-white/5 border-white/10"
-                    value={newEvent.title}
-                    onChange={e => setNewEvent({ ...newEvent, title: e.target.value })}
-                />
-            </div>
-            <div className="space-y-2">
-                <Label>Location</Label>
-                <Input
-                    placeholder="e.g. Ubud, Indonesia"
-                    className="bg-white/5 border-white/10"
-                    value={newEvent.location}
-                    onChange={e => setNewEvent({ ...newEvent, location: e.target.value })}
-                />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label>Start Date</Label>
-                    <Input
-                        type="date"
-                        className="bg-white/5 border-white/10"
-                        value={newEvent.startDate}
-                        onChange={e => setNewEvent({ ...newEvent, startDate: e.target.value })}
-                    />
-                </div>
-                <div className="space-y-2">
-                    <Label>End Date (Optional)</Label>
-                    <Input
-                        type="date"
-                        className="bg-white/5 border-white/10"
-                        value={newEvent.endDate}
-                        onChange={e => setNewEvent({ ...newEvent, endDate: e.target.value })}
-                    />
-                </div>
-            </div>
-        </div>
-        <DialogFooter>
-            <Button onClick={handleCreateEvent} disabled={creatingEvent} className="bg-white text-black hover:bg-zinc-200">
-                {creatingEvent ? 'Adding...' : 'Add Event'}
-            </Button>
-        </DialogFooter>
-    </DialogContent>
-</Dialog>
-        </div >
-    )
-}
-// Force Rebuild: Syntax Fix Confirmed
-
