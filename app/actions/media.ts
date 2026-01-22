@@ -97,7 +97,8 @@ export async function deleteMediaType(categoryId: string) {
     }
 }
 
-import { supabase } from '@/lib/storage'
+
+
 
 export async function deleteMedia(mediaId: number) {
     await checkAuth()
