@@ -153,7 +153,11 @@ export default function NotificationsPage() {
 
                                         {isPayment ? (
                                             <div className="text-white/80 text-sm leading-relaxed">
-                                                <span className="font-semibold text-white">{sender}</span> claims to have sent <span className="font-bold text-emerald-400">{amount}</span> via <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-white/10 text-white/60">{cleanMethod}</Badge>
+                                                <span className="font-semibold text-white">{sender}</span> claims to have sent <span className="font-bold text-emerald-400">{amount === '?' ? 'money' : amount}</span>
+                                                {cleanMethod && cleanMethod !== 'unknown method' && cleanMethod !== 'AI' && (
+                                                    <> via <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-white/10 text-white/60">{cleanMethod}</Badge></>
+                                                )}
+                                                .
                                             </div>
                                         ) : (
                                             <p className="text-white/60 text-sm">{n.message}</p>

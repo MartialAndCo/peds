@@ -23,7 +23,8 @@ export async function detectPaymentClaim(
         'paid', 'sent', 'transferred', 'envoyé', 'payé', 'viré', 'envoi',
         'payment', 'paiement', 'money', 'argent', 'cash', 'dollars', 'euros',
         'paypal', 'venmo', 'cashapp', 'zelle', 'crypto', 'bitcoin', 'btc',
-        'done', 'fait', 'c\'est bon', 'voilà', 'here you go', 'just sent'
+        'done', 'fait', 'c\'est bon', 'voilà', 'here you go', 'just sent',
+        'account', 'funds', 'check', 'care'
     ]
 
     const lowerMsg = message.toLowerCase()
@@ -49,13 +50,24 @@ export async function detectPaymentClaim(
     - "It's done" -> Claimed: true
     - "Sent you 50 bucks" -> Claimed: true, Amount: 50
     - "Check your paypal" -> Claimed: true
+    - "I put it in your account" -> Claimed: true
+    - "Just took care of it" -> Claimed: true
+    - "Funds sent" -> Claimed: true
+    - "You should see it now" -> Claimed: true
+
+    REJECT FALSE POSITIVES (Critical):
+    - Future tense: "I will pay you", "I'm going to send it" -> Claimed: false
+    - Questions: "Did you get it?", "How do I pay?" -> Claimed: false
+    - Unrelated "Check": "Check this out", "Can you check my message?" -> Claimed: false
+    - Unrelated "Care": "Take care", "I don't care" -> Claimed: false
+    - Conditionals: "I would send it if..." -> Claimed: false
     
 Output ONLY valid JSON:
 {
-    "claimed": boolean,  // true if user says they paid/sent money
+    "claimed": boolean,  // true if user claims the action is COMPLETED
     "amount": number | null,  // extracted amount if mentioned (just the number)
-    "method": string | null,  // payment method if mentioned (PayPal, Venmo, CashApp, Zelle, Crypto, Bank Transfer, etc.)
-    "confidence": number  // 0.0 to 1.0, how confident you are
+    "method": string | null,  // payment method if mentioned
+    "confidence": number  // 0.0 to 1.0
 }
 
 Examples:
@@ -63,8 +75,11 @@ Examples:
 - "sent 100" -> {"claimed": true, "amount": 100, "method": null, "confidence": 0.9}
 - "payment done!" -> {"claimed": true, "amount": null, "method": null, "confidence": 0.8}
 - "here is 97 000 $" -> {"claimed": true, "amount": 97000, "method": null, "confidence": 0.95}
-- "how do I pay you?" -> {"claimed": false, "amount": null, "method": null, "confidence": 0.95}
-- "I'll pay you tomorrow" -> {"claimed": false, "amount": null, "method": null, "confidence": 0.9}`
+- "it's in your venice bank" -> {"claimed": true, "amount": null, "method": "Bank Transfer", "confidence": 0.85}
+- "check your account, sent 20" -> {"claimed": true, "amount": 20, "method": "Bank Transfer", "confidence": 0.9}
+- "how do I pay you?" -> {"claimed": false, "confidence": 1.0}
+- "I'll pay you tomorrow" -> {"claimed": false, "confidence": 1.0}
+- "Take care!" -> {"claimed": false, "confidence": 1.0}`
 
     try {
         const response = await venice.chatCompletion(
