@@ -12,10 +12,15 @@ export interface PaymentClaimResult {
 /**
  * Detect if a user message contains a payment claim.
  * Uses AI to analyze the message and extract amount/method if present.
+ * 
+ * @param message - The user's message to analyze
+ * @param settings - Optional settings (API keys, etc.)
+ * @param conversationHistory - Optional conversation history for context (last N messages)
  */
 export async function detectPaymentClaim(
     message: string,
-    settings?: any
+    settings?: any,
+    conversationHistory?: Array<{ role: 'user' | 'ai', content: string }>
 ): Promise<PaymentClaimResult> {
 
     // Quick keyword pre-filter to avoid AI calls on unrelated messages
@@ -82,10 +87,33 @@ Examples:
 - "Take care!" -> {"claimed": false, "confidence": 1.0}`
 
     try {
+        // Build context message with history if available
+        let userMessage = `Analyze this message: "${message}"`
+
+        // If conversation history is provided and message is implicit (no method/amount mentioned),
+        // instruct AI to look back at conversation for payment method
+        if (conversationHistory && conversationHistory.length > 0) {
+            const hasMethod = /paypal|venmo|cashapp|zelle|crypto|bitcoin|bank|transfer|virement/i.test(message)
+            const hasAmount = /\d+/.test(message)
+
+            if (!hasMethod || !hasAmount) {
+                userMessage += `\n\nCONTEXT: The user's message may be implicit (e.g., "c'est fait", "envoyé", "done"). Look at the conversation history below to find:
+1. What payment method was discussed or requested (PayPal, bank transfer, etc.)
+2. What amount was mentioned or agreed upon
+
+If the current message is a payment claim but lacks details, extract them from the conversation history.
+
+CONVERSATION HISTORY (most recent last):
+${conversationHistory.map(m => `${m.role === 'user' ? 'User' : 'AI'}: ${m.content}`).join('\n')}
+
+Now analyze the user's latest message: "${message}"`
+            }
+        }
+
         const response = await venice.chatCompletion(
             systemPrompt,
             [],
-            `Analyze this message: "${message}"`,
+            userMessage,
             {
                 apiKey: s.venice_api_key,
                 model: s.venice_model || 'venice-uncensored',

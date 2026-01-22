@@ -181,6 +181,22 @@ export async function handleChat(
         throw e
     }
 
+    // PAYMENT DETECTION: Check if user is claiming to have made a payment
+    // This runs BEFORE AI generation to ensure notifications are sent immediately
+    try {
+        const { processPaymentClaim } = require('@/lib/services/payment-claim-handler')
+        const paymentResult = await processPaymentClaim(messageText, contact, conversation, settings, agentId)
+        if (paymentResult.processed) {
+            logger.info('Payment claim detected and processed', {
+                module: 'chat',
+                contactId: contact.id,
+                claimId: paymentResult.claimId
+            })
+        }
+    } catch (e: any) {
+        logger.error('Payment detection failed (non-blocking)', e, { module: 'chat' })
+    }
+
     // BURST MODE: If we are processing a batch of messages, we might want to skip AI for all but the last one.
     // The message is already saved above, so context is preserved.
     if (options?.skipAI) {
@@ -395,28 +411,10 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     logger.info('Generating AI response', { module: 'chat', conversationId: conversation.id, phase })
     const lastUserDate = new Date() // Approx
 
-    // Check for Payment Intent or High Priority Keywords
-    // Check for Payment Intent or High Priority Keywords
+    // Check for High Priority Keywords (for timing adjustment only)
+    // Payment detection is now handled earlier (after message save)
     const moneyKeywords = ['money', 'pay', 'paypal', 'cashapp', 'venmo', 'zelle', 'transfer', 'cash', 'dollars', 'usd', '$', 'price', 'cost', 'bank', 'card', 'crypto', 'bitcoin']
     const isHighPriority = moneyKeywords.some(kw => lastContent.toLowerCase().includes(kw))
-
-    if (isHighPriority) {
-        console.log('[Timing] High Priority Keyword detected. Running Smart Intent Verification...')
-
-        // Use verifying AI to prevent spam
-        const isVerified = await director.screenPaymentIntent(uniqueHistory, settings)
-
-        if (isVerified) {
-            console.log('[Timing] Smart Intent VERIFIED. Notifying Admin.')
-            // ALSO: Notify Admin immediately of potential payment/intention
-            const { notifyPaymentClaim } = require('@/lib/services/payment-claim-handler')
-            // We pass 'KEYWORD_DETECTED' as source (or SMART_DETECTED for clarity)
-            notifyPaymentClaim(contact, conversation, settings, null, 'SMART_DETECTED', agentId)
-                .catch((e: any) => console.error('[Chat] Failed to notify verification payment claim:', e))
-        } else {
-            console.log('[Timing] Smart Intent REJECTED (False Positive). No notification.')
-        }
-    }
 
     let timing = TimingManager.analyzeContext(lastUserDate, phase, isHighPriority)
 

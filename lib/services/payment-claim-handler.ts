@@ -27,8 +27,31 @@ export async function processPaymentClaim(
     agentId?: number
 ): Promise<{ processed: boolean; claimId?: string }> {
 
-    // Detect payment claim
-    const detection = await detectPaymentClaim(message, settings)
+    // Fetch conversation history for context (last 10 messages)
+    let conversationHistory: Array<{ role: 'user' | 'ai', content: string }> = []
+
+    if (conversation?.id) {
+        try {
+            const { prisma } = require('@/lib/prisma')
+            const messages = await prisma.message.findMany({
+                where: { conversationId: conversation.id },
+                orderBy: { timestamp: 'desc' },
+                take: 10,
+                select: { sender: true, message_text: true }
+            })
+
+            // Reverse to get chronological order and map to expected format
+            conversationHistory = messages.reverse().map((m: any) => ({
+                role: m.sender === 'contact' ? 'user' : 'ai',
+                content: m.message_text
+            }))
+        } catch (e) {
+            logger.error('Failed to fetch conversation history for payment detection', e as Error, { module: 'payment-claim' })
+        }
+    }
+
+    // Detect payment claim with conversation context
+    const detection = await detectPaymentClaim(message, settings, conversationHistory)
 
     if (!detection.claimed || detection.confidence < 0.7) {
         return { processed: false }
