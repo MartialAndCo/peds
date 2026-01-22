@@ -240,18 +240,19 @@ export async function generateAutoContext(mediaId: number, agentId: number) {
 
         TASK: Write the specific STORY/CONTEXT of this photo in the FIRST PERSON.
 
+        MANDATORY REQUIREMENTS:
+        1. **WHEN**: You MUST include a specific time reference. NOT "recently". Use: "Summer 2024", "My birthday last year", "Dec '23", "Prom 2022".
+        2. **WHERE**: You MUST include a specific location name. NOT "the park". Use: "Central Park", "My trip to Tulum", "The Ritz Paris", "Downtown Chicago".
+        
         CRITICAL INSTRUCTIONS:
-        1. **ANALYZE FIRST**: Try to identify the ACTUAL location/event (e.g. Eiffel Tower, Times Square, Prom 2020) if visible.
-           - If it's a specific landmark or obvious event (wedding, graduation), USE IT.
-           - If it's generic (a random park, a room), THEN invent a plausible consistent detail (e.g. "My trip to [City in Bio]", "My apartment").
+        - **ANALYZE FIRST**: If the image shows a landmark (Eiffel Tower), USE IT. If it shows a specific event (Wedding), use "My cousin's wedding in June".
+        - **INVENT IF GENERIC**: If it's just a generic room/street, YOU MUST HALLUCINATE a plausible location consistent with my bio (${city}).
+        - **Format**: "[Event/Vibe] at [Location], [Date]. [Emotional/Casual Comment]."
         
-        2. **CONSISTENCY**: The location/vibe must match my persona (${city} or typical vacation spots).
+        Example: "My outfit for the Gala at The Met, May 2024. Felt absolutely stunning!"
+        Example: "Chillin' at Venice Beach, Summer '23. Best vibes ever."
         
-        3. **STORYTELLING**: Do not describe the pixels ("I am standing..."). Describe the MEMORY ("I felt so free running through Central Park...").
-        
-        4. **TONE**: Casual, authentic, first-person.
-        
-        Keep it under 3 sentences.`
+        Keep it under 3 sentences. Casual, authentic tone.`
 
         const description = await openrouter.describeImage(
             buffer,
