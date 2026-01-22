@@ -152,8 +152,13 @@ export default function WorkspaceMediaPage() {
             // 3. Save Metadata to DB
             const result = await saveMedia(publicUrl, categoryId)
 
+            console.log('[AutoContext] Save Result:', result)
+            console.log('[AutoContext] Params AgentID:', params.agentId)
+            console.log('[AutoContext] File Type:', file.type)
+
             // 4. Trigger Auto-Context (Async)
             if (result.success && result.media && params.agentId && file.type.startsWith('image/')) {
+                console.log('[AutoContext] Triggering generation...')
                 toast({ title: "✨ Generating Context...", description: "Analyzing image with AI..." })
 
                 // Don't await strictly to keep UI responsive, but we want to open the dialog when done.
