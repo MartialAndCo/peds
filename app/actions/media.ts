@@ -176,6 +176,19 @@ export async function generateAutoContext(mediaId: number, agentId: number) {
 
         console.log(`[AutoContext] Generating for Agent ${agentId} (${city})...`)
 
+        // 3. Fetch Timeline Events (for consistency)
+        const events = await prisma.agentEvent.findMany({
+            where: { agentId },
+            orderBy: { startDate: 'desc' }
+        })
+
+        let timelineContext = "No specific known events. You are free to invent consistent locations.";
+        if (events.length > 0) {
+            timelineContext = "KNOWN TIMELINE (DO NOT CONTRADICT):\n" + events.map(e =>
+                `- ${e.title} at ${e.location} (${e.startDate.toLocaleDateString()} - ${e.endDate?.toLocaleDateString() || 'Day Trip'})`
+            ).join('\n')
+        }
+
         // 2. Download Image Buffer via Supabase SDK (Bypass Proxy/URL issues)
         let buffer: Buffer;
 
