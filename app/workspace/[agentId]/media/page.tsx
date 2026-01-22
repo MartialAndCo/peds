@@ -667,7 +667,7 @@ export default function WorkspaceMediaPage() {
             </Button>
         </DialogFooter>
     </DialogContent>
-</Dialog >
+</Dialog>
         </div >
     )
 }
