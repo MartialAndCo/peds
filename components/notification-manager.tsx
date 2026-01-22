@@ -24,31 +24,47 @@ function urlBase64ToUint8Array(base64String: string) {
 export function NotificationManager() {
     const [isSubscribed, setIsSubscribed] = useState(false)
     const [isSupported, setIsSupported] = useState(false)
+    const [isLoading, setIsLoading] = useState(true)
 
     useEffect(() => {
         if ('serviceWorker' in navigator && 'PushManager' in window) {
             setIsSupported(true)
             checkSubscription()
+        } else {
+            setIsLoading(false)
         }
     }, [])
 
     const checkSubscription = async () => {
-        // Explicitly register service worker if not ready
-        if ('serviceWorker' in navigator) {
-            try {
-                await navigator.serviceWorker.register('/sw.js')
-            } catch (err) {
-                console.error('SW registration failed', err)
+        try {
+            // Explicitly register service worker if not ready
+            if ('serviceWorker' in navigator) {
+                try {
+                    await navigator.serviceWorker.register('/sw.js')
+                } catch (err) {
+                    console.error('SW registration failed', err)
+                }
             }
-        }
 
-        const registration = await navigator.serviceWorker.ready
-        const subscription = await registration.pushManager.getSubscription()
-        setIsSubscribed(!!subscription)
+            const registration = await navigator.serviceWorker.ready
+            const subscription = await registration.pushManager.getSubscription()
+
+            if (subscription) {
+                setIsSubscribed(true)
+            } else if (Notification.permission === 'granted') {
+                console.log('Permission granted but no subscription found. Attempting to subscribe...')
+                await subscribeToPush()
+            }
+        } catch (error) {
+            console.error('Error checking subscription:', error)
+        } finally {
+            setIsLoading(false)
+        }
     }
 
     const subscribeToPush = async () => {
         try {
+            setIsLoading(true)
             console.log('Requesting notification permission...')
             const permission = await Notification.requestPermission()
             if (permission !== 'granted') {
@@ -58,13 +74,11 @@ export function NotificationManager() {
 
             console.log('Waiting for Service Worker...')
             const registration = await navigator.serviceWorker.ready
-            console.log('Service Worker ready:', registration)
 
             const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
 
             if (!vapidKey) {
-                console.error('Missing VAPID key')
-                return
+                throw new Error('Missing VAPID key')
             }
 
             console.log('Subscribing to PushManager...')
@@ -72,7 +86,6 @@ export function NotificationManager() {
                 userVisibleOnly: true,
                 applicationServerKey: urlBase64ToUint8Array(vapidKey)
             })
-            console.log('Subscription object:', subscription)
 
             // Send to server
             await fetch('/api/notifications/subscribe', {
@@ -84,13 +97,15 @@ export function NotificationManager() {
             setIsSubscribed(true)
             toast({ title: "Notifications Enabled", description: "You will receive alerts on this device." })
 
-        } catch (error) {
+        } catch (error: any) {
             console.error('Subscription failed', error)
-            toast({ title: "Error", description: "Failed to enable notifications.", variant: "destructive" })
+            toast({ title: "Error", description: error.message || "Failed to enable notifications.", variant: "destructive" })
+        } finally {
+            setIsLoading(false)
         }
     }
 
-    if (!isSupported || isSubscribed) return null
+    if (!isSupported || isSubscribed || isLoading) return null
 
     return (
         <div className="mx-5 mb-6 glass rounded-2xl p-4 flex items-center justify-between">
