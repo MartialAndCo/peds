@@ -671,4 +671,5 @@ export default function WorkspaceMediaPage() {
         </div >
     )
 }
+// Fixed syntax
 
