@@ -337,25 +337,28 @@ export async function smartOrganizeMedia(publicUrl: string, agentId: number) {
     ${categoriesSummary}
 
     TASK:
-    1. Identify content (Selfie, Landscape, Food, etc).
-    2. Check Timeline for "When/Where" context (for the caption only).
-    3. **CATEGORIZATION RULES (CRITICAL)**:
-       - **GOAL**: We want BROAD, GLOBAL CATEGORIES. Do NOT create specific event folders.
-       - **Standard Categories** to use (Create if missing):
-         - "travel" (For ALL trips: Paris, Milan, Cabo, etc.)
-         - "sports" (For ALL sports: Basketball, Gym, Hiking)
-         - "lifestyle" (Daily life, chill, home, outfits)
-         - "selfie" (Selfies, portraits)
-         - "food" (Restaurants, cooking)
-         - "social" (Parties, friends, events)
-       - **Mapping Rule**:
-         - Photo of Eiffel Tower -> Folder: "travel" (NOT "paris_trip")
-         - Photo of Basketball Game -> Folder: "sports" (NOT "varsity_game")
-         - Photo of Coffee -> Folder: "lifestyle" (NOT "morning_coffee")
-       - ONLY create a new folder if it is a NEW BROAD CATEGORY (e.g. "art", "work"). Format: snake_case.
+    1. Identify content type (e.g. Lingerie, Bikini, Valid Outfit, Selfie) AND context (Location, Event).
+    2. **CATEGORIZATION PRIORITY**:
+       
+       **PRIORITY 1: SPECIFIC CONTENT STYLE (Preserve Niche)**
+       - If the photo is clearly a specific NICHE (e.g. "lingerie", "bikini", "cosplay", "feet", "gym_body"), USE or CREATE that specific folder.
+       - Do NOT group these into "lifestyle". Keep them distinct.
+       - Match with existing similar folders (e.g. 'selfie_sexy', 'body_legs').
 
-    4. Write a Context/Caption (First person, consistent with timeline).
-       - The SPECIFIC details (Paris, Basketball Final) go HERE in the text, NOT in the folder name.
+       **PRIORITY 2: BROAD EVENT THEMES (Group Locations)**
+       - If it's a general travel/lifestyle photo (Normal outfit, walking, eating):
+       - GROUP BY BROAD THEME.
+       - Paris, Milan, Bali -> "travel" (or "summer_trip" if you want season).
+       - Coffee, Home, Chilling -> "lifestyle".
+       - Friends, Party -> "social".
+
+       **Mapping Rule Examples**:
+       - Photo in Lingerie in Paris -> "lingerie" or "selfie_sexy" (Style > Location).
+       - Photo of Eiffel Tower -> "travel" (Location grouping).
+       - Photo of Basketball Game -> "sports" (Activity grouping).
+
+    3. Write a Context/Caption (First person).
+       - Include the specifc Location/Event (Paris, Finals, etc) in the text description.
 
     OUTPUT JSON ONLY:
     {
