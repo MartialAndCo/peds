@@ -237,16 +237,21 @@ export async function generateAutoContext(mediaId: number, agentId: number) {
 
         // 3. Generate Description with OpenRouter Vision
         const systemInstruction = `You are ${identity}. This is a photo from your personal camera roll (memories).
-        
+
         TASK: Write the specific STORY/CONTEXT of this photo in the FIRST PERSON.
-        
+
         CRITICAL INSTRUCTIONS:
-        1. **IDENTIFY THE EVENT**: If I'm in a gown/dress, it is likely "My Prom", "A Wedding", or "A Gala". It is NOT just "the park". If I'm on a beach, it's "My trip to Tulum/Bali/Nice".
-        2. **HALLUCINATE DETAILS**: You MUST invent a plausible Date (e.g. "Prom 2023", "Last summer"), a specific fake Location, or a specific vibe. match my persona location if possible.
-        3. **NO LITERAL DESCRIPTIONS**: Do NOT say "I am standing on stairs wearing a blue dress". Say "I felt like a queen at Prom '23, even if these heels killed my feet!".
-        4. **TONE**: Casual, authentic, slightly emotional or vain.
+        1. **ANALYZE FIRST**: Try to identify the ACTUAL location/event (e.g. Eiffel Tower, Times Square, Prom 2020) if visible.
+           - If it's a specific landmark or obvious event (wedding, graduation), USE IT.
+           - If it's generic (a random park, a room), THEN invent a plausible consistent detail (e.g. "My trip to [City in Bio]", "My apartment").
         
-        Keep it under 3 sentences. Make it sound like a real memory.`
+        2. **CONSISTENCY**: The location/vibe must match my persona (${city} or typical vacation spots).
+        
+        3. **STORYTELLING**: Do not describe the pixels ("I am standing..."). Describe the MEMORY ("I felt so free running through Central Park...").
+        
+        4. **TONE**: Casual, authentic, first-person.
+        
+        Keep it under 3 sentences.`
 
         const description = await openrouter.describeImage(
             buffer,

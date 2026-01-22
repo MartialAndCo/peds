@@ -526,53 +526,78 @@ export default function WorkspaceMediaPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-            {/* Context Edit Dialog */}
+            {/* Context Edit Dialog (Premium Dark) */}
             <Dialog open={!!contextMedia} onOpenChange={(open) => !open && setContextMedia(null)}>
-                <DialogContent className="glass-strong text-white border-white/10">
-                    <DialogHeader>
-                        <DialogTitle>Edit Image Context</DialogTitle>
-                        <DialogDescription>
-                            Add hidden context for the AI. This helps it answer questions like "Where is this?" or "Who is this?".
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4">
-                        <div className="aspect-video w-full rounded-lg overflow-hidden bg-black/40 relative">
-                            {contextMedia && (
-                                contextMedia.url.includes('video') || contextMedia.url.endsWith('.mp4') ? (
-                                    <video src={getProxiedUrl(contextMedia.url)} className="w-full h-full object-contain" />
+                <DialogContent className="sm:max-w-md bg-zinc-950 border-zinc-800 text-zinc-100 p-0 overflow-hidden shadow-2xl">
+                    <div className="relative h-48 w-full bg-zinc-900">
+                        {contextMedia && (
+                            <>
+                                <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 to-transparent z-10" />
+                                {contextMedia.url.includes('video') || contextMedia.url.endsWith('.mp4') ? (
+                                    <video src={getProxiedUrl(contextMedia.url)} className="w-full h-full object-cover opacity-80" />
                                 ) : (
-                                    <img src={getProxiedUrl(contextMedia.url)} className="w-full h-full object-contain" alt="" />
-                                )
-                            )}
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Context / Story</Label>
-                            <Textarea
-                                placeholder="e.g. This was at the beach in Miami, summer 2023. I was with high school friends."
-                                value={contextText}
-                                onChange={e => setContextText(e.target.value)}
-                                className="bg-white/5 border-white/10 text-white min-h-[100px]"
-                            />
+                                    <img src={getProxiedUrl(contextMedia.url)} className="w-full h-full object-cover opacity-80" alt="Context Preview" />
+                                )}
+                            </>
+                        )}
+                        <div className="absolute top-4 left-4 z-20 bg-black/40 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
+                            <span className="text-xs font-medium text-emerald-400">✨ AI Suggestion</span>
                         </div>
                     </div>
-                    <DialogFooter>
-                        <Button onClick={() => setContextMedia(null)} variant="ghost" className="text-white/50 hover:text-white">
-                            Cancel
-                        </Button>
-                        <Button onClick={handleSaveContext} disabled={savingContext} className="bg-white text-black hover:bg-white/90">
-                            {savingContext ? 'Saving...' : 'Save Context'}
-                        </Button>
-                    </DialogFooter>
+
+                    <div className="p-6 space-y-4">
+                        <div className="space-y-1">
+                            <h3 className="text-lg font-semibold tracking-tight text-white">Memory Context</h3>
+                            <p className="text-xs text-zinc-400 leading-snug">
+                                This hidden story helps the AI remember <b>when</b> and <b>where</b> this was.
+                            </p>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label className="text-xs uppercase tracking-wider text-zinc-500 font-bold">The Backstory</Label>
+                            <Textarea
+                                value={contextText}
+                                onChange={(e) => setContextText(e.target.value)}
+                                className="bg-zinc-900/50 border-zinc-800 focus:border-emerald-500/50 text-zinc-200 min-h-[100px] resize-none rounded-xl p-4 text-sm leading-relaxed"
+                                placeholder="E.g. My trip to Cabo in 2023..."
+                            />
+                        </div>
+
+                        <div className="flex gap-3 pt-2">
+                            <Button
+                                variant="outline"
+                                className="flex-1 border-zinc-800 bg-transparent hover:bg-zinc-900 text-zinc-400 hover:text-white transition-colors"
+                                onClick={() => setContextMedia(null)}
+                            >
+                                Discard
+                            </Button>
+                            <Button
+                                className="flex-1 bg-white text-black hover:bg-zinc-200 font-medium tracking-wide transition-all shadow-[0_0_15px_rgba(255,255,255,0.1)]"
+                                onClick={handleSaveContext}
+                                disabled={savingContext}
+                            >
+                                {savingContext ? 'Saving...' : 'Save Memory'}
+                            </Button>
+                        </div>
+                    </div>
                 </DialogContent>
             </Dialog>
-            {/* Loading Overlay */}
+            {/* Loading Overlay (Click outside to dismiss if stuck) */}
             {generatingContext && (
-                <div className="fixed inset-0 bg-black/50 z-[200] flex flex-col items-center justify-center p-4">
-                    <div className="bg-white rounded-xl p-8 flex flex-col items-center gap-4 text-center">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
-                        <h3 className="font-bold text-lg">Generating Context with AI...</h3>
-                        <p className="text-sm text-gray-500">Analyzing your image against agent identity.</p>
-                        <p className="text-xs text-gray-400">Please wait (can take 10-20s)</p>
+                <div
+                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex flex-col items-center justify-center p-4 animate-in fade-in duration-300"
+                    onClick={() => setGeneratingContext(false)} // Safety escape
+                >
+                    <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-8 flex flex-col items-center gap-5 text-center shadow-2xl max-w-sm" onClick={e => e.stopPropagation()}>
+                        <div className="relative">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+                            <div className="absolute inset-0 rounded-full animate-ping bg-emerald-500/20"></div>
+                        </div>
+                        <div className="space-y-1">
+                            <h3 className="font-bold text-lg text-white">Generating Story...</h3>
+                            <p className="text-sm text-zinc-400">AI is analyzing the location & vibe.</p>
+                        </div>
+                        <p className="text-xs text-zinc-600 font-mono">Tap background to cancel</p>
                     </div>
                 </div>
             )}
