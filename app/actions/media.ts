@@ -325,22 +325,27 @@ export async function smartOrganizeMedia(publicUrl: string, agentId: number) {
     if (!response.ok) throw new Error('Failed to fetch image for analysis');
     const buffer = Buffer.from(await response.arrayBuffer());
 
-    // 3. AI Analysis
+    // 3. AI Analysis with Retry Logic
     const prompt = `
     Analyze this image for an influencer's gallery.
     
-    KNOWN TIMELINE:
+    KNOWN TIMELINE (Context Only):
     ${timelineSummary}
 
-    EXISTING FOLDERS:
+    EXISTING FOLDERS (PREFER THESE):
     ${categoriesSummary}
 
     TASK:
-    1. Identify what is in the photo (Selfie, Landscape, Food, etc).
-    2. Determine WHERE and WHEN this likely happened based on the Timeline (Match visual cues).
-    3. Choose the BEST Folder Name:
-       - Use an EXISTING folder if it matches perfectly.
-       - Create a NEW folder name (snake_case) if it's a new distinct event/vibe.
+    1. Identify content (Selfie, Landscape, Food, etc).
+    2. Check Timeline for "When/Where" context (for the caption only).
+    3. **CATEGORIZATION RULES**:
+       - **ALWAYS PREFER EXISTING FOLDERS**. Do not create new folders for every Trip/Event.
+       - Group by THEME, not Location.
+       - Example: If "Trip to Milan" and "Trip to Paris", put BOTH in "travel" or "lifestyle_luxury".
+       - Example: If "Basketball Game", put in "sports" or "activity".
+       - ONLY create a new folder if the content fits NOWHERE in the existing list.
+       - New Folder Format: snake_case (e.g. "travel_vlog", "gym_fitness").
+
     4. Write a Context/Caption (First person, consistent with timeline).
 
     OUTPUT JSON ONLY:
@@ -350,49 +355,59 @@ export async function smartOrganizeMedia(publicUrl: string, agentId: number) {
     }
     `;
 
-    try {
-        const aiResponse = await openrouter.describeImage(
-            buffer,
-            'image/jpeg', // Assumption, robust handling needed for png etc
-            apiKey,
-            prompt // System/User prompt
-        );
+    let attempts = 0;
+    const MAX_RETRIES = 3;
 
-        // Parse JSON (Naive regex or JSON.parse if clean)
-        // LLM might be chatty, let's try to extract JSON
-        const jsonMatch = aiResponse?.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error("AI did not return JSON");
+    while (attempts < MAX_RETRIES) {
+        try {
+            attempts++;
+            const aiResponse = await openrouter.describeImage(
+                buffer,
+                'image/jpeg',
+                apiKey,
+                prompt
+            );
 
-        const result = JSON.parse(jsonMatch[0]);
-        const folderId = result.folder.toLowerCase().replace(/\s/g, '_');
-        const context = result.context;
+            // Parse JSON 
+            const jsonMatch = aiResponse?.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) throw new Error("AI did not return JSON");
 
-        // 4. Create Folder if needed
-        const existingCat = await prisma.mediaType.findUnique({ where: { id: folderId } });
-        if (!existingCat) {
-            await prisma.mediaType.create({
-                data: {
-                    id: folderId,
-                    description: "Auto-created by Smart Upload",
-                    keywords: []
-                }
-            });
+            const result = JSON.parse(jsonMatch[0]);
+            const folderId = result.folder.toLowerCase().replace(/\s/g, '_');
+            const context = result.context;
+
+            // 4. Create Folder if needed
+            const existingCat = await prisma.mediaType.findUnique({ where: { id: folderId } });
+            if (!existingCat) {
+                await prisma.mediaType.create({
+                    data: {
+                        id: folderId,
+                        description: "Auto-created by Smart Upload",
+                        keywords: []
+                    }
+                });
+            }
+
+            // 5. Save Media
+            const savedMedia = await saveMedia(publicUrl, folderId);
+
+            // 6. Save Context
+            if (savedMedia.success && savedMedia.media) {
+                await updateMediaContext(savedMedia.media.id, context);
+            }
+
+            revalidatePath('/workspace/[agentId]/media');
+            return { success: true, folder: folderId, context: context };
+
+        } catch (e: any) {
+            console.error(`Smart Organize Attempt ${attempts} Failed:`, e.message);
+            if (attempts >= MAX_RETRIES) {
+                return { success: false, error: `Failed after ${MAX_RETRIES} attempts: ${e.message}` };
+            }
+            // Wait a bit before retry? (Optional, maybe 1s)
+            await new Promise(r => setTimeout(r, 1000));
         }
-
-        // 5. Save Media
-        const savedMedia = await saveMedia(publicUrl, folderId);
-
-        // 6. Save Context
-        if (savedMedia.success && savedMedia.media) {
-            await updateMediaContext(savedMedia.media.id, context);
-        }
-
-        revalidatePath('/workspace/[agentId]/media');
-        return { success: true, folder: folderId, context: context };
-
-    } catch (e: any) {
-        console.error("Smart Organize Failed:", e);
-        // Fallback: Dump in "smart_import_fallback"
-        return { success: false, error: e.message };
     }
+
+    return { success: false, error: "Unexpected loop exit" };
 }
