@@ -148,7 +148,16 @@ async function sendPushNotificationToAdmin(payload: { title: string, body: strin
     try {
         const subscriptions = await prisma.pushSubscription.findMany()
 
+        console.log(`[Push] Attempting to send push notification to ${subscriptions.length} subscription(s)`)
+        console.log(`[Push] Payload:`, payload)
+
+        if (subscriptions.length === 0) {
+            console.warn('[Push] No push subscriptions found in database')
+            return
+        }
+
         const notifications = subscriptions.map(sub => {
+            console.log(`[Push] Sending to subscription ${sub.id} (endpoint: ${sub.endpoint.substring(0, 50)}...)`)
             return webpush.sendNotification({
                 endpoint: sub.endpoint,
                 keys: {
@@ -156,19 +165,23 @@ async function sendPushNotificationToAdmin(payload: { title: string, body: strin
                     auth: sub.auth
                 }
             }, JSON.stringify(payload))
+                .then(() => {
+                    console.log(`[Push] Successfully sent to subscription ${sub.id}`)
+                })
                 .catch(err => {
                     if (err.statusCode === 410 || err.statusCode === 404) {
                         // Subscription expired/gone, cleanup
-                        console.log('Cleaning up expired subscription', sub.id)
+                        console.log(`[Push] Cleaning up expired subscription ${sub.id}`)
                         return prisma.pushSubscription.delete({ where: { id: sub.id } })
                     }
-                    console.error('Push error for sub', sub.id, err)
+                    console.error(`[Push] Error sending to subscription ${sub.id}:`, err.message || err)
                 })
         })
 
         await Promise.all(notifications)
+        console.log('[Push] All push notifications processed')
     } catch (error) {
-        console.error('Failed to send push notifications', error)
+        console.error('[Push] Failed to send push notifications:', error)
     }
 }
 

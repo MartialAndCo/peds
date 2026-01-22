@@ -530,19 +530,9 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         console.log(`[Chat] AI sent reaction: ${emoji}`)
     }
 
-    // Payment Confirmation Logic ([PAYMENT_RECEIVED])
-    const paymentTagRegex = /\[\s*PAYMENT[ _]RECEIVED\s*\]/gi
-    if (paymentTagRegex.test(responseText)) {
-        const originalText = responseText
-        responseText = responseText.replace(paymentTagRegex, '').trim()
-        console.log(`[Chat] AI acknowledged payment. Tag found. Original: "${originalText.substring(0, 30)}...". Cleaned: "${responseText.substring(0, 30)}..."`)
-        console.log(`[Chat] Triggering notification...`)
+    // Payment tag detection removed - payments are now detected directly from user messages
+    // before AI generation (see line 184-197)
 
-        // Fire & Forget Notification -> MUST AWAIT in Serverless/Next.js to avoid freeze
-        const { notifyPaymentClaim } = require('@/lib/services/payment-claim-handler')
-        await notifyPaymentClaim(contact, conversation, settings, null, 'AI_DETECTED', agentId)
-            .catch((e: any) => console.error('[Chat] Failed to notify payment claim:', e))
-    }
 
     // Image Logic ([IMAGE:keyword])
     const imageMatch = responseText.match(/\[IMAGE:(.+?)\]/)
