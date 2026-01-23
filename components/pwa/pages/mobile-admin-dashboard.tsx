@@ -1,3 +1,5 @@
+'use client'
+
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Bell, TrendingUp, Users, MessageSquare, Bot, ArrowRight, Activity, DollarSign, Plus, UserPlus } from 'lucide-react'
