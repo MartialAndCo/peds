@@ -306,7 +306,40 @@ STRATEGY: Keep him happy.
                 break;
         }
 
-        // 4. Assemble Blocks & Replace Placeholders
+        // 4. Calculate Dynamic Birthday (1 week after first contact)
+        const contactCreated = new Date(contact.createdAt);
+        const birthday = new Date(contactCreated);
+        birthday.setDate(birthday.getDate() + 7); // Birthday is 1 week after first contact
+
+        const today = new Date();
+        // Get agent's base age from settings (supports multi-agent)
+        const baseAge = parseInt(mergedSettings.agent_base_age || '18'); // Default 18 if not set
+        const currentAge = today >= birthday ? baseAge + 1 : baseAge;
+
+        const birthdayStr = birthday.toLocaleString('en-US', {
+            month: 'long',
+            day: 'numeric',
+            timeZone: 'America/Los_Angeles'
+        });
+
+        // Calculate days until/since birthday
+        const timeDiff = birthday.getTime() - today.getTime();
+        const daysUntilBirthday = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+
+        let birthdayContext = '';
+        if (daysUntilBirthday > 0 && daysUntilBirthday <= 2) {
+            birthdayContext = `[UPCOMING BIRTHDAY]: Your birthday is in ${daysUntilBirthday} day(s) (${birthdayStr})! You can mention it naturally if the conversation allows. Don't force it.`;
+        } else if (daysUntilBirthday === 0) {
+            birthdayContext = `[TODAY IS YOUR BIRTHDAY]: You're turning ${baseAge + 1} today (${birthdayStr})! You can mention it naturally. This is a good opportunity for gift requests if the relationship is strong enough.`;
+        } else if (daysUntilBirthday < 0 && daysUntilBirthday > -3) {
+            birthdayContext = `[RECENT BIRTHDAY]: Your birthday was ${Math.abs(daysUntilBirthday)} day(s) ago (${birthdayStr}). You just turned ${baseAge + 1}. You can reference it if relevant.`;
+        } else if (daysUntilBirthday < 0) {
+            birthdayContext = `You are ${baseAge + 1} years old. Your birthday was ${birthdayStr}.`;
+        } else {
+            birthdayContext = `You are ${baseAge} years old. Your birthday is coming up on ${birthdayStr}.`;
+        }
+
+        // 5. Assemble Blocks & Replace Placeholders
         const todayDate = new Date().toLocaleString('en-US', {
             weekday: 'long',
             day: 'numeric',
@@ -316,13 +349,22 @@ STRATEGY: Keep him happy.
             timeZone: 'America/Los_Angeles'
         })
 
-        const pIdentity = tIdentity.replace('{{ROLE}}', baseRole)
+        // Replace placeholders in baseRole (prompt.system_prompt)
+        const processedBaseRole = baseRole
+            .replace(/\{\{CURRENT_AGE\}\}/g, currentAge.toString())
+            .replace(/\{\{BIRTHDAY_DATE\}\}/g, birthdayStr)
+            .replace(/\{\{BIRTHDAY_CONTEXT\}\}/g, birthdayContext);
+
+        const pIdentity = tIdentity.replace('{{ROLE}}', processedBaseRole)
         const pContext = tContext
             .replace('{{USER_NAME}}', contact.name || "friend")
             .replace('{{CURRENT_DATE}}', todayDate)
             .replace('{{DAYS_ACTIVE}}', details.daysActive.toString())
             .replace('{{TRUST_SCORE}}', details.trustScore.toString())
             .replace('{{PHASE}}', phase)
+            .replace('{{CURRENT_AGE}}', currentAge.toString())
+            .replace('{{BIRTHDAY_DATE}}', birthdayStr)
+            .replace('{{BIRTHDAY_CONTEXT}}', birthdayContext)
 
         const pMission = tMission.replace('{{DYNAMIC_GOAL_BLOCK}}', phaseGoal)
 

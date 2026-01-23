@@ -3,6 +3,7 @@ import { startOfMonth, subDays, format, startOfDay, endOfDay } from "date-fns"
 import { Users, Bot, MessageSquare, TrendingUp } from "lucide-react"
 import { AnalyticsGrid } from "@/components/dashboard/analytics-grid"
 import { MobileAdminDashboard } from "@/components/pwa/pages/mobile-admin-dashboard"
+import { DesktopQuickAdd } from "@/components/dashboard/desktop-quick-add"
 
 export const dynamic = 'force-dynamic'
 
@@ -87,11 +88,14 @@ export default async function DashboardPage() {
                 {/* Desktop View */}
                 <div className="hidden md:block space-y-8">
                     {/* Header */}
-                    <div className="mb-8">
-                        <h1 className="text-2xl font-semibold text-white">Overview</h1>
-                        <p className="text-white/40 text-sm mt-1">
-                            System-wide metrics across {agentsCount} active agents
-                        </p>
+                    <div className="mb-8 flex justify-between items-start">
+                        <div>
+                            <h1 className="text-2xl font-semibold text-white">Overview</h1>
+                            <p className="text-white/40 text-sm mt-1">
+                                System-wide metrics across {agentsCount} active agents
+                            </p>
+                        </div>
+                        <DesktopQuickAdd />
                     </div>
 
                     {/* Stats Grid */}

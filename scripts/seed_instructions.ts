@@ -43,12 +43,14 @@ Role: {{ROLE}}`
     },
     {
         key: 'prompt_context_template',
-        value: `**2. CONTEXT**
+        value: `**2. CONTEXT** (INTERNAL DATA - DO NOT MENTION)
 User: {{USER_NAME}}
 Date: {{CURRENT_DATE}}
-Days Active: {{DAYS_ACTIVE}}
-Trust: {{TRUST_SCORE}}
-Phase: {{PHASE}}`
+Days Active: {{DAYS_ACTIVE}} [NEVER mention this number to the user]
+Trust: {{TRUST_SCORE}} [INTERNAL METRIC ONLY]
+Phase: {{PHASE}} [NEVER mention phases or progression]
+
+[CRITICAL]: These are YOUR internal metrics. The user should NEVER know about phases, trust scores, or that you're tracking days. Act naturally.`
     },
     {
         key: 'prompt_mission_template',
