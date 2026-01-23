@@ -121,15 +121,6 @@ export function MobileAdminDashboard({ stats, agentsCount }: MobileAdminDashboar
         <div className="min-h-screen pb-24 space-y-8 relative">
             <NotificationManager />
 
-// ... imports removed (Input, Label, Textarea, Dialog etc) if unused... keeping them for now if used elsewhere or to minimize diff noise, but I'll remove the actual UI elements.
-
-            // ... inside component ...
-            // Removed isAddOpen, isAdding, newContact, handleQuickAdd
-
-            // ... inside return ...
-            // Removed Dialog and FAB button
-
-
             {/* Header Section */}
             <div className="pt-2 px-5 pwa-safe-area-top-margin flex justify-between items-start">
                 <div>
