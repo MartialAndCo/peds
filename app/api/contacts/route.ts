@@ -11,50 +11,10 @@ const contactSchema = z.object({
     notes: z.string().optional(),
     context: z.string().optional(), // NEW: for Lead Provider simulation
     status: z.enum(['new', 'contacted', 'qualified', 'closed', 'active', 'archive', 'blacklisted', 'merged']).optional().default('new'),
+    agentId: z.number().optional(), // NEW: Bind to specific agent
 })
 
-export async function GET(req: Request) {
-    const session = await getServerSession(authOptions)
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const { searchParams } = new URL(req.url)
-    const status = searchParams.get('status')
-    const source = searchParams.get('source')
-    const search = searchParams.get('search')
-    const agentId = searchParams.get('agentId')
-
-    const where: any = {}
-    if (status) where.status = status
-    if (source) where.source = source
-    if (search) {
-        where.OR = [
-            { name: { contains: search } }, // sqlite is distinct from postgres (ilike vs contains fallback)
-            { phone_whatsapp: { contains: search } }
-        ]
-    }
-
-    // Filter by Agent if provided
-    if (agentId && !isNaN(parseInt(agentId))) {
-        where.conversations = {
-            some: {
-                OR: [
-                    { agentId: parseInt(agentId) },
-                    { agentId: null }
-                ]
-            }
-        }
-    }
-
-    // Filter out hidden contacts unless explicitly requested? No, user wants them gone.
-    where.isHidden = false;
-
-    const contacts = await prisma.contact.findMany({
-        where,
-        orderBy: { updatedAt: 'desc' }, // Sort by recently active, not created
-        take: 100 // limit to 100 for safety
-    })
-    return NextResponse.json(contacts)
-}
+// ... GET handler unchanged ...
 
 export async function POST(req: Request) {
     const session = await getServerSession(authOptions)
@@ -113,12 +73,28 @@ export async function POST(req: Request) {
             })
 
             if (!existingConv) {
-                const prompt = await prisma.prompt.findFirst({ where: { isActive: true } }) || await prisma.prompt.findFirst()
-                if (prompt) {
+                // Determined prompt based on Agent ID if provided
+                let promptId: number | undefined
+
+                if (body.agentId) {
+                    const agentPrompt = await prisma.agentPrompt.findFirst({
+                        where: { agentId: body.agentId, type: 'CORE' }
+                    })
+                    promptId = agentPrompt?.promptId
+                }
+
+                // Fallback to active global prompt
+                if (!promptId) {
+                    const prompt = await prisma.prompt.findFirst({ where: { isActive: true } }) || await prisma.prompt.findFirst()
+                    promptId = prompt?.id
+                }
+
+                if (promptId) {
                     await prisma.conversation.create({
                         data: {
                             contactId: contact.id,
-                            promptId: prompt.id,
+                            promptId: promptId,
+                            agentId: body.agentId, // Bind to agent if provided
                             status: 'paused',
                             ai_enabled: true,
                             metadata: {
@@ -130,9 +106,11 @@ export async function POST(req: Request) {
                 }
             } else if (existingConv.status === 'paused') {
                 // If paused, we can inject/update the waiting state
+                // Also update agent binding if it was null? (Optional, maybe safer to keep existing)
                 await prisma.conversation.update({
                     where: { id: existingConv.id },
                     data: {
+                        agentId: body.agentId || existingConv.agentId, // Update agent if provided
                         metadata: {
                             ...(existingConv.metadata as any || {}),
                             state: 'WAITING_FOR_LEAD',

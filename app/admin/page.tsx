@@ -3,7 +3,6 @@ import { startOfMonth, subDays, format, startOfDay, endOfDay } from "date-fns"
 import { Users, Bot, MessageSquare, TrendingUp } from "lucide-react"
 import { AnalyticsGrid } from "@/components/dashboard/analytics-grid"
 import { MobileAdminDashboard } from "@/components/pwa/pages/mobile-admin-dashboard"
-import { DesktopQuickAdd } from "@/components/dashboard/desktop-quick-add"
 
 export const dynamic = 'force-dynamic'
 
@@ -95,7 +94,6 @@ export default async function DashboardPage() {
                                 System-wide metrics across {agentsCount} active agents
                             </p>
                         </div>
-                        <DesktopQuickAdd />
                     </div>
 
                     {/* Stats Grid */}

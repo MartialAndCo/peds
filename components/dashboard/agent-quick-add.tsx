@@ -18,7 +18,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 
-export function DesktopQuickAdd() {
+interface AgentQuickAddProps {
+    agentId?: number
+    className?: string
+}
+
+export function AgentQuickAdd({ agentId, className }: AgentQuickAddProps) {
     const router = useRouter()
     const { toast } = useToast()
 
@@ -42,7 +47,8 @@ export function DesktopQuickAdd() {
                     phone_whatsapp: newContact.phone,
                     name: newContact.name || "New Lead",
                     context: newContact.context,
-                    source: "desktop_dashboard_quick_add"
+                    source: "agent_dashboard_quick_add",
+                    agentId: agentId // Bind to this agent
                 })
             })
 
@@ -50,7 +56,7 @@ export function DesktopQuickAdd() {
 
             toast({
                 title: "Lead Added 🚀",
-                description: "System is waiting for their first message to apply context.",
+                description: `Lead waiting for first interaction.${agentId ? ' Assigned to agent.' : ''}`,
                 className: "bg-emerald-500 border-none text-white",
             })
             setIsAddOpen(false)
@@ -67,12 +73,12 @@ export function DesktopQuickAdd() {
     return (
         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
-                <Button className="bg-blue-600 hover:bg-blue-500 text-white gap-2">
+                <Button className={`bg-blue-600 hover:bg-blue-500 text-white gap-2 ${className}`}>
                     <Plus className="h-4 w-4" />
                     Add Lead
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px] bg-[#0f172a] border-white/10 text-white">
+            <DialogContent className="sm:max-w-[425px] w-[90%] rounded-2xl bg-[#0f172a] border-white/10 text-white">
                 <DialogHeader>
                     <DialogTitle>Add New Lead</DialogTitle>
                     <DialogDescription className="text-white/50">

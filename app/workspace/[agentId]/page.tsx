@@ -10,33 +10,34 @@ import { usePWAMode } from '@/hooks/use-pwa-mode'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { AgentQuickAdd } from '@/components/dashboard/agent-quick-add'
 
 export default function AgentOverviewPage() {
     const { isPWAStandalone } = usePWAMode()
     const router = useRouter()
     const { agentId } = useParams()
+    const numericAgentId = agentId ? parseInt(agentId as string) : undefined
+
     const [agent, setAgent] = useState<any>(null)
     const [stats, setStats] = useState({ conversations: 0, messages: 0 })
     const [wahaStatus, setWahaStatus] = useState<string>('UNKNOWN')
     const [loading, setLoading] = useState(true)
 
-    // ... existing useEffect ...
-
-    // ... existing defined functions ...
-
     // Render logic update for PWA Header
     const PWAHeader = () => (
-        <div className="sticky top-0 z-10 bg-[#0f172a]/95 backdrop-blur-xl border-b border-white/[0.06] py-3 px-4 pwa-safe-area-top-margin mb-6 flex items-center justify-between">
-            <h1 className="text-xl font-bold text-white">Overview</h1>
-            <Button
-                variant="ghost"
-                size="sm"
-                className="text-white/60 hover:text-white hover:bg-white/10"
-                onClick={() => router.push('/admin')}
-            >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Agents
-            </Button>
+        <div className="sticky top-0 z-10 bg-[#0f172a]/95 backdrop-blur-xl border-b border-white/[0.06] py-3 px-4 pwa-safe-area-top-margin mb-6 flex items-center justify-between shadow-sm">
+            <div className="flex items-center gap-3">
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-white/60 hover:text-white hover:bg-white/10 -ml-2"
+                    onClick={() => router.push('/admin')}
+                >
+                    <ArrowLeft className="h-5 w-5" />
+                </Button>
+                <h1 className="text-xl font-bold text-white">Overview</h1>
+            </div>
+            <AgentQuickAdd agentId={numericAgentId} className="h-9 px-3 text-sm bg-blue-600/90 hover:bg-blue-600" />
         </div>
     )
 
@@ -82,8 +83,6 @@ export default function AgentOverviewPage() {
         return () => clearInterval(statusInterval)
     }, [agentId])
 
-    // ... rest of code
-
     if (loading) return (
         <div className="flex items-center justify-center h-64">
             <Loader2 className="animate-spin h-6 w-6 text-white/40" />
@@ -98,11 +97,14 @@ export default function AgentOverviewPage() {
         <div className="space-y-8">
             {isPWAStandalone ? <PWAHeader /> : (
                 /* Desktop Header */
-                <div>
-                    <h1 className="text-2xl font-semibold text-white">Overview</h1>
-                    <p className="text-white/40 text-sm mt-1">
-                        {agent.name}'s workspace dashboard
-                    </p>
+                <div className="flex justify-between items-start">
+                    <div>
+                        <h1 className="text-2xl font-semibold text-white">Overview</h1>
+                        <p className="text-white/40 text-sm mt-1">
+                            {agent.name}'s workspace dashboard
+                        </p>
+                    </div>
+                    <AgentQuickAdd agentId={numericAgentId} />
                 </div>
             )}
 

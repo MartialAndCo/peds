@@ -121,63 +121,14 @@ export function MobileAdminDashboard({ stats, agentsCount }: MobileAdminDashboar
         <div className="min-h-screen pb-24 space-y-8 relative">
             <NotificationManager />
 
-            {/* QUICK ADD FAB */}
-            <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-                <DialogTrigger asChild>
-                    <Button
-                        size="icon"
-                        className="fixed bottom-24 right-5 h-14 w-14 rounded-full bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-600/40 z-50 transition-transform active:scale-95"
-                    >
-                        <Plus className="h-8 w-8 text-white" />
-                    </Button>
-                </DialogTrigger>
-                <DialogContent className="w-[90%] rounded-3xl bg-[#0f172a] border-white/10 text-white">
-                    <DialogHeader>
-                        <DialogTitle>Add New Lead</DialogTitle>
-                        <DialogDescription className="text-white/50">
-                            Add a number and context. The AI will use this context when they send their first message.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4">
-                        <div className="space-y-2">
-                            <Label>Phone Number</Label>
-                            <Input
-                                placeholder="+33 6 12 34 56 78"
-                                className="bg-white/5 border-white/10 text-white placeholder:text-white/20"
-                                value={newContact.phone}
-                                onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Name (Optional)</Label>
-                            <Input
-                                placeholder="John Doe"
-                                className="bg-white/5 border-white/10 text-white placeholder:text-white/20"
-                                value={newContact.name}
-                                onChange={(e) => setNewContact({ ...newContact, name: e.target.value })}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Context / Lead Info</Label>
-                            <Textarea
-                                placeholder="e.g. Met on Tinder, 24yo, likes travel..."
-                                className="bg-white/5 border-white/10 text-white placeholder:text-white/20 min-h-[100px]"
-                                value={newContact.context}
-                                onChange={(e) => setNewContact({ ...newContact, context: e.target.value })}
-                            />
-                        </div>
-                    </div>
-                    <DialogFooter>
-                        <Button
-                            className="w-full bg-blue-600 hover:bg-blue-500 text-white"
-                            onClick={handleQuickAdd}
-                            disabled={isAdding}
-                        >
-                            {isAdding ? "Adding..." : "Add Lead & Wait"}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+// ... imports removed (Input, Label, Textarea, Dialog etc) if unused... keeping them for now if used elsewhere or to minimize diff noise, but I'll remove the actual UI elements.
+
+            // ... inside component ...
+            // Removed isAddOpen, isAdding, newContact, handleQuickAdd
+
+            // ... inside return ...
+            // Removed Dialog and FAB button
+
 
             {/* Header Section */}
             <div className="pt-2 px-5 pwa-safe-area-top-margin flex justify-between items-start">
