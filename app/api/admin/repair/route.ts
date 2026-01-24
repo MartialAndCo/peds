@@ -1,8 +1,13 @@
 'use server'
 
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { whatsapp } from '@/lib/whatsapp'
 
 export async function POST(request: Request) {
+    const session = await getServerSession(authOptions)
+    if (!session) return Response.json({ success: false, message: 'Unauthorized' }, { status: 401 })
+
     try {
         const body = await request.json()
         const sessionId = body.sessionId || '1'

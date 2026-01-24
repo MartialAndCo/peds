@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server'
 import { whatsapp } from '@/lib/whatsapp'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 
-// Proxy to Baileys admin action endpoint
 export async function POST(req: Request) {
+    const session = await getServerSession(authOptions)
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
     try {
         const body = await req.json()
         const result = await whatsapp.adminAction(body.action, body.agentId)
