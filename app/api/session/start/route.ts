@@ -22,7 +22,10 @@ export async function POST(req: Request) {
 
         return NextResponse.json({ success: true, message: 'Session started' })
     } catch (e: any) {
-        const msg = e.response?.data?.error || e.message || 'Unknown error'
+        // Debug info
+        const { endpoint } = await import('@/lib/whatsapp').then(m => m.getConfig())
+        const msg = `Failed to connect to Waha at [${endpoint}]: ${e.response?.data?.error || e.message}`
+
         console.error('[Session] Start Error:', msg)
         return NextResponse.json({ error: msg, details: e.response?.data }, { status: 500 })
     }

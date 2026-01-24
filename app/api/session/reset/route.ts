@@ -23,8 +23,15 @@ export async function POST(req: Request) {
 
         return NextResponse.json(result)
     } catch (e: any) {
-        const msg = e.response?.data?.error || e.message || 'Unknown error'
+        // Debug Config (fetched again to be sure)
+        const { endpoint } = await getConfig()
+        const msg = `Failed to connect to Waha at [${endpoint}]: ${e.response?.data?.error || e.message}`
+
         console.error('[Session Reset] Error:', msg)
-        return NextResponse.json({ error: msg, details: e.response?.data, debug_endpoint: 'See Server Logs' }, { status: 500 })
+        return NextResponse.json({
+            error: msg,
+            details: e.response?.data,
+            config_endpoint: endpoint
+        }, { status: 500 })
     }
 }
