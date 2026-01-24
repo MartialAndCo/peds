@@ -9,12 +9,21 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+
+enum Role {
+  ADMIN
+  COLLABORATOR
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
   password  String
+  role      Role     @default(ADMIN)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  
+  agents    Agent[]
 }
 
 model Prompt {
@@ -93,6 +102,8 @@ model Agent {
   settings      AgentSetting[]
   blacklistRules BlacklistRule[]
   events        AgentEvent[]
+  
+  users         User[] // Access control
   
   @@map("agents")
 }

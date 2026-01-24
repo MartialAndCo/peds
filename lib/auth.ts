@@ -5,7 +5,7 @@ import bcrypt from "bcryptjs"
 
 export const authOptions: NextAuthOptions = {
     secret: process.env.NEXTAUTH_SECRET,
-    debug: true, // Always debug for now to fix prod
+    debug: true,
     // @ts-ignore
     trustHost: true,
     session: {
@@ -22,55 +22,45 @@ export const authOptions: NextAuthOptions = {
                 password: { label: "Password", type: "password" },
             },
             async authorize(credentials) {
-                console.log("Authorize called with email:", credentials?.email)
-                if (!credentials?.email || !credentials?.password) {
-                    console.log("Missing credentials")
-                    return null
-                }
+                if (!credentials?.email || !credentials?.password) return null
 
                 const user = await prisma.user.findUnique({
-                    where: {
-                        email: credentials.email,
-                    },
+                    where: { email: credentials.email },
+                    include: { agents: { select: { id: true } } }
                 })
 
-                if (!user) {
-                    console.log("User not found in DB")
-                    return null
-                }
+                if (!user) return null
 
                 const isPasswordValid = await bcrypt.compare(
                     credentials.password,
                     user.password
                 )
 
-                if (!isPasswordValid) {
-                    console.log("Invalid password")
-                    return null
-                }
+                if (!isPasswordValid) return null
 
-                console.log("Login successful for user:", user.email)
                 return {
                     id: user.id,
                     email: user.email,
+                    role: user.role,
+                    agents: user.agents
                 }
             },
         }),
     ],
     callbacks: {
         async session({ session, token }) {
-            if (token) {
-                session.user = {
-                    ...session.user,
-                    email: token.email,
-                }
+            if (token && session.user) {
+                session.user.id = token.id
+                session.user.role = token.role
+                session.user.allowedAgentIds = token.allowedAgentIds
             }
             return session
         },
         async jwt({ token, user }) {
             if (user) {
                 token.id = user.id
-                token.email = user.email
+                token.role = user.role
+                token.allowedAgentIds = user.agents?.map(a => a.id) || []
             }
             return token
         },

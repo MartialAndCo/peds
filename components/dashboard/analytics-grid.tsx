@@ -75,9 +75,9 @@ export function AnalyticsGrid({ data }: { data: any }) {
                 {/* Funnel Phase Chart */}
                 <div className="col-span-4 glass rounded-2xl p-6">
                     <h3 className="text-sm font-medium text-white/60 mb-4">Funnel Distribution</h3>
-                    <div className="h-[200px]">
+                    <div className="h-[200px]" style={{ width: '100%', minHeight: '200px' }}>
                         {phaseDistribution && phaseDistribution.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={100}>
+                            <ResponsiveContainer width="99%" height="100%" minWidth={100} minHeight={100}>
                                 <BarChart data={phaseDistribution}>
                                     <XAxis dataKey="name" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
                                     <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
@@ -127,9 +127,9 @@ export function AnalyticsGrid({ data }: { data: any }) {
             {/* ROW 4: ACTIVITY CHART */}
             <div className="glass rounded-2xl p-6">
                 <h3 className="text-sm font-medium text-white/60 mb-4">Daily Activity (Last 7 Days)</h3>
-                <div className="h-[300px]">
+                <div className="h-[300px]" style={{ width: '100%', minHeight: '300px' }}>
                     {dailyActivity && dailyActivity.length > 0 ? (
-                        <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={100}>
+                        <ResponsiveContainer width="99%" height="100%" minWidth={100} minHeight={100}>
                             <LineChart data={dailyActivity}>
                                 <XAxis dataKey="date" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
                                 <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />

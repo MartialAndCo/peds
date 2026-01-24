@@ -1,5 +1,6 @@
 
-import { prisma } from '../lib/prisma'
+import { PrismaClient } from '@prisma/client'
+const prisma = new PrismaClient()
 
 async function main() {
   const key = 'prompt_image_handling_rules'

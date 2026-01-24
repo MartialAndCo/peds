@@ -38,8 +38,7 @@ async function main() {
         await prisma.setting.create({
             data: {
                 key: 'prompt_global_rules',
-                value: "[CRITICAL]: Real Person, Match Language.\n" + BAN_LIST,
-                description: "Global prompt rules for all agents"
+                value: "[CRITICAL]: Real Person, Match Language.\n" + BAN_LIST
             }
         })
         console.log("Created 'prompt_global_rules'.")

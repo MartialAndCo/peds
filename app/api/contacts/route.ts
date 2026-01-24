@@ -14,7 +14,39 @@ const contactSchema = z.object({
     agentId: z.number().optional(), // NEW: Bind to specific agent
 })
 
-// ... GET handler unchanged ...
+// GET /api/contacts
+export async function GET(req: Request) {
+    const session = await getServerSession(authOptions)
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    try {
+        const { searchParams } = new URL(req.url)
+        const status = searchParams.get('status')
+        const limit = parseInt(searchParams.get('limit') || '50')
+        const page = parseInt(searchParams.get('page') || '1')
+        const skip = (page - 1) * limit
+
+        const where: any = {}
+        if (status) where.status = status
+
+        const contacts = await prisma.contact.findMany({
+            where,
+            orderBy: { lastPhaseUpdate: 'desc' },
+            take: limit,
+            skip: skip,
+            include: {
+                conversations: {
+                    where: { status: 'active' },
+                    take: 1
+                }
+            }
+        })
+
+        return NextResponse.json(contacts)
+    } catch (e: any) {
+        return NextResponse.json({ error: e.message }, { status: 500 })
+    }
+}
 
 export async function POST(req: Request) {
     const session = await getServerSession(authOptions)

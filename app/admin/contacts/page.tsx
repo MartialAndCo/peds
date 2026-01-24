@@ -83,7 +83,7 @@ export default function ContactsPage() {
                     <h2 className="text-3xl font-bold tracking-tight text-white">Contacts Explorer</h2>
                     <p className="text-white/40 text-sm italic">Manage your lead database and conversation context.</p>
                 </div>
-                <Link href="/contacts/new">
+                <Link href="/admin/contacts/new">
                     <Button className="glass-strong border-white/10 hover:bg-white/10 text-white font-semibold transition-all">
                         <Plus className="mr-2 h-4 w-4" />
                         New Lead
