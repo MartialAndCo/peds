@@ -55,7 +55,6 @@ export async function POST(req: Request) {
 
 
         const payload = body.payload
-        const payload = body.payload
         let agentId = 1 // Default
 
         if (body.sessionId) {
