@@ -32,10 +32,9 @@ export async function GET(req: Request) {
         if (contactId) where.contactId = contactId
 
         // Filter by Agent: Include matching Agent ID OR null (legacy/unassigned)
-        if (agentId && !isNaN(parseInt(agentId))) {
-            const agentIdInt = parseInt(agentId)
+        if (agentId) {
             where.OR = [
-                { agentId: agentIdInt },
+                { agentId: agentId },
                 { agentId: null }
             ]
         }

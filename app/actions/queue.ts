@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { whatsapp } from '@/lib/whatsapp'
 import { queueService } from '@/lib/services/queue-service'
 
-export async function getQueueItems(agentId?: number) {
+export async function getQueueItems(agentId?: string) {
     try {
         const where: any = {
             status: 'PENDING'

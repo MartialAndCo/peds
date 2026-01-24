@@ -18,7 +18,7 @@ export default function WorkspaceQueuePage() {
     const fetchItems = async () => {
         setLoading(true)
         // Pass agentId to filter items
-        const id = Array.isArray(agentId) ? parseInt(agentId[0]) : parseInt(agentId || '0')
+        const id = Array.isArray(agentId) ? agentId[0] : (agentId as string)
         // @ts-ignore - mismatch in queue actions sig vs client use, checking types later
         const data = await getQueueItems(id)
         setItems(data)

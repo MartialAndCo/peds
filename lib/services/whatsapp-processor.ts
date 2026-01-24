@@ -276,7 +276,11 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                         const refusalSystemPrompt = `(SYSTEM: User requested FORBIDDEN media. Reason: "${refusalReason}". YOU MUST REFUSE GENTLY. Do not preach. Be shy/hesitant if that fits your role. Keep it SHORT.)`
 
                         let currentConversation = await prisma.conversation.findFirst({
-                            where: { contactId: contact.id, status: { in: ['active', 'paused'] } },
+                            where: {
+                                contactId: contact.id,
+                                agentId: agentId,
+                                status: { in: ['active', 'paused'] }
+                            },
                             include: { prompt: true }
                         })
 
@@ -352,7 +356,11 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                             await memoryService.add(contact.phone_whatsapp, `[System]: Sent media ${analysis.intentCategory}`)
 
                             const activeConv = await prisma.conversation.findFirst({
-                                where: { contactId: contact.id, status: 'active' },
+                                where: {
+                                    contactId: contact.id,
+                                    agentId: agentId,
+                                    status: 'active'
+                                },
                                 select: { id: true }
                             })
 
@@ -373,7 +381,11 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                             const status = await mediaService.requestFromSource(contact.phone_whatsapp, analysis.intentCategory, settings, agentId)
 
                             let currentConversation = await prisma.conversation.findFirst({
-                                where: { contactId: contact.id, status: 'active' },
+                                where: {
+                                    contactId: contact.id,
+                                    agentId: agentId,
+                                    status: 'active'
+                                },
                                 include: { prompt: true }
                             })
 

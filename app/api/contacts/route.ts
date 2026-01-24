@@ -100,6 +100,7 @@ export async function POST(req: Request) {
             const existingConv = await prisma.conversation.findFirst({
                 where: {
                     contactId: contact.id,
+                    ...(body.agentId ? { agentId: body.agentId } : {}),
                     status: { in: ['active', 'paused'] }
                 }
             })
