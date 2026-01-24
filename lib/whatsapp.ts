@@ -48,12 +48,42 @@ export async function getConfig() {
     }
 }
 
+// Helper to resolve the actual Baileys Session ID (handles UUIDs and legacy IDs)
+async function resolveSessionId(agentId?: number | string): Promise<string> {
+    if (!agentId) {
+        const { defaultSession } = await getConfig()
+        return defaultSession
+    }
+
+    try {
+        // Check if we have a custom waha_id in settings for this agent
+        // We use prisma directly here to avoid circular dep with settings-cache if it depends on whatsapp
+        // Also we need AGENT specific settings, not global
+        const setting = await prisma.agentSetting.findFirst({
+            where: {
+                agentId: typeof agentId === 'string' ? parseInt(agentId) : agentId,
+                key: 'waha_id'
+            }
+        })
+
+        if (setting?.value) {
+            // console.log(`[WhatsApp] Resolved Agent ${agentId} -> Session ${setting.value}`)
+            return setting.value
+        }
+    } catch (e) {
+        // Fallback to legacy ID on error
+    }
+
+    return agentId.toString()
+}
+
 export const whatsapp = {
     async sendText(chatId: string, text: string, replyTo?: string, agentId?: number) {
-        console.log(`[WhatsApp] Sending Text to ${chatId} (Agent: ${agentId}, Text: "${text.substring(0, 30)}...")`)
+        // console.log(`[WhatsApp] Sending Text to ${chatId} (Agent: ${agentId})`)
+        const sessionId = await resolveSessionId(agentId)
         const textPreview = text.substring(0, 50) + (text.length > 50 ? '...' : '')
-        logger.info('Sending text message', { module: 'whatsapp', chatId, textPreview, agentId })
-        const { endpoint, apiKey, defaultSession } = await getConfig()
+        logger.info('Sending text message', { module: 'whatsapp', chatId, textPreview, sessionId })
+        const { endpoint, apiKey } = await getConfig()
 
         if (!endpoint) {
             logger.warn('WHATSAPP_ENDPOINT not configured', { module: 'whatsapp' })
@@ -65,9 +95,9 @@ export const whatsapp = {
 
             // Call our new microservice
             const url = `${endpoint}/api/sendText`
-            console.log(`[WhatsApp] Posting to: ${url}`)
+            // console.log(`[WhatsApp] Posting to: ${url}`)
             const response = await axios.post(url, {
-                sessionId: agentId?.toString() || defaultSession, // Use Agent ID or Default Session
+                sessionId: sessionId,
                 chatId: formattedChatId,
                 text,
                 replyTo
@@ -139,7 +169,7 @@ export const whatsapp = {
             }
 
             await axios.post(`${endpoint}/api/sendVoice`, {
-                sessionId: agentId?.toString(),
+                sessionId: await resolveSessionId(agentId),
                 chatId: formattedChatId,
                 file: filePayload,
                 replyTo
@@ -160,7 +190,7 @@ export const whatsapp = {
             const base64Data = fileDataUrl.split(',')[1] || fileDataUrl
 
             await axios.post(`${endpoint}/api/sendFile`, {
-                sessionId: agentId?.toString(),
+                sessionId: await resolveSessionId(agentId),
                 chatId: formattedChatId,
                 file: {
                     mimetype: 'application/octet-stream',
@@ -197,7 +227,7 @@ export const whatsapp = {
             const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
 
             const response = await axios.post(`${endpoint}/api/sendReaction`, {
-                sessionId: agentId?.toString() || defaultSession,
+                sessionId: await resolveSessionId(agentId),
                 chatId: formattedChatId,
                 messageId,
                 emoji
@@ -237,7 +267,7 @@ export const whatsapp = {
             const ext = mime.split('/')[1] || 'jpg'
 
             await axios.post(`${endpoint}/api/sendImage`, {
-                sessionId: agentId?.toString(),
+                sessionId: await resolveSessionId(agentId),
                 chatId: formattedChatId,
                 file: {
                     mimetype: mime,
@@ -277,7 +307,7 @@ export const whatsapp = {
             const ext = mime.split('/')[1] || 'mp4'
 
             await axios.post(`${endpoint}/api/sendVideo`, {
-                sessionId: agentId?.toString(),
+                sessionId: await resolveSessionId(agentId),
                 chatId: formattedChatId,
                 file: {
                     mimetype: mime,
@@ -298,7 +328,8 @@ export const whatsapp = {
     async getStatus(agentId?: number) {
         const { endpoint, apiKey } = await getConfig()
         try {
-            const url = agentId ? `${endpoint}/api/sessions/${agentId}/status` : `${endpoint}/status`
+            const sessionId = await resolveSessionId(agentId)
+            const url = `${endpoint}/api/sessions/${sessionId}/status`
             // console.log(`[WhatsApp] Checking Status: ${url}`)
             const response = await axios.get(url, {
                 headers: { 'X-Api-Key': apiKey }, // Ensure Auth is sent
@@ -375,7 +406,7 @@ export const whatsapp = {
                 // If 'all' is true, we should NOT pass messageKey, to force a chat-level "mark seen"
                 // which clears all unread messages. Passing a key might restrict it to "read up to this message".
                 const payload: any = {
-                    sessionId: agentId?.toString() || defaultSession,
+                    sessionId: await resolveSessionId(agentId),
                     chatId: formattedChatId,
                     all: true
                 }
@@ -404,7 +435,7 @@ export const whatsapp = {
         try {
             const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
             await axios.post(`${endpoint}/api/sendStateTyping`, {
-                sessionId: agentId?.toString() || defaultSession,
+                sessionId: await resolveSessionId(agentId),
                 chatId: formattedChatId,
                 isTyping
             }, {
@@ -420,7 +451,7 @@ export const whatsapp = {
         try {
             const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
             await axios.post(`${endpoint}/api/sendStateRecording`, {
-                sessionId: agentId?.toString() || defaultSession,
+                sessionId: await resolveSessionId(agentId),
                 chatId: formattedChatId,
                 isRecording
             }, {
@@ -474,7 +505,7 @@ export const whatsapp = {
         const { endpoint, apiKey } = await getConfig()
         try {
             const response = await axios.post(`${endpoint}/api/admin/action`,
-                { action, sessionId: agentId?.toString(), ...options },
+                { action, sessionId: await resolveSessionId(agentId), ...options },
                 {
                     headers: { 'X-Api-Key': apiKey, 'Content-Type': 'application/json' },
                     timeout: 30000
@@ -509,7 +540,7 @@ export const whatsapp = {
     async startSession(agentId: string) {
         const { endpoint, apiKey } = await getConfig()
         try {
-            await axios.post(`${endpoint}/api/sessions/start`, { sessionId: agentId }, {
+            await axios.post(`${endpoint}/api/sessions/start`, { sessionId: await resolveSessionId(agentId) }, {
                 headers: { 'X-Api-Key': apiKey }
             })
             return { success: true }
@@ -526,7 +557,7 @@ export const whatsapp = {
     async stopSession(agentId: string) {
         const { endpoint, apiKey } = await getConfig()
         try {
-            await axios.post(`${endpoint}/api/sessions/stop`, { sessionId: agentId }, {
+            await axios.post(`${endpoint}/api/sessions/stop`, { sessionId: await resolveSessionId(agentId) }, {
                 headers: { 'X-Api-Key': apiKey }
             })
             return { success: true }
@@ -539,9 +570,10 @@ export const whatsapp = {
     async deleteSession(agentId: string) {
         const { endpoint, apiKey } = await getConfig()
         try {
-            logger.info(`Deleting session permanently`, { module: 'whatsapp', agentId })
+            const sessionId = await resolveSessionId(agentId)
+            logger.info(`Deleting session permanently`, { module: 'whatsapp', agentId, sessionId })
             await axios.post(`${endpoint}/api/sessions/delete`,
-                { sessionId: agentId },
+                { sessionId },
                 { headers: { 'X-Api-Key': apiKey }, timeout: 10000 }
             )
             return { success: true }
