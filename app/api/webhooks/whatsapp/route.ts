@@ -30,7 +30,17 @@ export async function POST(req: Request) {
                 const reactionData = body.payload || body
                 const messageId = reactionData.key?.id || reactionData.messageId || reactionData.id
                 const reaction = reactionData.reaction?.text || reactionData.text || reactionData.emoji
-                const agentId = body.sessionId ? parseInt(body.sessionId) : 1
+                let agentId = 1
+                if (body.sessionId) {
+                    if (body.sessionId.toString().startsWith('session_')) {
+                        const setting = await prisma.agentSetting.findFirst({
+                            where: { key: 'waha_id', value: body.sessionId }
+                        })
+                        if (setting) agentId = setting.agentId
+                    } else {
+                        agentId = parseInt(body.sessionId) || 1
+                    }
+                }
 
                 // Get settings
                 const { settingsService } = require('@/lib/settings-cache')
