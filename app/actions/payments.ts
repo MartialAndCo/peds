@@ -34,9 +34,13 @@ export async function createManualPayment(data: {
                         name: data.contactName,
                         phone_whatsapp: data.contactPhone,
                         source: 'manual_entry',
-                        // Fixed: is_blocked doesn't exist, use status
                         status: 'active',
-                        age: 25 // Default
+                        profile: {
+                            age: 25,
+                            job: 'Unknown',
+                            location: 'Unknown',
+                            name: data.contactName
+                        }
                     }
                 })
             }
