@@ -43,7 +43,7 @@ function NewConversationForm() {
                 prompt_id: parseInt(selectedPrompt),
                 initial_message: initialMessage
             })
-            router.push(`/conversations/${res.data.id}`)
+            router.push(`/admin/conversations`)
         } catch (error: any) {
             console.error(error)
             alert('Error creating conversation')

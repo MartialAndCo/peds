@@ -58,7 +58,7 @@ export default function ContactsPage() {
         // Let's create a 'start' page or just use the Conversations list "New" button.
         // We haven't implemented Conversations Frontend yet.
         // Let's assume we will have /conversations/new?contactId=...
-        router.push(`/conversations/new?contact_id=${contactId}`)
+        router.push(`/admin/conversations/new?contact_id=${contactId}`)
     }
 
     const [selectedContact, setSelectedContact] = useState<any>(null)
