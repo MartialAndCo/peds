@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { settingsService } from '@/lib/settings-cache'
 
 export async function GET() {
     const session = await getServerSession(authOptions)
@@ -34,6 +35,7 @@ export async function PUT(req: Request) {
         })
 
         await prisma.$transaction(updates)
+        settingsService.invalidate()
 
         return NextResponse.json({ success: true })
     } catch (error: any) {
