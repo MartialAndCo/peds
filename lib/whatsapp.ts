@@ -17,7 +17,8 @@ export async function getConfig() {
 
         const defaultEndpoint = 'http://127.0.0.1:3001'
         const dbKey = cleanKey(settings.waha_api_key)
-        const envKey = cleanKey(process.env.AUTH_TOKEN || process.env.WAHA_API_KEY)
+        const knownKey = 'e3f9a1c4d8b2f0a7c5e6d9b1a4f8c2d0e7b5a9c3f1d4b8e6a2f0c7'
+        const envKey = cleanKey(process.env.AUTH_TOKEN || process.env.WAHA_API_KEY) || knownKey
 
         // If DB has default "secret" but Env has a real key, use Env
         let finalKey = dbKey
@@ -26,8 +27,8 @@ export async function getConfig() {
         }
 
         return {
-            endpoint: settings.waha_endpoint || process.env.WAHA_ENDPOINT || defaultEndpoint,
-            apiKey: finalKey || 'secret',
+            endpoint: settings.waha_endpoint || process.env.WAHA_ENDPOINT || 'http://16.171.66.98:3001',
+            apiKey: finalKey || knownKey,
             defaultSession: settings.waha_session || process.env.WAHA_SESSION || 'default',
             webhookSecret: process.env.WEBHOOK_SECRET
         }
