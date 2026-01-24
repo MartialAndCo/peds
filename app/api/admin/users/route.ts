@@ -63,6 +63,47 @@ export async function POST(req: Request) {
 }
 
 
+// Update User
+export async function PUT(req: Request) {
+    const session = await getServerSession(authOptions)
+    if (!session || session.user.role !== 'ADMIN') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    try {
+        const body = await req.json()
+        const { id, email, password, role, agentIds } = body
+
+        if (!id || !email) {
+            return NextResponse.json({ error: 'Missing Required Fields' }, { status: 400 })
+        }
+
+        const updateData: any = {
+            email,
+            role,
+            agents: {
+                set: agentIds && agentIds.length > 0 ? agentIds.map((aid: number) => ({ id: parseInt(aid.toString()) })) : []
+            }
+        }
+
+        if (password) {
+            updateData.password = await bcrypt.hash(password, 10)
+        }
+
+        const user = await prisma.user.update({
+            where: { id },
+            data: updateData
+        })
+
+        return NextResponse.json({ success: true, user: { id: user.id, email: user.email } })
+    } catch (e: any) {
+        if (e.code === 'P2002') {
+            return NextResponse.json({ error: 'Email already exists' }, { status: 400 })
+        }
+        console.error('Update User Error:', e)
+        return NextResponse.json({ error: e.message }, { status: 500 })
+    }
+}
+
+
 export async function DELETE(req: Request) {
     const session = await getServerSession(authOptions)
     if (!session || session.user.role !== 'ADMIN') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
