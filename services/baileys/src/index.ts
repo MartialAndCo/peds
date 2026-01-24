@@ -501,12 +501,14 @@ async function startSession(sessionId: string) {
             // Only auto-reconnect if:
             // 1. Not logged out
             // 2. Session was previously connected (authenticated) OR it's not a QR timeout
-            // This prevents infinite QR loop for never-scanned sessions
-            const shouldReconnect = !wasLoggedOut && (wasConnected || !wasQrTimeout)
+            // 3. SPECIAL CASE: Error 515 (Stream Errored) requires restart even if not fully connected yet
+            const isRestartRequired = statusCode === DisconnectReason.restartRequired || statusCode === 515
+            const shouldReconnect = !wasLoggedOut && (wasConnected || !wasQrTimeout || isRestartRequired)
 
-            if (shouldReconnect && wasConnected) {
-                server.log.info({ sessionId }, 'Auto-reconnecting previously authenticated session...')
-                setTimeout(() => startSession(sessionId), 5000)
+            if (shouldReconnect && (wasConnected || isRestartRequired)) {
+                server.log.info({ sessionId, statusCode, isRestartRequired }, 'Auto-reconnecting (Authenticated or 515)...')
+                const delay = isRestartRequired ? 2000 : 5000 // Fast restart for 515
+                setTimeout(() => startSession(sessionId), delay)
             } else if (wasQrTimeout && !wasConnected) {
                 server.log.info({ sessionId }, 'QR timeout - waiting for manual restart (user never scanned)')
             } else if (wasLoggedOut) {
