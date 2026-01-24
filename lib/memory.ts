@@ -16,7 +16,7 @@ export const memoryService = {
     },
 
     // Build agent-specific user_id to isolate memories per agent
-    buildUserId(phone: string, agentId?: number): string {
+    buildUserId(phone: string, agentId?: string): string {
         if (agentId) {
             return `agent_${agentId}_${phone}`
         }
@@ -36,7 +36,7 @@ export const memoryService = {
     },
 
     // Agent-specific add: isolates memories per agent
-    async addForAgent(phone: string, agentId: number, text: string) {
+    async addForAgent(phone: string, agentId: string, text: string) {
         const userId = this.buildUserId(phone, agentId)
         await this.add(userId, text)
     },
@@ -83,7 +83,7 @@ export const memoryService = {
     },
 
     // Agent-specific getAll
-    async getAllForAgent(phone: string, agentId: number) {
+    async getAllForAgent(phone: string, agentId: string) {
         const userId = this.buildUserId(phone, agentId)
         return await this.getAll(userId)
     },

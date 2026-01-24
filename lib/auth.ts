@@ -43,7 +43,7 @@ export const authOptions: NextAuthOptions = {
                     email: user.email,
                     role: user.role,
                     agents: user.agents
-                }
+                } as any
             },
         }),
     ],

@@ -32,7 +32,8 @@ export async function GET(req: Request) {
 
                 // Process
                 const body = event.payload as any
-                const sessionId = body.sessionId ? parseInt(body.sessionId) : 1
+                // Use string for sessionId (Agent CUID)
+                const sessionId = body.sessionId ? body.sessionId.toString() : 'default'
 
                 await processWhatsAppPayload(body.payload, sessionId)
 

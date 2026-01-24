@@ -17,7 +17,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         // Transaction to update basic fields AND upsert settings
         const [agent] = await prisma.$transaction([
             prisma.agent.update({
-                where: { id: parseInt(id) },
+                where: { id: id },
                 data: {
                     name,
                     phone,
@@ -30,9 +30,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
             }),
             ...(body.settings ? Object.entries(body.settings).map(([key, value]) =>
                 prisma.agentSetting.upsert({
-                    where: { agentId_key: { agentId: parseInt(id), key } },
+                    where: { agentId_key: { agentId: id, key } },
                     update: { value: String(value) },
-                    create: { agentId: parseInt(id), key, value: String(value) }
+                    create: { agentId: id, key, value: String(value) }
                 })
             ) : [])
         ])
@@ -57,7 +57,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
         // 2. Delete from database
         await prisma.agent.delete({
-            where: { id: parseInt(id) }
+            where: { id: id }
         })
         return NextResponse.json({ success: true })
     } catch (e) {

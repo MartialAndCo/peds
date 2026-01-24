@@ -24,7 +24,7 @@ export async function processPaymentClaim(
     contact: any,
     conversation: any,
     settings: any,
-    agentId?: number
+    agentId?: string
 ): Promise<{ processed: boolean; claimId?: string }> {
 
     // Fetch conversation history for context (last 10 messages)
@@ -70,7 +70,7 @@ export async function notifyPaymentClaim(
     settings: any,
     amount: number | null,
     method: string | null,
-    agentId?: number
+    agentId?: string
 ): Promise<{ processed: boolean; claimId?: string }> {
     logger.info('Payment claim detected (Triggered)', {
         module: 'payment-claim',
@@ -192,7 +192,7 @@ async function sendPushNotificationToAdmin(payload: { title: string, body: strin
 export async function processPaymentClaimDecision(
     claimId: string,
     action: 'CONFIRM' | 'REJECT',
-    agentId?: number,
+    agentId?: string,
     settings?: any
 ): Promise<boolean> {
 
@@ -249,7 +249,7 @@ export async function processPaymentClaimDecision(
         })
 
         // 2. Inject memory
-        const memUserId = memoryService.buildUserId(claim.contact.phone_whatsapp, effectiveAgentId)
+        const memUserId = memoryService.buildUserId(claim.contact.phone_whatsapp, effectiveAgentId as string)
         const memoryText = `User paid ${claim.claimedAmount || 'an amount'} via ${claim.claimedMethod || 'unknown method'}. Payment confirmed.`
         await memoryService.add(memUserId, memoryText)
 
@@ -260,10 +260,16 @@ export async function processPaymentClaimDecision(
         })
 
         // 4. Update Contact Phase to MONEYPOT
-        await prisma.contact.update({
-            where: { id: claim.contactId },
+        // 4. Update AgentContact Phase to MONEYPOT
+        await prisma.agentContact.update({
+            where: {
+                agentId_contactId: {
+                    agentId: effectiveAgentId || 'default', // Fallback safe
+                    contactId: claim.contactId
+                }
+            },
             data: {
-                agentPhase: 'MONEYPOT',
+                phase: 'MONEYPOT',
                 lastPhaseUpdate: new Date()
             }
         })
@@ -301,7 +307,7 @@ export async function processPaymentClaimDecision(
             }))
 
             // System Prompt
-            const { phase, details } = await director.determinePhase(claim.contact.phone_whatsapp)
+            const { phase, details } = await director.determinePhase(claim.contact.phone_whatsapp, effectiveAgentId)
             const systemPrompt = await director.buildSystemPrompt(
                 settings,
                 claim.contact,
@@ -322,7 +328,7 @@ export async function processPaymentClaimDecision(
                 )
                 notReceivedMsg = notReceivedMsg.replace(/\*[^*]+\*/g, '').trim()
 
-                await whatsapp.sendText(claim.contact.phone_whatsapp, notReceivedMsg, undefined, effectiveAgentId)
+                await whatsapp.sendText(claim.contact.phone_whatsapp, notReceivedMsg, undefined, effectiveAgentId as string)
 
                 if (conversation) {
                     await prisma.message.create({
@@ -356,7 +362,7 @@ export async function handlePaymentClaimReaction(
     messageId: string,
     reaction: string, // emoji
     settings: any,
-    agentId?: number
+    agentId?: string
 ): Promise<boolean> {
 
     const claim = await prisma.pendingPaymentClaim.findFirst({

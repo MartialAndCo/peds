@@ -8,7 +8,7 @@ export async function GET(req: Request) {
 
         const where: any = {};
         if (agentId) {
-            where.agentId = parseInt(agentId);
+            where.agentId = agentId;
         } else {
             where.agentId = null;
         }
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
                 term,
                 mediaType: mediaType || 'all',
                 phase: phase || 'all',
-                agentId: agentId ? parseInt(agentId) : null
+                agentId: agentId ? agentId : null
             }
         });
 

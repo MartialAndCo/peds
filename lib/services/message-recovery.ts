@@ -174,7 +174,7 @@ export class MessageRecoveryService {
 
         // Get agent settings
         const agentSettings = await prisma.agentSetting.findMany({
-            where: { agentId: conversation.agentId || 1 }
+            where: { agentId: (conversation.agentId as unknown as string) || 'default' }
         })
         agentSettings.forEach((s: any) => { settings[s.key] = s.value })
 
@@ -183,7 +183,7 @@ export class MessageRecoveryService {
         const { anthropic } = require('@/lib/anthropic')
         const { director } = require('@/lib/director')
 
-        const { phase, details } = await director.determinePhase(conversation.contact.phone_whatsapp)
+        const { phase, details } = await director.determinePhase(conversation.contact.phone_whatsapp, conversation.agentId || 'default')
         const systemPrompt = await director.buildSystemPrompt(
             settings,
             conversation.contact,

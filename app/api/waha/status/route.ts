@@ -14,7 +14,7 @@ export async function GET(req: Request) {
         const { searchParams } = new URL(req.url)
         const agentId = searchParams.get('agentId')
 
-        const status = await whatsapp.getStatus(agentId ? parseInt(agentId) : undefined)
+        const status = await whatsapp.getStatus(agentId ? agentId : undefined)
 
         console.log(`[WAHA Status] Agent ${agentId || 'global'}: ${JSON.stringify(status)}`)
 

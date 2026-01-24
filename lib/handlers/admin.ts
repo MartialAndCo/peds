@@ -6,7 +6,7 @@ import { anthropic } from '@/lib/anthropic'
 import { venice } from '@/lib/venice'
 import { getAdminProblemAck, getAdminCancelAck, getAdminZeroPending } from '@/lib/spintax'
 
-export async function handleAdminCommand(text: string, sourcePhone: string, settings: any, agentId?: number, messageKey?: any) {
+export async function handleAdminCommand(text: string, sourcePhone: string, settings: any, agentId?: string, messageKey?: any) {
     const upperText = text.toUpperCase()
 
     // Mark as read immediately

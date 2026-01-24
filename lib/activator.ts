@@ -38,8 +38,8 @@ export const activator = {
         const contextMessages = messagesForAI.slice(0, -1)
 
         // 3. Build System Prompt
-        const { phase, details } = await director.determinePhase(conversation.contact.phone_whatsapp)
         const agentId = conversation.agentId // Get agentId from conversation
+        const { phase, details } = await director.determinePhase(conversation.contact.phone_whatsapp, agentId)
         let systemPrompt = await director.buildSystemPrompt(
             settings,
             conversation.contact,

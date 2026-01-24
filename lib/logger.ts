@@ -7,7 +7,7 @@ const traceStorage = new AsyncLocalStorage<TraceContext>()
 
 interface TraceContext {
     traceId: string
-    agentId?: number
+    agentId?: string
 }
 
 interface LogContext {
@@ -227,7 +227,7 @@ class Logger {
     /**
      * Specialized logging methods
      */
-    messageReceived(payload: any, agentId: number) {
+    messageReceived(payload: any, agentId: string) {
         this.info('Message received from WhatsApp', {
             module: 'webhook',
             chatId: payload.from,
@@ -296,14 +296,14 @@ export const trace = {
     /**
      * Run function with trace context
      */
-    run<T>(traceId: string, agentId: number | undefined, fn: () => T): T {
+    run<T>(traceId: string, agentId: string | undefined, fn: () => T): T {
         return traceStorage.run({ traceId, agentId }, fn)
     },
 
     /**
      * Run async function with trace context
      */
-    async runAsync<T>(traceId: string, agentId: number | undefined, fn: () => Promise<T>): Promise<T> {
+    async runAsync<T>(traceId: string, agentId: string | undefined, fn: () => Promise<T>): Promise<T> {
         return traceStorage.run({ traceId, agentId }, fn)
     }
 }

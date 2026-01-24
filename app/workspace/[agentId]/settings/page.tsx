@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils'
 
 // Types
 type Agent = {
-    id: number
+    id: string
     name: string
     voiceModelId: number | null
     operatorGender: string

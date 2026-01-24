@@ -58,6 +58,11 @@ export const memoryExtractionService = {
         for (const agent of agents) {
             console.log(`[MemoryExtraction] Processing Agent: ${agent.name} (ID: ${agent.id})`)
 
+            // Fetch agent-specific settings for the current agent
+            const agentSettings = await prisma.agentSetting.findMany({
+                where: { agentId: (agent.id as unknown as string) || 'default' }
+            })
+
             // Get active conversations for this agent that haven't been analyzed recently
             const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000)
 
@@ -104,7 +109,7 @@ export const memoryExtractionService = {
 
                     if (facts.length > 0) {
                         // Store facts in Mem0 with agent-specific user_id
-                        const userId = memoryService.buildUserId(conv.contact.phone_whatsapp, agent.id)
+                        const userId = memoryService.buildUserId(conv.contact.phone_whatsapp, agent.id as unknown as string)
                         await memoryService.addMany(userId, facts)
                         factsExtracted += facts.length
                         console.log(`[MemoryExtraction] Stored ${facts.length} facts for ${conv.contact.phone_whatsapp}`)

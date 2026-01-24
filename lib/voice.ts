@@ -8,7 +8,7 @@ export const voiceService = {
      * Request a voice note from the Human Source.
      * @param agentSettings - Optional agent-specific settings (overrides global)
      */
-    async requestVoice(contactPhone: string, textToSay: string, context: string, agentSettings?: any, agentId?: number) {
+    async requestVoice(contactPhone: string, textToSay: string, context: string, agentSettings?: any, agentId?: string) {
         console.log(`[VoiceService] Requesting voice for ${contactPhone}. Text: "${textToSay}"`)
         // 1. Get Settings (Agent settings override global)
         const globalSettings = await settingsService.getSettings()

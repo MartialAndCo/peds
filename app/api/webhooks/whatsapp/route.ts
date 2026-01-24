@@ -30,7 +30,7 @@ export async function POST(req: Request) {
                 const reactionData = body.payload || body
                 const messageId = reactionData.key?.id || reactionData.messageId || reactionData.id
                 const reaction = reactionData.reaction?.text || reactionData.text || reactionData.emoji
-                let agentId = 1
+                let agentId = 'default'
                 if (body.sessionId) {
                     if (body.sessionId.toString().startsWith('session_')) {
                         const setting = await prisma.agentSetting.findFirst({
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
                         })
                         if (setting) agentId = setting.agentId
                     } else {
-                        agentId = parseInt(body.sessionId) || 1
+                        agentId = body.sessionId.toString()
                     }
                 }
 
@@ -65,7 +65,7 @@ export async function POST(req: Request) {
 
 
         const payload = body.payload
-        let agentId = 1 // Default
+        let agentId = 'default' // Changed fallback to string or handle empty? Best to use undefined if not found.
 
         if (body.sessionId) {
             // Check if it's a UUID session (starts with session_)
@@ -76,8 +76,10 @@ export async function POST(req: Request) {
                 if (setting) agentId = setting.agentId
                 else console.warn(`[Webhook] Could not resolve Agent ID for uuid session: ${body.sessionId}`)
             } else {
-                // Legacy Integer ID
-                agentId = parseInt(body.sessionId) || 1
+                // If it's NOT a session_ ID, it might be the Direct CUID or Legacy ID
+                // Ideally, we shouldn't receive legacy integers anymore.
+                // But if we do, we treat them as strings if our DB has them as strings (e.g. "7").
+                agentId = body.sessionId.toString()
             }
         }
 

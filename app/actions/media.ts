@@ -133,7 +133,7 @@ export async function deleteMedia(mediaId: number) {
     }
 }
 
-export async function generateAutoContext(mediaId: number, agentId: number) {
+export async function generateAutoContext(mediaId: number, agentId: string) {
     await checkAuth()
 
     try {
@@ -142,7 +142,7 @@ export async function generateAutoContext(mediaId: number, agentId: number) {
         if (!media) throw new Error('Media not found')
 
         const agent = await prisma.agent.findUnique({
-            where: { id: agentId },
+            where: { id: (agentId as unknown as string) },
             include: { agentPrompts: { include: { prompt: true } }, settings: true }
         })
 
@@ -156,7 +156,7 @@ export async function generateAutoContext(mediaId: number, agentId: number) {
 
         if (agent) {
             // Extract identity from Prompt or Settings
-            const corePrompt = agent.agentPrompts.find(p => p.type === 'CORE')?.prompt.system_prompt
+            const corePrompt = (agent as any).agentPrompts?.find((p: any) => p.type === 'CORE')?.prompt.system_prompt
             if (corePrompt) {
                 // Try to extract Role/Identity line
                 const match = corePrompt.match(/Role: (.*?)(\n|$)/)
@@ -164,8 +164,8 @@ export async function generateAutoContext(mediaId: number, agentId: number) {
             }
 
             // Extract City/Bio from settings
-            const bio = agent.settings.find(s => s.key === 'bio')?.value
-            const location = agent.settings.find(s => s.key === 'location')?.value || agent.settings.find(s => s.key === 'city')?.value
+            const bio = (agent as any).settings?.find((s: any) => s.key === 'bio')?.value
+            const location = (agent as any).settings?.find((s: any) => s.key === 'location')?.value || (agent as any).settings?.find((s: any) => s.key === 'city')?.value
 
             if (bio) identity += `. Bio: ${bio}`
             if (location) {
@@ -178,7 +178,7 @@ export async function generateAutoContext(mediaId: number, agentId: number) {
 
         // 3. Fetch Timeline Events (for consistency)
         const events = await prisma.agentEvent.findMany({
-            where: { agentId },
+            where: { agentId: (agentId as unknown as string) },
             orderBy: { startDate: 'desc' }
         })
 
@@ -303,12 +303,12 @@ export async function generateAutoContext(mediaId: number, agentId: number) {
 }
 
 // [NEW] Smart Organize Action
-export async function smartOrganizeMedia(publicUrl: string, agentId: number) {
+export async function smartOrganizeMedia(publicUrl: string, agentId: string) {
     await checkAuth()
 
     // 1. Fetch Metadata
     const categories = await prisma.mediaType.findMany({ select: { id: true, keywords: true } });
-    const events = await prisma.agentEvent.findMany({ where: { agentId }, orderBy: { startDate: 'desc' } });
+    const events = await prisma.agentEvent.findMany({ where: { agentId: (agentId as unknown as string) }, orderBy: { startDate: 'desc' } });
     const globalSettings = await settingsService.getSettings();
     const apiKey = globalSettings.openrouter_api_key as string | undefined;
 

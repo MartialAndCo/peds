@@ -41,7 +41,7 @@ export const leadService = {
     /**
      * Handle message from the Lead Provider.
      */
-    async handleProviderMessage(providerPhone: string, text: string, messageId: string, agentId?: number) {
+    async handleProviderMessage(providerPhone: string, text: string, messageId: string, agentId?: string) {
         // Expecting: "Phone + Context"
         const parseResult = this.parseLeadMessage(text)
 

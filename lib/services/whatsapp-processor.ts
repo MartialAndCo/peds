@@ -11,7 +11,7 @@ import { queueService } from '@/lib/services/queue-service'
  * Core processor for WhatsApp Webhook Payloads.
  * This function encapsulates the business logic previously in the route handler.
  */
-export async function processWhatsAppPayload(payload: any, agentId: number, options?: { skipAI?: boolean, previousResponse?: string }) {
+export async function processWhatsAppPayload(payload: any, agentId: string, options?: { skipAI?: boolean, previousResponse?: string }) {
     logger.messageProcessing('Start handling message', { agentId, from: payload.from })
 
     try {
@@ -84,7 +84,7 @@ export async function processWhatsAppPayload(payload: any, agentId: number, opti
         // Fetch Agent-Specific Settings (Overrides Global)
         console.log(`[Processor] Fetching agent settings for ID ${agentId}...`)
         const agentWithSettings = await prisma.agent.findUnique({
-            where: { id: Number(agentId) },
+            where: { id: agentId },
             include: { settings: true }
         })
         console.log(`[Processor] Agent settings fetch complete. Found: ${!!agentWithSettings}`)
@@ -282,7 +282,7 @@ export async function processWhatsAppPayload(payload: any, agentId: number, opti
 
                         // Use Director to build FULL prompt (Phases, Style, etc.)
                         const { director } = require('@/lib/director')
-                        const { phase, details, reason } = await director.determinePhase(contact.phone_whatsapp)
+                        const { phase, details, reason } = await director.determinePhase(contact.phone_whatsapp, agentId)
                         const fullSystemPrompt = await director.buildSystemPrompt(
                             settings,
                             contact,
@@ -395,7 +395,7 @@ export async function processWhatsAppPayload(payload: any, agentId: number, opti
 
                             // Generate Response using Director for Consistency
                             const { director } = require('@/lib/director')
-                            const { phase, details, reason } = await director.determinePhase(contact.phone_whatsapp)
+                            const { phase, details, reason } = await director.determinePhase(contact.phone_whatsapp, agentId)
                             const fullSystemPrompt = await director.buildSystemPrompt(
                                 settings,
                                 contact,

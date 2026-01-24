@@ -11,7 +11,7 @@ export async function handleSourceMedia(
     sourcePhone: string,
     normalizedPhone: string,
     settings: any,
-    agentId?: number
+    agentId?: string
 ) {
     // Include ptt/audio so voice notes are correctly routed and don't fall through
     const isMedia = payload.type === 'image' || payload.type === 'video' || payload.type === 'ptt' || payload.type === 'audio' || payload._data?.mimetype?.startsWith('image') || payload._data?.mimetype?.startsWith('video') || payload._data?.mimetype?.startsWith('audio')

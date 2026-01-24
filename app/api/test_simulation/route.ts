@@ -36,7 +36,9 @@ export async function GET() {
             contact,
             'CRISIS',
             { daysActive: 10, trustScore: 90 },
-            'Teenage Girl'
+            'Teenage Girl',
+            'default', // agentId
+            'Simulation' // reason
         )
 
         // 3. User Message

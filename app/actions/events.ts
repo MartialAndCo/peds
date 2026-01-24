@@ -20,11 +20,11 @@ export type EventData = {
     description?: string
 }
 
-export async function getAgentEvents(agentId: number) {
+export async function getAgentEvents(agentId: string) {
     await checkAuth()
     try {
         return await prisma.agentEvent.findMany({
-            where: { agentId },
+            where: { agentId: (agentId as unknown as string) },
             orderBy: { startDate: 'desc' }
         })
     } catch (error: any) {
@@ -32,12 +32,12 @@ export async function getAgentEvents(agentId: number) {
     }
 }
 
-export async function createAgentEvent(agentId: number, data: EventData) {
+export async function createAgentEvent(agentId: string, data: EventData) {
     await checkAuth()
     try {
         const event = await prisma.agentEvent.create({
             data: {
-                agentId,
+                agentId: (agentId as unknown as string),
                 ...data
             }
         })

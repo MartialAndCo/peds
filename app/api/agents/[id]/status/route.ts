@@ -9,7 +9,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
     const { id } = await params
     try {
-        const status = await whatsapp.getStatus(parseInt(id))
+        const status = await whatsapp.getStatus(id)
         return NextResponse.json(status)
     } catch (e: any) {
         return NextResponse.json({ error: e.message }, { status: 500 })

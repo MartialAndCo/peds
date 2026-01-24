@@ -15,7 +15,7 @@ export async function GET(req: Request) {
         const { searchParams } = new URL(req.url)
         const agentId = searchParams.get('agentId')
 
-        const status = await whatsapp.getStatus(agentId ? parseInt(agentId) : undefined)
+        const status = await whatsapp.getStatus(agentId || undefined)
         const qr = status.qr
 
         if (!qr) {

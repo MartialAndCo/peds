@@ -5,8 +5,6 @@ import { settingsService } from '@/lib/settings-cache'
 
 const cleanKey = (key?: string) => {
     if (!key) return undefined
-    // Remove surrounding quotes and excessive whitespace/newlines
-    // Also handles cases like "KEY"R where R is garbage after the closing quote
     return key.trim().replace(/^["']/, '').replace(/["'].*$/, '')
 }
 
@@ -20,7 +18,6 @@ export async function getConfig() {
         const knownKey = 'e3f9a1c4d8b2f0a7c5e6d9b1a4f8c2d0e7b5a9c3f1d4b8e6a2f0c7'
         const envKey = cleanKey(process.env.AUTH_TOKEN || process.env.WAHA_API_KEY) || knownKey
 
-        // If DB has default "secret" but Env has a real key, use Env
         let finalKey = dbKey
         if ((!dbKey || dbKey === 'secret') && envKey && envKey !== 'secret') {
             finalKey = envKey
@@ -34,13 +31,10 @@ export async function getConfig() {
         }
     } catch (e) {
         logger.warn('Failed to fetch WhatsApp settings from DB, falling back to known defaults', { module: 'whatsapp' })
-
-        // FAILSAFE: Use the known production key if env is missing
         const knownKey = 'e3f9a1c4d8b2f0a7c5e6d9b1a4f8c2d0e7b5a9c3f1d4b8e6a2f0c7'
         const envKey = cleanKey(process.env.AUTH_TOKEN || process.env.WAHA_API_KEY)
-
         return {
-            endpoint: process.env.WAHA_ENDPOINT || 'http://16.171.66.98:3001', // Default to EC2 IP
+            endpoint: process.env.WAHA_ENDPOINT || 'http://16.171.66.98:3001',
             apiKey: envKey || knownKey,
             defaultSession: process.env.WAHA_SESSION || 'default',
             webhookSecret: process.env.WEBHOOK_SECRET
@@ -57,17 +51,15 @@ async function resolveSessionId(agentId?: number | string): Promise<string> {
 
     try {
         // Check if we have a custom waha_id in settings for this agent
-        // We use prisma directly here to avoid circular dep with settings-cache if it depends on whatsapp
-        // Also we need AGENT specific settings, not global
         const setting = await prisma.agentSetting.findFirst({
             where: {
-                agentId: typeof agentId === 'string' ? parseInt(agentId) : agentId,
+                // FIXED: agentId is now a string (CUID) or number (Legacy fallback)
+                agentId: agentId.toString(),
                 key: 'waha_id'
             }
         })
 
         if (setting?.value) {
-            // console.log(`[WhatsApp] Resolved Agent ${agentId} -> Session ${setting.value}`)
             return setting.value
         }
     } catch (e) {
@@ -78,7 +70,7 @@ async function resolveSessionId(agentId?: number | string): Promise<string> {
 }
 
 export const whatsapp = {
-    async sendText(chatId: string, text: string, replyTo?: string, agentId?: number) {
+    async sendText(chatId: string, text: string, replyTo?: string, agentId?: string) {
         // console.log(`[WhatsApp] Sending Text to ${chatId} (Agent: ${agentId})`)
         const sessionId = await resolveSessionId(agentId)
         const textPreview = text.substring(0, 50) + (text.length > 50 ? '...' : '')
@@ -95,7 +87,6 @@ export const whatsapp = {
 
             // Call our new microservice
             const url = `${endpoint}/api/sendText`
-            // console.log(`[WhatsApp] Posting to: ${url}`)
             const response = await axios.post(url, {
                 sessionId: sessionId,
                 chatId: formattedChatId,
@@ -114,7 +105,7 @@ export const whatsapp = {
         }
     },
 
-    async sendVoice(chatId: string, audioDataUrl: string, replyTo?: string, agentId?: number) {
+    async sendVoice(chatId: string, audioDataUrl: string, replyTo?: string, agentId?: string) {
         logger.info('Sending voice message', { module: 'whatsapp', chatId, agentId })
         const { endpoint, apiKey } = await getConfig()
 
@@ -125,8 +116,6 @@ export const whatsapp = {
             const ext = mime.split('/')[1] || 'mp3'
 
             // --- PAYLOAD OPTIMIZATION (Supabase Upload) ---
-            // If the voice note is large, upload it to Supabase Storage first and send the URL.
-            // This bypasses the 100kb/1mb body limit of the WhatsApp Server.
             let filePayload: any = {
                 mimetype: mime,
                 data: base64Data,
@@ -153,7 +142,6 @@ export const whatsapp = {
                         const { data: publicData } = supabase.storage.from('voice-uploads').getPublicUrl(fileName)
                         if (publicData?.publicUrl) {
                             logger.info(`[WhatsApp] Optimized Voice Upload: ${publicData.publicUrl}`, { module: 'whatsapp' })
-                            // Replace "data" with "url" - force WAV mime since that's what we uploaded
                             filePayload = {
                                 mimetype: 'audio/wav',
                                 url: publicData.publicUrl,
@@ -182,7 +170,7 @@ export const whatsapp = {
         }
     },
 
-    async sendFile(chatId: string, fileDataUrl: string, filename: string, caption?: string, agentId?: number) {
+    async sendFile(chatId: string, fileDataUrl: string, filename: string, caption?: string, agentId?: string) {
         logger.info('Sending file', { module: 'whatsapp', chatId, filename, agentId })
         const { endpoint, apiKey } = await getConfig()
         try {
@@ -207,16 +195,9 @@ export const whatsapp = {
         }
     },
 
-    /**
-     * Send a reaction (like/heart/emoji) to a message
-     * @param chatId - The chat to react in
-     * @param messageId - The message ID to react to
-     * @param emoji - The emoji to react with (e.g. "👍", "❤️", "😂")
-     * @param agentId - Agent ID for multi-session support
-     */
-    async sendReaction(chatId: string, messageId: string, emoji: string, agentId?: number) {
+    async sendReaction(chatId: string, messageId: string, emoji: string, agentId?: string) {
         logger.info('Sending reaction', { module: 'whatsapp', chatId, messageId, emoji, agentId })
-        const { endpoint, apiKey, defaultSession } = await getConfig()
+        const { endpoint, apiKey } = await getConfig()
 
         if (!endpoint) {
             logger.warn('WHATSAPP_ENDPOINT not configured', { module: 'whatsapp' })
@@ -244,7 +225,7 @@ export const whatsapp = {
         }
     },
 
-    async sendImage(chatId: string, dataUrl: string, caption?: string, agentId?: number) {
+    async sendImage(chatId: string, dataUrl: string, caption?: string, agentId?: string) {
         logger.info('Sending image', { module: 'whatsapp', chatId, agentId })
         const { endpoint, apiKey } = await getConfig()
         try {
@@ -284,7 +265,7 @@ export const whatsapp = {
         }
     },
 
-    async sendVideo(chatId: string, dataUrl: string, caption?: string, agentId?: number) {
+    async sendVideo(chatId: string, dataUrl: string, caption?: string, agentId?: string) {
         logger.info('Sending video', { module: 'whatsapp', chatId, agentId })
         const { endpoint, apiKey } = await getConfig()
         try {
@@ -324,15 +305,13 @@ export const whatsapp = {
         }
     },
 
-    // Get Status (replaces getSessionStatus)
-    async getStatus(agentId?: number) {
+    async getStatus(agentId?: string) {
         const { endpoint, apiKey } = await getConfig()
         try {
             const sessionId = await resolveSessionId(agentId)
             const url = `${endpoint}/api/sessions/${sessionId}/status`
-            // console.log(`[WhatsApp] Checking Status: ${url}`)
             const response = await axios.get(url, {
-                headers: { 'X-Api-Key': apiKey }, // Ensure Auth is sent
+                headers: { 'X-Api-Key': apiKey },
                 timeout: 5000
             })
             return response.data
@@ -343,7 +322,6 @@ export const whatsapp = {
         }
     },
 
-    // Reset Session (Clear auth data and restart fresh)
     async resetSession(sessionId: string) {
         const { endpoint, apiKey } = await getConfig()
         try {
@@ -359,7 +337,6 @@ export const whatsapp = {
         }
     },
 
-    // Download Media (No agentId needed usually, cached global or by ID)
     async downloadMedia(messageId: string) {
         const { endpoint, apiKey } = await getConfig()
         const MAX_RETRIES = 5
@@ -396,42 +373,36 @@ export const whatsapp = {
         return null
     },
 
-    async markAsRead(chatId: string, agentId?: number, messageKey?: any) {
-        const { endpoint, apiKey, defaultSession } = await getConfig()
+    async markAsRead(chatId: string, agentId?: string, messageKey?: any) {
+        const { endpoint, apiKey } = await getConfig()
         const MAX_RETRIES = 3
 
         for (let i = 0; i < MAX_RETRIES; i++) {
             try {
                 const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
-                // If 'all' is true, we should NOT pass messageKey, to force a chat-level "mark seen"
-                // which clears all unread messages. Passing a key might restrict it to "read up to this message".
                 const payload: any = {
                     sessionId: await resolveSessionId(agentId),
                     chatId: formattedChatId,
                     all: true
                 }
-                // Only attach key if we are NOT marking all (which we currently always do, but for future proofing)
                 payload.messageKey = messageKey
 
                 await axios.post(`${endpoint}/api/markSeen`, payload, {
                     headers: { 'X-Api-Key': apiKey }
                 })
-
-                // If successful, break
                 return
             } catch (error: any) {
                 if (i === MAX_RETRIES - 1) {
                     logger.error(`MarkRead Failed after ${MAX_RETRIES} attempts`, error, { module: 'whatsapp' })
                 } else {
-                    // Wait small delay before retry
                     await new Promise(r => setTimeout(r, 1000 * (i + 1)))
                 }
             }
         }
     },
 
-    async sendTypingState(chatId: string, isTyping: boolean, agentId?: number) {
-        const { endpoint, apiKey, defaultSession } = await getConfig()
+    async sendTypingState(chatId: string, isTyping: boolean, agentId?: string) {
+        const { endpoint, apiKey } = await getConfig()
         try {
             const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
             await axios.post(`${endpoint}/api/sendStateTyping`, {
@@ -446,8 +417,8 @@ export const whatsapp = {
         }
     },
 
-    async sendRecordingState(chatId: string, isRecording: boolean, agentId?: number) {
-        const { endpoint, apiKey, defaultSession } = await getConfig()
+    async sendRecordingState(chatId: string, isRecording: boolean, agentId?: string) {
+        const { endpoint, apiKey } = await getConfig()
         try {
             const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
             await axios.post(`${endpoint}/api/sendStateRecording`, {
@@ -465,15 +436,12 @@ export const whatsapp = {
     async adminStatus() {
         const { endpoint, apiKey } = await getConfig()
         try {
-            // Baileys Docker uses /status endpoint directly
             const response = await axios.get(`${endpoint}/status`, {
                 headers: { 'X-Api-Key': apiKey },
                 timeout: 5000
             })
-            // Wrap response for compatibility with system page
             return { success: true, status: response.data }
         } catch (error: any) {
-            // Suppress connection refused logs (Docker offline)
             if (error.code === 'ECONNREFUSED' || error.message?.includes('ECONNREFUSED')) {
                 return { success: false, error: 'Service Offline', status: null }
             }
@@ -485,14 +453,12 @@ export const whatsapp = {
     async adminLogs(lines: number = 100) {
         const { endpoint, apiKey } = await getConfig()
         try {
-            // Baileys Docker uses /api/logs endpoint
             const response = await axios.get(`${endpoint}/api/logs?lines=${lines}`, {
                 headers: { 'X-Api-Key': apiKey },
                 timeout: 5000
             })
             return { success: true, lines: response.data.lines || [] }
         } catch (error: any) {
-            // Suppress connection refused logs (Docker offline)
             if (error.code === 'ECONNREFUSED' || error.message?.includes('ECONNREFUSED')) {
                 return { success: false, error: 'Service Offline', lines: [] }
             }
@@ -501,7 +467,7 @@ export const whatsapp = {
         }
     },
 
-    async adminAction(action: string, agentId?: number, options: any = {}) {
+    async adminAction(action: string, agentId?: string, options: any = {}) {
         const { endpoint, apiKey } = await getConfig()
         try {
             const response = await axios.post(`${endpoint}/api/admin/action`,
@@ -536,7 +502,6 @@ export const whatsapp = {
         }
     },
 
-    // NEW: Session Management
     async startSession(agentId: string) {
         const { endpoint, apiKey } = await getConfig()
         try {
@@ -545,7 +510,6 @@ export const whatsapp = {
             })
             return { success: true }
         } catch (error: any) {
-            // If session already exists, consider it a success or try to fetch status
             if (error.response?.status === 409 || error.message?.includes('409')) {
                 logger.info(`Session ${agentId} already exists, checking status...`, { module: 'whatsapp' })
                 return { success: true, message: 'Session already active' }
@@ -566,7 +530,6 @@ export const whatsapp = {
         }
     },
 
-    // Delete Session PERMANENTLY (Stop + remove auth data, NO restart)
     async deleteSession(agentId: string) {
         const { endpoint, apiKey } = await getConfig()
         try {

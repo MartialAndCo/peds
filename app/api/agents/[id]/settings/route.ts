@@ -46,12 +46,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { id } = await params
-    const agentId = parseInt(id)
+    const agentId = id
 
     try {
         // Fetch agent-specific overrides
         const agentSettings = await prisma.agentSetting.findMany({
-            where: { agentId }
+            where: { agentId: (agentId as unknown as string) }
         })
 
         // Fetch global settings for fallback display
@@ -84,12 +84,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { id } = await params
-    const agentId = parseInt(id)
-    const body = await req.json()
+    const agentId = id
 
     try {
+        const body = await req.json()
         // Verify agent exists
-        const agent = await prisma.agent.findUnique({ where: { id: agentId } })
+        const agent = await prisma.agent.findUnique({ where: { id: (agentId as unknown as string) } })
         if (!agent) return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
 
         const updates: Promise<any>[] = []
@@ -101,16 +101,16 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                 // Delete the override (revert to global)
                 updates.push(
                     prisma.agentSetting.deleteMany({
-                        where: { agentId, key }
+                        where: { agentId: (agentId as unknown as string), key }
                     })
                 )
             } else {
                 // Upsert the override
                 updates.push(
                     prisma.agentSetting.upsert({
-                        where: { agentId_key: { agentId, key } },
+                        where: { agentId_key: { agentId: (agentId as unknown as string), key } },
                         update: { value: String(value) },
-                        create: { agentId, key, value: String(value) }
+                        create: { agentId: (agentId as unknown as string), key, value: String(value) }
                     })
                 )
             }

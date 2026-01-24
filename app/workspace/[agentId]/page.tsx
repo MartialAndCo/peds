@@ -16,7 +16,8 @@ export default function AgentOverviewPage() {
     const { isPWAStandalone } = usePWAMode()
     const router = useRouter()
     const { agentId } = useParams()
-    const numericAgentId = agentId ? parseInt(agentId as string) : undefined
+    const safeAgentId = agentId as string
+    const numericAgentId = undefined // Deprecated
 
     const [agent, setAgent] = useState<any>(null)
     const [stats, setStats] = useState({ conversations: 0, messages: 0 })
@@ -37,7 +38,7 @@ export default function AgentOverviewPage() {
                 </Button>
                 <h1 className="text-xl font-bold text-white">Overview</h1>
             </div>
-            <AgentQuickAdd agentId={numericAgentId} className="h-9 px-3 text-sm bg-blue-600/90 hover:bg-blue-600" />
+            <AgentQuickAdd agentId={safeAgentId} className="h-9 px-3 text-sm bg-blue-600/90 hover:bg-blue-600" />
         </div>
     )
 

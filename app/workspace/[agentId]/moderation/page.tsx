@@ -30,13 +30,13 @@ export default function ModerationPage() {
                         <p className="text-white/40 text-xs">Blocked terms will trigger automatic refusal</p>
                     </div>
                 </div>
-                <BlacklistManager agentId={parseInt(agentId)} />
+                <BlacklistManager agentId={agentId} />
             </div>
         </div>
     )
 }
 
-function BlacklistManager({ agentId }: { agentId: number }) {
+function BlacklistManager({ agentId }: { agentId: string }) {
     const [rules, setRules] = useState<any[]>([])
     const [newItem, setNewItem] = useState('')
     const [selectedPhase, setSelectedPhase] = useState('all')
@@ -89,8 +89,8 @@ function BlacklistManager({ agentId }: { agentId: number }) {
                         key={p}
                         onClick={() => setSelectedPhase(p)}
                         className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedPhase === p
-                                ? 'bg-red-500 text-white'
-                                : 'bg-white/5 text-white/60 hover:text-white hover:bg-white/10'
+                            ? 'bg-red-500 text-white'
+                            : 'bg-white/5 text-white/60 hover:text-white hover:bg-white/10'
                             }`}
                     >
                         {p === 'all' ? 'GLOBAL' : p}

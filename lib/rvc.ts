@@ -13,7 +13,7 @@ export const rvcService = {
     /**
      * Internal helper to determine RVC parameters (Source/Target/Pitch)
      */
-    async _getConfig(options: { agentId?: number, voiceId?: number, sourceGender?: string }) {
+    async _getConfig(options: { agentId?: string, voiceId?: number, sourceGender?: string }) {
         // 1. Get Settings
         const settings = await settingsService.getSettings()
 
@@ -37,10 +37,10 @@ export const rvcService = {
             })
             if (agent) {
                 if (agent.operatorGender) sourceGender = agent.operatorGender
-                if (agent.voiceModel) {
-                    selectedModel = agent.voiceModel.name
-                    modelUrl = agent.voiceModel.url
-                    targetGender = agent.voiceModel.gender
+                if ((agent as any).voiceModel) {
+                    selectedModel = (agent as any).voiceModel.name
+                    modelUrl = (agent as any).voiceModel.url
+                    targetGender = (agent as any).voiceModel.gender
                 }
             }
         }
@@ -54,7 +54,7 @@ export const rvcService = {
         if (options.voiceId || options.agentId) {
             const voice = options.voiceId
                 ? await prisma.voiceModel.findUnique({ where: { id: options.voiceId } })
-                : (await prisma.agent.findUnique({ where: { id: options.agentId }, include: { voiceModel: true } }))?.voiceModel
+                : (await prisma.agent.findUnique({ where: { id: options.agentId }, include: { voiceModel: true } }) as any)?.voiceModel
 
             if (voice) {
                 indexRate = Number(voice.indexRate) || 0.75
@@ -84,7 +84,7 @@ export const rvcService = {
     /**
      * Starts an Async RVC Job (RunPod Only)
      */
-    async startJob(audioInput: string, options: { agentId?: number, voiceId?: number, sourceGender?: string }) {
+    async startJob(audioInput: string, options: { agentId?: string, voiceId?: number, sourceGender?: string }) {
         const config = await this._getConfig(options)
 
         console.log(`[RVC-Async] Config resolved: rvcUrl=${config.rvcUrl}, model=${config.selectedModel}, pitch=${config.pitch}`)
@@ -233,7 +233,7 @@ export const rvcService = {
     /**
      * Legacy Sync Conversion (Now wraps Async Job)
      */
-    async convertVoice(audioBase64: string, options: { agentId?: number, voiceId?: number, sourceGender?: string } = {}): Promise<string | null> {
+    async convertVoice(audioBase64: string, options: { agentId?: string, voiceId?: number, sourceGender?: string } = {}): Promise<string | null> {
         console.log(`[RVC-SyncWrapper] Starting async job as sync replacement...`)
 
         // 1. Start the Job

@@ -11,7 +11,7 @@ const contactSchema = z.object({
     notes: z.string().optional(),
     context: z.string().optional(), // NEW: for Lead Provider simulation
     status: z.enum(['new', 'contacted', 'qualified', 'closed', 'active', 'archive', 'blacklisted', 'merged']).optional().default('new'),
-    agentId: z.number().optional(), // NEW: Bind to specific agent
+    agentId: z.string().optional(), // NEW: Bind to specific agent
 })
 
 // GET /api/contacts
@@ -110,7 +110,7 @@ export async function POST(req: Request) {
 
                 if (body.agentId) {
                     const agentPrompt = await prisma.agentPrompt.findFirst({
-                        where: { agentId: body.agentId, type: 'CORE' }
+                        where: { agentId: (body.agentId as unknown as string), type: 'CORE' }
                     })
                     promptId = agentPrompt?.promptId
                 }
@@ -126,7 +126,7 @@ export async function POST(req: Request) {
                         data: {
                             contactId: contact.id,
                             promptId: promptId,
-                            agentId: body.agentId, // Bind to agent if provided
+                            agentId: (body.agentId as unknown as string), // Bind to agent if provided
                             status: 'paused',
                             ai_enabled: true,
                             metadata: {
@@ -142,7 +142,7 @@ export async function POST(req: Request) {
                 await prisma.conversation.update({
                     where: { id: existingConv.id },
                     data: {
-                        agentId: body.agentId || existingConv.agentId, // Update agent if provided
+                        agentId: (body.agentId as unknown as string) || existingConv.agentId, // Update agent if provided
                         metadata: {
                             ...(existingConv.metadata as any || {}),
                             state: 'WAITING_FOR_LEAD',

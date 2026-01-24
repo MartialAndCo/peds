@@ -33,19 +33,18 @@ async function getCachedMediaTypes() {
 
 export const mediaService = {
     // 1. Analyze Request (Smart Logic) - Now phase-aware
-    async analyzeRequest(text: string, contactPhone?: string) {
-        console.log(`[MediaService] Analyzing request: "${text}" (Contact: ${contactPhone || 'unknown'})`)
-        logger.info(`Analyzing request: "${text}"`, { module: 'media_service', contactPhone });
+    async analyzeRequest(text: string, contactPhone?: string, agentId?: string) {
+        console.log(`[MediaService] Analyzing request: "${text}" (Contact: ${contactPhone || 'unknown'}, Agent: ${agentId})`)
+        logger.info(`Analyzing request: "${text}"`, { module: 'media_service', contactPhone, agentId });
 
         // Fetch contact's current phase (default to CONNECTION if unknown)
         let contactPhase = 'CONNECTION';
-        if (contactPhone) {
-            const contact = await prisma.contact.findUnique({
-                where: { phone_whatsapp: contactPhone },
-                select: { agentPhase: true }
+        if (contactPhone && agentId) {
+            const agentContact = await prisma.agentContact.findUnique({
+                where: { agentId_contactId: { agentId, contactId: (await prisma.contact.findUnique({ where: { phone_whatsapp: contactPhone } }))?.id || '' } }
             });
-            if (contact?.agentPhase) {
-                contactPhase = contact.agentPhase;
+            if (agentContact?.phase) {
+                contactPhase = agentContact.phase;
             }
         }
         console.log(`[MediaService] Contact phase: ${contactPhase}`)
@@ -223,7 +222,7 @@ export const mediaService = {
         const msg = msgTemplate
             .replace('{PHONE}', contactPhone)
             .replace('{TYPE}', typeId);
-        await whatsapp.sendText(targetPhone, msg, undefined, agentId);
+        await whatsapp.sendText(targetPhone, msg, undefined, agentId as unknown as string);
 
         return 'REQUEST_NEW';
     },
@@ -494,7 +493,7 @@ Output JSON:
 
             // Use Director to build FULL prompt so scheduling (tease/shy) matches Phase
             const { director } = require('@/lib/director')
-            const { phase, details } = await director.determinePhase(contact.phone_whatsapp)
+            const { phase, details } = await director.determinePhase(contact.phone_whatsapp, conversation.agentId)
             const fullSystemPrompt = await director.buildSystemPrompt(
                 settings,
                 contact,

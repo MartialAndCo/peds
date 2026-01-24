@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function AgentPaymentsPage({ params }: { params: Promise<{ agentId: string }> }) {
     const { agentId } = await params
-    const id = parseInt(agentId)
+    const id = agentId
 
     // Strategy: Verify agent ownership.
     // Since Phase 1 "Payment" model doesn't store agentId directly,

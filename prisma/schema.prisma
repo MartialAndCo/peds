@@ -70,6 +70,7 @@ model Contact {
   messageQueue    MessageQueue[]
   trustLogs       TrustLog[]
   paymentClaims   PendingPaymentClaim[]
+  agentContacts   AgentContact[]
 
   @@index([status])
   @@index([source])
@@ -81,7 +82,7 @@ model Contact {
 
 
 model Agent {
-  id        Int      @id @default(autoincrement())
+  id        String   @id @default(cuid())
   name      String   // e.g. "Lena", "Maxime"
   phone     String   @unique // The WhatsApp number connected to this agent
   color     String   @default("#000000") // For UI distinction
@@ -105,12 +106,15 @@ model Agent {
   
   users         User[] // Access control
   
+  profile       AgentProfile?
+  agentContacts AgentContact[]
+
   @@map("agents")
 }
 
 model AgentEvent {
   id          Int      @id @default(autoincrement())
-  agentId     Int
+  agentId     String
   title       String   // e.g. "Trip to Bali", "Prom"
   location    String   // e.g. "Bali", "Paris"
   startDate   DateTime
@@ -174,7 +178,7 @@ model VoiceUploadChunk {
 
 model AgentPrompt {
   id        Int      @id @default(autoincrement())
-  agentId   Int
+  agentId   String
   promptId  Int
   type      String   // 'CORE', 'ONBOARDING', 'REFUSAL', 'SALES'
   
@@ -187,7 +191,7 @@ model AgentPrompt {
 
 model AgentSetting {
   id        Int      @id @default(autoincrement())
-  agentId   Int
+  agentId   String
   key       String   // 'voice_id', 'welcome_message', 'timezone'
   value     String
 
@@ -200,7 +204,7 @@ model AgentSetting {
 model Conversation {
   id              Int       @id @default(autoincrement())
   contactId       String
-  agentId         Int?      // The agent handling this conversation
+  agentId         String?      // The agent handling this conversation
   promptId        Int
   waha_session_id String?
   status          String    @default("active") // active, paused, closed
@@ -334,7 +338,7 @@ model BlacklistRule {
   term      String   // The forbidden concept or keyword
   mediaType String   @default("all") // 'image', 'video', 'all'
   phase     String   @default("all") // 'CONNECTION', 'VULNERABILITY', 'CRISIS', 'MONEYPOT', 'all'
-  agentId   Int?     // If null, applies globally (or legacy)
+  agentId   String?     // If null, applies globally (or legacy)
   agent     Agent?   @relation(fields: [agentId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 
@@ -402,7 +406,7 @@ model WebhookEvent {
 model IncomingQueue {
   id          Int       @id @default(autoincrement())
   payload     Json      // Full webhook payload from Baileys
-  agentId     Int
+  agentId     String
   // Async AI Job Tracking
   runpodJobId String?   // ID returned by RunPod /run endpoint
   
@@ -464,3 +468,69 @@ model PushSubscription {
 
   @@map("push_subscriptions")
 }
+
+// --- ISOLATION REFACTOR MODELS ---
+
+model AgentProfile {
+  id              Int     @id @default(autoincrement())
+  agentId         String     @unique
+  agent           Agent   @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  // Identity
+  baseAge         Int     @default(18)
+  locale          String  @default("en-US")
+  timezone        String  @default("America/Los_Angeles")
+  
+  // Templates
+  contextTemplate String? @db.Text
+  missionTemplate String? @db.Text
+  identityTemplate String? @db.Text
+  
+  // Rules
+  paymentRules    String? @db.Text
+  safetyRules     String? @db.Text
+  styleRules      String? @db.Text
+  
+  // Phase Templates
+  phaseConnectionTemplate String? @db.Text
+  phaseVulnerabilityTemplate String? @db.Text
+  phaseCrisisTemplate String? @db.Text
+  phaseMoneypotTemplate String? @db.Text
+
+  // Payment Config
+  paypalEmail     String?
+  cashappTag      String?
+  venmoHandle     String?
+  
+  // Config
+  fastTrackDays   Int     @default(2)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@map("agent_profiles")
+}
+
+model AgentContact {
+  id              String   @id @default(uuid())
+  agentId         String
+  contactId       String
+  
+  // State from Contact (Isolated)
+  trustScore      Int      @default(0)
+  phase           String   @default("CONNECTION")
+  lastPhaseUpdate DateTime @default(now())
+  lastTrustAnalysis DateTime @default(now())
+  
+  // Stats
+  messageCount    Int      @default(0)
+  
+  agent           Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  contact         Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  
+  @@unique([agentId, contactId])
+  @@index([agentId])
+  @@index([contactId])
+  @@map("agent_contacts")
+}
+

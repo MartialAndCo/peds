@@ -77,7 +77,7 @@ export default function WorkspaceMediaPage() {
     const fetchEvents = async () => {
         if (!params.agentId) return
         try {
-            const data = await getAgentEvents(Number(params.agentId))
+            const data = await getAgentEvents(params.agentId as string)
             setEvents(data)
         } catch (e) {
             console.error("Failed to fetch events", e)
@@ -193,7 +193,7 @@ export default function WorkspaceMediaPage() {
                 // Don't await strictly to keep UI responsive, but we want to open the dialog when done.
                 // Actually, let's wait so we can pop the dialog immediately.
                 try {
-                    const ctx = await generateAutoContext(result.media.id, Number(params.agentId))
+                    const ctx = await generateAutoContext(result.media.id, params.agentId as string)
                     if (ctx.success && ctx.context) {
                         setContextMedia({ ...result.media, context: ctx.context })
                         setContextText(ctx.context)
@@ -271,7 +271,7 @@ export default function WorkspaceMediaPage() {
                 setSmartUploadFiles(prev => prev.map((item, idx) => idx === i ? { ...item, status: 'analyzing' } : item))
 
                 // 2. Call Server Action
-                const result = await smartOrganizeMedia(publicUrl, Number(params.agentId))
+                const result = await smartOrganizeMedia(publicUrl, params.agentId as string)
 
                 if (result.success) {
                     setSmartUploadFiles(prev => prev.map((item, idx) =>
@@ -342,7 +342,7 @@ export default function WorkspaceMediaPage() {
         if (!newEvent.title || !newEvent.location || !newEvent.startDate) return alert("Title, Location and Start Date are required")
         setCreatingEvent(true)
         try {
-            await createAgentEvent(Number(params.agentId), {
+            await createAgentEvent(params.agentId as string, {
                 title: newEvent.title,
                 location: newEvent.location,
                 startDate: new Date(newEvent.startDate),

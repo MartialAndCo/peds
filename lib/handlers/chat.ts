@@ -17,7 +17,7 @@ export async function handleChat(
     conversation: any,
     settings: any,
     messageTextInput: string, // The initial text (or transcribed voice from caller)
-    agentId?: number, // Added: Agent Context
+    agentId?: string, // Added: Agent Context
     options?: { skipAI?: boolean } // Added: Burst Mode Support
 ) {
     let messageText = messageTextInput
@@ -291,7 +291,7 @@ async function releaseLock(convId: number) {
     await prisma.conversation.update({ where: { id: convId }, data: { processingLock: null } })
 }
 
-async function generateAndSendAI(conversation: any, contact: any, settings: any, lastMessageText: string, payload: any, agentId?: number, options?: any) {
+async function generateAndSendAI(conversation: any, contact: any, settings: any, lastMessageText: string, payload: any, agentId?: string, options?: any) {
     // 1. Fetch History
     const historyDesc = await prisma.message.findMany({
         where: { conversationId: conversation.id },
@@ -398,8 +398,9 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         director.performTrustAnalysis(contact.phone_whatsapp).catch(console.error);
     }
 
-    const { phase, details, reason } = await director.determinePhase(contact.phone_whatsapp)
-    let systemPrompt = await director.buildSystemPrompt(settings, contact, phase, details, conversation.prompt.system_prompt, agentId, reason)
+    const effectiveAgentId = agentId || conversation?.agentId || 1 // Fallback to 1 if absolutely missing
+    const { phase, details, reason } = await director.determinePhase(contact.phone_whatsapp, effectiveAgentId)
+    let systemPrompt = await director.buildSystemPrompt(settings, contact, phase, details, conversation.prompt.system_prompt, effectiveAgentId, reason)
 
     // Inject memories with clearer phrasing to avoid AI confusing user facts with its own identity
     if (memories.length > 0) {

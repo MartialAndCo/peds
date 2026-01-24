@@ -27,8 +27,9 @@ export async function POST(
             return NextResponse.json({ error: 'Conversation not found' }, { status: 404 })
         }
 
-        // Send via WhatsApp
-        await whatsapp.sendText(conversation.contact.phone_whatsapp, text)
+        // Send via WhatsApp with specific Agent Session
+        // We cast to string | undefined just in case, though agentId is String? in schema
+        await whatsapp.sendText(conversation.contact.phone_whatsapp, text, undefined, conversation.agentId || undefined)
 
         // Save to DB
         const message = await prisma.message.create({

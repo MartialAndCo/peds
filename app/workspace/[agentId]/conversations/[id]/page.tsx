@@ -4,11 +4,11 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { redirect } from "next/navigation"
 
-export default async function ConversationPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ConversationPage({ params }: { params: Promise<{ agentId: string, id: string }> }) {
     const session = await getServerSession(authOptions)
     if (!session) redirect('/login')
 
-    const { id: idStr } = await params
+    const { agentId, id: idStr } = await params
     const id = parseInt(idStr)
 
     const conversation = await prisma.conversation.findUnique({
@@ -31,7 +31,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
     return (
         <ConversationPageClient
             conversation={conversation}
-            agentId={idStr}
+            agentId={agentId}
             id={id}
         />
     )

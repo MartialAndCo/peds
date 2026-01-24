@@ -79,8 +79,8 @@ export async function GET(req: Request) {
                     const traceId = trace.generate()
 
                     // Execute Logic with skipAI option AND previous response context
-                    const result = await trace.runAsync(traceId, item.agentId, async () => {
-                        return await processWhatsAppPayload(payload.payload, item.agentId, {
+                    const result = await trace.runAsync(traceId, item.agentId as unknown as string, async () => {
+                        return await processWhatsAppPayload(payload.payload, item.agentId as unknown as string, {
                             skipAI,
                             previousResponse: lastResponse // Pass the memory
                         })
@@ -152,7 +152,7 @@ export async function GET(req: Request) {
 
                     if (phone) {
                         // Send WhatsApp Response
-                        await whatsapp.sendText(phone, responseText, undefined, job.agentId || undefined)
+                        await whatsapp.sendText(phone, responseText, undefined, job.agentId as unknown as string)
 
                         // Try to log it if we can find the conv
                         const conv = await prisma.conversation.findFirst({
