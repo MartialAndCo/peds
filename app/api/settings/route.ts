@@ -1,8 +1,4 @@
-import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { settingsService } from '@/lib/settings-cache'
+import { whatsapp, getConfig } from '@/lib/whatsapp'
 
 export async function GET() {
     const session = await getServerSession(authOptions)
@@ -14,6 +10,13 @@ export async function GET() {
         acc[curr.key] = curr.value
         return acc
     }, {} as Record<string, string>)
+
+    // If critical keys are missing, populate with active defaults (Env or Hardcoded)
+    if (!settingsMap['waha_api_key'] || !settingsMap['waha_endpoint']) {
+        const defaults = await getConfig()
+        if (!settingsMap['waha_api_key']) settingsMap['waha_api_key'] = defaults.apiKey
+        if (!settingsMap['waha_endpoint']) settingsMap['waha_endpoint'] = defaults.endpoint
+    }
 
     return NextResponse.json(settingsMap)
 }
