@@ -25,6 +25,7 @@ const adminRoutes = [
         routes: [
             { label: 'Overview', icon: LayoutDashboard, href: '/admin' },
             { label: 'Agents', icon: Bot, href: '/admin/agents' },
+            { label: 'Team', icon: Users, href: '/admin/team' },
         ]
     },
     {

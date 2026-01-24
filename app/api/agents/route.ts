@@ -8,8 +8,20 @@ export async function GET() {
     const session = await getServerSession(authOptions)
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+    let whereClause: any = { isActive: true }
+
+    // Role-based filtering
+    if (session.user.role !== 'ADMIN') {
+        whereClause = {
+            ...whereClause,
+            users: {
+                some: { id: session.user.id }
+            }
+        }
+    }
+
     const agents = await prisma.agent.findMany({
-        where: { isActive: true },
+        where: whereClause,
         include: {
             agentPrompts: true,
             settings: true
