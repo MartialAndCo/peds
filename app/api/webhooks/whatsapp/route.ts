@@ -55,7 +55,23 @@ export async function POST(req: Request) {
 
 
         const payload = body.payload
-        const agentId = body.sessionId ? parseInt(body.sessionId) : 1
+        const payload = body.payload
+        let agentId = 1 // Default
+
+        if (body.sessionId) {
+            // Check if it's a UUID session (starts with session_)
+            if (body.sessionId.toString().startsWith('session_')) {
+                const setting = await prisma.agentSetting.findFirst({
+                    where: { key: 'waha_id', value: body.sessionId }
+                })
+                if (setting) agentId = setting.agentId
+                else console.warn(`[Webhook] Could not resolve Agent ID for uuid session: ${body.sessionId}`)
+            } else {
+                // Legacy Integer ID
+                agentId = parseInt(body.sessionId) || 1
+            }
+        }
+
         console.log(`[Webhook] Resolved Agent ID: ${agentId} (from sessionId: ${body.sessionId})`)
 
         // 2. DEDUPLICATION CHECK: Skip if already queued

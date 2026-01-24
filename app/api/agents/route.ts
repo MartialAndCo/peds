@@ -28,16 +28,25 @@ export async function POST(req: Request) {
     const { name, phone, color, promptId } = body
 
     try {
+        const { randomUUID } = await import('crypto')
+        const wahaId = `session_${randomUUID()}`
+
         const agent = await prisma.agent.create({
             data: {
                 name,
                 phone,
                 color,
-                promptId: promptId ? parseInt(promptId) : undefined
+                promptId: promptId ? parseInt(promptId) : undefined,
+                settings: {
+                    create: [
+                        { key: 'waha_id', value: wahaId }
+                    ]
+                }
             }
         })
         return NextResponse.json(agent)
-    } catch (e) {
-        return NextResponse.json({ error: 'Failed to create agent' }, { status: 500 })
+    } catch (e: any) {
+        console.error('Failed to create agent', e)
+        return NextResponse.json({ error: e.message || 'Failed to create agent' }, { status: 500 })
     }
 }
