@@ -320,16 +320,12 @@ ${transcript}
 
         let paymentBlock = pRules;
         if (paymentMethodsList.length > 0) {
-            // If rules have a {{PAYPAL_USERNAME}} placeholder, we can try to smart replace, 
-            // but for now let's just Append the list or Replace the entire block if it's just "None".
-            if (paymentBlock.includes('[PAYMENT RULES]: None.')) {
-                paymentBlock = "[PAYMENT METHODS]:\n" + paymentMethodsList.join('\n')
-            } else {
-                paymentBlock += "\n\n[ACCEPTED METHODS]:\n" + paymentMethodsList.join('\n')
-            }
+            // Replace {{PAYMENT_METHODS}} variable in paymentRules
+            const methodsText = paymentMethodsList.join('\n')
+            paymentBlock = paymentBlock.replace('{{PAYMENT_METHODS}}', methodsText)
         } else {
-            // No methods configured? Keep default rules or warn?
-            // paymentBlock += "\n(No payment methods configured)"
+            // No methods configured - replace with warning
+            paymentBlock = paymentBlock.replace('{{PAYMENT_METHODS}}', '(No payment methods configured for this agent)')
         }
 
         return `
