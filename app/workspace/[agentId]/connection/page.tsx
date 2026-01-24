@@ -73,7 +73,10 @@ export default function AgentConnectionPage() {
         try {
             await axios.post('/api/session/start', { agentId })
             setStatus('STARTING')
-        } catch (e) { console.error('Error starting session') }
+        } catch (e: any) {
+            console.error('Error starting session:', e)
+            alert(`Start Failed: ${e.response?.data?.error || e.message}`)
+        }
     }
 
     const stopSession = async () => {
@@ -81,7 +84,10 @@ export default function AgentConnectionPage() {
         try {
             await axios.post('/api/session/stop', { agentId })
             setStatus('STOPPED')
-        } catch (e) { console.error('Error stopping') }
+        } catch (e: any) {
+            console.error('Error stopping:', e)
+            alert(`Stop Failed: ${e.response?.data?.error || e.message}`)
+        }
     }
 
     const resetSession = async () => {
@@ -90,7 +96,10 @@ export default function AgentConnectionPage() {
         try {
             setStatus('STARTING')
             await axios.post('/api/session/reset', { sessionId: agentId.toString() })
-        } catch (e) { console.error('Error resetting session') }
+        } catch (e: any) {
+            console.error('Error resetting session:', e)
+            alert(`Reset Failed: ${e.response?.data?.error || e.message}`)
+        }
     }
 
     if (loading) return (
