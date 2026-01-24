@@ -22,7 +22,8 @@ export async function POST(req: Request) {
 
         return NextResponse.json({ success: true, message: 'Session started' })
     } catch (e: any) {
-        console.error('[Session] Start Error:', e.message)
-        return NextResponse.json({ error: e.message }, { status: 500 })
+        const msg = e.response?.data?.error || e.message || 'Unknown error'
+        console.error('[Session] Start Error:', msg)
+        return NextResponse.json({ error: msg, details: e.response?.data }, { status: 500 })
     }
 }
