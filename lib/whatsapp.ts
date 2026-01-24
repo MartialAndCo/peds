@@ -509,6 +509,11 @@ export const whatsapp = {
             })
             return { success: true }
         } catch (error: any) {
+            // If session already exists, consider it a success or try to fetch status
+            if (error.response?.status === 409 || error.message?.includes('409')) {
+                logger.info(`Session ${agentId} already exists, checking status...`, { module: 'whatsapp' })
+                return { success: true, message: 'Session already active' }
+            }
             return { success: false, error: error.message }
         }
     },
