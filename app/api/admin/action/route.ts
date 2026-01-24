@@ -9,6 +9,13 @@ export async function POST(req: Request) {
 
     try {
         const body = await req.json()
+
+        // Handle Git Pull with specific directory request
+        if (body.action === 'git_pull') {
+            const result = await whatsapp.adminAction('git_pull', undefined, { cwd: '~/peds' })
+            return NextResponse.json(result)
+        }
+
         const result = await whatsapp.adminAction(body.action, body.agentId)
         return NextResponse.json(result)
     } catch (error: any) {
