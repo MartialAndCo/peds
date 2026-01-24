@@ -5,6 +5,8 @@ import { authOptions } from '@/lib/auth'
 
 export async function POST(req: Request) {
     const session = await getServerSession(authOptions)
+    console.log('[API Admin Action] Session Check:', session ? `User: ${session.user?.email} (${session.user?.role})` : 'NO SESSION FOUND')
+
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     try {

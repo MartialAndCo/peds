@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import axios from 'axios'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -33,16 +34,9 @@ export default function SystemPage() {
 
     const fetchStatus = async () => {
         try {
-            const res = await fetch('/api/admin/status')
-            if (!res.ok) {
-                console.error('Status API returned:', res.status)
-                return
-            }
-            const data = await res.json()
-            if (data.success && data.status) {
-                // Transform Docker response {status: 'CONNECTED', qr: null} 
-                // to UI format {connected: boolean, ...}
-                const dockerStatus = data.status
+            const res = await axios.get('/api/admin/status')
+            if (res.data.success && res.data.status) {
+                const dockerStatus = res.data.status
                 setStatus({
                     connected: dockerStatus.status === 'CONNECTED',
                     user: dockerStatus.user || null,
@@ -55,30 +49,23 @@ export default function SystemPage() {
                     timestamp: dockerStatus.timestamp || new Date().toISOString()
                 })
             } else {
-                console.error('Status API error:', data.error)
+                console.error('Status API error:', res.data.error)
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error('Failed to fetch status:', e)
-            // Don't crash - just leave status as null
         }
     }
 
     const fetchLogs = async () => {
         try {
-            const res = await fetch('/api/admin/logs?lines=200')
-            if (!res.ok) {
-                console.error('Logs API returned:', res.status)
-                return
-            }
-            const data = await res.json()
-            if (data.success && Array.isArray(data.lines)) {
-                setLogs(data.lines)
-                // Auto-scroll to bottom
+            const res = await axios.get('/api/admin/logs?lines=200')
+            if (res.data.success && Array.isArray(res.data.lines)) {
+                setLogs(res.data.lines)
                 if (logsRef.current) {
                     logsRef.current.scrollTop = logsRef.current.scrollHeight
                 }
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error('Failed to fetch logs:', e)
             setLogs([])
         }
@@ -87,7 +74,6 @@ export default function SystemPage() {
     const executeAction = async (action: string) => {
         if (actionLoading) return
 
-        // Confirmation for destructive actions
         if (['restart', 'clear_sessions'].includes(action)) {
             const confirmed = window.confirm(`Are you sure you want to ${action.replace('_', ' ')}? This will interrupt the service.`)
             if (!confirmed) return
@@ -97,15 +83,13 @@ export default function SystemPage() {
         setActionResult(null)
 
         try {
-            const res = await fetch('/api/admin/action', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action })
+            const res = await axios.post('/api/admin/action', { action })
+            setActionResult({
+                success: res.data.success,
+                message: res.data.message || res.data.output || res.data.error || 'Unknown result'
             })
-            const data = await res.json()
-            setActionResult({ success: data.success, message: data.message || data.output || data.error || 'Unknown result' })
         } catch (e: any) {
-            setActionResult({ success: false, message: e.message })
+            setActionResult({ success: false, message: e.response?.data?.error || e.message })
         } finally {
             setActionLoading(null)
         }
@@ -118,20 +102,15 @@ export default function SystemPage() {
         setActionResult(null)
 
         try {
-            const res = await fetch('/api/admin/repair', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sessionId: '1' })
-            })
-            const data = await res.json()
+            const res = await axios.post('/api/admin/repair', { sessionId: '1' })
             setActionResult({
-                success: data.success,
-                message: data.success
-                    ? `✅ Session repaired! Cleaned: ${data.details?.cleaned?.length || 0} files. No QR rescan needed.`
-                    : data.message || 'Repair failed'
+                success: res.data.success,
+                message: res.data.success
+                    ? `✅ Session repaired! Cleaned: ${res.data.details?.cleaned?.length || 0} files. No QR rescan needed.`
+                    : res.data.message || 'Repair failed'
             })
         } catch (e: any) {
-            setActionResult({ success: false, message: e.message })
+            setActionResult({ success: false, message: e.response?.data?.message || e.message })
         } finally {
             setActionLoading(null)
         }
