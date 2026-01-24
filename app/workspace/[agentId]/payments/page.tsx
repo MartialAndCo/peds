@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { PaymentsTable } from "@/components/dashboard/payments-table"
 import { DollarSign, TrendingUp } from "lucide-react"
+import { ManualPaymentDialog } from "@/components/dashboard/manual-payment-dialog"
 
 export const dynamic = 'force-dynamic'
 
@@ -23,13 +24,26 @@ export default async function AgentPaymentsPage({ params }: { params: Promise<{ 
 
     const payments = await prisma.payment.findMany({
         where: {
-            contact: {
-                conversations: {
-                    some: {
-                        agentId: id
+            OR: [
+                {
+                    contact: {
+                        conversations: {
+                            some: {
+                                agentId: id
+                            }
+                        }
+                    }
+                },
+                {
+                    contact: {
+                        agentContacts: {
+                            some: {
+                                agentId: id
+                            }
+                        }
                     }
                 }
-            }
+            ]
         },
         orderBy: { createdAt: 'desc' },
         include: {
@@ -62,6 +76,7 @@ export default async function AgentPaymentsPage({ params }: { params: Promise<{ 
                     <h1 className="text-2xl font-bold text-white">{agent?.name || 'Agent'} Payments</h1>
                     <p className="text-white/40">Revenue attributed to this agent's contacts</p>
                 </div>
+                <ManualPaymentDialog agentId={id} />
             </div>
 
             {/* Stats */}

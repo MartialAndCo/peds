@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/ui/use-toast'
+import { EditUserDialog } from '@/components/dashboard/edit-user-dialog'
 
 interface User {
     id: string
@@ -18,25 +19,32 @@ interface User {
 export default function TeamPage() {
     const router = useRouter()
     const { toast } = useToast()
-    const [users, setUsers] = useState<User[]>([])
-    const [isLoading, setIsLoading] = useState(true)
-    const [isDeleting, setIsDeleting] = useState<string | null>(null)
+    const [allAgents, setAllAgents] = useState<any[]>([])
 
     useEffect(() => {
-        fetchUsers()
+        fetchData()
     }, [])
 
-    async function fetchUsers() {
+    async function fetchData() {
         try {
-            const res = await fetch('/api/admin/users')
-            if (!res.ok) throw new Error('Failed to fetch users')
-            const data = await res.json()
-            setUsers(data)
+            const [usersRes, agentsRes] = await Promise.all([
+                fetch('/api/admin/users'),
+                fetch('/api/agents')
+            ])
+
+            if (!usersRes.ok) throw new Error('Failed to fetch users')
+            const usersData = await usersRes.json()
+            setUsers(usersData)
+
+            if (agentsRes.ok) {
+                const agentsData = await agentsRes.json()
+                setAllAgents(agentsData)
+            }
         } catch (error) {
             toast({
                 variant: "destructive",
                 title: "Error",
-                description: "Failed to load team members"
+                description: "Failed to load data"
             })
         } finally {
             setIsLoading(false)
@@ -130,18 +138,28 @@ export default function TeamPage() {
 
                         <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                             {user.role !== 'ADMIN' && (
-                                <Button
-                                    size="icon"
-                                    variant="destructive"
-                                    onClick={() => handleDelete(user.id)}
-                                    disabled={!!isDeleting}
-                                >
-                                    {isDeleting === user.id ? (
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : (
-                                        <Trash2 className="h-4 w-4" />
-                                    )}
-                                </Button>
+                                <>
+                                    <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="hover:bg-blue-500/20 hover:text-blue-400 text-white/40"
+                                        onClick={() => alert('Edit feature coming soon')}
+                                    >
+                                        <Shield className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                        size="icon"
+                                        variant="destructive"
+                                        onClick={() => handleDelete(user.id)}
+                                        disabled={!!isDeleting}
+                                    >
+                                        {isDeleting === user.id ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <Trash2 className="h-4 w-4" />
+                                        )}
+                                    </Button>
+                                </>
                             )}
                         </div>
                     </div>
