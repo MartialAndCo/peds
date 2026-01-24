@@ -31,16 +31,21 @@ export async function getConfig() {
             defaultSession: settings.waha_session || process.env.WAHA_SESSION || 'default',
             webhookSecret: process.env.WEBHOOK_SECRET
         }
-    } catch (e) {
-        logger.warn('Failed to fetch WhatsApp settings from DB, falling back to env/defaults', { module: 'whatsapp' })
-        const envKey = cleanKey(process.env.AUTH_TOKEN || process.env.WAHA_API_KEY)
-        return {
-            endpoint: process.env.WAHA_ENDPOINT || 'http://127.0.0.1:3001',
-            apiKey: envKey || 'secret',
-            defaultSession: process.env.WAHA_SESSION || 'default',
-            webhookSecret: process.env.WEBHOOK_SECRET
-        }
     }
+    } catch (e) {
+    logger.warn('Failed to fetch WhatsApp settings from DB, falling back to known defaults', { module: 'whatsapp' })
+
+    // FAILSAFE: Use the known production key if env is missing
+    const knownKey = 'e3f9a1c4d8b2f0a7c5e6d9b1a4f8c2d0e7b5a9c3f1d4b8e6a2f0c7'
+    const envKey = cleanKey(process.env.AUTH_TOKEN || process.env.WAHA_API_KEY)
+
+    return {
+        endpoint: process.env.WAHA_ENDPOINT || 'http://16.171.66.98:3001', // Default to EC2 IP
+        apiKey: envKey || knownKey,
+        defaultSession: process.env.WAHA_SESSION || 'default',
+        webhookSecret: process.env.WEBHOOK_SECRET
+    }
+}
 }
 
 export const whatsapp = {
