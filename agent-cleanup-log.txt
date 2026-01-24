@@ -1,0 +1,15 @@
+=== AGENT CLEANUP SCRIPT ===
+
+Fetching all agents...
+
+Total agents: 2
+
+  - ID: "cmksmw99u0000uklfbkavjlio" | Name: Lena | Type: CUID
+  - ID: "cmksmw9xe0001uklfn1oqnr92" | Name: Anaïs | Type: CUID
+
+--- Filtering numeric agents ---
+
+Found 0 numeric agents
+
+✅ No numeric agents to delete!
+

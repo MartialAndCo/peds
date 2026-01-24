@@ -1,0 +1,74 @@
+=== SETTINGS VS AGENT PROFILES COMPARISON ===
+
+=== GLOBAL SETTINGS CONTENT ===
+
+❌ base_role: NOT FOUND in Settings
+
+❌ phase_connection_template: NOT FOUND in Settings
+
+❌ phase_vulnerability_template: NOT FOUND in Settings
+
+❌ phase_crisis_template: NOT FOUND in Settings
+
+❌ phase_moneypot_template: NOT FOUND in Settings
+
+❌ context_rules: NOT FOUND in Settings
+
+❌ content_rules: NOT FOUND in Settings
+
+❌ payment_rules: NOT FOUND in Settings
+
+❌ safety_rules: NOT FOUND in Settings
+
+❌ style_rules: NOT FOUND in Settings
+
+❌ context_template: NOT FOUND in Settings
+
+❌ mission_template: NOT FOUND in Settings
+
+❌ identity_template: NOT FOUND in Settings
+
+
+=== AGENT PROFILES CONTENT ===
+
+
+--- Agent: Lena ---
+  baseRole:
+    ❌ EMPTY in profile
+  phaseConnectionTemplate:
+    ✅ Has content (84 chars)
+  phaseVulnerabilityTemplate:
+    ✅ Has content (328 chars)
+  phaseCrisisTemplate:
+    ✅ Has content (387 chars)
+  phaseMoneypotTemplate:
+    ✅ Has content (161 chars)
+  contextTemplate:
+    ✅ Has content (406 chars)
+  missionTemplate:
+    ⚠️  PLACEHOLDER (37 chars): "**3. MISSION**
+{{DYNAMIC_GOAL_BLOCK}}"
+  identityTemplate:
+    ⚠️  PLACEHOLDER (30 chars): "**1. IDENTITY**
+Role: {{ROLE}}"
+
+
+--- Agent: Anaïs ---
+  baseRole:
+    ❌ EMPTY in profile
+  phaseConnectionTemplate:
+    ✅ Has content (84 chars)
+  phaseVulnerabilityTemplate:
+    ✅ Has content (328 chars)
+  phaseCrisisTemplate:
+    ✅ Has content (387 chars)
+  phaseMoneypotTemplate:
+    ✅ Has content (161 chars)
+  contextTemplate:
+    ✅ Has content (406 chars)
+  missionTemplate:
+    ⚠️  PLACEHOLDER (37 chars): "**3. MISSION**
+{{DYNAMIC_GOAL_BLOCK}}"
+  identityTemplate:
+    ⚠️  PLACEHOLDER (30 chars): "**1. IDENTITY**
+Role: {{ROLE}}"
