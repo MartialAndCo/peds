@@ -1,0 +1,64 @@
+=== EXTRACT AND MIGRATE ===
+
+Total Settings: 37
+
+All keys:
+  - prompt_mission_template
+  - prompt_identity_template
+  - prompt_context_template
+  - msg_view_once_refusal
+  - msg_voice_refusal
+  - prompt_ai_retry_logic
+  - prompt_voice_context_check
+  - waha_endpoint
+  - waha_session
+  - waha_api_key
+  - venice_api_key
+  - venice_model
+  - anthropic_api_key
+  - anthropic_model
+  - openrouter_api_key
+  - openrouter_model
+  - ai_provider
+  - groq_api_key
+  - mem0_api_key
+  - ai_temperature
+  - log_forwarding_enabled
+  - prompt_voice_note_policy
+  - prompt_media_analysis
+  - prompt_global_rules
+  - phase_prompt_moneypot
+  - prompt_guardrails
+  - prompt_image_handling_rules
+  - prompt_social_media_rules
+  - prompt_style_instructions
+  - msg_media_request_source
+  - phase_prompt_connection
+  - prompt_media_scheduling
+  - phase_prompt_vulnerability
+  - phase_prompt_crisis
+  - prompt_profiler_extraction
+  - prompt_activator_context
+  - prompt_payment_rules
+
+Prompt-related keys (11):
+  prompt_mission_template: 37 chars
+  prompt_identity_template: 30 chars
+  prompt_context_template: 406 chars
+  prompt_global_rules: 2160 chars
+  phase_prompt_moneypot: 161 chars
+  prompt_image_handling_rules: 1597 chars
+  prompt_social_media_rules: 396 chars
+  phase_prompt_connection: 84 chars
+  phase_prompt_vulnerability: 328 chars
+  phase_prompt_crisis: 387 chars
+  prompt_payment_rules: 693 chars
+
+Agents: 2
+
+Starting migration...
+
+Agent: Lena
+  ⚠️  No data to migrate
+Agent: Anaïs
+  ⚠️  No data to migrate
