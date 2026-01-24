@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
         }
 
-        const settings = await settingsService.getAllSettings()
+        const settings = await settingsService.getSettings()
         const veniceKey = settings['venice_api_key']
 
         if (!veniceKey) {

@@ -19,6 +19,9 @@ interface User {
 export default function TeamPage() {
     const router = useRouter()
     const { toast } = useToast()
+    const [users, setUsers] = useState<User[]>([])
+    const [isLoading, setIsLoading] = useState(true)
+    const [isDeleting, setIsDeleting] = useState<string | null>(null)
     const [allAgents, setAllAgents] = useState<any[]>([])
 
     useEffect(() => {
