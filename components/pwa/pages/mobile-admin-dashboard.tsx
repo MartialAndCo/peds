@@ -8,9 +8,6 @@ import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
     DialogHeader,
     DialogTitle,
     DialogTrigger,
@@ -231,9 +228,9 @@ export function MobileAdminDashboard({ stats, agentsCount }: MobileAdminDashboar
                         <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 font-mono text-xs">+12.5%</Badge>
                     </div>
 
-                    <div className="h-[200px] w-full" style={{ minWidth: 100, minHeight: 100 }}>
+                    <div className="h-[200px] w-full" style={{ minWidth: 200, minHeight: 100 }}>
                         {chartData.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={100}>
+                            <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart data={chartData}>
                                     <defs>
                                         <linearGradient id="colorMessages" x1="0" y1="0" x2="0" y2="1">

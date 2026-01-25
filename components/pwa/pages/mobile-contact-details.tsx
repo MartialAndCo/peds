@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from '@/lib/utils'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 
 interface MobileContactDetailsProps {
@@ -140,6 +140,9 @@ export function MobileContactDetails({ contact, media, agentId }: MobileContactD
                                 <DialogContent className="bg-[#1e293b] border-white/10 top-[20%] translate-y-0">
                                     <DialogHeader>
                                         <DialogTitle className="text-white">Edit Notes</DialogTitle>
+                                        <DialogDescription className="text-white/40">
+                                            Update context notes for this contact.
+                                        </DialogDescription>
                                     </DialogHeader>
                                     <div className="py-4">
                                         <Textarea
