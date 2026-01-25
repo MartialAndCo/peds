@@ -141,6 +141,7 @@ model VoiceModel {
   indexRate   Decimal  @default(0.75)
   protect     Decimal  @default(0.33)
   rmsMixRate  Decimal  @default(0.25)
+  filterRadius Int      @default(3)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

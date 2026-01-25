@@ -60,6 +60,8 @@ export const rvcService = {
                 indexRate = Number(voice.indexRate) || 0.75
                 protect = Number(voice.protect) || 0.33
                 rmsMixRate = Number(voice.rmsMixRate) || 0.25
+                // @ts-ignore
+                filterRadius = Number(voice.filterRadius) || 3
             }
         }
 
@@ -78,7 +80,7 @@ export const rvcService = {
         const rvcUrl = process.env.RVC_API_URL || settings.rvc_api_url || process.env.LIGHTNING_API_URL || settings.lightning_api_url || 'http://localhost:8000'
         const runpodKey = process.env.RUNPOD_API_KEY || settings.runpod_api_key
 
-        return { rvcUrl, runpodKey, selectedModel, modelUrl, pitch, indexRate, protect, rmsMixRate }
+        return { rvcUrl, runpodKey, selectedModel, modelUrl, pitch, indexRate, protect, rmsMixRate, filterRadius }
     },
 
     /**
@@ -103,7 +105,7 @@ export const rvcService = {
                 index_rate: config.indexRate,
                 protect: config.protect,
                 rms_mix_rate: config.rmsMixRate,
-                filter_radius: 3
+                filter_radius: config.filterRadius
             }
         }
 
