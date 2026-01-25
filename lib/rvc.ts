@@ -50,6 +50,7 @@ export const rvcService = {
         let indexRate = 0.75
         let protect = 0.33
         let rmsMixRate = 0.25
+        let filterRadius = 3
 
         if (options.voiceId || options.agentId) {
             const voice = options.voiceId
