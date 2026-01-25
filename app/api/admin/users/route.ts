@@ -47,7 +47,7 @@ export async function POST(req: Request) {
                 password: hashedPassword,
                 role: role || 'COLLABORATOR',
                 agents: agentIds && agentIds.length > 0 ? {
-                    connect: agentIds.map((id: number) => ({ id: parseInt(id.toString()) }))
+                    connect: agentIds.map((id: string) => ({ id: String(id) }))
                 } : undefined
             }
         })
@@ -80,7 +80,8 @@ export async function PUT(req: Request) {
             email,
             role,
             agents: {
-                set: agentIds && agentIds.length > 0 ? agentIds.map((aid: number) => ({ id: parseInt(aid.toString()) })) : []
+                // Agent IDs are Strings (CUID), not Integers.
+                set: agentIds && agentIds.length > 0 ? agentIds.map((aid: string) => ({ id: aid })) : []
             }
         }
 

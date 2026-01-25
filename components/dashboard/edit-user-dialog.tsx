@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 
 interface Agent {
-    id: number
+    id: string
     name: string
     color: string
 }
@@ -26,7 +26,7 @@ interface User {
     id: string
     email: string
     role: string
-    agents: { id: number, name: string, color: string }[]
+    agents: { id: string, name: string, color: string }[]
 }
 
 export function EditUserDialog({ user, allAgents, onUpdate }: { user: User, allAgents: Agent[], onUpdate: () => void }) {
