@@ -96,7 +96,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
         // Prepare updates
         const profileUpdates: Record<string, any> = {}
-        const settingUpserts: Promise<any>[] = []
+        // Type fix: Use 'any[]' because Prisma.$transaction expects PrismaPromise[] 
+        // but we were explicitly typing as Promise<any>[] which is not assignable.
+        const settingUpserts: any[] = []
 
         for (const [key, value] of Object.entries(body)) {
             // Case A: It's a Profile Field
