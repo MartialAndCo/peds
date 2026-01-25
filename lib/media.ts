@@ -172,7 +172,7 @@ export const mediaService = {
     },
 
     // 3. Request from Source
-    async requestFromSource(contactPhone: string, typeId: string, agentSettings?: any, agentId?: number) {
+    async requestFromSource(contactPhone: string, typeId: string, agentSettings?: any, agentId?: string) {
         // Use Agent settings if passed, otherwise query global
         let sourcePhone: string | undefined;
         let adminPhone: string | undefined;
@@ -222,7 +222,7 @@ export const mediaService = {
         const msg = msgTemplate
             .replace('{PHONE}', contactPhone)
             .replace('{TYPE}', typeId);
-        await whatsapp.sendText(targetPhone, msg, undefined, agentId as unknown as string);
+        await whatsapp.sendText(targetPhone, msg, undefined, agentId);
 
         return 'REQUEST_NEW';
     },

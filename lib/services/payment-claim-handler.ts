@@ -89,6 +89,7 @@ export async function notifyPaymentClaim(
         const claim = await prisma.pendingPaymentClaim.create({
             data: {
                 contactId: contact.id,
+                agentId: agentId || null, // Multi-agent: track which agent received this claim
                 conversationId: conversation?.id,
                 claimedAmount: amount || null,
                 claimedMethod: method || null,
@@ -102,6 +103,7 @@ export async function notifyPaymentClaim(
                 title: 'New Payment Claim',
                 message: notificationMsg,
                 type: 'PAYMENT_CLAIM',
+                agentId: agentId || null, // Multi-agent: agent-specific notification
                 entityId: claim.id,
                 metadata: {
                     amount: amountStr,

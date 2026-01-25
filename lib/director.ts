@@ -194,6 +194,7 @@ ${transcript}
                 prisma.trustLog.create({
                     data: {
                         contactId: contact.id,
+                        agentId: agentId, // Multi-agent: track which agent triggered this analysis
                         oldScore: currentTrust,
                         newScore: newScore,
                         change: result.change || 0,

@@ -104,6 +104,11 @@ model Agent {
   blacklistRules BlacklistRule[]
   events        AgentEvent[]
   
+  // Multi-agent relations
+  trustLogs       TrustLog[]
+  paymentClaims   PendingPaymentClaim[]
+  notifications   Notification[]
+  
   users         User[] // Access control
   
   profile       AgentProfile?
@@ -253,6 +258,8 @@ model TrustLog {
   id             Int      @id @default(autoincrement())
   contactId      String
   contact        Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  agentId        String?  // Multi-agent: track which agent triggered the analysis
+  agent          Agent?   @relation(fields: [agentId], references: [id], onDelete: SetNull)
   oldScore       Int
   newScore       Int
   change         Int 
@@ -261,6 +268,7 @@ model TrustLog {
   createdAt      DateTime @default(now())
 
   @@index([contactId])
+  @@index([agentId])
   @@map("trust_logs")
 }
 
@@ -427,6 +435,8 @@ model PendingPaymentClaim {
   id             String   @id @default(uuid())
   contactId      String
   contact        Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  agentId        String?  // Multi-agent: which agent received the payment claim
+  agent          Agent?   @relation(fields: [agentId], references: [id], onDelete: SetNull)
   conversationId Int?
   waMessageId    String?  @unique // WhatsApp message ID sent to admin (for reaction tracking)
   claimedAmount  Decimal?
@@ -435,6 +445,7 @@ model PendingPaymentClaim {
   createdAt      DateTime @default(now())
   
   @@index([contactId])
+  @@index([agentId])
   @@map("pending_payment_claims")
 }
 
@@ -443,6 +454,10 @@ model Notification {
   title     String
   message   String
   type      String   // 'PAYMENT_CLAIM', 'SYSTEM', 'INFO'
+  
+  // Multi-agent: notifications can be agent-specific
+  agentId   String?  // If set, notification is for this agent only
+  agent     Agent?   @relation(fields: [agentId], references: [id], onDelete: SetNull)
   
   // Reference to related entities
   entityId  String?  // ID of the related entity (e.g. pending_claim_id)
@@ -453,6 +468,7 @@ model Notification {
 
   @@index([isRead])
   @@index([createdAt])
+  @@index([agentId])
   @@map("notifications")
 }
 
