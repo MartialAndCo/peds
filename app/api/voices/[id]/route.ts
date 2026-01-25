@@ -28,7 +28,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     try {
         const body = await req.json()
-        const { name, url, gender, indexRate, protect, rmsMixRate, filterRadius } = body
+        const { name, url, gender, indexRate, protect, rmsMixRate, cleanStrength } = body
 
         const voice = await prisma.voiceModel.update({
             where: { id: parseInt(id) },
@@ -39,7 +39,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
                 ...(indexRate !== undefined && { indexRate }),
                 ...(protect !== undefined && { protect }),
                 ...(rmsMixRate !== undefined && { rmsMixRate }),
-                ...(filterRadius !== undefined && { filterRadius })
+                ...(cleanStrength !== undefined && { cleanStrength })
             }
         })
         return NextResponse.json(voice)

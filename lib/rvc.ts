@@ -50,7 +50,7 @@ export const rvcService = {
         let indexRate = 0.75
         let protect = 0.33
         let rmsMixRate = 0.25
-        let filterRadius = 3
+        let cleanStrength = 0.5
 
         if (options.voiceId || options.agentId) {
             const voice = options.voiceId
@@ -62,7 +62,7 @@ export const rvcService = {
                 protect = Number(voice.protect) || 0.33
                 rmsMixRate = Number(voice.rmsMixRate) || 0.25
                 // @ts-ignore
-                filterRadius = Number(voice.filterRadius) || 3
+                cleanStrength = Number(voice.cleanStrength) || 0.5
             }
         }
 
@@ -81,7 +81,7 @@ export const rvcService = {
         const rvcUrl = process.env.RVC_API_URL || settings.rvc_api_url || process.env.LIGHTNING_API_URL || settings.lightning_api_url || 'http://localhost:8000'
         const runpodKey = process.env.RUNPOD_API_KEY || settings.runpod_api_key
 
-        return { rvcUrl, runpodKey, selectedModel, modelUrl, pitch, indexRate, protect, rmsMixRate, filterRadius }
+        return { rvcUrl, runpodKey, selectedModel, modelUrl, pitch, indexRate, protect, rmsMixRate, cleanStrength }
     },
 
     /**
@@ -106,7 +106,7 @@ export const rvcService = {
                 index_rate: config.indexRate,
                 protect: config.protect,
                 rms_mix_rate: config.rmsMixRate,
-                filter_radius: config.filterRadius
+                clean_strength: config.cleanStrength
             }
         }
 

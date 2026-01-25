@@ -21,7 +21,7 @@ export async function POST(req: Request) {
 
     try {
         const body = await req.json()
-        const { name, url, gender, indexRate, protect, rmsMixRate, filterRadius } = body
+        const { name, url, gender, indexRate, protect, rmsMixRate, cleanStrength } = body
 
         if (!name || !url) {
             return NextResponse.json({ error: 'Name and URL required' }, { status: 400 })
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
                 indexRate: indexRate || 0.75,
                 protect: protect || 0.33,
                 rmsMixRate: rmsMixRate || 0.25,
-                filterRadius: filterRadius || 3
+                cleanStrength: cleanStrength || 0.5
             }
         })
         return NextResponse.json(voice)

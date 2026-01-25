@@ -32,7 +32,7 @@ function VoiceManager() {
     const [newIndexRate, setNewIndexRate] = useState('0.75')
     const [newProtect, setNewProtect] = useState('0.33')
     const [newRmsMixRate, setNewRmsMixRate] = useState('0.25')
-    const [newFilterRadius, setNewFilterRadius] = useState('3')
+    const [newCleanStrength, setNewCleanStrength] = useState('0.5')
     const [loading, setLoading] = useState(false)
     const [editingId, setEditingId] = useState<number | null>(null)
     const [editForm, setEditForm] = useState<any>(null)
@@ -55,14 +55,15 @@ function VoiceManager() {
                 gender: newGender,
                 indexRate: parseFloat(newIndexRate),
                 protect: parseFloat(newProtect),
-                rmsMixRate: parseFloat(newRmsMixRate)
+                rmsMixRate: parseFloat(newRmsMixRate),
+                cleanStrength: parseFloat(newCleanStrength)
             })
             setNewName('')
             setNewUrl('')
             setNewIndexRate('0.75')
             setNewProtect('0.33')
             setNewRmsMixRate('0.25')
-            setNewFilterRadius('3')
+            setNewCleanStrength('0.5')
             fetchVoices()
         } finally {
             setLoading(false)
@@ -80,7 +81,7 @@ function VoiceManager() {
                 indexRate: parseFloat(editForm.indexRate),
                 protect: parseFloat(editForm.protect),
                 rmsMixRate: parseFloat(editForm.rmsMixRate),
-                filterRadius: parseInt(editForm.filterRadius)
+                cleanStrength: parseFloat(editForm.cleanStrength)
             })
             setEditingId(null)
             setEditForm(null)
@@ -165,12 +166,12 @@ function VoiceManager() {
                         />
                     </div>
                     <div className="space-y-1">
-                        <label className="text-[10px] text-white/40 uppercase font-medium">Filter Radius</label>
+                        <label className="text-[10px] text-white/40 uppercase font-medium">Clean Strength</label>
                         <Input
                             type="number"
-                            step="1"
-                            value={newFilterRadius}
-                            onChange={e => setNewFilterRadius(e.target.value)}
+                            step="0.05"
+                            value={newCleanStrength}
+                            onChange={e => setNewCleanStrength(e.target.value)}
                             className="bg-white/[0.04] border-white/[0.08] text-white"
                         />
                     </div>
@@ -241,12 +242,12 @@ function VoiceManager() {
                                         />
                                     </div>
                                     <div className="space-y-1">
-                                        <label className="text-[10px] text-white/40 uppercase">Radius</label>
+                                        <label className="text-[10px] text-white/40 uppercase">Clean</label>
                                         <Input
                                             type="number"
-                                            step="1"
-                                            value={editForm.filterRadius || 3}
-                                            onChange={e => setEditForm({ ...editForm, filterRadius: e.target.value })}
+                                            step="0.05"
+                                            value={editForm.cleanStrength || 0.5}
+                                            onChange={e => setEditForm({ ...editForm, cleanStrength: e.target.value })}
                                             className="bg-white/[0.04] border-white/[0.08] text-white h-8 text-xs"
                                         />
                                     </div>
@@ -281,7 +282,7 @@ function VoiceManager() {
                                             <span className="text-[10px] text-white/30">Index: {Number(voice.indexRate).toFixed(2)}</span>
                                             <span className="text-[10px] text-white/30">Prot: {Number(voice.protect).toFixed(2)}</span>
                                             <span className="text-[10px] text-white/30">RMS: {Number(voice.rmsMixRate).toFixed(2)}</span>
-                                            <span className="text-[10px] text-white/30">Rad: {Number(voice.filterRadius || 3).toFixed(0)}</span>
+                                            <span className="text-[10px] text-white/30">Clean: {Number(voice.cleanStrength || 0.5).toFixed(2)}</span>
                                         </div>
                                     </div>
                                     <div className="text-xs text-white/40 truncate max-w-md">{voice.url}</div>
