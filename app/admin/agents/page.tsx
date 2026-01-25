@@ -138,14 +138,19 @@ export default function AgentsLobbyPage() {
                 })}
             </div>
 
-            {/* Empty State */}
+            {/* Empty State / Debug */}
             {agents.length === 0 && (
                 <div className="glass rounded-2xl p-12 text-center">
                     <div className="w-16 h-16 rounded-full bg-white/[0.04] flex items-center justify-center mx-auto mb-4">
                         <Plus className="h-6 w-6 text-white/20" />
                     </div>
-                    <p className="text-white font-medium mb-2">No agents yet</p>
-                    <p className="text-white/40 text-sm mb-6">Create your first AI agent to get started</p>
+                    <p className="text-white font-medium mb-2">No agents found</p>
+                    <p className="text-white/40 text-sm mb-6">
+                        {loading ? 'Loading...' : 'Create your first AI agent to get started'}
+                    </p>
+                    <div className="text-xs text-white/20 font-mono mb-4">
+                        Debug: Loaded {agents.length} agents. Status: {loading ? 'Loading' : 'Idle'}
+                    </div>
                     <Button
                         onClick={() => setIsCreateOpen(true)}
                         className="bg-white text-black hover:bg-white/90"

@@ -1,23 +1,21 @@
 import { addMinutes, addHours, format, subMinutes } from 'date-fns'
 import { toZonedTime } from 'date-fns-tz'
 
-const TIMEZONE = 'America/Los_Angeles'
-
 export class TimingManager {
     // Randomized Daily Schedules (Deterministic based on date)
 
-    static getLATime(): Date {
-        // Return current time zoned to LA
-        return toZonedTime(new Date(), TIMEZONE)
+    static getZonedTime(timezone: string = 'Europe/Paris'): Date {
+        // Return current time zoned to specified timezone
+        return toZonedTime(new Date(), timezone)
     }
 
-    static getFormattedLATime(): string {
-        return format(this.getLATime(), 'HH:mm')
+    static getFormattedTime(timezone: string = 'Europe/Paris'): string {
+        return format(this.getZonedTime(timezone), 'HH:mm')
     }
 
     // Pseudo-random deterministic helper based on date
-    private static getDailyRandom(min: number, max: number, seedSuffix: string = ''): number {
-        const today = format(this.getLATime(), 'yyyy-MM-dd')
+    private static getDailyRandom(timezone: string, min: number, max: number, seedSuffix: string = ''): number {
+        const today = format(this.getZonedTime(timezone), 'yyyy-MM-dd')
         const seed = today + seedSuffix
         let hash = 0
         for (let i = 0; i < seed.length; i++) {
@@ -28,17 +26,17 @@ export class TimingManager {
         return Math.floor(normalized * (max - min + 1)) + min
     }
 
-    static getSleepWindow() {
+    static getSleepWindow(timezone: string = 'Europe/Paris') {
         // Base: 3am - 10am
         // Variance: +/- 45 mins
         const startHour = 3
         const endHour = 10
 
-        const startMinsVariance = this.getDailyRandom(-45, 45, 'sleep-start')
-        const endMinsVariance = this.getDailyRandom(-45, 45, 'sleep-end')
+        const startMinsVariance = this.getDailyRandom(timezone, -45, 45, 'sleep-start')
+        const endMinsVariance = this.getDailyRandom(timezone, -45, 45, 'sleep-end')
 
-        const nowLA = this.getLATime()
-        const startOfToday = new Date(nowLA)
+        const nowZoned = this.getZonedTime(timezone)
+        const startOfToday = new Date(nowZoned)
         startOfToday.setHours(0, 0, 0, 0)
 
         const todaySleepStart = addMinutes(addHours(startOfToday, startHour), startMinsVariance)
@@ -47,17 +45,17 @@ export class TimingManager {
         return { start: todaySleepStart, end: todaySleepEnd }
     }
 
-    static getSchoolWindow() {
+    static getSchoolWindow(timezone: string = 'Europe/Paris') {
         // Base: 8am - 3pm
         // Variance: Start +/- 15m, End +/- 30m
         const startHour = 8
         const endHour = 15 // 3pm
 
-        const startMinsVariance = this.getDailyRandom(-15, 15, 'school-start')
-        const endMinsVariance = this.getDailyRandom(-30, 30, 'school-end')
+        const startMinsVariance = this.getDailyRandom(timezone, -15, 15, 'school-start')
+        const endMinsVariance = this.getDailyRandom(timezone, -30, 30, 'school-end')
 
-        const nowLA = this.getLATime()
-        const startOfToday = new Date(nowLA)
+        const nowZoned = this.getZonedTime(timezone)
+        const startOfToday = new Date(nowZoned)
         startOfToday.setHours(0, 0, 0, 0)
 
         const todaySchoolStart = addMinutes(addHours(startOfToday, startHour), startMinsVariance)
@@ -66,9 +64,9 @@ export class TimingManager {
         return { start: todaySchoolStart, end: todaySchoolEnd }
     }
 
-    static analyzeContext(lastUserMessageTime: Date | null, phase: string, isHighPriority: boolean = false): { mode: 'FAST' | 'NORMAL' | 'SLOW' | 'SLEEP' | 'INSTANT_TEST', delaySeconds: number, shouldGhost: boolean } {
-        const nowLA = this.getLATime()
-        const dayOfWeek = nowLA.getDay() // 0 = Sunday, 6 = Saturday
+    static analyzeContext(lastUserMessageTime: Date | null, phase: string, isHighPriority: boolean = false, timezone: string = 'Europe/Paris'): { mode: 'FAST' | 'NORMAL' | 'SLOW' | 'SLEEP' | 'INSTANT_TEST', delaySeconds: number, shouldGhost: boolean } {
+        const nowZoned = this.getZonedTime(timezone)
+        const dayOfWeek = nowZoned.getDay() // 0 = Sunday, 6 = Saturday
 
         // 0. PRIORITY OVERRIDE
         if (isHighPriority) {
@@ -79,8 +77,8 @@ export class TimingManager {
 
             // If sleeping, we shouldn't reply instantly (suspicious), but maybe wake up sooner?
             // For now, let's treat it as FAST Flow if awake.
-            const sleep = this.getSleepWindow()
-            const isSleeping = nowLA >= sleep.start && nowLA <= sleep.end
+            const sleep = this.getSleepWindow(timezone)
+            const isSleeping = nowZoned >= sleep.start && nowZoned <= sleep.end
 
             if (!isSleeping) {
                 const delay = Math.floor(Math.random() * (30 - 10 + 1)) + 10 // 10s - 30s
@@ -89,13 +87,13 @@ export class TimingManager {
         }
 
         // 1. Check Sleep
-        const sleep = this.getSleepWindow()
-        const isSleeping = nowLA >= sleep.start && nowLA <= sleep.end
+        const sleep = this.getSleepWindow(timezone)
+        const isSleeping = nowZoned >= sleep.start && nowZoned <= sleep.end
 
         if (isSleeping) {
             // Wakeup Logic
-            const diffMs = sleep.end.getTime() - nowLA.getTime()
-            const delaySeconds = Math.max(0, Math.floor(diffMs / 1000)) + 60 * this.getDailyRandom(5, 30, 'wakeup-delay')
+            const diffMs = sleep.end.getTime() - nowZoned.getTime()
+            const delaySeconds = Math.max(0, Math.floor(diffMs / 1000)) + 60 * this.getDailyRandom(timezone, 5, 30, 'wakeup-delay')
             return { mode: 'SLEEP', delaySeconds, shouldGhost: false } // Do NOT Mark Read if sleeping
         }
 
@@ -111,8 +109,8 @@ export class TimingManager {
         // 3. Check School / Work (WEEKDAYS ONLY)
         const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
         if (!isWeekend) {
-            const school = this.getSchoolWindow()
-            const isSchool = nowLA >= school.start && nowLA <= school.end
+            const school = this.getSchoolWindow(timezone)
+            const isSchool = nowZoned >= school.start && nowZoned <= school.end
 
             if (isSchool) {
                 // School Mode: 80% Ghosting, 20% Break
@@ -122,7 +120,7 @@ export class TimingManager {
                     return { mode: 'FAST', delaySeconds: delay, shouldGhost: true }
                 } else {
                     // Wait until school ends + buffer
-                    const diffMs = school.end.getTime() - nowLA.getTime()
+                    const diffMs = school.end.getTime() - nowZoned.getTime()
                     const delay = Math.max(0, Math.floor(diffMs / 1000)) + 60 * Math.floor(Math.random() * 30) // End + 0-30m
                     return { mode: 'SLOW', delaySeconds: delay, shouldGhost: true } // Mark read, reply later (Ghosting)
                 }

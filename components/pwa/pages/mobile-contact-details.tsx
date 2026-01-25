@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from '@/lib/utils'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog'
+import { Textarea } from '@/components/ui/textarea'
 
 interface MobileContactDetailsProps {
     contact: any
@@ -125,9 +127,59 @@ export function MobileContactDetails({ contact, media, agentId }: MobileContactD
                     </div>
 
                     <div className="space-y-4">
-                        <h3 className="text-xs font-bold uppercase tracking-widest text-white/30 flex items-center gap-2">
-                            <Shield className="h-3 w-3" /> Context Notes
-                        </h3>
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-xs font-bold uppercase tracking-widest text-white/30 flex items-center gap-2">
+                                <Shield className="h-3 w-3" /> Context Notes
+                            </h3>
+                            <Dialog>
+                                <DialogTrigger asChild>
+                                    <Button variant="ghost" size="sm" className="h-6 text-xs text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 px-2">
+                                        Edit
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent className="bg-[#1e293b] border-white/10 top-[20%] translate-y-0">
+                                    <DialogHeader>
+                                        <DialogTitle className="text-white">Edit Notes</DialogTitle>
+                                    </DialogHeader>
+                                    <div className="py-4">
+                                        <Textarea
+                                            defaultValue={contact.notes || ''}
+                                            placeholder="Add context notes here..."
+                                            className="min-h-[150px] bg-black/20 border-white/10 text-white placeholder:text-white/20 resize-none focus-visible:ring-blue-500"
+                                            id="context-notes-edit"
+                                        />
+                                    </div>
+                                    <DialogFooter>
+                                        <Button
+                                            onClick={async (e) => {
+                                                const btn = e.currentTarget;
+                                                const originalText = btn.innerText;
+                                                btn.innerText = 'Saving...';
+                                                btn.disabled = true;
+
+                                                try {
+                                                    const val = (document.getElementById('context-notes-edit') as HTMLTextAreaElement).value;
+                                                    const res = await fetch(`/api/contacts/${contact.id}`, {
+                                                        method: 'PATCH',
+                                                        headers: { 'Content-Type': 'application/json' },
+                                                        body: JSON.stringify({ notes: val })
+                                                    });
+                                                    if (!res.ok) throw new Error();
+                                                    window.location.reload();
+                                                } catch {
+                                                    alert('Failed to save');
+                                                    btn.innerText = originalText;
+                                                    btn.disabled = false;
+                                                }
+                                            }}
+                                            className="bg-blue-600 hover:bg-blue-500 text-white w-full sm:w-auto"
+                                        >
+                                            Save Notes
+                                        </Button>
+                                    </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
+                        </div>
                         <div className="glass rounded-2xl p-5">
                             <p className="text-sm text-white/70 leading-relaxed whitespace-pre-wrap">
                                 {contact.notes || "No particular context notes added to this profile."}

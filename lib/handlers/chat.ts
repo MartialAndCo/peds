@@ -412,14 +412,29 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     logger.info('Generating AI response', { module: 'chat', conversationId: conversation.id, phase })
     const lastUserDate = new Date() // Approx
 
+    // Fetch Agent Timezone
+    let agentTimezone = 'Europe/Paris' // Default safe fallback
+    if (effectiveAgentId) {
+        try {
+            const agentProfile = await prisma.agentProfile.findUnique({
+                where: { agentId: effectiveAgentId },
+                select: { timezone: true }
+            })
+            if (agentProfile?.timezone) agentTimezone = agentProfile.timezone
+        } catch (e) {
+            console.warn('[Chat] Failed to fetch agent timezone, using default:', e)
+        }
+    }
+
     // Check for High Priority Keywords (for timing adjustment only)
     // Payment detection is now handled earlier (after message save)
     const moneyKeywords = ['money', 'pay', 'paypal', 'cashapp', 'venmo', 'zelle', 'transfer', 'cash', 'dollars', 'usd', '$', 'price', 'cost', 'bank', 'card', 'crypto', 'bitcoin']
     const isHighPriority = moneyKeywords.some(kw => lastContent.toLowerCase().includes(kw))
 
-    let timing = TimingManager.analyzeContext(lastUserDate, phase, isHighPriority)
+    let timing = TimingManager.analyzeContext(lastUserDate, phase, isHighPriority, agentTimezone)
 
     // Debug logging
+    console.log(`[Timing] Agent Timezone: ${agentTimezone}`)
     console.log(`[Timing] Contact testMode: ${contact.testMode}`)
     console.log(`[Timing] Before override - Mode: ${timing.mode}, Delay: ${timing.delaySeconds}s`)
 
