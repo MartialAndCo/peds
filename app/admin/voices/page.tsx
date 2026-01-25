@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Loader2, Trash, Settings2, Check, X, Mic2 } from 'lucide-react'
+import { AudioPlayer } from '@/components/ui/audio-player'
 
 export default function VoicesPage() {
     return (
@@ -543,8 +544,7 @@ function VoiceTester({ voices }: { voices: any[] }) {
                             </div>
                         ) : resultAudio ? (
                             <div className="w-full flex flex-col items-center gap-2">
-                                <audio controls src={resultAudio} className="w-full h-8" />
-                                <a href={resultAudio} download="test_voice.mp3" className="text-xs text-blue-400 hover:underline">Download</a>
+                                <AudioPlayer src={resultAudio} showDownload downloadName="test_voice.mp3" />
                             </div>
                         ) : (
                             <span className="text-xs text-white/20">Ready to convert</span>
@@ -590,7 +590,7 @@ function VoiceTester({ voices }: { voices: any[] }) {
                             </div>
                             <div className="flex items-center gap-3">
                                 {gen.status === 'COMPLETED' ? (
-                                    <audio controls src={`/api/voices/generations/${gen.id}/audio`} className="h-6 w-32" />
+                                    <AudioPlayer src={`/api/voices/generations/${gen.id}/audio`} compact />
                                 ) : (
                                     <span className="text-xs text-white/20">Processing...</span>
                                 )}
