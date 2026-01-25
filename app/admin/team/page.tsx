@@ -142,14 +142,11 @@ export default function TeamPage() {
                         <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                             {user.role !== 'ADMIN' && (
                                 <>
-                                    <Button
-                                        size="icon"
-                                        variant="ghost"
-                                        className="hover:bg-blue-500/20 hover:text-blue-400 text-white/40"
-                                        onClick={() => alert('Edit feature coming soon')}
-                                    >
-                                        <Shield className="h-4 w-4" />
-                                    </Button>
+                                    <EditUserDialog
+                                        user={user}
+                                        allAgents={allAgents}
+                                        onUpdate={fetchData}
+                                    />
                                     <Button
                                         size="icon"
                                         variant="destructive"
