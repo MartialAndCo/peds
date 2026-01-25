@@ -184,108 +184,42 @@ export function MobileAdminDashboard({ stats, agentsCount }: MobileAdminDashboar
                         </div>
                     </div>
 
-                    {/* Total Users Card */}
-                    <div className="w-40 h-40 glass rounded-3xl p-5 flex flex-col justify-between relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                            <Users className="h-16 w-16 text-amber-400" />
-                        </div>
-                        <div className="h-10 w-10 rounded-full bg-amber-500/20 flex items-center justify-center">
-                            <Users className="h-5 w-5 text-amber-400" />
-                        </div>
-                        <div>
-                            <span className="text-white/40 text-xs font-bold uppercase tracking-wider block mb-1">Contacts</span>
-                            <span className="text-2xl font-bold text-white">{stats.totalContacts}</span>
-                        </div>
-                    </div>
+                    {/* Total Users Card - REMOVED as per request */}
+
                 </div>
             </div>
 
-            {/* Main Action / Highlight */}
+            {/* Quick Access Grid (5 items) */}
             <div className="px-5">
-                <div
-                    onClick={() => router.push('/admin/agents')}
-                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 rounded-3xl p-6 relative overflow-hidden shadow-lg shadow-blue-900/40 active:scale-[0.98] transition-all cursor-pointer"
-                >
-                    <div className="relative z-10 flex justify-between items-center">
-                        <div>
-                            <h3 className="text-white font-bold text-lg">Manage Agents</h3>
-                            <p className="text-white/70 text-sm mt-1">Check status & configure bots</p>
-                        </div>
-                        <div className="h-10 w-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
-                            <ArrowRight className="h-5 w-5 text-white" />
-                        </div>
-                    </div>
-                    {/* Decor */}
-                    <Bot className="absolute -bottom-4 -right-4 h-32 w-32 text-black/10 rotate-12" />
-                </div>
-            </div>
-
-            {/* Activity Chart Section */}
-            <div className="px-5">
-                <div className="glass rounded-3xl p-6">
-                    <div className="flex items-center justify-between mb-6">
-                        <h3 className="text-white font-bold">Activity Trend</h3>
-                        <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 font-mono text-xs">+12.5%</Badge>
-                    </div>
-
-                    <div className="h-[200px] w-full" style={{ minWidth: 200, minHeight: 100 }}>
-                        {chartData.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={chartData}>
-                                    <defs>
-                                        <linearGradient id="colorMessages" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
-                                    <XAxis
-                                        dataKey="name"
-                                        tick={{ fill: '#ffffff40', fontSize: 10 }}
-                                        axisLine={false}
-                                        tickLine={false}
-                                        tickMargin={10}
-                                    />
-                                    <YAxis hide />
-                                    <Tooltip
-                                        contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }}
-                                        itemStyle={{ color: '#fff' }}
-                                    />
-                                    <Area
-                                        type="monotone"
-                                        dataKey="messages"
-                                        stroke="#3b82f6"
-                                        strokeWidth={3}
-                                        fillOpacity={1}
-                                        fill="url(#colorMessages)"
-                                    />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        ) : (
-                            <div className="flex items-center justify-center h-full text-white/30 text-sm">
-                                No activity data
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* Quick Links Grid */}
-            <div className="px-5">
-                <h3 className="text-white/40 font-bold uppercase text-xs tracking-widest mb-4 px-1">Quick Access</h3>
+                <h3 className="text-white/40 font-bold uppercase text-xs tracking-widest mb-4 px-1">Menu</h3>
                 <div className="grid grid-cols-2 gap-3">
-                    <div onClick={() => router.push('/admin/conversations')} className="glass rounded-2xl p-4 flex flex-col items-center justify-center gap-2 active:bg-white/5 transition-colors cursor-pointer text-center">
-                        <MessageSquare className="h-6 w-6 text-pink-400" />
-                        <span className="text-white text-sm font-medium">All Chats</span>
+                    {/* 1. Overview (Home) */}
+                    <div onClick={() => window.location.reload()} className="glass rounded-2xl p-4 flex flex-col items-center justify-center gap-2 bg-white/5 border-white/20 transition-colors cursor-pointer text-center relative overflow-hidden">
+                        <div className="absolute inset-0 bg-blue-500/10 opacity-50" />
+                        <TrendingUp className="h-6 w-6 text-blue-400 relative z-10" />
+                        <span className="text-white text-sm font-bold relative z-10">Overview</span>
                     </div>
+
+                    {/* 2. Agents */}
+                    <div onClick={() => router.push('/admin/agents')} className="glass rounded-2xl p-4 flex flex-col items-center justify-center gap-2 active:bg-white/5 transition-colors cursor-pointer text-center">
+                        <Bot className="h-6 w-6 text-indigo-400" />
+                        <span className="text-white text-sm font-medium">Agents</span>
+                    </div>
+
+                    {/* 3. Payments */}
                     <div onClick={() => router.push('/admin/payments')} className="glass rounded-2xl p-4 flex flex-col items-center justify-center gap-2 active:bg-white/5 transition-colors cursor-pointer text-center">
-                        <DollarSign className="h-6 w-6 text-green-400" />
+                        <DollarSign className="h-6 w-6 text-emerald-400" />
                         <span className="text-white text-sm font-medium">Payments</span>
                     </div>
-                    <div onClick={() => router.push('/admin/voices')} className="glass rounded-2xl p-4 flex flex-col items-center justify-center gap-2 active:bg-white/5 transition-colors cursor-pointer text-center">
-                        <Activity className="h-6 w-6 text-amber-400" />
-                        <span className="text-white text-sm font-medium">Voices</span>
+
+                    {/* 4. Logs (System/Chats) */}
+                    <div onClick={() => router.push('/admin/conversations')} className="glass rounded-2xl p-4 flex flex-col items-center justify-center gap-2 active:bg-white/5 transition-colors cursor-pointer text-center">
+                        <Activity className="h-6 w-6 text-purple-400" />
+                        <span className="text-white text-sm font-medium">Logs</span>
                     </div>
-                    <div onClick={() => router.push('/admin/settings')} className="glass rounded-2xl p-4 flex flex-col items-center justify-center gap-2 active:bg-white/5 transition-colors cursor-pointer text-center">
+
+                    {/* 5. Settings */}
+                    <div onClick={() => router.push('/admin/settings')} className="glass rounded-2xl p-4 flex flex-col items-center justify-center gap-2 active:bg-white/5 transition-colors cursor-pointer text-center col-span-2">
                         <Activity className="h-6 w-6 text-white/60" />
                         <span className="text-white text-sm font-medium">Settings</span>
                     </div>
