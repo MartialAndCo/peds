@@ -12,7 +12,7 @@ interface User {
     id: string
     email: string
     role: string
-    agents: { id: number, name: string, color: string }[]
+    agents: { id: string, name: string, color: string }[]
     createdAt: string
 }
 
