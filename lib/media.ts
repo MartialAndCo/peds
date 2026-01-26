@@ -243,94 +243,52 @@ export const mediaService = {
 
         if (!latestPending) return null;
 
-        // --- RVC INTERCEPTION ---
+        // --- TTS INTERCEPTION (For Voice Notes) ---
         const isAudio = safeMimeType.startsWith('audio') || latestPending.typeId === 'audio' || latestPending.typeId === 'voice_note';
 
         if (isAudio && latestPending) {
-            logger.info('Audio detected. Intercepting for RVC Processing...', { module: 'media_service' });
+            logger.info('Audio/Voice note request detected. Using TTS Processing...', { module: 'media_service' });
 
             try {
-                const { rvcService } = require('@/lib/rvc');
+                const { qwenTtsService } = require('@/lib/qwen-tts');
 
-                // 1. Get Target Voice ID
-                // Try to find via Contact -> Conversation -> Agent
+                // 1. Get Agent ID for voice cloning
                 const contact = await prisma.contact.findUnique({ where: { phone_whatsapp: latestPending.requesterPhone } });
-                let voiceId = null;
+                let agentId = null;
 
                 if (contact) {
                     const conv = await prisma.conversation.findFirst({ where: { contactId: contact.id }, orderBy: { createdAt: 'desc' } });
                     if (conv && conv.agentId) {
-                        const settings = await prisma.agentSetting.findFirst({ where: { agentId: conv.agentId, key: 'voice_id' } });
-                        if (settings) voiceId = settings.value;
+                        agentId = conv.agentId;
                     }
                 }
 
-                // Fallback to Global Defaults or Agent 1
-                if (!voiceId) {
-                    const s = await prisma.setting.findUnique({ where: { key: 'voice_id' } }); // Global fallback
-                    voiceId = s?.value || process.env.RVC_DEFAULT_VOICE_ID;
-                }
+                logger.info(`Using Agent ID: ${agentId}`, { module: 'media_service' });
 
-                if (!voiceId) {
-                    logger.warn('No Voice ID found. Uploading raw audio or failing?', { module: 'media_service' });
-                    // If no voice ID, maybe just send raw audio? For now, fail safe.
-                    // voiceId = 'default'; 
-                }
+                // 2. For TTS, we need TEXT input - use the description as text to speak
+                const textToSpeak = latestPending.description || 'Hello';
 
-                logger.info(`Using Voice ID: ${voiceId}`, { module: 'media_service' });
-
-                // 2. Prepare Source Audio (Supabase logic for large files)
-                let finalAudioInput = mediaData;
-                let sourceUrl = null;
-
-                // Clean base64 header if present for length check
-                const base64Content = mediaData.includes('base64,') ? mediaData.split('base64,')[1] : mediaData;
-                const buffer = Buffer.from(base64Content, 'base64');
-
-                // Reuse 8MB Limit logic
-                if (buffer.length > 8 * 1024 * 1024) {
-                    logger.info('Source Audio > 8MB. Uploading to Supabase...', { module: 'media_service' });
-                    const { createClient } = require('@supabase/supabase-js');
-                    const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-                    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-                    if (url && key) {
-                        const supabase = createClient(url, key);
-                        const fileName = `source_${latestPending.id}_${Date.now()}.mp3`;
-                        const { error: upErr } = await supabase.storage.from('voice-uploads').upload(fileName, buffer, { contentType: mimeType || 'audio/mpeg' });
-
-                        if (!upErr) {
-                            const { data } = supabase.storage.from('voice-uploads').getPublicUrl(fileName);
-                            if (data?.publicUrl) {
-                                finalAudioInput = data.publicUrl; // URL Input for RunPod
-                                sourceUrl = data.publicUrl;
-                            }
-                        } else {
-                            logger.error('Supabase Upload failed', upErr, { module: 'media_service' });
-                        }
-                    }
-                }
-
-                // 3. Start RVC Job
-                const jobId = await rvcService.startJob(finalAudioInput, { voiceId: voiceId ? Number(voiceId) : undefined }); // AI Context check handled by Cron
+                // 3. Start TTS Job
+                const jobId = await qwenTtsService.startJob({
+                    text: textToSpeak,
+                    agentId
+                });
 
                 // 4. Update Pending Request
                 await prisma.pendingRequest.update({
                     where: { id: latestPending.id },
                     data: {
                         status: 'processing',
-                        jobId: jobId,
-                        voiceId: voiceId,
-                        sourceAudioUrl: sourceUrl
+                        jobId: jobId
                     }
                 });
 
-                logger.info(`RVC Job Started: ${jobId}`, { module: 'media_service' });
-                return null; // STOP HERE. Don't fulfill yet.
+                logger.info(`TTS Job Started: ${jobId}`, { module: 'media_service' });
+                return null; // STOP HERE. Webhook will handle completion.
 
             } catch (err: any) {
-                logger.error('RVC Interception Failed', err, { module: 'media_service' });
-                // Fallback to normal ingestion (send raw)?
+                logger.error('TTS Interception Failed', err, { module: 'media_service' });
+                // Fallback to normal ingestion (send raw)
             }
         }
         // --- END INTERCEPTION ---

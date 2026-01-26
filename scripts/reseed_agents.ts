@@ -19,6 +19,7 @@ async function main() {
             color: '#ec4899', // Pink
             isActive: true,
             operatorGender: 'FEMALE',
+            language: 'English',
             profile: {
                 create: {
                     baseAge: 24,
@@ -47,6 +48,7 @@ async function main() {
             color: '#3b82f6', // Blue
             isActive: true,
             operatorGender: 'MALE',
+            language: 'French',
             profile: {
                 create: {
                     baseAge: 28,

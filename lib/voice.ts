@@ -95,9 +95,13 @@ export const voiceService = {
                 }
             }
 
-            // Start Async Job
-            const { rvcService } = require('@/lib/rvc')
-            const jobId = await rvcService.startJob(finalAudioInput, { agentId })
+            // Start Async Job - Now uses TTS with text input
+            const { qwenTtsService } = require('@/lib/qwen-tts')
+            // For TTS, we need text - use the description as the text to speak
+            const jobId = await qwenTtsService.startJob({
+                text: pending.description || 'Hello',
+                agentId
+            })
 
             if (jobId) {
                 // Update Request to PROCESSING
@@ -109,9 +113,9 @@ export const voiceService = {
                         sourceAudioUrl: sourceUrl
                     }
                 })
-                return { action: 'processing', message: 'Converting voice...', jobId }
+                return { action: 'processing', message: 'Generating voice...', jobId }
             } else {
-                throw new Error("Failed to start RVC Job");
+                throw new Error("Failed to start TTS Job");
             }
 
         } catch (rvcErr) {

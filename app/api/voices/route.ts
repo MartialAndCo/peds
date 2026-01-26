@@ -21,21 +21,18 @@ export async function POST(req: Request) {
 
     try {
         const body = await req.json()
-        const { name, url, gender, indexRate, protect, rmsMixRate, cleanStrength } = body
+        const { name, voiceSampleUrl, gender, language } = body
 
-        if (!name || !url) {
-            return NextResponse.json({ error: 'Name and URL required' }, { status: 400 })
+        if (!name || !voiceSampleUrl) {
+            return NextResponse.json({ error: 'Name and Voice Sample URL required' }, { status: 400 })
         }
 
         const voice = await prisma.voiceModel.create({
             data: {
                 name,
-                url,
+                voiceSampleUrl,
                 gender: gender || 'FEMALE',
-                indexRate: indexRate || 0.75,
-                protect: protect || 0.33,
-                rmsMixRate: rmsMixRate || 0.25,
-                cleanStrength: cleanStrength || 0.5
+                language: language || 'Auto'
             }
         })
         return NextResponse.json(voice)

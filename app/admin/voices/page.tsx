@@ -4,9 +4,21 @@ import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Loader2, Trash, Settings2, Check, X, Mic2 } from 'lucide-react'
+import { Loader2, Trash, Settings2, Check, X, Volume2, Upload } from 'lucide-react'
 import { AudioPlayer } from '@/components/ui/audio-player'
+
+const LANGUAGES = [
+    { value: 'Auto', label: 'Auto (Detect)' },
+    { value: 'English', label: 'English' },
+    { value: 'French', label: 'Français' },
+    { value: 'Chinese', label: '中文' },
+    { value: 'Japanese', label: '日本語' },
+    { value: 'Korean', label: '한국어' },
+    { value: 'Spanish', label: 'Español' },
+    { value: 'German', label: 'Deutsch' },
+]
 
 export default function VoicesPage() {
     return (
@@ -14,7 +26,7 @@ export default function VoicesPage() {
             <div>
                 <h1 className="text-2xl font-semibold text-white">Voice Library</h1>
                 <p className="text-white/40 text-sm mt-1">
-                    Manage global RVC voice models available to all agents
+                    Manage voice clones for your agents. Upload a voice sample (3-30 sec) to create a new voice.
                 </p>
             </div>
 
@@ -28,12 +40,10 @@ export default function VoicesPage() {
 function VoiceManager() {
     const [voices, setVoices] = useState<any[]>([])
     const [newName, setNewName] = useState('')
-    const [newUrl, setNewUrl] = useState('')
+    const [newVoiceSampleUrl, setNewVoiceSampleUrl] = useState('')
     const [newGender, setNewGender] = useState('FEMALE')
-    const [newIndexRate, setNewIndexRate] = useState('0.75')
-    const [newProtect, setNewProtect] = useState('0.33')
-    const [newRmsMixRate, setNewRmsMixRate] = useState('0.25')
-    const [newCleanStrength, setNewCleanStrength] = useState('0.5')
+    const [newLanguage, setNewLanguage] = useState('Auto')
+    const [uploading, setUploading] = useState(false)
     const [loading, setLoading] = useState(false)
     const [editingId, setEditingId] = useState<number | null>(null)
     const [editForm, setEditForm] = useState<any>(null)
@@ -46,25 +56,40 @@ function VoiceManager() {
 
     useEffect(() => { fetchVoices() }, [fetchVoices])
 
+    const handleFileUpload = async (file: File) => {
+        setUploading(true)
+        try {
+            // Upload to Supabase via our proxy
+            const formData = new FormData()
+            formData.append('file', file)
+
+            const res = await axios.post('/api/media/upload', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            })
+
+            if (res.data.url) {
+                setNewVoiceSampleUrl(res.data.url)
+            }
+        } catch (e) {
+            alert('Failed to upload voice sample')
+        } finally {
+            setUploading(false)
+        }
+    }
+
     const handleAdd = async () => {
-        if (!newName || !newUrl) return
+        if (!newName || !newVoiceSampleUrl) return
         setLoading(true)
         try {
             await axios.post('/api/voices', {
                 name: newName,
-                url: newUrl,
+                voiceSampleUrl: newVoiceSampleUrl,
                 gender: newGender,
-                indexRate: parseFloat(newIndexRate),
-                protect: parseFloat(newProtect),
-                rmsMixRate: parseFloat(newRmsMixRate),
-                cleanStrength: parseFloat(newCleanStrength)
+                language: newLanguage
             })
             setNewName('')
-            setNewUrl('')
-            setNewIndexRate('0.75')
-            setNewProtect('0.33')
-            setNewRmsMixRate('0.25')
-            setNewCleanStrength('0.5')
+            setNewVoiceSampleUrl('')
+            setNewLanguage('Auto')
             fetchVoices()
         } finally {
             setLoading(false)
@@ -77,12 +102,9 @@ function VoiceManager() {
         try {
             await axios.patch(`/api/voices/${editForm.id}`, {
                 name: editForm.name,
-                url: editForm.url,
+                voiceSampleUrl: editForm.voiceSampleUrl,
                 gender: editForm.gender,
-                indexRate: parseFloat(editForm.indexRate),
-                protect: parseFloat(editForm.protect),
-                rmsMixRate: parseFloat(editForm.rmsMixRate),
-                cleanStrength: parseFloat(editForm.cleanStrength)
+                language: editForm.language
             })
             setEditingId(null)
             setEditForm(null)
@@ -93,19 +115,20 @@ function VoiceManager() {
     }
 
     const handleDelete = async (id: number) => {
-        if (!confirm('Start deletion?')) return
+        if (!confirm('Delete this voice?')) return
         await axios.delete(`/api/voices/${id}`)
         fetchVoices()
     }
 
     return (
         <div className="space-y-4">
+            {/* Add New Voice */}
             <div className="space-y-4 p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="space-y-1">
-                        <label className="text-[10px] text-white/40 uppercase font-medium">Model Name</label>
+                        <label className="text-[10px] text-white/40 uppercase font-medium">Voice Name</label>
                         <Input
-                            placeholder="e.g. Homer"
+                            placeholder="e.g. Lena Voice"
                             value={newName}
                             onChange={e => setNewName(e.target.value)}
                             className="bg-white/[0.04] border-white/[0.08] text-white"
@@ -123,72 +146,61 @@ function VoiceManager() {
                             </SelectContent>
                         </Select>
                     </div>
+                    <div className="space-y-1">
+                        <label className="text-[10px] text-white/40 uppercase font-medium">Language</label>
+                        <Select value={newLanguage} onValueChange={setNewLanguage}>
+                            <SelectTrigger className="bg-white/[0.04] border-white/[0.08] text-white">
+                                <SelectValue placeholder="Language" />
+                            </SelectTrigger>
+                            <SelectContent className="glass-strong border-white/10 text-white">
+                                {LANGUAGES.map(lang => (
+                                    <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
 
                 <div className="space-y-1">
-                    <label className="text-[10px] text-white/40 uppercase font-medium">HuggingFace Zip URL</label>
-                    <Input
-                        placeholder="https://huggingface.co/..."
-                        value={newUrl}
-                        onChange={e => setNewUrl(e.target.value)}
-                        className="bg-white/[0.04] border-white/[0.08] text-white"
-                    />
+                    <label className="text-[10px] text-white/40 uppercase font-medium">Voice Sample (3-30 sec audio)</label>
+                    <div className="flex gap-2">
+                        <Input
+                            placeholder="Paste URL or upload file..."
+                            value={newVoiceSampleUrl}
+                            onChange={e => setNewVoiceSampleUrl(e.target.value)}
+                            className="bg-white/[0.04] border-white/[0.08] text-white flex-1"
+                        />
+                        <label className="cursor-pointer">
+                            <input
+                                type="file"
+                                accept="audio/*"
+                                className="hidden"
+                                onChange={e => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
+                            />
+                            <Button type="button" variant="secondary" className="bg-white/10 hover:bg-white/20 text-white border-0" disabled={uploading}>
+                                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                            </Button>
+                        </label>
+                    </div>
+                    {newVoiceSampleUrl && (
+                        <div className="mt-2">
+                            <AudioPlayer src={newVoiceSampleUrl} compact />
+                        </div>
+                    )}
                 </div>
 
-                <div className="grid grid-cols-4 gap-3">
-                    <div className="space-y-1">
-                        <label className="text-[10px] text-white/40 uppercase font-medium">Index Rate</label>
-                        <Input
-                            type="number"
-                            step="0.05"
-                            value={newIndexRate}
-                            onChange={e => setNewIndexRate(e.target.value)}
-                            className="bg-white/[0.04] border-white/[0.08] text-white"
-                        />
-                    </div>
-                    <div className="space-y-1">
-                        <label className="text-[10px] text-white/40 uppercase font-medium">Protect</label>
-                        <Input
-                            type="number"
-                            step="0.05"
-                            value={newProtect}
-                            onChange={e => setNewProtect(e.target.value)}
-                            className="bg-white/[0.04] border-white/[0.08] text-white"
-                        />
-                    </div>
-                    <div className="space-y-1">
-                        <label className="text-[10px] text-white/40 uppercase font-medium">RMS Mix</label>
-                        <Input
-                            type="number"
-                            step="0.05"
-                            value={newRmsMixRate}
-                            onChange={e => setNewRmsMixRate(e.target.value)}
-                            className="bg-white/[0.04] border-white/[0.08] text-white"
-                        />
-                    </div>
-                    <div className="space-y-1">
-                        <label className="text-[10px] text-white/40 uppercase font-medium">Clean Strength</label>
-                        <Input
-                            type="number"
-                            step="0.05"
-                            value={newCleanStrength}
-                            onChange={e => setNewCleanStrength(e.target.value)}
-                            className="bg-white/[0.04] border-white/[0.08] text-white"
-                        />
-                    </div>
-                </div>
-
-                <Button type="button" onClick={handleAdd} disabled={loading} className="w-full bg-white text-black hover:bg-white/90">
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Add Voice to Library'}
+                <Button type="button" onClick={handleAdd} disabled={loading || !newName || !newVoiceSampleUrl} className="w-full bg-white text-black hover:bg-white/90">
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Add Voice'}
                 </Button>
             </div>
 
+            {/* Voice List */}
             <div className="space-y-2">
                 {voices.map(voice => (
                     <div key={voice.id} className="p-3 rounded-lg bg-white/[0.04] border border-white/[0.06] transition-all">
                         {editingId === voice.id ? (
                             <div className="space-y-3">
-                                <div className="grid grid-cols-2 gap-2">
+                                <div className="grid grid-cols-3 gap-2">
                                     <Input
                                         value={editForm.name}
                                         onChange={e => setEditForm({ ...editForm, name: e.target.value })}
@@ -204,55 +216,23 @@ function VoiceManager() {
                                             <SelectItem value="FEMALE">Female</SelectItem>
                                         </SelectContent>
                                     </Select>
+                                    <Select value={editForm.language || 'Auto'} onValueChange={(val) => setEditForm({ ...editForm, language: val })}>
+                                        <SelectTrigger className="h-8 bg-white/[0.04] border-white/[0.08] text-white text-[10px]">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent className="glass-strong border-white/10 text-white">
+                                            {LANGUAGES.map(lang => (
+                                                <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                                 <Input
-                                    value={editForm.url}
-                                    onChange={e => setEditForm({ ...editForm, url: e.target.value })}
+                                    value={editForm.voiceSampleUrl}
+                                    onChange={e => setEditForm({ ...editForm, voiceSampleUrl: e.target.value })}
                                     className="bg-white/[0.04] border-white/[0.08] text-white h-8 text-xs"
-                                    placeholder="URL"
+                                    placeholder="Voice Sample URL"
                                 />
-                                <div className="grid grid-cols-4 gap-2">
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] text-white/40 uppercase">Index</label>
-                                        <Input
-                                            type="number"
-                                            step="0.05"
-                                            value={editForm.indexRate}
-                                            onChange={e => setEditForm({ ...editForm, indexRate: e.target.value })}
-                                            className="bg-white/[0.04] border-white/[0.08] text-white h-8 text-xs"
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] text-white/40 uppercase">Protect</label>
-                                        <Input
-                                            type="number"
-                                            step="0.05"
-                                            value={editForm.protect}
-                                            onChange={e => setEditForm({ ...editForm, protect: e.target.value })}
-                                            className="bg-white/[0.04] border-white/[0.08] text-white h-8 text-xs"
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] text-white/40 uppercase">RMS Mix</label>
-                                        <Input
-                                            type="number"
-                                            step="0.05"
-                                            value={editForm.rmsMixRate}
-                                            onChange={e => setEditForm({ ...editForm, rmsMixRate: e.target.value })}
-                                            className="bg-white/[0.04] border-white/[0.08] text-white h-8 text-xs"
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] text-white/40 uppercase">Clean</label>
-                                        <Input
-                                            type="number"
-                                            step="0.05"
-                                            value={editForm.cleanStrength || 0.5}
-                                            onChange={e => setEditForm({ ...editForm, cleanStrength: e.target.value })}
-                                            className="bg-white/[0.04] border-white/[0.08] text-white h-8 text-xs"
-                                        />
-                                    </div>
-                                </div>
                                 <div className="flex gap-2 justify-end pt-1">
                                     <Button
                                         size="sm"
@@ -279,17 +259,17 @@ function VoiceManager() {
                                         <span className={`text-[10px] px-1.5 py-0.5 rounded border ${voice.gender === 'MALE' ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' : 'bg-pink-500/10 border-pink-500/20 text-pink-400'}`}>
                                             {voice.gender || 'FEMALE'}
                                         </span>
-                                        <div className="flex gap-2 ml-2">
-                                            <span className="text-[10px] text-white/30">Index: {Number(voice.indexRate).toFixed(2)}</span>
-                                            <span className="text-[10px] text-white/30">Prot: {Number(voice.protect).toFixed(2)}</span>
-                                            <span className="text-[10px] text-white/30">RMS: {Number(voice.rmsMixRate).toFixed(2)}</span>
-                                            <span className="text-[10px] text-white/30">Clean: {Number(voice.cleanStrength || 0.5).toFixed(2)}</span>
-                                        </div>
+                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-white/60">
+                                            {voice.language || 'Auto'}
+                                        </span>
                                     </div>
-                                    <div className="text-xs text-white/40 truncate max-w-md">{voice.url}</div>
+                                    <div className="text-xs text-white/40 truncate max-w-md">{voice.voiceSampleUrl}</div>
                                 </div>
 
-                                <div className="flex gap-1">
+                                <div className="flex gap-1 items-center">
+                                    {voice.voiceSampleUrl && (
+                                        <AudioPlayer src={voice.voiceSampleUrl} compact />
+                                    )}
                                     <Button
                                         type="button"
                                         variant="ghost"
@@ -319,61 +299,26 @@ function VoiceManager() {
                 {voices.length === 0 && <div className="text-white/30 text-center py-4 text-sm">No voices found</div>}
             </div>
 
+            {/* Voice Tester */}
             <div className="mt-8 pt-8 border-t border-white/[0.06]">
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-white font-medium">Voice Playground</h3>
-                    <div className="text-xs text-white/40">Test and preview voice models</div>
+                    <h3 className="text-white font-medium">TTS Playground</h3>
+                    <div className="text-xs text-white/40">Generate speech with cloned voices</div>
                 </div>
                 <VoiceTester voices={voices} />
             </div>
-        </div >
+        </div>
     )
 }
 
 function VoiceTester({ voices }: { voices: any[] }) {
     const [selectedVoice, setSelectedVoice] = useState('')
-    const [sourceGender, setSourceGender] = useState('MALE')
-    const [recording, setRecording] = useState(false)
-    const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
+    const [text, setText] = useState('')
+    const [language, setLanguage] = useState('Auto')
+    const [skipTranscription, setSkipTranscription] = useState(false)
     const [resultAudio, setResultAudio] = useState<string | null>(null)
     const [processing, setProcessing] = useState(false)
-    const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
-
-    const startRecording = async () => {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-            const recorder = new MediaRecorder(stream)
-            const chunks: BlobPart[] = []
-
-            recorder.ondataavailable = (e) => chunks.push(e.data)
-            recorder.onstop = () => {
-                const blob = new Blob(chunks, { type: 'audio/ogg; codecs=opus' })
-                setAudioBlob(blob)
-                setResultAudio(null)
-            }
-
-            recorder.start()
-            setMediaRecorder(recorder)
-            setRecording(true)
-        } catch (e) {
-            alert('Microphone access denied')
-        }
-    }
-
-    const stopRecording = () => {
-        if (mediaRecorder) {
-            mediaRecorder.stop()
-            setRecording(false)
-            mediaRecorder.stream.getTracks().forEach(t => t.stop()) // Stop stream
-        }
-    }
-
-    const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files?.[0]) {
-            setAudioBlob(e.target.files[0])
-            setResultAudio(null)
-        }
-    }
+    const [statusMessage, setStatusMessage] = useState('')
 
     const [history, setHistory] = useState<any[]>([])
 
@@ -390,22 +335,19 @@ function VoiceTester({ voices }: { voices: any[] }) {
         fetchHistory()
     }
 
-    const [statusMessage, setStatusMessage] = useState('')
-
     const checkStatus = async (generationId: number) => {
         try {
             const res = await axios.get(`/api/voices/generations/${generationId}`)
             if (res.data.status === 'COMPLETED') {
-                setResultAudio(res.data.audioUrl)
+                setResultAudio(`/api/voices/generations/${generationId}/audio`)
                 setProcessing(false)
                 setStatusMessage('')
                 fetchHistory()
             } else if (res.data.status === 'FAILED') {
                 setProcessing(false)
-                setStatusMessage('Conversion Failed')
-                alert('Conversion Failed')
+                setStatusMessage('Generation Failed')
+                alert('Generation Failed')
             } else {
-                // Still pending
                 setStatusMessage(`Processing... (${res.data.status})`)
                 setTimeout(() => checkStatus(generationId), 3000)
             }
@@ -415,61 +357,29 @@ function VoiceTester({ voices }: { voices: any[] }) {
         }
     }
 
-    const processAudio = async () => {
-        if (!audioBlob || !selectedVoice) return
+    const generateVoice = async () => {
+        if (!text || !selectedVoice) return
         setProcessing(true)
         setResultAudio(null)
-        setStatusMessage('Reading Audio...')
+        setStatusMessage('Starting TTS Job...')
 
         try {
-            const reader = new FileReader()
-            reader.readAsDataURL(audioBlob)
-            reader.onloadend = async () => {
-                const base64 = reader.result as string
-                // Split base64 content only (remove data:audio... prefix for calculation, but keeping it for reassembly might be safer server side? 
-                // Our API expects partial chunks. Let's send raw base64 string including header, server reassembles string.
+            const res = await axios.post('/api/voices/upload', {
+                text,
+                voiceId: selectedVoice,
+                language,
+                skipTranscription
+            })
 
-                const CHUNK_SIZE = 1024 * 1024 // 1MB chunks
-                const totalLength = base64.length
-                const totalChunks = Math.ceil(totalLength / CHUNK_SIZE)
-                // Generate a random Upload ID
-                const uploadId = Math.random().toString(36).substring(7) + Date.now().toString()
-
-                setStatusMessage(`Uploading Chunk 1/${totalChunks}...`)
-
-                let finalResponse = null;
-
-                for (let i = 0; i < totalChunks; i++) {
-                    const start = i * CHUNK_SIZE
-                    const end = Math.min(start + CHUNK_SIZE, totalLength)
-                    const chunk = base64.substring(start, end)
-
-                    setStatusMessage(`Uploading Chunk ${i + 1}/${totalChunks}...`)
-
-                    const res = await axios.post('/api/voices/upload', {
-                        uploadId,
-                        index: i,
-                        total: totalChunks,
-                        chunk,
-                        voiceId: selectedVoice,
-                        sourceGender
-                    })
-
-                    if (res.data.generationId) {
-                        finalResponse = res.data
-                    }
-                }
-
-                if (finalResponse?.generationId) {
-                    setStatusMessage('Job Started. Waiting for GPU...')
-                    setTimeout(() => checkStatus(finalResponse.generationId), 2000)
-                } else {
-                    throw new Error("Upload completed but no Job ID returned.")
-                }
+            if (res.data.generationId) {
+                setStatusMessage('Job Started. Waiting for GPU...')
+                setTimeout(() => checkStatus(res.data.generationId), 2000)
+            } else {
+                throw new Error("Job started but no Generation ID returned.")
             }
         } catch (e: any) {
             console.error(e)
-            const msg = e.response?.data?.error || 'Conversion or Upload failed'
+            const msg = e.response?.data?.error || 'Generation failed'
             alert(msg)
             setProcessing(false)
         }
@@ -478,12 +388,24 @@ function VoiceTester({ voices }: { voices: any[] }) {
     return (
         <div className="space-y-6">
             <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.06] space-y-4">
-                <div className="flex gap-4">
-                    <div className="flex-1">
-                        <label className="text-xs text-white/40 mb-1 block">Voice Model (Target)</label>
+                {/* Text Input */}
+                <div className="space-y-1">
+                    <label className="text-xs text-white/40 uppercase">Text to Generate</label>
+                    <Textarea
+                        placeholder="Enter the text you want to generate as speech..."
+                        value={text}
+                        onChange={e => setText(e.target.value)}
+                        className="bg-white/[0.04] border-white/[0.08] text-white min-h-[100px]"
+                    />
+                </div>
+
+                {/* Voice & Language Selection */}
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                        <label className="text-xs text-white/40">Voice</label>
                         <Select value={selectedVoice} onValueChange={setSelectedVoice}>
                             <SelectTrigger className="w-full h-10 bg-white/[0.04] border-white/[0.08] text-white">
-                                <SelectValue placeholder="Select a Voice Model..." />
+                                <SelectValue placeholder="Select a Voice..." />
                             </SelectTrigger>
                             <SelectContent>
                                 {voices.map(v => (
@@ -494,99 +416,89 @@ function VoiceTester({ voices }: { voices: any[] }) {
                             </SelectContent>
                         </Select>
                     </div>
+                    <div className="space-y-1">
+                        <label className="text-xs text-white/40">Language</label>
+                        <Select value={language} onValueChange={setLanguage}>
+                            <SelectTrigger className="w-full h-10 bg-white/[0.04] border-white/[0.08] text-white">
+                                <SelectValue placeholder="Language..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {LANGUAGES.map(lang => (
+                                    <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
 
+                {/* Options */}
                 <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                    <div className="flex items-center justify-between">
-                        <div className="text-xs text-blue-200">
-                            <strong>Custom RVC Settings:</strong> Pitch is auto-calculated, but Index/Protect/RMS are now pulled from the voice model settings.
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs text-white/60">I am:</span>
-                            <Select value={sourceGender} onValueChange={setSourceGender}>
-                                <SelectTrigger className="h-8 bg-black/20 text-white text-xs border-white/10 w-32">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent className="glass-strong border-white/10 text-white">
-                                    <SelectItem value="MALE">Male (Homme)</SelectItem>
-                                    <SelectItem value="FEMALE">Female (Femme)</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={skipTranscription}
+                            onChange={e => setSkipTranscription(e.target.checked)}
+                            className="rounded border-white/20"
+                        />
+                        <span className="text-xs text-blue-200">
+                            <strong>Fast Mode</strong> - Skip transcription (slightly lower quality, 30% faster)
+                        </span>
+                    </label>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 rounded-lg bg-black/20 border border-white/[0.04] flex flex-col items-center justify-center gap-2 h-32">
-                        <div className="text-xs font-medium text-white/40 uppercase">Input Source</div>
-                        {recording ? (
-                            <Button type="button" variant="destructive" onClick={stopRecording} className="animate-pulse">
-                                Stop Recording
-                            </Button>
-                        ) : (
-                            <div className="flex flex-col items-center gap-2 w-full">
-                                <Button type="button" variant="secondary" onClick={startRecording} className="w-full bg-white/10 hover:bg-white/20 text-white border-0">
-                                    🎤 Record
-                                </Button>
-                                <span className="text-xs text-white/20">- OR -</span>
-                                <Input type="file" accept="audio/*" onChange={handleFile} className="bg-transparent border-0 text-white/60 text-xs file:bg-white/10 file:text-white file:border-0 file:rounded-md" />
-                            </div>
-                        )}
-                        {audioBlob && !recording && <span className="text-xs text-green-400">Audio Ready ({Math.round(audioBlob.size / 1024)} KB)</span>}
-                    </div>
-
-                    <div className="p-4 rounded-lg bg-black/20 border border-white/[0.04] flex flex-col items-center justify-center gap-2 h-32 relative">
-                        <div className="text-xs font-medium text-white/40 uppercase">Output</div>
+                {/* Generate Button & Result */}
+                <div className="flex gap-4">
+                    <Button
+                        onClick={generateVoice}
+                        disabled={!text || !selectedVoice || processing}
+                        className="flex-1 h-12 text-sm font-medium bg-white text-black hover:bg-white/90 disabled:opacity-50"
+                    >
                         {processing ? (
-                            <div className="flex flex-col items-center gap-2 text-white/50">
-                                <Loader2 className="animate-spin h-6 w-6" />
-                                <span className="text-xs">Processing... (this may take 10-20s)</span>
-                            </div>
-                        ) : resultAudio ? (
-                            <div className="w-full flex flex-col items-center gap-2">
-                                <AudioPlayer src={resultAudio} showDownload downloadName="test_voice.mp3" />
-                            </div>
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                {statusMessage || 'Processing...'}
+                            </>
                         ) : (
-                            <span className="text-xs text-white/20">Ready to convert</span>
+                            <>
+                                <Volume2 className="mr-2 h-4 w-4" />
+                                Generate Voice
+                            </>
                         )}
-
-                        <Button
-                            onClick={processAudio}
-                            disabled={!audioBlob || !selectedVoice || processing}
-                            className="w-full h-12 text-sm font-medium bg-white text-black hover:bg-white/90 disabled:opacity-50"
-                        >
-                            {processing ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    {statusMessage || 'Processing (may take ~60s for cold start)...'}
-                                </>
-                            ) : (
-                                'Generate Voice (RVC)'
-                            )}
-                        </Button>
-                    </div>
+                    </Button>
                 </div>
+
+                {resultAudio && (
+                    <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                        <div className="text-xs text-green-300 mb-2">Generation Complete!</div>
+                        <AudioPlayer src={resultAudio} showDownload downloadName="generated_voice.wav" />
+                    </div>
+                )}
             </div>
 
             {/* History Section */}
             <div className="space-y-3">
-                <h4 className="text-white font-medium text-sm">Past Generations (Polling Enabled)</h4>
+                <h4 className="text-white font-medium text-sm">Recent Generations</h4>
                 <div className="space-y-2">
                     {history.map(gen => (
                         <div key={gen.id} className="flex items-center justify-between p-3 rounded-lg bg-white/[0.04] border border-white/[0.06]">
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
                                 <div className="text-xs text-white/40">
                                     {new Date(gen.createdAt).toLocaleTimeString()}
                                 </div>
-                                <div className="text-sm font-medium text-white">
+                                <div className="text-sm font-medium text-white truncate">
                                     {gen.voiceModel?.name || 'Unknown Voice'}
-                                    {gen.status && gen.status !== 'COMPLETED' && (
-                                        <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${gen.status === 'PENDING' ? 'bg-yellow-500/20 text-yellow-300' :
-                                            gen.status === 'FAILED' ? 'bg-red-500/20 text-red-300' : 'bg-blue-500/20 text-blue-300'}`}>
-                                            {gen.status}
-                                        </span>
-                                    )}
                                 </div>
+                                {gen.status && gen.status !== 'COMPLETED' && (
+                                    <span className={`text-xs px-1.5 py-0.5 rounded ${gen.status === 'PENDING' ? 'bg-yellow-500/20 text-yellow-300' :
+                                        gen.status === 'FAILED' ? 'bg-red-500/20 text-red-300' : 'bg-blue-500/20 text-blue-300'}`}>
+                                        {gen.status}
+                                    </span>
+                                )}
+                                {gen.inputText && (
+                                    <div className="text-xs text-white/30 truncate max-w-[200px]">
+                                        "{gen.inputText}"
+                                    </div>
+                                )}
                             </div>
                             <div className="flex items-center gap-3">
                                 {gen.status === 'COMPLETED' ? (
@@ -612,6 +524,6 @@ function VoiceTester({ voices }: { voices: any[] }) {
                     )}
                 </div>
             </div>
-        </div >
+        </div>
     )
 }

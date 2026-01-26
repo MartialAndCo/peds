@@ -1,7 +1,7 @@
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { rvcService } from '@/lib/rvc';
+import { qwenTtsService } from '@/lib/qwen-tts';
 import { mediaService } from '@/lib/media';
 import { anthropic } from '@/lib/anthropic';
 import { venice } from '@/lib/venice';
@@ -45,7 +45,7 @@ export async function GET(req: Request) {
 
             try {
                 // 2. Check RunPod
-                const status = await rvcService.checkJob(jobId);
+                const status = await qwenTtsService.checkJob(jobId);
 
                 if (status.status === 'COMPLETED' && status.output) {
                     // Success!

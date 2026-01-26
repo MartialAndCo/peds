@@ -94,6 +94,7 @@ model Agent {
   voiceModelId Int?
   voiceModel   VoiceModel? @relation(fields: [voiceModelId], references: [id])
   operatorGender String   @default("MALE") // 'MALE', 'FEMALE'
+  language     String   @default("Auto") // TTS language: Auto, English, French, etc.
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -137,16 +138,11 @@ model AgentEvent {
 }
 
 model VoiceModel {
-  id        Int      @id @default(autoincrement())
-  name      String   // e.g. "Homer", "American 1"
-  url       String   // HuggingFace URL
-  gender    String   @default("FEMALE") // 'MALE', 'FEMALE'
-  
-  // RVC Parameters
-  indexRate   Decimal  @default(0.75)
-  protect     Decimal  @default(0.33)
-  rmsMixRate  Decimal  @default(0.25)
-  cleanStrength Decimal  @default(0.5)
+  id             Int      @id @default(autoincrement())
+  name           String   // e.g. "Lena Voice", "Emma Voice"
+  voiceSampleUrl String   // Supabase storage URL of voice sample (3-30 sec)
+  gender         String   @default("FEMALE") // 'MALE', 'FEMALE'
+  language       String   @default("Auto") // Auto, English, French, Chinese, etc.
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -158,14 +154,16 @@ model VoiceModel {
 }
 
 model VoiceGeneration {
-  id           Int        @id @default(autoincrement())
-  voiceModelId Int
-  voiceModel   VoiceModel @relation(fields: [voiceModelId], references: [id], onDelete: Cascade)
-  audioUrl     String?    @db.Text
-  status       String     @default("COMPLETED") // PENDING, PROCESSING, COMPLETED, FAILED
-  jobId        String?
-  error        String?
-  createdAt    DateTime   @default(now())
+  id            Int        @id @default(autoincrement())
+  voiceModelId  Int
+  voiceModel    VoiceModel @relation(fields: [voiceModelId], references: [id], onDelete: Cascade)
+  audioUrl      String?    @db.Text
+  inputText     String?    @db.Text // Text that was generated
+  referenceText String?    @db.Text // Transcription of voice sample (if skip_transcription=false)
+  status        String     @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+  jobId         String?
+  error         String?
+  createdAt     DateTime   @default(now())
 
   @@map("voice_generations")
 }

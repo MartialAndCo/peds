@@ -1,6 +1,6 @@
 
 import { NextResponse } from 'next/server'
-import { rvcService } from '@/lib/rvc'
+import { qwenTtsService } from '@/lib/qwen-tts'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
@@ -11,26 +11,35 @@ export async function POST(req: Request) {
 
     try {
         const body = await req.json()
-        const { audio, voiceId, sourceGender } = body
+        const { text, voiceId, voiceSampleUrl, language, skipTranscription } = body
 
-        if (!audio || !voiceId) {
-            return NextResponse.json({ error: 'Audio and Voice ID required' }, { status: 400 })
+        if (!text) {
+            return NextResponse.json({ error: 'Text is required' }, { status: 400 })
         }
 
-        console.log(`[VoiceTest] Starting Async Job for Voice ${voiceId}`)
-        const jobId = await rvcService.startJob(audio, {
-            voiceId: parseInt(voiceId),
-            sourceGender
+        if (!voiceId && !voiceSampleUrl) {
+            return NextResponse.json({ error: 'Voice ID or Voice Sample URL required' }, { status: 400 })
+        }
+
+        console.log(`[VoiceTest] Starting TTS Job for Voice ${voiceId}`)
+
+        const jobId = await qwenTtsService.startJob({
+            text,
+            voiceId: voiceId ? parseInt(voiceId) : undefined,
+            voiceSampleUrl,
+            language,
+            skipTranscription
         })
 
         if (!jobId) {
-            return NextResponse.json({ error: 'Failed to start RVC Job' }, { status: 500 })
+            return NextResponse.json({ error: 'Failed to start TTS Job' }, { status: 500 })
         }
 
         // Save PENDING State
         const generation = await prisma.voiceGeneration.create({
             data: {
-                voiceModelId: parseInt(voiceId),
+                voiceModelId: voiceId ? parseInt(voiceId) : 1, // Default to 1 if no voiceId
+                inputText: text,
                 status: 'PENDING',
                 jobId: jobId
             }

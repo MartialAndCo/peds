@@ -3,8 +3,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-
-import { rvcService } from '@/lib/rvc'
+import { qwenTtsService } from '@/lib/qwen-tts'
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
     const session = await getServerSession(authOptions)
@@ -22,9 +21,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
                 createdAt: true,
                 jobId: true,
                 error: true,
+                inputText: true,
+                referenceText: true,
                 voiceModelId: true,
                 voiceModel: { select: { name: true } }
-                // audioUrl: false // Exclude!
             }
         })
 
@@ -37,26 +37,26 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
         // If pending and has jobId, check status
         if (generation.jobId) {
-            const check = await rvcService.checkJob(generation.jobId)
+            const check = await qwenTtsService.checkJob(generation.jobId)
 
             if (check.status === 'COMPLETED' && check.output?.audio_base64) {
-                const audioUrl = `data:audio/mpeg;base64,${check.output.audio_base64}`
+                const audioUrl = `data:audio/wav;base64,${check.output.audio_base64}`
 
                 await prisma.voiceGeneration.update({
                     where: { id: generationId },
                     data: {
                         status: 'COMPLETED',
-                        audioUrl
+                        audioUrl,
+                        referenceText: check.output.reference_text || null
                     }
                 })
 
-                // Return WITHOUT the massive audioUrl
                 return NextResponse.json({ ...generation, status: 'COMPLETED', audioUrl: null })
             }
             else if (check.status === 'FAILED' || check.status === 'TIMED_OUT' || check.status === 'error') {
                 await prisma.voiceGeneration.update({
                     where: { id: generationId },
-                    data: { status: 'FAILED', error: check.error || 'RunPod Job Failed' }
+                    data: { status: 'FAILED', error: check.error || 'TTS Job Failed' }
                 })
                 return NextResponse.json({ ...generation, status: 'FAILED' })
             }
