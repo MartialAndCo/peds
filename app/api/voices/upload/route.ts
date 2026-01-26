@@ -16,7 +16,8 @@ export async function POST(req: Request) {
         const {
             text,              // Required: Text to generate
             voiceId,           // Required: Voice model ID
-            voiceSampleUrl,    // Optional: Override voice sample
+            voiceSampleUrl,    // Optional: Override voice sample URL
+            customVoiceSample, // Optional: Base64 audio sample
             language,          // Optional: Override language
             skipTranscription  // Optional: Skip transcription for faster processing
         } = body
@@ -38,10 +39,22 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Voice model not found' }, { status: 404 })
         }
 
-        // 4. Start TTS Job
+        // 4. Determine voice sample to use (priority: customVoiceSample > voiceSampleUrl > voice.voiceSampleUrl)
+        let finalVoiceSample = voice.voiceSampleUrl
+
+        if (voiceSampleUrl) {
+            finalVoiceSample = voiceSampleUrl
+        }
+
+        if (customVoiceSample) {
+            // Custom sample is base64 - use it directly
+            finalVoiceSample = customVoiceSample
+        }
+
+        // 5. Start TTS Job
         const jobId = await qwenTtsService.startJob({
             text,
-            voiceSampleUrl: voiceSampleUrl || voice.voiceSampleUrl,
+            voiceSampleUrl: finalVoiceSample,
             language: language || voice.language || 'Auto',
             skipTranscription: skipTranscription ?? false
         })

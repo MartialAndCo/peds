@@ -170,17 +170,22 @@ function VoiceManager() {
                             onChange={e => setNewVoiceSampleUrl(e.target.value)}
                             className="bg-white/[0.04] border-white/[0.08] text-white flex-1"
                         />
-                        <label className="cursor-pointer">
-                            <input
-                                type="file"
-                                accept="audio/*"
-                                className="hidden"
-                                onChange={e => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
-                            />
-                            <Button type="button" variant="secondary" className="bg-white/10 hover:bg-white/20 text-white border-0" disabled={uploading}>
-                                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                            </Button>
-                        </label>
+                        <input
+                            type="file"
+                            accept="audio/*"
+                            className="hidden"
+                            id="voice-sample-upload"
+                            onChange={e => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
+                        />
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            className="bg-white/10 hover:bg-white/20 text-white border-0"
+                            disabled={uploading}
+                            onClick={() => document.getElementById('voice-sample-upload')?.click()}
+                        >
+                            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                        </Button>
                     </div>
                     {newVoiceSampleUrl && (
                         <div className="mt-2">
@@ -364,12 +369,22 @@ function VoiceTester({ voices }: { voices: any[] }) {
         setStatusMessage('Starting TTS Job...')
 
         try {
-            const res = await axios.post('/api/voices/upload', {
+            // Check if custom voice sample was uploaded
+            const customSample = (window as any).__customVoiceSample
+
+            const payload: any = {
                 text,
                 voiceId: selectedVoice,
                 language,
                 skipTranscription
-            })
+            }
+
+            // If custom sample exists, include it
+            if (customSample) {
+                payload.customVoiceSample = customSample
+            }
+
+            const res = await axios.post('/api/voices/upload', payload)
 
             if (res.data.generationId) {
                 setStatusMessage('Job Started. Waiting for GPU...')
@@ -430,6 +445,31 @@ function VoiceTester({ voices }: { voices: any[] }) {
                         </Select>
                     </div>
                 </div>
+
+                {/* Custom Voice Sample Upload (Optional) */}
+                <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/20 space-y-2">
+                    <label className="text-xs text-purple-200 font-medium">Custom Voice Sample (Optional)</label>
+                    <p className="text-xs text-purple-300/60">Upload a custom audio sample to test with (overrides selected voice)</p>
+                    <input
+                        type="file"
+                        accept="audio/*"
+                        onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) {
+                                const reader = new FileReader()
+                                reader.onload = (ev) => {
+                                    const base64 = ev.target?.result as string
+                                    // Store in state for use in generation
+                                    (window as any).__customVoiceSample = base64
+                                    alert('Custom voice sample loaded!')
+                                }
+                                reader.readAsDataURL(file)
+                            }
+                        }}
+                        className="block w-full text-sm text-white/60 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-purple-500/20 file:text-purple-200 hover:file:bg-purple-500/30 file:cursor-pointer"
+                    />
+                </div>
+
 
                 {/* Options */}
                 <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
