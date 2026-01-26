@@ -3,6 +3,19 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { createClient } from '@supabase/supabase-js'
 
+// Increase body size limit for this route
+export const config = {
+    api: {
+        bodyParser: {
+            sizeLimit: '50mb',
+        },
+    },
+}
+
+// For App Router (Next.js 13+)
+export const runtime = 'nodejs'
+export const maxDuration = 60 // 60 seconds timeout
+
 export async function POST(req: Request) {
     // 1. Auth Check
     const session = await getServerSession(authOptions)
