@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Loader2, Brain, Server, Check } from 'lucide-react'
 import { SessionManager } from '@/components/settings/session-manager'
+import { clearAllQueues } from '@/app/actions/queue'
+import { useToast } from '@/components/ui/use-toast'
 
 export default function SettingsPage() {
     const [settings, setSettings] = useState<any>({
@@ -26,6 +28,7 @@ export default function SettingsPage() {
         // Log Forwarding
         log_forwarding_enabled: 'false'
     })
+    const { toast } = useToast()
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [activeTab, setActiveTab] = useState('infrastructure')
@@ -209,6 +212,46 @@ export default function SettingsPage() {
                                         </p>
                                     </div>
                                 )}
+                            </div>
+                        </div>
+
+                        {/* Maintenance */}
+                        <div className="glass rounded-2xl p-6 border border-red-500/20">
+                            <h3 className="text-white font-medium mb-4 flex items-center gap-2">
+                                <span className="text-red-400">⚠️</span> System Maintenance
+                            </h3>
+                            <div className="flex items-center justify-between p-4 rounded-xl bg-red-500/5 border border-red-500/10">
+                                <div>
+                                    <p className="text-white font-medium">Clear Message Queues</p>
+                                    <p className="text-white/40 text-xs mt-1">
+                                        Delete all pending messages, incoming webhooks, and flushed logs.
+                                    </p>
+                                </div>
+                                <Button
+                                    type="button"
+                                    variant="destructive"
+                                    onClick={async () => {
+                                        if (confirm('Are you sure you want to clear all message queues? This action cannot be undone.')) {
+                                            const res = await clearAllQueues()
+                                            if (res.success) {
+                                                toast({
+                                                    title: "Queues Cleared 🧹",
+                                                    description: `Deleted ${res.counts?.incoming} incoming, ${res.counts?.outgoing} outgoing, ${res.counts?.webhooks} logs.`,
+                                                    className: "bg-emerald-500 border-none text-white",
+                                                })
+                                            } else {
+                                                toast({
+                                                    title: "Error",
+                                                    description: res.error,
+                                                    variant: "destructive"
+                                                })
+                                            }
+                                        }
+                                    }}
+                                    className="bg-red-500 hover:bg-red-600 text-white"
+                                >
+                                    Clear Queues
+                                </Button>
                             </div>
                         </div>
                     </div>
