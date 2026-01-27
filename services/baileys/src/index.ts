@@ -545,20 +545,11 @@ async function startSession(sessionId: string) {
                 server.log.info({ sessionId }, 'QR timeout - waiting for manual restart (user never scanned)')
             } else if (wasLoggedOut) {
                 if (!wasConnected) {
-                    // Startup Failure: Almost certainly a corrupt/zombie session
-                    server.log.warn({ sessionId }, 'Startup 401 (Never connected). Deleting corrupt session data...')
-                    try {
-                        const sessionDir = path.join(BASE_AUTH_DIR, sessionId)
-                        if (fs.existsSync(sessionDir)) {
-                            fs.rmSync(sessionDir, { recursive: true, force: true })
-                            server.log.info({ sessionId }, '✅ Deleted corrupted session data. Will not auto-restart.')
-                        }
-                    } catch (err) {
-                        server.log.error({ sessionId, err }, '❌ Failed to delete corrupt session data')
-                    }
+                    // Startup Failure: Often a conflict or temporary auth issue
+                    server.log.warn({ sessionId, statusCode }, 'Startup 401 (Never connected). Marking as DISCONNECTED (Data preserved).')
                 } else {
                     // Runtime Failure: Genuine logout or conflict
-                    server.log.error({ sessionId }, 'Session logged out during runtime. Manual intervention required (Scan/Restart). Data preserved.')
+                    server.log.error({ sessionId, statusCode }, 'Session logged out during runtime. Manual intervention required (Scan/Restart). Data preserved.')
                 }
             }
         } else if (connection === 'open') {
@@ -1451,25 +1442,34 @@ server.listen({ port: PORT, host: '0.0.0.0' }, (err, address) => {
 
     // Auto-start only sessions that have valid credentials (were previously authenticated)
     // Sessions without creds.json are waiting for QR scan - don't auto-start them
-    try {
-        const dirs = fs.readdirSync(BASE_AUTH_DIR)
-        dirs.forEach(dir => {
-            if (dir.startsWith('session_')) {
+    const autoStart = async () => {
+        try {
+            const dirs = fs.readdirSync(BASE_AUTH_DIR)
+            const sessionDirs = dirs.filter(dir => dir.startsWith('session_'))
+
+            console.log(`[Startup] Found ${sessionDirs.length} potential sessions. Starting sequentially...`)
+
+            for (const dir of sessionDirs) {
                 const id = dir.replace('session_', '')
                 const credsPath = path.join(BASE_AUTH_DIR, dir, 'creds.json')
 
-                // Only auto-start if credentials exist (session was previously authenticated)
                 if (fs.existsSync(credsPath)) {
-                    console.log(`Auto-starting authenticated session: ${id}`)
-                    startSession(id)
+                    console.log(`[Startup] Auto-starting authenticated session: ${id}`)
+                    try {
+                        await startSession(id)
+                    } catch (err: any) {
+                        console.error(`[Startup] Failed to start session ${id}:`, err.message)
+                    }
                 } else {
-                    console.log(`Skipping unauthenticated session: ${id} (no creds.json - needs manual start)`)
+                    console.log(`[Startup] Skipping unauthenticated session: ${id} (no creds.json - needs manual start)`)
                 }
             }
-        })
-    } catch (e) {
-        console.error('Failed to auto-start sessions', e)
+            console.log('[Startup] All authenticated sessions processed.')
+        } catch (e) {
+            console.error('[Startup] Fatal error during session auto-start:', e)
+        }
     }
+    autoStart()
 
     // Periodic health check - auto-repair every 5 minutes if issues detected
     setInterval(async () => {
