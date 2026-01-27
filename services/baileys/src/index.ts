@@ -512,15 +512,21 @@ async function startSession(sessionId: string) {
             } else if (wasQrTimeout && !wasConnected) {
                 server.log.info({ sessionId }, 'QR timeout - waiting for manual restart (user never scanned)')
             } else if (wasLoggedOut) {
-                server.log.warn({ sessionId }, 'Session logged out (401). Deleting corrupt session data...')
-                try {
-                    const sessionDir = path.join(BASE_AUTH_DIR, sessionId)
-                    if (fs.existsSync(sessionDir)) {
-                        fs.rmSync(sessionDir, { recursive: true, force: true })
-                        server.log.info({ sessionId }, '✅ Deleted corrupt session data. Will not auto-restart.')
+                if (!wasConnected) {
+                    // Startup Failure: Almost certainly a corrupt/zombie session
+                    server.log.warn({ sessionId }, 'Startup 401 (Never connected). Deleting corrupt session data...')
+                    try {
+                        const sessionDir = path.join(BASE_AUTH_DIR, sessionId)
+                        if (fs.existsSync(sessionDir)) {
+                            fs.rmSync(sessionDir, { recursive: true, force: true })
+                            server.log.info({ sessionId }, '✅ Deleted corrupted session data. Will not auto-restart.')
+                        }
+                    } catch (err) {
+                        server.log.error({ sessionId, err }, '❌ Failed to delete corrupt session data')
                     }
-                } catch (err) {
-                    server.log.error({ sessionId, err }, '❌ Failed to delete corrupt session data')
+                } else {
+                    // Runtime Failure: Genuine logout or conflict
+                    server.log.error({ sessionId }, 'Session logged out during runtime. Manual intervention required (Scan/Restart). Data preserved.')
                 }
             }
         } else if (connection === 'open') {

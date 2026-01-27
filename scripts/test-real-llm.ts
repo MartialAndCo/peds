@@ -26,7 +26,7 @@ interface TestScenario {
 }
 
 async function callVeniceAPI(systemPrompt: string, messages: Array<{ role: string, content: string }>) {
-    const settings = await settingsService.getAllSettings()
+    const settings = await settingsService.getSettings()
     const apiKey = settings['venice_api_key']
     const model = settings['venice_model'] || 'venice-uncensored'
 
@@ -69,7 +69,7 @@ async function runRealLLMTests() {
     console.log(`Agent: ${anais.name} (${anais.id})`)
     console.log(`Phone: ${anais.phone}\n`)
 
-    const settings = await settingsService.getAllSettings()
+    const settings = await settingsService.getSettings()
 
     const testContact = {
         id: 'test-llm-contact',
