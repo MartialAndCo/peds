@@ -23,6 +23,55 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
+        // Handle Session Status Events (Self-Healing Mapping)
+        if (body.event === 'session.status') {
+            try {
+                const { sessionId, payload } = body
+                const { status, jid } = payload || {}
+
+                if (status === 'CONNECTED' && jid) {
+                    const phoneNumber = jid.split('@')[0]
+                    console.log(`[Webhook] Session ${sessionId} connected with JID: ${jid}. Attempting self-healing...`)
+
+                    // Find agent with this phone number or waha_id
+                    const agent = await prisma.agentProfile.findFirst({
+                        where: {
+                            OR: [
+                                { agentId: sessionId }, // Direct match
+                                { phone: phoneNumber },   // Match by phone in profile
+                                { phone: { contains: phoneNumber } }
+                            ]
+                        }
+                    })
+
+                    if (agent) {
+                        console.log(`[Webhook] Matching Agent found: ${agent.displayName} (${agent.agentId}). Updating mapping...`)
+                        // Update or Create waha_id setting
+                        await prisma.agentSetting.upsert({
+                            where: {
+                                agentId_key: {
+                                    agentId: agent.agentId,
+                                    key: 'waha_id'
+                                }
+                            },
+                            update: { value: sessionId },
+                            create: {
+                                agentId: agent.agentId,
+                                key: 'waha_id',
+                                value: sessionId
+                            }
+                        })
+                        console.log(`[Webhook] ✅ Successfully mapped session ${sessionId} to agent ${agent.agentId}`)
+                    } else {
+                        console.warn(`[Webhook] ⚠️ No agent found for JID ${jid} / sessionId ${sessionId}. Manual cleanup may be needed.`)
+                    }
+                }
+            } catch (e: any) {
+                console.error('[Webhook] Session status handling failed:', e.message)
+            }
+            return NextResponse.json({ success: true, type: 'session_status' })
+        }
+
         // Handle Reaction Events (for payment claim confirmation)
         if (body.event === 'message.reaction' || body.event === 'messages.reaction') {
             try {
@@ -30,6 +79,8 @@ export async function POST(req: Request) {
                 const reactionData = body.payload || body
                 const messageId = reactionData.key?.id || reactionData.messageId || reactionData.id
                 const reaction = reactionData.reaction?.text || reactionData.text || reactionData.emoji
+
+                // Resolve Agent ID
                 let agentId = 'default'
                 if (body.sessionId) {
                     if (body.sessionId.toString().startsWith('session_')) {
@@ -63,23 +114,34 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: true, ignored: true })
         }
 
-
         const payload = body.payload
-        let agentId = 'default' // Changed fallback to string or handle empty? Best to use undefined if not found.
+        let agentId = 'default'
 
         if (body.sessionId) {
-            // Check if it's a UUID session (starts with session_)
-            if (body.sessionId.toString().startsWith('session_')) {
-                const setting = await prisma.agentSetting.findFirst({
-                    where: { key: 'waha_id', value: body.sessionId }
-                })
-                if (setting) agentId = setting.agentId
-                else console.warn(`[Webhook] Could not resolve Agent ID for uuid session: ${body.sessionId}`)
+            const sid = body.sessionId.toString()
+            // Try to find agent by direct agentId OR waha_id (with or without session_ prefix)
+            const setting = await prisma.agentSetting.findFirst({
+                where: {
+                    key: 'waha_id',
+                    OR: [
+                        { value: sid },
+                        { value: `session_${sid}` }
+                    ]
+                }
+            })
+
+            if (setting) {
+                agentId = setting.agentId
             } else {
-                // If it's NOT a session_ ID, it might be the Direct CUID or Legacy ID
-                // Ideally, we shouldn't receive legacy integers anymore.
-                // But if we do, we treat them as strings if our DB has them as strings (e.g. "7").
-                agentId = body.sessionId.toString()
+                // Check if the sessionId ITSELF is a valid agentId (CUID)
+                const agent = await prisma.agentProfile.findUnique({
+                    where: { agentId: sid }
+                })
+                if (agent) {
+                    agentId = agent.agentId
+                } else {
+                    agentId = sid // Fallback to raw ID
+                }
             }
         }
 

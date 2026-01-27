@@ -560,10 +560,28 @@ async function startSession(sessionId: string) {
             sessionData.decryptErrors = 0 // Reset error counters
             sessionData.badMacCount = 0
 
-            // Confirm identity registration
+            // Confirm identity registration & Notify App (Self-Healing Mapping)
             if (sock.user?.id) {
                 const jid = jidNormalizedUser(sock.user.id)
                 activeIdentities.set(jid, sessionId)
+
+                // Ping Webhook so app knows which JID belongs to this sessionId
+                if (WEBHOOK_URL) {
+                    const statusPayload = {
+                        sessionId,
+                        event: 'session.status',
+                        payload: {
+                            status: 'CONNECTED',
+                            jid,
+                            phoneNumber: jid.split('@')[0]
+                        }
+                    }
+                    axios.post(WEBHOOK_URL, statusPayload, {
+                        headers: { 'x-internal-secret': WEBHOOK_SECRET || '' }
+                    }).catch(e => {
+                        // Silent catch for logger issues
+                    })
+                }
             }
 
             server.log.info({ sessionId }, 'Connection OPEN - session authenticated')
