@@ -42,7 +42,7 @@ export const settingsService = {
 
             return data
         } catch (error: any) {
-            console.error('Failed to fetch settings from DB', error)
+            console.error('Failed to fetch settings from DB (returning empty/cached)', error.message)
 
             // Return stale cache if available, otherwise empty object to prevent crash
             if (settingsCache.data) return settingsCache.data

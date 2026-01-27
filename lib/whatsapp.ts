@@ -10,32 +10,35 @@ const cleanKey = (key?: string) => {
 
 // Helper to get config from DB or Env
 export async function getConfig() {
+    // Known defaults
+    const KNOWN_KEY = 'e3f9a1c4d8b2f0a7c5e6d9b1a4f8c2d0e7b5a9c3f1d4b8e6a2f0c7'
+    const KNOWN_ENDPOINT = 'http://16.171.66.98:3001'
+
     try {
-        const settings = await settingsService.getSettings()
+        const settings = await settingsService.getSettings() || {}
 
-        const defaultEndpoint = 'http://127.0.0.1:3001'
-        const dbKey = cleanKey(settings.waha_api_key)
-        const knownKey = 'e3f9a1c4d8b2f0a7c5e6d9b1a4f8c2d0e7b5a9c3f1d4b8e6a2f0c7'
-        const envKey = cleanKey(process.env.AUTH_TOKEN || process.env.WAHA_API_KEY) || knownKey
+        const dbKey = cleanKey(settings['waha_api_key'] as string)
+        const envKey = cleanKey(process.env.AUTH_TOKEN || process.env.WAHA_API_KEY)
 
-        let finalKey = dbKey
-        if ((!dbKey || dbKey === 'secret') && envKey && envKey !== 'secret') {
-            finalKey = envKey
-        }
+        // Priority: DB > Env > Known
+        const apiKey = (dbKey && dbKey !== 'secret') ? dbKey : (envKey && envKey !== 'secret' ? envKey : KNOWN_KEY)
+
+        const endpoint = (settings['waha_endpoint'] as string) || process.env.WAHA_ENDPOINT || KNOWN_ENDPOINT
+        const defaultSession = (settings['waha_session'] as string) || process.env.WAHA_SESSION || 'default'
 
         return {
-            endpoint: settings.waha_endpoint || process.env.WAHA_ENDPOINT || 'http://16.171.66.98:3001',
-            apiKey: finalKey || knownKey,
-            defaultSession: settings.waha_session || process.env.WAHA_SESSION || 'default',
+            endpoint,
+            apiKey,
+            defaultSession,
             webhookSecret: process.env.WEBHOOK_SECRET
         }
     } catch (e) {
-        logger.warn('Failed to fetch WhatsApp settings from DB, falling back to known defaults', { module: 'whatsapp' })
-        const knownKey = 'e3f9a1c4d8b2f0a7c5e6d9b1a4f8c2d0e7b5a9c3f1d4b8e6a2f0c7'
+        logger.warn('Failed to fetch WhatsApp settings, falling back to known defaults', { module: 'whatsapp' })
+
         const envKey = cleanKey(process.env.AUTH_TOKEN || process.env.WAHA_API_KEY)
         return {
-            endpoint: process.env.WAHA_ENDPOINT || 'http://16.171.66.98:3001',
-            apiKey: envKey || knownKey,
+            endpoint: process.env.WAHA_ENDPOINT || KNOWN_ENDPOINT,
+            apiKey: envKey || KNOWN_KEY,
             defaultSession: process.env.WAHA_SESSION || 'default',
             webhookSecret: process.env.WEBHOOK_SECRET
         }
