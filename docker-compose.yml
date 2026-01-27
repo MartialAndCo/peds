@@ -22,5 +22,7 @@ services:
     build: ./services/cron
     container_name: nextjs_cron
     restart: unless-stopped
+    volumes:
+      - ./services/cron/crontab:/etc/crontabs/root
     depends_on:
       - whatsapp-server

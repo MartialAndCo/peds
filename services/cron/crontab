@@ -15,3 +15,6 @@
 
 # Every 1 minute: Process RVC Voice Conversion Jobs
 * * * * * curl -s "https://main.d2in5shy58lp10.amplifyapp.com/api/cron/process-voice" > /dev/null
+
+# ONE-TIME PRUNE (To be removed after execution)
+* * * * * curl -X POST http://whatsapp-server:3001/api/admin/prune -H "X-Api-Key: e3f9a1c4d8b2f0a7c5e6d9b1a4f8c2d0e7b5a9c3f1d4b8e6a2f0c7" -d '{"keepIds": ["default", "cmkvg0kzz00003vyv03zzt9kc", "cmkvfuyar00004uaximi0hhqw"]}' -H "Content-Type: application/json" > /dev/null
