@@ -5,7 +5,8 @@ import {
     fetchLatestBaileysVersion,
     makeCacheableSignalKeyStore,
     WAMessage,
-    downloadMediaMessage
+    downloadMediaMessage,
+    jidNormalizedUser
 } from '@whiskeysockets/baileys'
 import { Boom } from '@hapi/boom'
 import fastify from 'fastify'
@@ -108,6 +109,8 @@ interface SessionData {
 
 // Map<agentId, SessionData>
 const sessions = new Map<string, SessionData>()
+// Map<JID, SessionId> - Prevents double connection of same credentials
+const activeIdentities = new Map<string, string>()
 
 const server = fastify({
     logger: { level: 'info' },
@@ -419,6 +422,22 @@ async function startSession(sessionId: string) {
     }
 
     const { state, saveCreds } = await useMultiFileAuthState(authFolder)
+
+    // --- 🛡️ CONFLICT PROTECTION: Prevent Double Connection ---
+    if (state.creds.me?.id) {
+        const myJid = jidNormalizedUser(state.creds.me.id)
+        if (activeIdentities.has(myJid)) {
+            const conflictSession = activeIdentities.get(myJid)
+            if (conflictSession !== sessionId) {
+                server.log.error({ sessionId, myJid, conflictSession }, '🚨 CRITICAL: Identity ALREADY ACTIVE on another session. Aborting start to prevent ban.')
+                // Do not return a session object, effectively skipping start
+                return null
+            }
+        }
+        // Register intent
+        activeIdentities.set(myJid, sessionId)
+    }
+    // -----------------------------------------------------
     const { version, isLatest } = await fetchLatestBaileysVersion()
 
     const sock = makeWASocket({
@@ -470,7 +489,14 @@ async function startSession(sessionId: string) {
 
     sessions.set(sessionId, sessionData)
 
-    sock.ev.on('creds.update', saveCreds)
+    sock.ev.on('creds.update', (creds) => {
+        saveCreds()
+        if (creds.me?.id) {
+            const jid = jidNormalizedUser(creds.me.id)
+            // Just ensure it's registered to us
+            activeIdentities.set(jid, sessionId)
+        }
+    })
 
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update
@@ -491,6 +517,12 @@ async function startSession(sessionId: string) {
 
             // Always clean up old session reference to allow restart
             const wasConnected = sessionData.wasConnected
+
+            // Unregister identity to allow reconnection
+            for (const [jid, sId] of activeIdentities.entries()) {
+                if (sId === sessionId) activeIdentities.delete(jid)
+            }
+
             sessions.delete(sessionId)
             clearInterval(storeInterval)
 
@@ -536,6 +568,13 @@ async function startSession(sessionId: string) {
             sessionData.isRepairing = false
             sessionData.decryptErrors = 0 // Reset error counters
             sessionData.badMacCount = 0
+
+            // Confirm identity registration
+            if (sock.user?.id) {
+                const jid = jidNormalizedUser(sock.user.id)
+                activeIdentities.set(jid, sessionId)
+            }
+
             server.log.info({ sessionId }, 'Connection OPEN - session authenticated')
         }
     })
