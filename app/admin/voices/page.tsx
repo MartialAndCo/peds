@@ -59,19 +59,46 @@ function VoiceManager() {
     const handleFileUpload = async (file: File) => {
         setUploading(true)
         try {
-            // Upload to Supabase via our proxy
-            const formData = new FormData()
-            formData.append('file', file)
+            // Upload directly to Supabase from client (bypasses Amplify 6MB limit)
+            const { createClient } = await import('@supabase/supabase-js')
+            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+            const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-            const res = await axios.post('/api/media/upload', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            })
-
-            if (res.data.url) {
-                setNewVoiceSampleUrl(res.data.url)
+            if (!supabaseUrl || !supabaseKey) {
+                throw new Error('Supabase not configured')
             }
-        } catch (e) {
-            alert('Failed to upload voice sample')
+
+            const supabase = createClient(supabaseUrl, supabaseKey)
+
+            // Generate unique filename
+            const ext = file.name.split('.').pop() || 'mp3'
+            const fileName = `voice_samples/${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`
+
+            // Upload to Supabase
+            const { error: uploadError } = await supabase.storage
+                .from('voice-uploads')
+                .upload(fileName, file, {
+                    contentType: file.type || 'audio/mpeg',
+                    upsert: false
+                })
+
+            if (uploadError) {
+                throw new Error('Upload failed: ' + uploadError.message)
+            }
+
+            // Get public URL
+            const { data } = supabase.storage
+                .from('voice-uploads')
+                .getPublicUrl(fileName)
+
+            if (data?.publicUrl) {
+                setNewVoiceSampleUrl(data.publicUrl)
+            } else {
+                throw new Error('Failed to get public URL')
+            }
+        } catch (e: any) {
+            console.error('Upload error:', e)
+            alert('Failed to upload voice sample: ' + (e.message || 'Unknown error'))
         } finally {
             setUploading(false)
         }
