@@ -8,7 +8,7 @@ services:
     ports:
       - "3001:3001"
     environment:
-      - WEBHOOK_URL=${WEBHOOK_URL:-https://main.die6qcz48fek8.amplifyapp.com/api/webhooks/whatsapp}
+      - WEBHOOK_URL=${WEBHOOK_URL:-https://main.d2in5shy58lp10.amplifyapp.com/api/webhooks/whatsapp}
       - AUTH_TOKEN=${AUTH_TOKEN}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET}
     extra_hosts:

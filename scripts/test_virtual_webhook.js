@@ -1,6 +1,6 @@
 const axios = require('axios');
 
-const URL = 'https://main.die6qcz48fek8.amplifyapp.com/api/webhooks/whatsapp';
+const URL = 'https://main.d2in5shy58lp10.amplifyapp.com/api/webhooks/whatsapp';
 const VIRTUAL_ID = '33999999999@c.us';
 
 async function test() {
