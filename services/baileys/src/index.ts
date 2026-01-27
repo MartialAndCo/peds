@@ -1433,6 +1433,52 @@ server.get('/api/messages/:messageId/media', async (req: any, reply) => {
     }
 })
 
+// Prune Zombie Sessions
+server.post('/api/admin/prune', async (req: any, reply) => {
+    try {
+        const { keepIds } = req.body
+        if (!Array.isArray(keepIds)) {
+            return reply.code(400).send({ error: 'keepIds must be an array' })
+        }
+
+        server.log.info({ keepIds }, 'Pruning zombie sessions...')
+        const dirs = fs.readdirSync(BASE_AUTH_DIR)
+        const deleted: string[] = []
+        const preserved: string[] = []
+
+        for (const dir of dirs) {
+            if (!dir.startsWith('session_')) continue
+            const id = dir.replace('session_', '')
+
+            // Keep if in allowed list OR if currently active in memory
+            if (keepIds.includes(id) || sessions.has(id)) {
+                preserved.push(dir)
+                continue
+            }
+
+            // DELETE Zombie folder
+            try {
+                const folderPath = path.join(BASE_AUTH_DIR, dir)
+                fs.rmSync(folderPath, { recursive: true, force: true })
+                deleted.push(dir)
+            } catch (err: any) {
+                server.log.error({ dir, error: err.message }, 'Failed to delete zombie folder')
+            }
+        }
+
+        return {
+            success: true,
+            deletedCount: deleted.length,
+            deleted,
+            preservedCount: preserved.length,
+            preserved
+        }
+    } catch (e: any) {
+        server.log.error(e, 'Prune failed')
+        return reply.code(500).send({ error: e.message })
+    }
+})
+
 // Admin Action
 server.post('/api/admin/action', async (req: any, reply) => {
     const { action, sessionId } = req.body
