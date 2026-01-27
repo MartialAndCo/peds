@@ -641,17 +641,35 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     // })
 
     if (isVoice) {
-        const { voiceService } = require('@/lib/voice')
+        const { voiceTtsService } = require('@/lib/voice-tts')
         const voiceText = responseText.replace(/\|\|\|/g, '. ')
+
+        // Check for reusable voice first
+        const { voiceService } = require('@/lib/voice')
         const existing = await voiceService.findReusableVoice(voiceText)
+
         if (existing) {
             whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => { })
             await whatsapp.sendVoice(contact.phone_whatsapp, existing.url, payload.id, agentId)
         } else {
-            // Mark as read immediately to acknowledge request
+            // Use TTS service (no longer requests from human)
             whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => { })
-            await voiceService.requestVoice(contact.phone_whatsapp, voiceText, lastContent, settings, agentId)
-            return { handled: true, result: 'voice_requested' }
+
+            const ttsResult = await voiceTtsService.generateAndSend({
+                contactPhone: contact.phone_whatsapp,
+                text: voiceText,
+                agentId: agentId || effectiveAgentId,
+                conversationId: conversation.id,
+                contactId: contact.id,
+                replyToMessageId: payload.id
+            })
+
+            if (!ttsResult.success) {
+                // TTS failed - notification sent to admin, they'll choose Continue/Pause
+                return { handled: true, result: 'tts_failed_notified', error: ttsResult.error }
+            }
+
+            return { handled: true, result: 'voice_tts_sent' }
         }
     } else {
         // Text Send -> Via DB Queue (Reliable)

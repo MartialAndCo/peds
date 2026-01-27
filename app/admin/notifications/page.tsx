@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Bell, Check, X, Clock, DollarSign, ArrowLeft, Loader2, RefreshCw } from 'lucide-react'
+import { Bell, Check, X, Clock, DollarSign, ArrowLeft, Loader2, RefreshCw, Mic, Play, Pause } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
@@ -83,6 +83,43 @@ export default function NotificationsPage() {
         }
     }
 
+    // Handle TTS failure notifications (Continue = shy refusal, Pause = pause conversation)
+    const handleTtsAction = async (notification: Notification, action: 'continue' | 'pause') => {
+        setProcessingId(notification.id)
+        try {
+            const res = await fetch('/api/notifications/tts-action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ notificationId: notification.id, action })
+            })
+
+            const result = await res.json()
+
+            if (res.ok && result.success) {
+                toast({
+                    title: action === 'continue' ? "Shy Refusal Sent" : "Conversation Paused",
+                    description: action === 'continue'
+                        ? "AI refused the voice note naturally."
+                        : "Conversation has been paused.",
+                    variant: action === 'pause' ? "destructive" : "default"
+                })
+
+                fetchNotifications()
+                setNotifications(prev => prev.map(n => n.id === notification.id ? { ...n, isRead: true } : n))
+            } else {
+                throw new Error(result.error || 'Failed')
+            }
+        } catch (error) {
+            toast({
+                title: "Error",
+                description: "Failed to process action. Try again.",
+                variant: "destructive"
+            })
+        } finally {
+            setProcessingId(null)
+        }
+    }
+
     const markAllRead = async () => {
         await fetch('/api/notifications', { method: 'PATCH', body: JSON.stringify({ markAllRead: true }) })
         fetchNotifications()
@@ -120,6 +157,7 @@ export default function NotificationsPage() {
                 ) : (
                     notifications.map(n => {
                         const isPayment = n.type === 'PAYMENT_CLAIM';
+                        const isTtsFailure = n.type === 'TTS_FAILURE';
                         // Construct better message for Payment
                         // Metadata: amount, method, contactName
                         const amount = n.metadata?.amount || '?'
@@ -128,6 +166,9 @@ export default function NotificationsPage() {
 
                         // Clean up "AI_DETECTED" if present
                         const cleanMethod = method === 'AI_DETECTED' ? 'AI' : method;
+
+                        // TTS failure metadata
+                        const ttsText = n.metadata?.originalText || ''
 
                         return (
                             <div key={n.id} className={cn(
@@ -139,15 +180,19 @@ export default function NotificationsPage() {
                                 <div className="flex items-start gap-4">
                                     <div className={cn(
                                         "h-12 w-12 rounded-2xl flex items-center justify-center shrink-0 shadow-inner",
-                                        isPayment ? "bg-emerald-500/10 text-emerald-400" : "bg-blue-500/10 text-blue-400"
+                                        isPayment ? "bg-emerald-500/10 text-emerald-400"
+                                            : isTtsFailure ? "bg-amber-500/10 text-amber-400"
+                                                : "bg-blue-500/10 text-blue-400"
                                     )}>
-                                        {isPayment ? <DollarSign className="h-6 w-6" /> : <Bell className="h-6 w-6" />}
+                                        {isPayment ? <DollarSign className="h-6 w-6" />
+                                            : isTtsFailure ? <Mic className="h-6 w-6" />
+                                                : <Bell className="h-6 w-6" />}
                                     </div>
 
                                     <div className="flex-1 space-y-1">
                                         <div className="flex justify-between items-start pr-4">
                                             <h3 className="text-white font-bold text-base tracking-tight">
-                                                {isPayment ? "Payment Claim" : n.title}
+                                                {isPayment ? "Payment Claim" : isTtsFailure ? "🎤 Voice Note Failed" : n.title}
                                             </h3>
                                         </div>
 
@@ -158,6 +203,26 @@ export default function NotificationsPage() {
                                                     <> via <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-white/10 text-white/60">{cleanMethod}</Badge></>
                                                 )}
                                                 .
+                                            </div>
+                                        ) : isTtsFailure ? (
+                                            <div className="text-white/80 text-sm leading-relaxed space-y-3">
+                                                {/* Conversation summary from n.message */}
+                                                <div className="bg-black/30 rounded-xl p-3 space-y-2">
+                                                    <p className="text-white/50 text-xs font-medium uppercase tracking-wide">📋 Conversation:</p>
+                                                    <div className="text-white/70 text-xs space-y-1 whitespace-pre-line">
+                                                        {n.message.split('\n').filter(line => line.startsWith('🤖') || line.startsWith('👤')).slice(0, 5).map((line, i) => (
+                                                            <p key={i} className={line.startsWith('🤖') ? 'text-blue-300' : 'text-white/60'}>{line}</p>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                {/* Original text that was supposed to be spoken */}
+                                                {ttsText && (
+                                                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-2">
+                                                        <p className="text-amber-400/80 text-xs font-medium mb-1">🗣️ Texte à dire:</p>
+                                                        <p className="text-white/80 text-sm italic">"{ttsText}"</p>
+                                                    </div>
+                                                )}
                                             </div>
                                         ) : (
                                             <p className="text-white/60 text-sm">{n.message}</p>
@@ -201,6 +266,30 @@ export default function NotificationsPage() {
                                                 Wait
                                             </Button>
                                         </div>
+                                    </div>
+                                )}
+
+                                {/* Actions for TTS Failures */}
+                                {isTtsFailure && !n.isRead && (
+                                    <div className="mt-5 grid grid-cols-2 gap-3">
+                                        <Button
+                                            className="bg-blue-600 hover:bg-blue-500 text-white font-semibold h-11 rounded-xl shadow-lg shadow-blue-900/20 active:scale-[0.98] transition-all"
+                                            onClick={() => handleTtsAction(n, 'continue')}
+                                            disabled={!!processingId}
+                                        >
+                                            {processingId === n.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Play className="h-5 w-5 mr-2" />}
+                                            Continue (Shy Text)
+                                        </Button>
+
+                                        <Button
+                                            variant="outline"
+                                            className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/20 h-11 rounded-xl"
+                                            onClick={() => handleTtsAction(n, 'pause')}
+                                            disabled={!!processingId}
+                                        >
+                                            <Pause className="h-5 w-5 mr-1" />
+                                            Pause Conv
+                                        </Button>
                                     </div>
                                 )}
                             </div>
