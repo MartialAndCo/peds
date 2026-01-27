@@ -56,7 +56,7 @@ async function main() {
                 data: {
                     name: 'Test Prompt',
                     system_prompt: 'You are a test assistant.',
-                    model: 'test-model'
+                    model: 'venice-uncensored'
                 }
             })
         }
