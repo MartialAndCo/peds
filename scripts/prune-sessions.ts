@@ -1,4 +1,5 @@
-import { prisma } from '../lib/prisma'
+import { PrismaClient } from '@prisma/client'
+const prisma = new PrismaClient()
 import fs from 'fs'
 import path from 'path'
 
@@ -12,8 +13,8 @@ async function main() {
     console.log('--- SESSION PRUNE UTILITY ---')
 
     // 1. Get all agents and their configured sessions
-    const agents = await prisma.agentProfile.findMany({
-        select: { agentId: true, displayName: true }
+    const agents = await prisma.agent.findMany({
+        select: { id: true, name: true }
     })
 
     const agentSettings = await prisma.agentSetting.findMany({
@@ -21,7 +22,8 @@ async function main() {
     })
 
     const validIds = new Set<string>()
-    agents.forEach(a => validIds.add(a.agentId))
+    validIds.add('default') // Always keep default
+    agents.forEach(a => validIds.add(a.id))
     agentSettings.forEach(s => {
         if (s.value) validIds.add(s.value.toString())
     })
@@ -30,9 +32,23 @@ async function main() {
     console.log(`[DB] Valid Session IDs:`, Array.from(validIds))
 
     // 2. Scan auth_info_baileys
-    const authDir = path.join(process.cwd(), 'services', 'baileys', 'auth_info_baileys')
-    if (!fs.existsSync(authDir)) {
-        console.error(`Directory not found: ${authDir}`)
+    const possiblePaths = [
+        path.join(process.cwd(), 'services', 'baileys', 'auth_info_baileys'),
+        path.join(process.cwd(), 'auth_info_baileys'),
+        '/app/auth_info_baileys',
+        '/repo/services/baileys/auth_info_baileys'
+    ]
+
+    let authDir = ''
+    for (const p of possiblePaths) {
+        if (fs.existsSync(p)) {
+            authDir = p
+            break
+        }
+    }
+
+    if (!authDir) {
+        console.error(`Directory 'auth_info_baileys' not found in common locations. Scan aborted.`)
         process.exit(1)
     }
 
