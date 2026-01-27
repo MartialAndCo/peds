@@ -118,8 +118,8 @@ export default function AgentSettingsPage() {
                         <Mic2 className="h-5 w-5" />
                     </div>
                     <div>
-                        <h3 className="text-white font-medium">Voice Pipeline</h3>
-                        <p className="text-white/40 text-xs text-white/40">RVC configuration for this agent</p>
+                        <h3 className="text-white font-medium">Voice Configuration</h3>
+                        <p className="text-white/40 text-xs">Configure voice models and behavior for this agent.</p>
                     </div>
                 </div>
 
@@ -140,7 +140,7 @@ export default function AgentSettingsPage() {
                             <p className="text-[10px] text-white/30">Matches the gender of the human operator (you)</p>
                         </div>
                         <div className="space-y-2">
-                            <Label className="text-xs uppercase text-white/50 tracking-wider">Target RVC Model</Label>
+                            <Label className="text-xs uppercase text-white/50 tracking-wider">Voice Model</Label>
                             <Select value={voiceState.modelId} onValueChange={(v) => setVoiceState({ ...voiceState, modelId: v })}>
                                 <SelectTrigger className="bg-white/5 border-white/10 text-white">
                                     <SelectValue />

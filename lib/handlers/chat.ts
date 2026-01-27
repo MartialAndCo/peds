@@ -525,7 +525,21 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
     console.log(`[Chat] AI Response: "${responseText.substring(0, 100)}${responseText.length > 100 ? '...' : ''}"`)
 
-    // Safety: Final Check (If still empty after retries, abort)
+    // 6. Tag Stripping & Notification Trigger (Internal Tags)
+    if (responseText.includes('[PAYMENT_RECEIVED]')) {
+        console.log('[Chat] Tag [PAYMENT_RECEIVED] detected in AI response. Triggering notification & stripping...')
+        responseText = responseText.replace(/\[PAYMENT_RECEIVED\]/g, '').trim()
+
+        // Trigger notification manually if not already done by the user message scanner
+        try {
+            const { notifyPaymentClaim } = require('@/lib/services/payment-claim-handler')
+            await notifyPaymentClaim(contact, conversation, settings, null, null, agentId)
+        } catch (e) {
+            console.error('[Chat] Failed to trigger notification from tag', e)
+        }
+    }
+
+    // Safety: Final Check (If still empty after retries/stripping, abort)
     if (!responseText || responseText.trim().length === 0) {
         console.warn(`[Chat] AI returned empty response after ${attempts} attempts for Conv ${conversation.id}. Aborting send.`)
         return { handled: true, result: 'ai_response_empty' }

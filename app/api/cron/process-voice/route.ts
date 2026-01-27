@@ -163,7 +163,7 @@ export async function GET(req: Request) {
                             categoryId: categoryId,
                             url: finalUrl,
                             transcript: req.description || "Audio Response",
-                            sourcePhone: "AI_RVC",
+                            sourcePhone: "AI_QWEN",
                             sentTo: [req.requesterPhone],
                             duration: audioDurationMs
                         }

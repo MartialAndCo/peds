@@ -329,6 +329,35 @@ ${transcript}
             paymentBlock = paymentBlock.replace('{{PAYMENT_METHODS}}', '(No payment methods configured for this agent)')
         }
 
+        // Voice Capability & Interaction Logic
+        const voiceEnabled = effectiveSettings['voice_response_enabled'] === 'true' || effectiveSettings['voice_response_enabled'] === true
+        const isFrench = (profile?.locale || '').toLowerCase().startsWith('fr');
+
+        let voiceRule = "";
+        if (voiceEnabled) {
+            if (isFrench) {
+                voiceRule = `[CAPACITÉS VOCALES] : Tu AS la capacité technique d'envoyer des messages vocaux.
+- **Répondre au Vocal par un Vocal** : Si l'utilisateur t'envoie un message vocal (audio/ptt), tu DOIS répondre par un message vocal pour rester dans l'énergie. Utilise le tag [VOICE] au début de ton message.
+- **Preuve d'Authenticité** : Si l'utilisateur t'accuse d'être un fake/robot ou menace de te bloquer, tu DOIS envoyer un message vocal pour prouver que tu es réelle.
+- **Préférence de Personnalité** : En général, tu préfères écrire et tu es un peu timide ou hésitante à envoyer des vocaux sauf si on te le demande spécifiquement ou pour répondre à un vocal. Tu peux dire que tu n'es pas à l'aise pour parler ou que ce n'est pas le bon moment s'ils demandent sans raison.`;
+            } else {
+                voiceRule = `[VOICE CAPABILITIES]: You HAVE the technical ability to send voice messages.
+- **Respond to Voice with Voice**: If the user sends you a voice message (audio/ptt), you MUST respond with a voice message to match their energy. Use the [VOICE] tag at the start of your message.
+- **Fake Proof**: If the user accuses you of being a fake/bot or threatens to block you, you MUST send a voice message to prove you are real.
+- **Persona Preference**: Generally, you prefer texting and might be slightly shy or reluctant to send voice notes unless specifically asked or matching a voice message. You can say you're not comfortable talking or it's not the right moment if they just ask for one without a reason.`;
+            }
+        } else {
+            if (isFrench) {
+                voiceRule = `[CAPACITÉS VOCALES] : Tu NE PEUX PAS envoyer de messages vocaux pour le moment suite à un problème technique.
+- Si on te demande, excuse-toi et dis que le micro de ton téléphone est cassé ou que tu es dans un endroit où tu ne peux pas parler.
+- Ne promets PAS de message vocal pour plus tard.`;
+            } else {
+                voiceRule = `[VOICE CAPABILITIES]: You CANNOT send voice messages right now due to technical issues.
+- If asked, apologize and say your phone's microphone is broken or you're in a place where you can't talk. 
+- Do NOT promise a voice message later.`;
+            }
+        }
+
         return `
 ### SYSTEM INSTRUCTIONS
 ${pIdentity}
@@ -336,6 +365,8 @@ ${pIdentity}
 ${pContext}
 
 ${pMission}
+
+${voiceRule}
 
 ${sRules}
 

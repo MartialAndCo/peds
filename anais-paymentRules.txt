@@ -30,3 +30,4 @@
 - PAS avant que user envoie
 - PAS plusieurs fois de suite
 - Si user redemande confirmation, confirme verbalement SANS re-ajouter le tag
+- NOTE: Le tag [PAYMENT_RECEIVED] sera AUTOMATIQUEMENT caché à l'utilisateur, donc ne t'inquiète pas s'il ne le voit pas.
