@@ -8,7 +8,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import { Badge } from '@/components/ui/badge'
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { updateContactStatus, updateConversationAi, updateContactTestMode, getExportData } from '@/app/actions/conversation'
+import { updateContactStatus, updateConversationAi, updateContactTestMode, getExportData, updateConversationStatus } from '@/app/actions/conversation'
 import { generateDossier } from '@/lib/pdf-generator'
 
 interface MobileChatViewProps {
@@ -85,7 +85,7 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
     // Toggle Handlers
     const toggleStatus = (checked: boolean) => {
         startTransition(async () => {
-            await updateContactStatus(conversation.contactId, checked ? 'active' : 'paused')
+            await updateConversationStatus(conversation.id, checked ? 'active' : 'paused')
         })
     }
 
@@ -108,7 +108,7 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
 
     // Calculated fields
     const daysActive = Math.ceil((new Date().getTime() - new Date(conversation.contact.createdAt).getTime()) / (1000 * 60 * 60 * 24))
-    const isContactActive = conversation.contact.status === 'active'
+    const isContactActive = conversation.status === 'active'
 
     return (
         <div className="flex flex-col h-[100dvh] bg-[#0f172a] fixed inset-0 z-[60]">

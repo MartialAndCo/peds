@@ -11,6 +11,14 @@ export async function updateContactStatus(contactId: string, status: string) {
     revalidatePath('/workspace')
 }
 
+export async function updateConversationStatus(conversationId: number, status: string) {
+    await prisma.conversation.update({
+        where: { id: conversationId },
+        data: { status }
+    })
+    revalidatePath('/workspace')
+}
+
 export async function updateConversationAi(conversationId: number, enabled: boolean) {
     await prisma.conversation.update({
         where: { id: conversationId },
