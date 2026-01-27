@@ -704,9 +704,16 @@ async function callAI(settings: any, conv: any, sys: string, ctx: any[], last: s
 
     const provider = settings.ai_provider === 'runpod' ? 'runpod' : 'venice'
 
+    // SANITIZATION: Fix invalid model names from database
+    let veniceModel = settings.venice_model || 'venice-uncensored'
+    if (veniceModel === 'test-model') {
+        console.warn('[Chat] Sanitizing invalid model "test-model" -> "venice-uncensored"')
+        veniceModel = 'venice-uncensored'
+    }
+
     const params = {
         apiKey: provider === 'runpod' ? settings.runpod_api_key : settings.venice_api_key,
-        model: provider === 'runpod' ? (conv.prompt?.model || 'runpod/model') : (settings.venice_model || 'venice-uncensored'),
+        model: provider === 'runpod' ? (conv.prompt?.model || 'runpod/model') : veniceModel,
         temperature: settings.ai_temperature ? Number(settings.ai_temperature) : Number(conv.prompt?.temperature || 0.7),
         max_tokens: conv.prompt?.max_tokens || 500
     }
