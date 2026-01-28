@@ -10,6 +10,7 @@ export interface TtsJobOptions {
     skipTranscription?: boolean
     voiceId?: number
     agentId?: string
+    customVoice?: string
 }
 
 export const qwenTtsService = {
@@ -73,8 +74,9 @@ export const qwenTtsService = {
             return null
         }
 
-        if (!voiceSampleUrl && !options.voiceSampleBase64) {
-            console.error('[TTS-Async] CRITICAL: No voice sample provided!')
+        // Allow custom_voice as alternative to voice samples
+        if (!voiceSampleUrl && !options.voiceSampleBase64 && !options.customVoice) {
+            console.error('[TTS-Async] CRITICAL: No voice sample or custom voice provided!')
             return null
         }
 
@@ -86,8 +88,11 @@ export const qwenTtsService = {
             }
         }
 
-        // Add voice sample (URL or Base64)
-        if (voiceSampleUrl) {
+        // Priority: custom_voice > voice samples
+        if (options.customVoice) {
+            payload.input.custom_voice = options.customVoice
+            console.log(`[TTS-Async] Using custom voice: ${options.customVoice}`)
+        } else if (voiceSampleUrl) {
             payload.input.voice_sample_url = voiceSampleUrl
         } else if (options.voiceSampleBase64) {
             let cleanBase64 = options.voiceSampleBase64

@@ -11,14 +11,14 @@ export async function POST(req: Request) {
 
     try {
         const body = await req.json()
-        const { text, voiceId, voiceSampleUrl, language, skipTranscription } = body
+        const { text, voiceId, voiceSampleUrl, language, skipTranscription, customVoice } = body
 
         if (!text) {
             return NextResponse.json({ error: 'Text is required' }, { status: 400 })
         }
 
-        if (!voiceId && !voiceSampleUrl) {
-            return NextResponse.json({ error: 'Voice ID or Voice Sample URL required' }, { status: 400 })
+        if (!voiceId && !voiceSampleUrl && !customVoice) {
+            return NextResponse.json({ error: 'Voice ID, Voice Sample URL, or Custom Voice required' }, { status: 400 })
         }
 
         console.log(`[VoiceTest] Starting TTS Job for Voice ${voiceId}`)
@@ -28,7 +28,8 @@ export async function POST(req: Request) {
             voiceId: voiceId ? parseInt(voiceId) : undefined,
             voiceSampleUrl,
             language,
-            skipTranscription
+            skipTranscription,
+            customVoice
         })
 
         if (!jobId) {
