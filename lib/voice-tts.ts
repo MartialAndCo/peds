@@ -347,8 +347,8 @@ DO NOT MENTION "LANGUAGE MODEL" or "TTS". Just say "can't really talk rn...".`
                 locale.startsWith('fr') ? "Génère un refus timide pour le vocal (court et naturel)" : "Generate a shy refusal for the voice note (short and natural)",
                 {
                     apiKey: settings.venice_api_key,
-                    model: settings.venice_model || 'llama-3.3-70b',
-                    temperature: 0.7,
+                    model: settings.venice_model || 'venice-uncensored',
+                    temperature: 0.3,
                     max_tokens: 150
                 }
             )
