@@ -21,7 +21,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Voice ID, Voice Sample URL, or Custom Voice required' }, { status: 400 })
         }
 
-        console.log(`[VoiceTest] Starting TTS Job for Voice ${voiceId}`)
+        console.log(`[VoiceTest] Starting TTS Job - ${customVoice ? `Custom Voice: ${customVoice}` : `Voice ID: ${voiceId}`}`)
 
         const jobId = await qwenTtsService.startJob({
             text,
@@ -37,13 +37,19 @@ export async function POST(req: Request) {
         }
 
         // Save PENDING State
+        // For custom voices, voiceModelId is optional
+        const generationData: any = {
+            inputText: text,
+            status: 'PENDING',
+            jobId: jobId
+        }
+
+        if (voiceId) {
+            generationData.voiceModelId = parseInt(voiceId)
+        }
+
         const generation = await prisma.voiceGeneration.create({
-            data: {
-                voiceModelId: voiceId ? parseInt(voiceId) : 1, // Default to 1 if no voiceId
-                inputText: text,
-                status: 'PENDING',
-                jobId: jobId
-            }
+            data: generationData
         })
 
         return NextResponse.json({
