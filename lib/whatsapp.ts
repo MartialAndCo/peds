@@ -159,7 +159,7 @@ export const whatsapp = {
                 }
             }
 
-            await axios.post(`${endpoint}/api/sendVoice`, {
+            const response = await axios.post(`${endpoint}/api/sendVoice`, {
                 sessionId: await resolveSessionId(agentId),
                 chatId: formattedChatId,
                 file: filePayload,
@@ -167,6 +167,7 @@ export const whatsapp = {
             }, {
                 headers: { 'X-Api-Key': apiKey }
             })
+            return response.data
         } catch (error: any) {
             logger.error('WhatsApp sendVoice failed', error, { module: 'whatsapp', chatId })
             throw new Error(`Failed to send Voice message: ${error.message}`)

@@ -8,6 +8,7 @@ import { settingsService } from '@/lib/settings-cache'
 import { venice } from '@/lib/venice'
 import { VOCAL_READY_FR_PROMPT, VOCAL_READY_FR_SYSTEM } from '@/lib/prompts/vocal-ready-fr'
 import { VOCAL_READY_EN_PROMPT, VOCAL_READY_EN_SYSTEM } from '@/lib/prompts/vocal-ready-en'
+import { logger } from '@/lib/logger'
 
 import { logger } from '@/lib/logger'
 
@@ -196,6 +197,8 @@ export const voiceTtsService = {
             )
 
             // 6. Create Pending Validation Record
+            const msgId = (sentMsgId as any)?.id?._serialized || (sentMsgId as any)?.id || `manual_${Date.now()}`
+
             await prisma.pendingVoiceValidation.create({
                 data: {
                     contactId: options.contactId,
@@ -205,7 +208,7 @@ export const voiceTtsService = {
                     originalPrompt: options.text,
                     status: 'PENDING',
                     adminPhone: adminPhone,
-                    validationMsgId: sentMsgId || `manual_${Date.now()}` // Fallback ID
+                    validationMsgId: msgId
                 }
             })
 
@@ -351,7 +354,7 @@ export const voiceTtsService = {
 
         return { success: true }
     }
-},
+    ,
 
     /**
      * Handle Admin Validation Response (OK/NO)
