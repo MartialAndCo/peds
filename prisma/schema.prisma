@@ -155,8 +155,9 @@ model VoiceModel {
 
 model VoiceGeneration {
   id            Int        @id @default(autoincrement())
-  voiceModelId  Int
-  voiceModel    VoiceModel @relation(fields: [voiceModelId], references: [id], onDelete: Cascade)
+  voiceModelId  Int?
+  voiceModel    VoiceModel? @relation(fields: [voiceModelId], references: [id], onDelete: Cascade)
+  customVoice   String?    // ID of the custom preset used
   audioUrl      String?    @db.Text
   inputText     String?    @db.Text // Text that was generated
   referenceText String?    @db.Text // Transcription of voice sample (if skip_transcription=false)

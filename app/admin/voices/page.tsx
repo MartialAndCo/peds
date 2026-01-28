@@ -631,7 +631,7 @@ function VoiceTester({ voices }: { voices: any[] }) {
                                     {new Date(gen.createdAt).toLocaleTimeString()}
                                 </div>
                                 <div className="text-sm font-medium text-white truncate">
-                                    {gen.voiceModel?.name || 'Unknown Voice'}
+                                    {gen.voiceModel?.name || (gen.customVoice ? `Preset: ${gen.customVoice}` : 'Unknown Voice')}
                                 </div>
                                 {gen.status && gen.status !== 'COMPLETED' && (
                                     <span className={`text-xs px-1.5 py-0.5 rounded ${gen.status === 'PENDING' ? 'bg-yellow-500/20 text-yellow-300' :

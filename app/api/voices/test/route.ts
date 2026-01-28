@@ -41,7 +41,8 @@ export async function POST(req: Request) {
         const generationData: any = {
             inputText: text,
             status: 'PENDING',
-            jobId: jobId
+            jobId: jobId,
+            customVoice
         }
 
         if (voiceId) {
