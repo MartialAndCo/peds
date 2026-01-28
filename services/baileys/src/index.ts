@@ -1276,15 +1276,32 @@ server.post('/api/sendVoice', async (req: any, reply) => {
         server.log.info({ sessionId, chatId }, 'Converting outgoing voice to OGG/OPUS...')
         buffer = (await convertToOggOpus(buffer)) as any
 
+        // Handle Quoting Safely
+        let quotedMsg: any = undefined
+        if (replyTo) {
+            // 1. Try Cache
+            quotedMsg = session.messageCache.get(replyTo)
+            // 2. Try Store (if available)
+            if (!quotedMsg && session.store) {
+                try {
+                    const loaded = await session.store.loadMessage(jid, replyTo)
+                    if (loaded) quotedMsg = loaded
+                } catch (e) { /* ignore store load error */ }
+            }
+            if (!quotedMsg) {
+                server.log.warn({ sessionId, replyTo }, 'ReplyTo message not found in cache/store - sending without quote')
+            }
+        }
+
         await session.sock.sendMessage(jid, {
             audio: buffer,
             mimetype: 'audio/ogg; codecs=opus',
             ptt: true
-        }, { quoted: replyTo ? { key: { id: replyTo } } : undefined })
+        }, { quoted: quotedMsg })
 
         return { success: true }
     } catch (e: any) {
-        server.log.error({ error: e.message }, 'Failed to send voice')
+        server.log.error({ error: e.message, stack: e.stack }, 'Failed to send voice')
         return reply.code(500).send({ error: e.message })
     }
 })
@@ -1483,6 +1500,34 @@ server.post('/api/admin/prune', async (req: any, reply) => {
 server.post('/api/admin/action', async (req: any, reply) => {
     const { action, sessionId } = req.body
     server.log.info({ action, sessionId }, 'Admin Action Request')
+
+    // WIPE ALL SESSIONS (Factory Reset)
+    if (action === 'wipe_all') {
+        server.log.warn('🚨 DANGER: Wiping ALL session data and restarting...')
+
+        try {
+            const files = fs.readdirSync(BASE_AUTH_DIR)
+            for (const file of files) {
+                const filePath = path.join(BASE_AUTH_DIR, file)
+                try {
+                    fs.rmSync(filePath, { recursive: true, force: true })
+                    server.log.info({ file }, 'Deleted session file/folder')
+                } catch (err: any) {
+                    server.log.error({ file, error: err.message }, 'Failed to delete file')
+                }
+            }
+
+            // Force restart in 1 second to allow response to be sent
+            setTimeout(() => {
+                server.log.fatal('👋 Wiping complete. Exiting process to trigger Docker restart.')
+                process.exit(0)
+            }, 1000)
+
+            return { success: true, message: 'All sessions wiped. Service restarting...' }
+        } catch (e: any) {
+            return reply.code(500).send({ error: e.message })
+        }
+    }
 
     // Some actions might be global, others session specific
 

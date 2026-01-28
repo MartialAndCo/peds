@@ -4,13 +4,8 @@ import { authOptions } from '@/lib/auth'
 import { createClient } from '@supabase/supabase-js'
 
 // Increase body size limit for this route
-export const config = {
-    api: {
-        bodyParser: {
-            sizeLimit: '50mb',
-        },
-    },
-}
+// Note: In App Router, standard fetch/request body parsing is used.
+// 'config' export is deprecated.
 
 // For App Router (Next.js 13+)
 export const runtime = 'nodejs'

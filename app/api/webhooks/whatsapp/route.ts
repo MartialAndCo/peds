@@ -34,34 +34,34 @@ export async function POST(req: Request) {
                     console.log(`[Webhook] Session ${sessionId} connected with JID: ${jid}. Attempting self-healing...`)
 
                     // Find agent with this phone number or waha_id
-                    const agent = await prisma.agentProfile.findFirst({
+                    const agent = await prisma.agent.findFirst({
                         where: {
                             OR: [
-                                { agentId: sessionId }, // Direct match
-                                { phone: phoneNumber },   // Match by phone in profile
+                                { id: sessionId }, // Direct match
+                                { phone: phoneNumber },   // Match by phone
                                 { phone: { contains: phoneNumber } }
                             ]
                         }
                     })
 
                     if (agent) {
-                        console.log(`[Webhook] Matching Agent found: ${agent.displayName} (${agent.agentId}). Updating mapping...`)
+                        console.log(`[Webhook] Matching Agent found: ${agent.name} (${agent.id}). Updating mapping...`)
                         // Update or Create waha_id setting
                         await prisma.agentSetting.upsert({
                             where: {
                                 agentId_key: {
-                                    agentId: agent.agentId,
+                                    agentId: agent.id,
                                     key: 'waha_id'
                                 }
                             },
                             update: { value: sessionId },
                             create: {
-                                agentId: agent.agentId,
+                                agentId: agent.id,
                                 key: 'waha_id',
                                 value: sessionId
                             }
                         })
-                        console.log(`[Webhook] ✅ Successfully mapped session ${sessionId} to agent ${agent.agentId}`)
+                        console.log(`[Webhook] ✅ Successfully mapped session ${sessionId} to agent ${agent.id}`)
                     } else {
                         console.warn(`[Webhook] ⚠️ No agent found for JID ${jid} / sessionId ${sessionId}. Manual cleanup may be needed.`)
                     }

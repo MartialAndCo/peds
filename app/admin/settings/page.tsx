@@ -65,6 +65,7 @@ export default function SettingsPage() {
     const tabs = [
         { id: 'infrastructure', label: 'Infrastructure', icon: Server },
         { id: 'intelligence', label: 'Intelligence', icon: Brain },
+        { id: 'sessions', label: 'Sessions', icon: Loader2 },
     ]
 
     return (
@@ -251,6 +252,60 @@ export default function SettingsPage() {
                                     className="bg-red-500 hover:bg-red-600 text-white"
                                 >
                                     Clear Queues
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Sessions Tab */}
+                {activeTab === 'sessions' && (
+                    <div className="space-y-6">
+                        <div className="glass rounded-2xl p-6">
+                            <h3 className="text-white font-medium mb-4">Sessions Control</h3>
+                            <SessionManager settings={settings} />
+                        </div>
+
+                        {/* DANGER ZONE */}
+                        <div className="glass rounded-2xl p-6 border border-red-500/20 bg-red-500/5">
+                            <h3 className="text-red-500 font-medium mb-4 flex items-center gap-2">
+                                <span className="text-xl">☢️</span> Factory Reset
+                            </h3>
+                            <div className="flex items-center justify-between p-4 rounded-xl bg-red-900/10 border border-red-500/10">
+                                <div>
+                                    <p className="text-white font-medium">Wipe All Sessions</p>
+                                    <p className="text-white/40 text-xs mt-1">
+                                        Dangerous! Deletes ALL session files (creds.json) and restarts the service.
+                                        You will need to rescan the QR code for all agents.
+                                    </p>
+                                </div>
+                                <Button
+                                    type="button"
+                                    variant="destructive"
+                                    onClick={async () => {
+                                        if (confirm('🚨 ARE YOU SURE? This will disconnect EVERYONE and delete all session data. This action is irreversible.')) {
+                                            setSaving(true)
+                                            try {
+                                                const res = await axios.post('/api/admin/action', { action: 'wipe_all' })
+                                                if (res.data.success) {
+                                                    toast({
+                                                        title: "System Wiped 💥",
+                                                        description: "All sessions deleted. Service is restarting...",
+                                                        className: "bg-red-600 border-none text-white",
+                                                    })
+                                                } else {
+                                                    toast({ title: "Error", description: res.data.message, variant: "destructive" })
+                                                }
+                                            } catch (e: any) {
+                                                toast({ title: "Failed", description: e.message, variant: "destructive" })
+                                            } finally {
+                                                setSaving(false)
+                                            }
+                                        }
+                                    }}
+                                    className="bg-red-600 hover:bg-red-700 text-white font-bold"
+                                >
+                                    💣 Wipe Everything
                                 </Button>
                             </div>
                         </div>
