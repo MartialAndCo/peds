@@ -408,27 +408,33 @@ function VoiceTester({ voices }: { voices: any[] }) {
         setStatusMessage('Starting TTS Job...')
 
         try {
-            const payload: any = {
-                text,
-                language
-            }
+            let res
 
             if (voiceMode === 'preset') {
-                // Use custom voice preset
-                payload.customVoice = selectedPreset
+                // Custom voice preset - use /api/voices/test (direct backend call)
+                const payload = {
+                    text,
+                    language,
+                    customVoice: selectedPreset
+                }
+                res = await axios.post('/api/voices/test', payload)
             } else {
-                // Use voice cloning
-                payload.voiceId = selectedVoice
-                payload.skipTranscription = skipTranscription
+                // Voice cloning - use /api/voices/upload
+                const payload: any = {
+                    text,
+                    voiceId: selectedVoice,
+                    language,
+                    skipTranscription
+                }
 
                 // Check if custom voice sample was uploaded
                 const customSample = (window as any).__customVoiceSample
                 if (customSample) {
                     payload.customVoiceSample = customSample
                 }
-            }
 
-            const res = await axios.post('/api/voices/upload', payload)
+                res = await axios.post('/api/voices/upload', payload)
+            }
 
             if (res.data.generationId) {
                 setStatusMessage('Job Started. Waiting for GPU...')

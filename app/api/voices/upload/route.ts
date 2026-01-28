@@ -19,8 +19,7 @@ export async function POST(req: Request) {
             voiceSampleUrl,    // Optional: Override voice sample URL
             customVoiceSample, // Optional: Base64 audio sample
             language,          // Optional: Override language
-            skipTranscription, // Optional: Skip transcription for faster processing
-            customVoice        // Optional: Custom voice preset ID
+            skipTranscription  // Optional: Skip transcription for faster processing
         } = body
 
         if (!text) {
@@ -57,8 +56,7 @@ export async function POST(req: Request) {
             text,
             voiceSampleUrl: finalVoiceSample,
             language: language || voice.language || 'Auto',
-            skipTranscription: skipTranscription ?? false,
-            customVoice
+            skipTranscription: skipTranscription ?? false
         })
 
         if (!jobId) {
