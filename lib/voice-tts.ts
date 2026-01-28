@@ -10,8 +10,6 @@ import { VOCAL_READY_FR_PROMPT, VOCAL_READY_FR_SYSTEM } from '@/lib/prompts/voca
 import { VOCAL_READY_EN_PROMPT, VOCAL_READY_EN_SYSTEM } from '@/lib/prompts/vocal-ready-en'
 import { logger } from '@/lib/logger'
 
-import { logger } from '@/lib/logger'
-
 export interface VoiceTtsOptions {
     contactPhone: string
     text: string
