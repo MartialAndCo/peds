@@ -429,6 +429,41 @@ function PaymentMethodsEditor({ settings, onChange }: { settings: Record<string,
                     )
                 })}
 
+                {/* Bank Transfer Special Block */}
+                <div className={cn("rounded-lg p-3 transition-colors", settings['bank_account_number'] || settings['bank_routing_number'] ? "bg-blue-500/10 border border-blue-500/20" : "bg-white/5 border border-white/5")}>
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold uppercase tracking-wider text-white/80">Bank Transfer</span>
+                        {/* We use presence of values to determine 'enabled' visually or just keeping inputs always visible if content exists? 
+                            The user asked for it to be like others. Others have a Switch. 
+                            Let's infer 'enabled' if values are non-empty? Or better, add a dedicated toggle? 
+                            The schema didn't have 'bank_enabled'. The others use 'payment_paypal_enabled'.
+                            I can add 'payment_bank_enabled' to settings if I want, but I didn't add it to schema.
+                            However, the API saves any key to agentSettings table. So I CAN use 'payment_bank_enabled'.
+                            Let's use 'payment_bank_enabled' for the switch.
+                        */}
+                        <Switch
+                            checked={settings['payment_bank_enabled'] === 'true'}
+                            onCheckedChange={(c) => onChange({ ...settings, payment_bank_enabled: String(c) })}
+                        />
+                    </div>
+                    {settings['payment_bank_enabled'] === 'true' && (
+                        <div className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                            <Input
+                                placeholder="Account Number"
+                                value={settings['bank_account_number'] || ''}
+                                onChange={e => onChange({ ...settings, bank_account_number: e.target.value })}
+                                className="bg-black/20 border-white/10 h-8 text-xs font-mono text-white"
+                            />
+                            <Input
+                                placeholder="Routing Number"
+                                value={settings['bank_routing_number'] || ''}
+                                onChange={e => onChange({ ...settings, bank_routing_number: e.target.value })}
+                                className="bg-black/20 border-white/10 h-8 text-xs font-mono text-white"
+                            />
+                        </div>
+                    )}
+                </div>
+
                 {/* Customs */}
                 {getCustoms().map((c: any) => (
                     <div key={c.id} className="relative bg-purple-500/10 border border-purple-500/20 rounded-lg p-3 space-y-2 animate-in fade-in slide-in-from-right-2">

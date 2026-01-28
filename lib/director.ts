@@ -307,6 +307,14 @@ ${transcript}
             paymentMethodsList.push(`- Zelle: ${effectiveSettings['payment_zelle_username']}`)
         }
 
+        // 1.5 Bank Transfer (From Profile + Toggle)
+        if (effectiveSettings['payment_bank_enabled'] === 'true' && profile?.bankAccountNumber && profile?.bankRoutingNumber) {
+            paymentMethodsList.push(`- Bank Transfer / Virement Bancaire:
+  - Account Number: ${profile.bankAccountNumber}
+  - Routing Number: ${profile.bankRoutingNumber}
+  - (Explain clearly that they need both numbers)`)
+        }
+
         // 2. Custom Methods
         try {
             if (effectiveSettings['payment_custom_methods']) {

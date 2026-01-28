@@ -233,6 +233,8 @@ export default function AgentSettingsPage() {
                 </div>
             </div>
 
+
+
             {/* Danger Zone - Always visible at bottom, distinct style */}
             <div className="mt-12 pt-8 border-t border-white/5">
                 <div className="flex justify-between items-center opacity-50 hover:opacity-100 transition-opacity">

@@ -519,6 +519,8 @@ model AgentProfile {
   paypalEmail     String?
   cashappTag      String?
   venmoHandle     String?
+  bankAccountNumber String?
+  bankRoutingNumber String?
   
   // Config
   fastTrackDays   Int     @default(2)

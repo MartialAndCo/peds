@@ -23,6 +23,13 @@ const KEY_MAP: Record<string, string> = {
     'prompt_payment_rules': 'paymentRules',
     'prompt_style_instructions': 'styleRules',
 
+    // Payment Config (Mapped to AgentProfile)
+    'paypal_email': 'paypalEmail',
+    'cashapp_tag': 'cashappTag',
+    'venmo_handle': 'venmoHandle',
+    'bank_account_number': 'bankAccountNumber',
+    'bank_routing_number': 'bankRoutingNumber',
+
     // We map unused UI keys to safetyRules to assume they are aggregated there, 
     // or we ignore them if they don't map well. 
     // For now, let's map what we have in DB.
