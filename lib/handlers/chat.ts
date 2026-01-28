@@ -22,6 +22,19 @@ export async function handleChat(
 ) {
     let messageText = messageTextInput
 
+    // 0. ADMIN VOICE VALIDATION INTERCEPTION
+    // Check if the sender is the configured Voice Source (Admin)
+    const adminPhone = settings.voice_source_number
+    if (adminPhone && contact.phone_whatsapp === adminPhone) {
+        const { voiceTtsService } = require('@/lib/voice-tts')
+        // We pass the raw payload to get quotedMsg info
+        const handled = await voiceTtsService.handleAdminValidation(messageText, payload)
+        if (handled) {
+            console.log('[Chat] Handled as Admin Voice Validation')
+            return { handled: true, result: 'admin_validation' }
+        }
+    }
+
     // 1. View Once Handling
     const isViewOnce = payload._data?.isViewOnce === true || payload.isViewOnce === true
     if (isViewOnce) {

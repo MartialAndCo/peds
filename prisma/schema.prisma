@@ -71,6 +71,7 @@ model Contact {
   trustLogs       TrustLog[]
   paymentClaims   PendingPaymentClaim[]
   agentContacts   AgentContact[]
+  pendingVoiceValidations PendingVoiceValidation[]
 
   @@index([status])
   @@index([source])
@@ -114,6 +115,7 @@ model Agent {
   
   profile       AgentProfile?
   agentContacts AgentContact[]
+  pendingVoiceValidations PendingVoiceValidation[]
 
   @@map("agents")
 }
@@ -550,3 +552,31 @@ model AgentContact {
   @@map("agent_contacts")
 }
 
+
+model PendingVoiceValidation {
+  id              String   @id @default(uuid())
+  contactId       String   // The user who should eventually receive the voice
+  agentId         String
+  
+  // The generated voice
+  audioUrl        String
+  transcript      String   @db.Text
+  
+  // The original generation context (for regeneration)
+  originalPrompt  String?  @db.Text 
+  
+  status          String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  
+  // Admin Interaction
+  adminPhone      String?  // Who received the validation request
+  validationMsgId String?  @unique // The WhatsApp ID of the message sent to admin
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  contact         Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  agent           Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("pending_voice_validations")
+}
