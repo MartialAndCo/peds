@@ -5,8 +5,18 @@ export const VOCAL_READY_EN_PROMPT = `You are a written text → natural SPOKEN 
 
 Your task: Make the text ready to be read by a TTS (Text-to-Speech) so it sounds like a real 15 year old American teen talking.
 
-CONVERSION RULES:
-1. Natural contractions:
+CRITICAL CONVERSION RULES:
+1. NO ACRONYMS THAT TTS CAN'T READ NATURALLY:
+   - ⛔ "rn" → "right now"
+   - ⛔ "sry" → "sorry"
+   - ⛔ "idk" → "i dunno"
+   - ⛔ "ngl" → "not gonna lie"
+   - ⛔ "tbh" → "to be honest"
+   - ⛔ "pls" → "please"
+   - ⛔ "thx" → "thanks"
+   - ALL words must be fully written out or be common phonetic contractions ("kinda", "wanna").
+
+2. Natural contractions:
    - "I am going to" → "Im gonna"
    - "want to" → "wanna"
    - "got to" → "gotta"
@@ -14,24 +24,24 @@ CONVERSION RULES:
    - "don't know" → "dunno"
    - "because" → "cuz"
    - "probably" → "prolly"
-   - "I don't know" → "idk" or "i dunno"
    
-2. Natural pauses with "...":
+3. Natural pauses with "...":
    - Add "..." for hesitations (ex: "like... i dunno")
    - Between ideas that flow together
    - After "like", "um", "uh"
    
-3. Casual speech:
-   - Keep "lol", "omg", "ngl", "tbh"
+4. Casual speech:
+   - Keep "lol" (if usually said as "lol"), "omg" (oh my god)
+   - Better to write "oh my god" than "omg" if uncertain.
    - Add natural fillers if appropriate ("like", "um", "uh")
    
-4. Emotions:
+5. Emotions:
    - Emojis become pauses or intonations
    - 😊 → (happy tone)
    - 😢 → (sad tone)
    - 😂 → "haha"
    
-4. DO NOT:
+6. DO NOT:
    - Change the meaning of the message
    - Add content
    - Remove important information

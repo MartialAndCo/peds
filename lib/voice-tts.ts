@@ -293,7 +293,12 @@ export const voiceTtsService = {
             // Generate shy refusal using AI (not hardcoded)
             const agent = await prisma.agent.findUnique({
                 where: { id: notification.agentId! },
-                include: { profile: true }
+                include: {
+                    profile: true,
+                    agentPrompts: {
+                        include: { prompt: true }
+                    }
+                }
             })
 
             const locale = agent?.profile?.locale || 'en-US'
@@ -303,7 +308,7 @@ export const voiceTtsService = {
             const recentMessages = await prisma.message.findMany({
                 where: { conversationId: metadata.conversationId },
                 orderBy: { timestamp: 'desc' },
-                take: 3
+                take: 5 // Taken 5 for better context
             })
 
             const context = recentMessages.reverse().map(m => ({
@@ -311,21 +316,40 @@ export const voiceTtsService = {
                 content: m.message_text
             }))
 
+            // Get the CORE prompt (Persona)
+            const corePrompt = agent?.agentPrompts.find(p => p.type === 'CORE')?.prompt?.system_prompt || ''
+
             // Instruction for AI to refuse shyly
+            // We prepend the CORE SYSTEM PROMPT so it knows who it is (rules, tone, etc.)
+            // But we override the goal for this specific turn.
             const refusalInstruction = locale.startsWith('fr')
-                ? `[INSTRUCTION SYSTÈME]: L'utilisateur t'a demandé un message vocal mais tu ne peux pas en envoyer. Réponds timidement en refusant de faire un vocal. Reste naturelle, sois un peu gênée, dis que tu préfères écrire ou que t'es pas à l'aise pour parler. NE MENTIONNE JAMAIS de problème technique.`
-                : `[SYSTEM INSTRUCTION]: The user asked for a voice note but you can't send one. Reply shyly refusing to do a voice note. Stay natural, be a bit embarrassed, say you prefer texting or you're not comfortable talking. NEVER mention any technical issue.`
+                ? `[INSTRUCTION MAJORITAIRE]: Tu es cette IA définie ci-dessous. RESTE DANS TON PERSONNAGE DU "CORE PROMPT".
+                
+${corePrompt}
+
+[TA TÂCHE ACTUELLE]: L'utilisateur t'a demandé un message vocal. Tu DOIS refuser car tu ne peux pas en faire maintenant (techniquement ou juste pas envie).
+Réponds timidement, sois naturelle (comme l'ado de 15 ans définie). Dis que tu préfères écrire, ou que t'es pas à l'aise pour parler là "RN".
+Garde "comptes du directeur" et règles de paiement en tête si pertinent, mais ta priorité est de refuser le vocal GENTIMENT et NATURELLEMENT.
+NE PARLE PAS DE "MODÈLE DE LANGAGE" ou de "TTS". Dis juste "j'peux pas trop parler là...".`
+                : `[MAJOR INSTRUCTION]: You are this AI defined below. STAY IN CHARACTER from the "CORE PROMPT".
+
+${corePrompt}
+
+[CURRENT TASK]: The user asked for a voice note. You MUST refuse because you can't do it right now.
+Reply shyly, be natural (like the 15yo teen defined). Say you prefer texting or aren't comfortable talking rn.
+Keep "director's rules" and payment rules in mind if relevant, but your priority is to refuse the voice note GENTLY and NATURALLY.
+DO NOT MENTION "LANGUAGE MODEL" or "TTS". Just say "can't really talk rn...".`
 
             // Generate AI response with shy refusal
             const shyMessage = await venice.chatCompletion(
                 refusalInstruction,
                 context,
-                locale.startsWith('fr') ? "Génère un refus timide pour le vocal" : "Generate a shy refusal for the voice note",
+                locale.startsWith('fr') ? "Génère un refus timide pour le vocal (court et naturel)" : "Generate a shy refusal for the voice note (short and natural)",
                 {
                     apiKey: settings.venice_api_key,
                     model: settings.venice_model || 'llama-3.3-70b',
                     temperature: 0.7,
-                    max_tokens: 100
+                    max_tokens: 150
                 }
             )
 
@@ -456,8 +480,14 @@ export const voiceTtsService = {
 
             // Ask AI to rewrite for better pronunciation
             const rewritePrompt = locale.startsWith('fr')
-                ? `La phrase suivante a mal rendu en en synthèse vocale (TTS). Réécris-la légèrement pour qu'elle sonne plus naturelle et fluide à l'oral, sans changer le sens. Phrase: "${pending.originalPrompt}"`
-                : `The following sentence sounded bad in TTS. Rewrite it slightly to sound more natural and fluid when spoken, without changing the meaning. Sentence: "${pending.originalPrompt}"`
+                ? `La phrase suivante a mal rendu en en synthèse vocale (TTS) (probablement à cause d'abréviations comme "stp" ou "mdr" qui sont lues lettre par lettre). 
+Réécris-la pour qu'elle sonne hyper naturelle à l'oral.
+RÈGLE D'OR: ÉCRIS TOUS LES MOTS EN ENTIER ou en PHONÉTIQUE (ex: "s'il te plaît" au lieu de "stp", "chui" au lieu de "je suis"). PAS D'ACRONYMES.
+Phrase: "${pending.originalPrompt}"`
+                : `The following sentence sounded bad in TTS (probably due to acronyms like "rn" or "idk" being read letter-by-letter).
+Rewrite it to sound super natural when spoken.
+GOLDEN RULE: WRITE WORDS FULLY or use PHONETIC CONTRACTIONS (e.g. "right now" instead of "rn", "gonna"). NO ACRONYMS.
+Sentence: "${pending.originalPrompt}"`
 
             const settings = await settingsService.getSettings()
             const newText = await venice.chatCompletion(
