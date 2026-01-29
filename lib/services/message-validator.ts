@@ -35,13 +35,24 @@ export const messageValidator = {
         cleanedRaw = cleanedRaw.replace(/^```\s*/gm, '').replace(/\s*```$/gm, '')
         cleanedRaw = cleanedRaw.trim()
 
-        // If now empty after removing code fences, treat as empty
         if (!cleanedRaw || cleanedRaw.length === 0) {
             logger.warn('Venice returned only code fences, treating as empty', {
                 module: 'message-validator',
                 rawMessage: rawMessage
             })
             return ''
+        }
+
+        // 1.5 GLOBAL MARKDOWN CLEANER (The "Anti-Crâne-Cassé" Rule) 🛡️
+        // Remove ALL backticks completely. They serve no purpose in WhatsApp and look bad.
+        // Also remove asterisks (*) if they are wrapping text (bold/italic) but be careful not to break other things?
+        // Actually, for this specific request, just backticks first.
+        cleanedRaw = cleanedRaw.replace(/`/g, '')
+        // Also strip double asterisks often used for actions like **smiles** -> smiles
+        // cleanedRaw = cleanedRaw.replace(/\*\*/g, '') 
+
+        if (cleanedRaw !== rawMessage.trim()) {
+            logger.info('Global markdown cleaner removed artifacts', { module: 'message-validator' })
         }
 
         // 2. Remove [VOICE] tag if user didn't request it

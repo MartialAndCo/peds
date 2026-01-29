@@ -79,6 +79,27 @@ export async function notifyPaymentClaim(
         method
     })
 
+    // DEDUPLICATION: Check for recent pending claims (last 15 seconds) to prevent double notification
+    // (e.g. User text detector + AI Tag detector both triggering)
+    const recentClaim = await prisma.pendingPaymentClaim.findFirst({
+        where: {
+            contactId: contact.id,
+            status: 'PENDING',
+            createdAt: {
+                gt: new Date(Date.now() - 15000) // 15 seconds window
+            }
+        }
+    })
+
+    if (recentClaim) {
+        logger.info('Duplicate payment claim prevented (Debounce)', {
+            module: 'payment-claim',
+            contactId: contact.id,
+            existingClaimId: recentClaim.id
+        })
+        return { processed: true, claimId: recentClaim.id }
+    }
+
     const contactName = contact.name || contact.phone_whatsapp
     const amountStr = amount ? `${amount}` : '?'
     const methodStr = method || 'unknown method'

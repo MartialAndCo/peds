@@ -208,29 +208,7 @@ ${transcript}
         return newScore;
     },
 
-    async screenPaymentIntent(history: any[], settings: any): Promise<boolean> {
-        const transcript = history.reverse().map(m => `${m.sender.toUpperCase()}: ${m.message_text}`).join('\n');
 
-        const systemPrompt = `
-You are a Payment Verification System.
-Task: Analyze the transcript and determine if the user has EXPLICITLY claimed to have ALREADY sent a payment.
-Output ONLY 'YES' or 'NO'.
-Transcript:
-${transcript}
-`
-        try {
-            const { venice } = require('@/lib/venice')
-            const result = await venice.chatCompletion(systemPrompt, [], "", {
-                apiKey: settings.venice_api_key,
-                model: settings.venice_model || 'venice-uncensored',
-                max_tokens: 10
-            })
-            return result.trim().toUpperCase().includes('YES')
-        } catch (e) {
-            console.error('[Director] Payment Screening Failed', e)
-            return false
-        }
-    },
 
     /**
      * Builds the full System Prompt using AgentProfile only!
@@ -438,9 +416,9 @@ ONLY after "sent"/"done" (past), NEVER after "sending" (future)
         const simplifiedPaymentBlock = paymentBlock.split('\n').filter(line => {
             // Remove duplicate payment format rules (already in criticalStyleBlock)
             return !line.includes('NATURAL FORMAT') &&
-                   !line.includes('RULE: WAIT') &&
-                   !line.includes('Robotic format') &&
-                   !line.includes('ONE REQUEST');
+                !line.includes('RULE: WAIT') &&
+                !line.includes('Robotic format') &&
+                !line.includes('ONE REQUEST');
         }).join('\n');
 
         return `

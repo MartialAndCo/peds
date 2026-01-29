@@ -72,7 +72,7 @@ export async function handleChat(
                 const transcribedText = await transcriptionService.transcribe(buffer, ext)
 
                 if (transcribedText) {
-                    messageText = transcribedText // Replace placeholder
+                    messageText = `[VOICE MESSAGE] ${transcribedText}` // Replace placeholder and Tag source
                     logger.info(`[Chat] Voice Transcribed: "${messageText}"`, { module: 'chat' })
                 } else {
                     messageText = "[Voice Message - Transcription Failed]"
@@ -693,7 +693,15 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     console.log(`[Voice] responseText: "${responseText}"`)
 
     let isVoice = voiceEnabled && isPttMessage
-    if (responseText.startsWith('[VOICE]')) { isVoice = true; responseText = responseText.replace('[VOICE]', '').trim() }
+    // FLEXIBLE VOICE TAG DETECTION (Regex)
+    // Matches: [VOICE], [voice], `[VOICE]`, **[VOICE]**, etc.
+    const voiceTagMatch = responseText.match(/(\[VOICE\]|\[voice\])/i)
+    if (voiceTagMatch) {
+        isVoice = true
+        // Remove the tag and cleaner trim
+        responseText = responseText.replace(voiceTagMatch[0], '').replace(/[`*]/g, '').trim()
+        console.log(`[Chat] Voice Tag Detected via Regex. Cleaned text: "${responseText}"`)
+    }
 
     // NOTE: Message is saved by queue-service AFTER sending, not here (avoids duplicates in dashboard)
     // await prisma.message.create({
