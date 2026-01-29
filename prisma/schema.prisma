@@ -535,19 +535,28 @@ model AgentContact {
   id              String   @id @default(uuid())
   agentId         String
   contactId       String
-  
+
   // State from Contact (Isolated)
   trustScore      Int      @default(0)
   phase           String   @default("CONNECTION")
   lastPhaseUpdate DateTime @default(now())
   lastTrustAnalysis DateTime @default(now())
-  
+
   // Stats
   messageCount    Int      @default(0)
-  
+
+  // Payment Escalation Tracking
+  paymentEscalationTier    Int      @default(0)  // 0-5 (tier d'escalade actuel)
+  lastRequestedAmount      Decimal? @db.Decimal(10, 2)
+  lastRequestDate          DateTime?
+  totalPaymentsReceived    Int      @default(0)  // compteur de paiements
+  totalAmountReceived      Decimal  @default(0) @db.Decimal(10, 2)
+  consecutiveRefusals      Int      @default(0)  // refus consécutifs
+  lastPaymentDate          DateTime?
+
   agent           Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
   contact         Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  
+
   @@unique([agentId, contactId])
   @@index([agentId])
   @@index([contactId])

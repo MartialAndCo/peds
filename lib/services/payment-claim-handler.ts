@@ -250,6 +250,14 @@ export async function processPaymentClaimDecision(
             }
         })
 
+        // NEW: Trigger escalation
+        const { escalationService } = require('@/lib/services/payment-escalation')
+        await escalationService.escalateOnPayment(
+            effectiveAgentId || 'default',
+            claim.contactId,
+            Number(claim.claimedAmount || 0)
+        )
+
         // 2. Inject memory
         const memUserId = memoryService.buildUserId(claim.contact.phone_whatsapp, effectiveAgentId as string)
         const memoryText = `User paid ${claim.claimedAmount || 'an amount'} via ${claim.claimedMethod || 'unknown method'}. Payment confirmed.`
@@ -289,6 +297,13 @@ export async function processPaymentClaimDecision(
 
     } else {
         // REJECTION
+
+        // NEW: Track refusal for de-escalation
+        const { escalationService } = require('@/lib/services/payment-escalation')
+        await escalationService.deescalateOnRefusal(
+            effectiveAgentId,
+            claim.contactId
+        )
 
         // Build Prompt for "Not Received"
         const { director } = require('@/lib/director')

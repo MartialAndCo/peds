@@ -52,6 +52,12 @@ export const venice = {
 
                 const content = response.data.choices[0]?.message?.content || ""
                 console.log(`[Venice] Response received (${content.length} chars)`)
+
+                // If empty response, log warning but return empty (validator will handle)
+                if (!content || content.trim().length === 0) {
+                    console.warn('[Venice] WARNING: Empty response from API')
+                }
+
                 return content
 
             } catch (error: any) {

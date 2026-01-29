@@ -84,6 +84,14 @@ export async function createManualPayment(data: {
             }
         })
 
+        // NEW: Trigger escalation for manual payments
+        const { escalationService } = require('@/lib/services/payment-escalation')
+        await escalationService.escalateOnPayment(
+            data.agentId,
+            contactId,
+            data.amount
+        )
+
         revalidatePath('/workspace')
         return { success: true }
     } catch (e: any) {

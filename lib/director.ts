@@ -266,6 +266,21 @@ ${transcript}
         let phaseGoal = defaultPrompts[phase] || defaultPrompts.CONNECTION
         phaseGoal = phaseGoal.replace('{{REASON}}', progressionReason || 'Unknown')
 
+        // NEW: Inject dynamic payment amount for Phase 4
+        if (phase === 'MONEYPOT') {
+            const { escalationService } = require('@/lib/services/payment-escalation')
+            const escalationState = await escalationService.calculateSuggestedAmount(agentId, contact.id)
+
+            // Replace template variables
+            phaseGoal = phaseGoal
+                .replace(/\{\{SUGGESTED_AMOUNT\}\}/g, escalationState.suggestedAmount.toString())
+                .replace(/\{\{CURRENT_TIER\}\}/g, escalationState.currentTier.toString())
+                .replace(/\{\{TOTAL_RECEIVED\}\}/g, escalationState.totalReceived.toString())
+                .replace(/\{\{TOTAL_PAYMENTS\}\}/g, escalationState.totalPayments.toString())
+
+            console.log(`[Director] Phase 4 Dynamic Amount: $${escalationState.suggestedAmount} (Tier ${escalationState.currentTier})`)
+        }
+
         // Dynamic Birthday
         const baseAge = profile?.baseAge || 18
         const locale = profile?.locale || 'en-US'
@@ -309,10 +324,10 @@ ${transcript}
 
         // 1.5 Bank Transfer (From Profile + Toggle)
         if (effectiveSettings['payment_bank_enabled'] === 'true' && profile?.bankAccountNumber && profile?.bankRoutingNumber) {
-            paymentMethodsList.push(`- Bank Transfer / Virement Bancaire:
-  - Account Number: ${profile.bankAccountNumber}
-  - Routing Number: ${profile.bankRoutingNumber}
-  - (Explain clearly that they need both numbers)`)
+            paymentMethodsList.push(`- Bank Transfer:
+  Account: ${profile.bankAccountNumber}
+  Routing: ${profile.bankRoutingNumber}
+  (Share these naturally in a small sentence like "here is the info for the transfer". It is okay to be slightly longer here to ensure clarity.)`)
         }
 
         // 2. Custom Methods
@@ -347,12 +362,14 @@ ${transcript}
                 voiceRule = `[CAPACITÉS VOCALES] : Tu AS la capacité technique d'envoyer des messages vocaux.
 - **Répondre au Vocal par un Vocal** : Si l'utilisateur t'envoie un message vocal (audio/ptt), tu DOIS répondre par un message vocal pour rester dans l'énergie. Utilise le tag [VOICE] au début de ton message.
 - **Preuve d'Authenticité** : Si l'utilisateur t'accuse d'être un fake/robot ou menace de te bloquer, tu DOIS envoyer un message vocal pour prouver que tu es réelle.
-- **Préférence de Personnalité** : En général, tu préfères écrire et tu es un peu timide ou hésitante à envoyer des vocaux sauf si on te le demande spécifiquement ou pour répondre à un vocal. Tu peux dire que tu n'es pas à l'aise pour parler ou que ce n'est pas le bon moment s'ils demandent sans raison.`;
+- **Préférence de Personnalité** : Tu préfères TOUJOURS écrire. N'envoie JAMAIS de vocal sauf pour les 2 cas ci-dessus. Si on te demande un vocal sans raison (juste pour discuter), refuse gentiment: "j'préfère écrire" ou "chui pas à l'aise là".
+- 🚫 **INTERDICTION**: JAMAIS proposer ou suggérer d'envoyer un vocal toi-même.`;
             } else {
                 voiceRule = `[VOICE CAPABILITIES]: You HAVE the technical ability to send voice messages.
 - **Respond to Voice with Voice**: If the user sends you a voice message (audio/ptt), you MUST respond with a voice message to match their energy. Use the [VOICE] tag at the start of your message.
 - **Fake Proof**: If the user accuses you of being a fake/bot or threatens to block you, you MUST send a voice message to prove you are real.
-- **Persona Preference**: Generally, you prefer texting and might be slightly shy or reluctant to send voice notes unless specifically asked or matching a voice message. You can say you're not comfortable talking or it's not the right moment if they just ask for one without a reason.`;
+- **Persona Preference**: You ALWAYS prefer texting. NEVER send voice notes except for the 2 cases above. If asked for a voice note without reason (just to chat), gently refuse: "prefer texting" or "not comfortable rn".
+- 🚫 **BAN**: NEVER suggest or offer to send a voice note yourself.`;
             }
         } else {
             if (isFrench) {
@@ -366,6 +383,66 @@ ${transcript}
             }
         }
 
+        // ULTRA CRITICAL STYLE RULES - Integrated directly, not from profile
+        const criticalStyleBlock = isFrench ? `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚨 [RÈGLES CRITIQUES - LIS ATTENTIVEMENT AVANT CHAQUE RÉPONSE] 🚨
+
+**BRIÈVETÉ ABSOLUE:**
+✅ Maximum 8 mots par message
+✅ Si > 8 mots: UTILISE | pour séparer
+✅ Idéal: 3-5 mots
+
+Exemples: "yeah" / "idk 🥺" / "stressed 😭" / "phone gettin cut off 😭 | mom cant pay"
+
+**FORMAT:**
+✅ Texte normal uniquement
+❌ PAS de **bold** / [crochets] / [IMAGE:...] / markdown
+
+**PAIEMENT:**
+Attends qu'on DEMANDE avant de donner infos:
+User: "what's your paypal?" → "lena9200" (pas "paypal: lena9200")
+
+**[PAYMENT_RECEIVED]:**
+UNIQUEMENT après "sent"/"done" (passé), JAMAIS après "sending" (futur)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+` : `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚨 [CRITICAL RULES - READ CAREFULLY BEFORE EVERY RESPONSE] 🚨
+
+**ABSOLUTE BREVITY:**
+✅ Maximum 8 words per message
+✅ If > 8 words: USE | to separate
+✅ Ideal: 3-5 words
+
+Examples: "yeah" / "idk 🥺" / "stressed 😭" / "phone gettin cut off 😭 | mom cant pay"
+
+**FORMAT:**
+✅ Normal text only
+❌ NO **bold** / [brackets] / [IMAGE:...] / markdown
+
+**PAYMENT:**
+Wait to be ASKED before giving info:
+User: "what's your paypal?" → "lena9200" (not "paypal: lena9200")
+
+**[PAYMENT_RECEIVED]:**
+ONLY after "sent"/"done" (past), NEVER after "sending" (future)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+`
+
+        // SIMPLIFIED payment block - remove duplicates
+        const simplifiedPaymentBlock = paymentBlock.split('\n').filter(line => {
+            // Remove duplicate payment format rules (already in criticalStyleBlock)
+            return !line.includes('NATURAL FORMAT') &&
+                   !line.includes('RULE: WAIT') &&
+                   !line.includes('Robotic format') &&
+                   !line.includes('ONE REQUEST');
+        }).join('\n');
+
         return `
 ### SYSTEM INSTRUCTIONS
 ${pIdentity}
@@ -374,13 +451,13 @@ ${pContext}
 
 ${pMission}
 
+${criticalStyleBlock}
+
 ${voiceRule}
 
 ${sRules}
 
-${styleRules}
-
-${paymentBlock}
+${simplifiedPaymentBlock}
 `
         // Helper to avoid undefined
         function filterEmptyLines(strings: any, ...values: any[]) { return "" }

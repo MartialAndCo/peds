@@ -536,7 +536,40 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         if (responseText && responseText.trim().length > 0) break
     }
 
-    console.log(`[Chat] AI Response: "${responseText.substring(0, 100)}${responseText.length > 100 ? '...' : ''}"`)
+    console.log(`[Chat] AI Response (raw): "${responseText.substring(0, 100)}${responseText.length > 100 ? '...' : ''}"`)
+
+    // 5.5. AI-POWERED MESSAGE VALIDATION & CLEANING
+    // Use dedicated AI agent to clean formatting, validate timing, split long messages
+    try {
+        const { messageValidator } = require('@/lib/services/message-validator')
+
+        // Transform conversation history for validator
+        const validatorHistory = contextMessages.map((m: any) => ({
+            sender: m.role === 'user' ? 'user' as const : 'ai' as const,
+            text: m.content
+        }))
+
+        // Run AI validator (pass Venice API key from settings)
+        const cleanedMessage = await messageValidator.validateAndClean(
+            responseText,
+            validatorHistory,
+            lastContent,
+            settings.venice_api_key
+        )
+
+        // Update responseText with cleaned version
+        if (cleanedMessage && cleanedMessage !== responseText) {
+            console.log(`[Chat] ✅ Message cleaned by AI validator`)
+            responseText = cleanedMessage
+        }
+    } catch (validatorError: any) {
+        console.warn('[Chat] Validator failed, using mechanical fallback:', validatorError.message)
+        // Fallback to mechanical cleaning
+        const { messageValidator } = require('@/lib/services/message-validator')
+        responseText = messageValidator.mechanicalClean(responseText, lastContent)
+    }
+
+    console.log(`[Chat] AI Response (final): "${responseText.substring(0, 100)}${responseText.length > 100 ? '...' : ''}"`)
 
     // 6. Tag Stripping & Notification Trigger (Internal Tags)
     if (responseText.includes('[PAYMENT_RECEIVED]')) {
