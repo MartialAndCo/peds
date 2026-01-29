@@ -22,6 +22,28 @@ export async function handleChat(
 ) {
     let messageText = messageTextInput
 
+    // ⛔ SELF-MESSAGE FILTER (Anti-Mirror)
+    // When WhatsApp syncs history, it sends "upsert" events for messages WE sent.
+    // We must IGNORE these, otherwise the bot talks to itself.
+    if (payload.fromMe) {
+        // Double check: if it's fromMe, it's definitely not a user message we need to reply to.
+        // Unless we are debugging, this should be silently dropped.
+        logger.info('Ignoring message from self (sync event)', { module: 'chat', id: payload.id })
+        return { handled: true, result: 'ignored_from_me' }
+    }
+
+    // ⛔ OLD MESSAGE FILTER (Anti-Ban / Burst Protection)
+    // If we receive a message that is > 60 seconds old, it means we are catching up on history (Sync).
+    // Answering or even "Marking as Read" 50 old messages in 1 second triggers WhatsApp Spam filters.
+    // ACTION: Ignore them completely and silently.
+    const msgTimestamp = payload.timestamp ? new Date(payload.timestamp * 1000) : new Date()
+    const ageInSeconds = (Date.now() - msgTimestamp.getTime()) / 1000
+
+    if (ageInSeconds > 60) {
+        logger.info(`Ignoring old message (${ageInSeconds.toFixed(1)}s old) - Sync Burst Protection`, { module: 'chat', id: payload.id })
+        return { handled: true, result: 'ignored_old_sync' }
+    }
+
     // 0. ADMIN VOICE VALIDATION INTERCEPTION
     // Check if the sender is the configured Voice Source (Admin)
     const adminPhone = settings.voice_source_number
