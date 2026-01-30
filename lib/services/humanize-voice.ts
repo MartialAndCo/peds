@@ -1,5 +1,5 @@
-import { venice } from '../venice.ts'
-import { logger } from '../logger.ts'
+import { venice } from '../venice'
+import { logger } from '../logger'
 
 /**
  * VOICE HUMANIZER SERVICE
