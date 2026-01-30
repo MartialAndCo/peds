@@ -22,7 +22,7 @@ async function analyzeDatabasePrompts() {
         console.log(`    Name: ${prompt.name}`);
         console.log(`    Active: ${prompt.isActive ? '✅ YES' : '❌ NO'}`);
         console.log(`    Model: ${prompt.model}`);
-        console.log(`    Description: ${prompt.description || 'N/A'}`);
+
         console.log(`    System Prompt Length: ${prompt.system_prompt?.length || 0} chars`);
 
         // Check for age references
