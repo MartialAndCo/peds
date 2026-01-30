@@ -27,40 +27,18 @@ export const voiceTtsService = {
      * Preprocess text for TTS using LLM (makes it sound natural when spoken)
      */
     async preprocessForVocal(text: string, locale: string): Promise<string> {
-        console.log(`[VoiceTTS] Preprocessing for ${locale}: "${text.substring(0, 50)}..."`)
-
-        const settings = await settingsService.getSettings()
-        const isFrench = locale.toLowerCase().startsWith('fr')
-
-        const systemPrompt = isFrench ? VOCAL_READY_FR_SYSTEM : VOCAL_READY_EN_SYSTEM
-        const userPrompt = isFrench
-            ? VOCAL_READY_FR_PROMPT + ` "${text}"`
-            : VOCAL_READY_EN_PROMPT + ` "${text}"`
+        console.log(`[VoiceTTS] HUMANIZING for ${locale}: "${text.substring(0, 50)}..."`)
 
         try {
-            const result = await venice.chatCompletion(
-                systemPrompt,
-                [],
-                userPrompt,
-                {
-                    apiKey: settings.venice_api_key,
-                    model: settings.venice_model || 'llama-3.3-70b',
-                    temperature: 0.3, // Low for consistent conversion
-                    max_tokens: 500
-                }
-            )
+            // Use the new dedicated Humanizer Service
+            const { voiceHumanizer } = require('@/lib/services/humanize-voice')
+            const humanized = await voiceHumanizer.humanize(text, locale)
 
-            // Clean up response (remove quotes if LLM added them)
-            let cleaned = result.trim()
-            if (cleaned.startsWith('"') && cleaned.endsWith('"')) {
-                cleaned = cleaned.slice(1, -1)
-            }
-
-            console.log(`[VoiceTTS] Preprocessed: "${cleaned.substring(0, 50)}..."`)
-            return cleaned
+            console.log(`[VoiceTTS] Humanized Result: "${humanized.substring(0, 50)}..."`)
+            return humanized
         } catch (error: any) {
-            console.error('[VoiceTTS] Preprocessing failed, using original text:', error.message)
-            return text // Fallback to original
+            console.error('[VoiceTTS] Humanization failed, using original text:', error.message)
+            return text // Fallback
         }
     },
 
