@@ -114,3 +114,18 @@ export async function searchContacts(query: string) {
         select: { id: true, name: true, phone_whatsapp: true }
     })
 }
+
+export async function deletePayment(paymentId: string) {
+    try {
+        await prisma.payment.delete({
+            where: { id: paymentId }
+        })
+
+        revalidatePath('/admin/payments')
+        revalidatePath('/workspace')
+        return { success: true }
+    } catch (error: any) {
+        console.error('Failed to delete payment:', error)
+        return { success: false, error: error.message }
+    }
+}
