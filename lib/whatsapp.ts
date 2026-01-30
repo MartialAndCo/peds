@@ -461,7 +461,17 @@ export const whatsapp = {
                 headers: { 'X-Api-Key': apiKey },
                 timeout: 5000
             })
-            return { success: true, lines: response.data.lines || [] }
+            return {
+                success: true,
+                lines: (response.data.lines || [])
+                    .filter((line: string) => {
+                        // Filter out health checks and status pings
+                        if (line.includes('GET /api/sessions') && line.includes('200')) return false
+                        if (line.includes('GET /dashboard')) return false
+                        if (line.includes('GET /api/metrics')) return false
+                        return true
+                    })
+            }
         } catch (error: any) {
             if (error.code === 'ECONNREFUSED' || error.message?.includes('ECONNREFUSED')) {
                 return { success: false, error: 'Service Offline', lines: [] }
