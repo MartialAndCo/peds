@@ -30,7 +30,25 @@ interface PaymentsTableProps {
     payments: Payment[]
 }
 
+import { Trash2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { useToast } from "@/components/ui/use-toast"
+import { deletePayment } from "@/app/actions/payments"
+
 export function PaymentsTable({ payments }: PaymentsTableProps) {
+    const { toast } = useToast()
+
+    const handleDelete = async (id: string) => {
+        if (!confirm('Are you sure you want to delete this payment?')) return
+
+        const result = await deletePayment(id)
+        if (result.success) {
+            toast({ title: "Payment deleted" })
+        } else {
+            toast({ title: "Error", description: result.error, variant: "destructive" })
+        }
+    }
+
     if (payments.length === 0) {
         return (
             <div className="flex w-full flex-col items-center justify-center py-12 glass rounded-2xl">
@@ -49,6 +67,7 @@ export function PaymentsTable({ payments }: PaymentsTableProps) {
                         <TableHead className="text-white/60">Method</TableHead>
                         <TableHead className="text-white/60">Amount</TableHead>
                         <TableHead className="text-white/60 text-right">Status</TableHead>
+                        <TableHead className="text-white/60 w-[50px]"></TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -77,11 +96,21 @@ export function PaymentsTable({ payments }: PaymentsTableProps) {
                             </TableCell>
                             <TableCell className="text-right">
                                 <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${payment.status === 'COMPLETED'
-                                        ? 'bg-emerald-500/10 text-emerald-400'
-                                        : 'bg-amber-500/10 text-amber-400'
+                                    ? 'bg-emerald-500/10 text-emerald-400'
+                                    : 'bg-amber-500/10 text-amber-400'
                                     }`}>
                                     {payment.status}
                                 </span>
+                            </TableCell>
+                            <TableCell>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleDelete(payment.id)}
+                                    className="h-8 w-8 text-white/40 hover:text-red-400 hover:bg-red-400/10"
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
                             </TableCell>
                         </TableRow>
                     ))}
