@@ -450,7 +450,7 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                             }
 
                             // Split & Send
-                            const parts = responseText.split('|||').filter(p => p.trim().length > 0)
+                            const parts = responseText.split(/\|+/).filter(p => p.trim().length > 0)
                             for (const part of parts) {
                                 await whatsapp.sendTypingState(contact.phone_whatsapp, true, agentId)
                                 // Simulated Delay

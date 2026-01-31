@@ -69,13 +69,16 @@ export const messageValidator = {
             cleanedRaw = cleanedRaw.trim()
         }
 
-        // SIMPLE RULE: If message is ≤3 words AND has no brackets → pass through as-is
+        // SIMPLE RULE: If message is <= 8 words AND has no brackets -> pass through as-is
         const wordCount = cleanedRaw.split(/\s+/).length
         const hasBrackets = /\[/.test(cleanedRaw)
 
-        if (wordCount <= 3 && !hasBrackets) {
-            // Very short natural message, no validation needed
-            logger.info('Short message (<= 3 words, no brackets), passing through', {
+        // User Request: "quand il y a moins de 8 mots il Touche pas"
+        // We still check for brackets because tags like [PAYMENT_RECEIVED] or [IMAGE:...] might need validation or are functional.
+        // But if it's just text and short, we assume it's fine.
+        if (wordCount <= 8 && !hasBrackets) {
+            // Short natural message, no validation needed
+            logger.info('Short message (<= 8 words, no brackets), passing through', {
                 module: 'message-validator',
                 message: cleanedRaw,
                 wordCount

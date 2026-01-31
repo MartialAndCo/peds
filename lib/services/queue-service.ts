@@ -124,7 +124,7 @@ export class QueueService {
             await new Promise(r => setTimeout(r, typingMs + 650))
 
             // Unified Splitting Logic (Matches route.ts)
-            let parts = content.split('|||').filter((p: string) => p.trim().length > 0)
+            let parts = content.split(/\|+/).filter((p: string) => p.trim().length > 0)
             if (parts.length === 1 && content.length > 50) {
                 // Split on any newline (user prefers multiple bubbles for natural conversation)
                 const paragraphs = content.split(/\n+/).filter((p: string) => p.trim().length > 0)

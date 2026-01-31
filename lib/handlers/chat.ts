@@ -751,7 +751,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
     if (isVoice) {
         const { voiceTtsService } = require('@/lib/voice-tts')
-        const voiceText = responseText.replace(/\|\|\|/g, '. ')
+        const voiceText = responseText.replace(/\|+/g, '. ')
 
         // Check for reusable voice first
         const { voiceService } = require('@/lib/voice')
