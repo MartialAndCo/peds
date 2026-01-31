@@ -87,12 +87,12 @@ export async function GET(req: Request) {
                     })
 
                     // Capture response for next iteration if AI generated something
-                    if (result.status === 'sent' && result.textBody) {
+                    if (result?.status === 'sent' && result?.textBody) {
                         lastResponse = result.textBody
                     }
 
                     // Check Result
-                    if (result.status === 'async_job_started' && result.jobId) {
+                    if (result?.status === 'async_job_started' && result?.jobId) {
                         // Switch to Async Mode
                         console.log(`[CRON] Item ${item.id} switched to Async Job: ${result.jobId}`)
                         await prisma.incomingQueue.update({
