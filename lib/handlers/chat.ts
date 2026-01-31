@@ -216,24 +216,12 @@ export async function handleChat(
         throw e
     }
 
-    // PAYMENT DETECTION: Check if user is claiming to have made a payment
-    // This runs BEFORE AI generation to ensure notifications are sent immediately
-    // Store result to prevent duplicate notification when AI also outputs [PAYMENT_RECEIVED]
-    let paymentClaimAlreadyProcessed = false
-    try {
-        const { processPaymentClaim } = require('@/lib/services/payment-claim-handler')
-        const paymentResult = await processPaymentClaim(messageText, contact, conversation, settings, agentId)
-        if (paymentResult.processed) {
-            paymentClaimAlreadyProcessed = true // Flag to skip AI tag trigger
-            logger.info('Payment claim detected and processed', {
-                module: 'chat',
-                contactId: contact.id,
-                claimId: paymentResult.claimId
-            })
-        }
-    } catch (e: any) {
-        logger.error('Payment detection failed (non-blocking)', e, { module: 'chat' })
-    }
+    // PAYMENT DETECTION: DISABLED (Keyword-based detection removed)
+    // Payments are now detected ONLY via the AI's [PAYMENT_RECEIVED] tag in the response.
+    // This eliminates false positives from keyword matching (e.g., "fait tout de suite" triggering payments).
+    // The AI has full conversation context and can make accurate determinations.
+    // See line ~620 for AI tag detection.
+
 
     // BURST MODE: If we are processing a batch of messages, we might want to skip AI for all but the last one.
     // The message is already saved above, so context is preserved.
@@ -297,10 +285,7 @@ export async function handleChat(
     try {
         // AI GENERATION LOGIC
         // Pass options (containing previousResponse) to the generator
-        const result = await generateAndSendAI(conversation, contact, settings, messageText, payload, agentId, {
-            ...options,
-            paymentClaimAlreadyProcessed
-        })
+        const result = await generateAndSendAI(conversation, contact, settings, messageText, payload, agentId, options)
 
         // 8. Payment Claim Detection: MOVED to Tag-Based in generateAndSendAI
         // We no longer scan user text. We listen for [PAYMENT_RECEIVED] from AI.
@@ -610,24 +595,20 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     console.log(`[Chat] AI Response (final): "${responseText.substring(0, 100)}${responseText.length > 100 ? '...' : ''}"`)
 
     // 6. Tag Stripping & Notification Trigger (Internal Tags)
+    // PAYMENT DETECTION: Now ONLY via AI tag (keyword detection removed to avoid false positives)
     if (responseText.includes('[PAYMENT_RECEIVED]')) {
         console.log('[Chat] Tag [PAYMENT_RECEIVED] detected in AI response. Triggering notification & stripping...')
 
         // CRITICAL: Strip the tag globally so it's not queued/sent
         responseText = responseText.replace(/\[PAYMENT_RECEIVED\]/g, '').trim()
 
-        // Trigger notification ONLY if user message didn't already create one (Smart Deduplication)
-        // This ensures 20 different users = 20 notifications, but same message from same user = 1 notification
-        if (!options?.paymentClaimAlreadyProcessed) {
-            console.log('[Chat] User message did NOT trigger payment claim. Triggering from AI tag...')
-            try {
-                const { notifyPaymentClaim } = require('@/lib/services/payment-claim-handler')
-                await notifyPaymentClaim(contact, conversation, settings, null, null, agentId)
-            } catch (e) {
-                console.error('[Chat] Failed to trigger notification from tag', e)
-            }
-        } else {
-            console.log('[Chat] User message ALREADY triggered payment claim. Skipping AI tag trigger (Smart Dedup).')
+        // Trigger notification (AI has full context - no keyword-based duplicate risk now)
+        try {
+            const { notifyPaymentClaim } = require('@/lib/services/payment-claim-handler')
+            await notifyPaymentClaim(contact, conversation, settings, null, null, agentId)
+            console.log('[Chat] Payment notification sent from AI tag.')
+        } catch (e) {
+            console.error('[Chat] Failed to trigger notification from tag', e)
         }
     }
 

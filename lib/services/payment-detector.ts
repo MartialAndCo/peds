@@ -28,12 +28,37 @@ export async function detectPaymentClaim(
         'paid', 'sent', 'transferred', 'envoyé', 'payé', 'viré', 'envoi',
         'payment', 'paiement', 'money', 'argent', 'cash', 'dollars', 'euros',
         'paypal', 'venmo', 'cashapp', 'zelle', 'crypto', 'bitcoin', 'btc',
-        'done', 'fait', 'c\'est bon', 'voilà', 'here you go', 'just sent',
-        'account', 'funds', 'check', 'care'
+        'done', 'c\'est fait', 'c\'est bon', 'voilà', 'here you go', 'just sent',
+        'account', 'funds', 'check your'
+        // REMOVED: 'fait' alone (too generic, triggers on "fais-le", "fait tout de suite")
+        // REMOVED: 'check' alone (triggers on "check this out")
+        // REMOVED: 'care' (triggers on "take care")
     ]
 
     const lowerMsg = message.toLowerCase()
     const hasKeyword = paymentKeywords.some(kw => lowerMsg.includes(kw))
+
+    // NEGATIVE PATTERNS: Reject messages that are clearly NOT payment claims
+    // These are commands, threats, or unrelated uses of payment keywords
+    const negativePatterns = [
+        /fait.*(tout de suite|vite|maintenant)/i,    // "Fait tout de suite" = command, not claim
+        /fais[- ]le/i,                               // "Fais-le" = command
+        /sinon.*bloqu/i,                             // Threats to block
+        /(envoie|envoi).*(photo|video|image)/i,     // Request for media
+        /check (this|it|my message|out)/i,          // Unrelated "check"
+        /take care/i,                                // Greeting
+        /i don'?t care/i,                            // Unrelated
+    ]
+
+    const isNegativePattern = negativePatterns.some(pattern => pattern.test(message))
+
+    if (isNegativePattern) {
+        logger.info('Payment detection skipped (Negative pattern match)', {
+            module: 'payment-detector',
+            message: message.substring(0, 50)
+        })
+        return { claimed: false, confidence: 0 }
+    }
 
     if (!hasKeyword) {
         return { claimed: false, confidence: 0 }
