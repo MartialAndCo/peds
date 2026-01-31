@@ -447,19 +447,34 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     logger.info('Generating AI response', { module: 'chat', conversationId: conversation.id, phase })
     const lastUserDate = new Date() // Approx
 
-    // Fetch Agent Timezone
+    // Fetch Agent Timezone & Locale
     let agentTimezone = 'Europe/Paris' // Default safe fallback
+    let agentLocale = 'en-US' // Default
+
     if (effectiveAgentId) {
         try {
             const agentProfile = await prisma.agentProfile.findUnique({
                 where: { agentId: effectiveAgentId },
-                select: { timezone: true }
+                select: { timezone: true, locale: true }
             })
             if (agentProfile?.timezone) agentTimezone = agentProfile.timezone
+            if (agentProfile?.locale) agentLocale = agentProfile.locale
         } catch (e) {
-            console.warn('[Chat] Failed to fetch agent timezone, using default:', e)
+            console.warn('[Chat] Failed to fetch agent timezone/locale, using defaults:', e)
         }
     }
+
+    // ... (rest of timing logic) ...
+
+    // ... inside AI-POWERED MESSAGE VALIDATION ...
+    // Run AI validator (pass Venice API key from settings)
+    const cleanedMessage = await messageValidator.validateAndClean(
+        responseText,
+        validatorHistory,
+        lastContent,
+        settings.venice_api_key,
+        agentLocale // Pass the locale!
+    )
 
     // Check for High Priority Keywords (for timing adjustment only)
     // Payment detection is now handled earlier (after message save)
@@ -576,7 +591,8 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
             responseText,
             validatorHistory,
             lastContent,
-            settings.venice_api_key
+            settings.venice_api_key,
+            agentLocale // Pass the locale!
         )
 
         // Update responseText with cleaned version
