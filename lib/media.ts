@@ -403,7 +403,7 @@ export const mediaService = {
 
         const lastMessages = await prisma.message.findMany({ where: { conversationId: conversation.id }, orderBy: { timestamp: 'desc' }, take: 15 });
         const history = lastMessages.reverse().map((m: any) => `${m.sender === 'user' ? 'User' : 'You'}: ${m.message_text}`).join('\n');
-        const nowLA = TimingManager.getLATime().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' });
+        const nowLA = TimingManager.getZonedTime('America/Los_Angeles').toLocaleString('en-US', { timeZone: 'America/Los_Angeles' });
 
         const settings: any = await settingsService.getSettings();
 
