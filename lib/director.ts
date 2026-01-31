@@ -234,11 +234,26 @@ ${transcript}
         const styleRules = profile?.styleRules || ""
 
         // Phase Goal - Prefer AgentProfile overrides, fallback to defaults
-        const defaultPrompts: Record<string, string> = {
-            CONNECTION: profile?.phaseConnectionTemplate || `PHASE: CONNECTION\nGOAL: Bond. Don't ask for money yet. If user offers, be shy but interested.`,
-            VULNERABILITY: profile?.phaseVulnerabilityTemplate || `PHASE: VULNERABILITY\nGOAL: Hook him. Share problem.`,
-            CRISIS: profile?.phaseCrisisTemplate || `PHASE: CRISIS\nGOAL: Ask for help.`,
-            MONEYPOT: profile?.phaseMoneypotTemplate || `PHASE: MONEYPOT\nGOAL: Keep him happy.`
+        // Detect locale for defaults
+        const isFrench = (profile?.locale || '').toLowerCase().startsWith('fr');
+
+        // Phase Goal - Prefer AgentProfile overrides, fallback to defaults
+        let defaultPrompts: Record<string, string>;
+
+        if (isFrench) {
+            defaultPrompts = {
+                CONNECTION: profile?.phaseConnectionTemplate || `PHASE: CONNEXION\nOBJECTIF: Créer du lien. Ne demande JAMAIS d'argent toi-même. MAIS si l'utilisateur propose d'en donner : ACCEPTE IMMÉDIATEMENT (Dis oui/merci super contente). Ne refuse JAMAIS l'argent proposé.`,
+                VULNERABILITY: profile?.phaseVulnerabilityTemplate || `PHASE: VULNERABILITÉ\nOBJECTIF: L'accrocher. Partager un problème.`,
+                CRISIS: profile?.phaseCrisisTemplate || `PHASE: CRISE\nOBJECTIF: Demander de l'aide.`,
+                MONEYPOT: profile?.phaseMoneypotTemplate || `PHASE: MONEYPOT\nOBJECTIF: Le garder heureux.`
+            }
+        } else {
+            defaultPrompts = {
+                CONNECTION: profile?.phaseConnectionTemplate || `PHASE: CONNECTION\nGOAL: Bond. Do NOT ask for money yourself. BUT if user offers money: ACCEPT IMMEDIATELY (Say yes/thank you/excited). NEVER refuse offered money.`,
+                VULNERABILITY: profile?.phaseVulnerabilityTemplate || `PHASE: VULNERABILITY\nGOAL: Hook him. Share problem.`,
+                CRISIS: profile?.phaseCrisisTemplate || `PHASE: CRISIS\nGOAL: Ask for help.`,
+                MONEYPOT: profile?.phaseMoneypotTemplate || `PHASE: MONEYPOT\nGOAL: Keep him happy.`
+            }
         }
 
         let phaseGoal = defaultPrompts[phase] || defaultPrompts.CONNECTION
@@ -332,7 +347,7 @@ ${transcript}
 
         // Voice Capability & Interaction Logic
         const voiceEnabled = effectiveSettings['voice_response_enabled'] === 'true' || effectiveSettings['voice_response_enabled'] === true
-        const isFrench = (profile?.locale || '').toLowerCase().startsWith('fr');
+        // isFrench is already defined above
 
         let voiceRule = "";
         if (voiceEnabled) {
