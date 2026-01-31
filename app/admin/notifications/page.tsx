@@ -25,6 +25,7 @@ export default function NotificationsPage() {
     const [notifications, setNotifications] = useState<Notification[]>([])
     const [loading, setLoading] = useState(true)
     const [processingId, setProcessingId] = useState<string | null>(null)
+    const [processingAction, setProcessingAction] = useState<'confirm' | 'reject' | 'wait' | null>(null)
 
     useEffect(() => {
         fetchNotifications()
@@ -51,6 +52,7 @@ export default function NotificationsPage() {
         }
 
         setProcessingId(notification.id)
+        setProcessingAction(action)
         try {
             const res = await fetch(`/api/claims/${notification.entityId}/action`, {
                 method: 'POST',
@@ -80,12 +82,15 @@ export default function NotificationsPage() {
             })
         } finally {
             setProcessingId(null)
+            setProcessingAction(null)
         }
     }
 
     // Handle TTS failure notifications (Continue = shy refusal, Pause = pause conversation)
     const handleTtsAction = async (notification: Notification, action: 'continue' | 'pause') => {
         setProcessingId(notification.id)
+        // Reuse state or add new one? For simplicity reusing logic variable logic locally if needed, but strictly we need specific action tracking for TTS too if we want perfect spinner. 
+        // For now, let's keep TTS simple as user complained about Payment buttons.
         try {
             const res = await fetch('/api/notifications/tts-action', {
                 method: 'POST',
@@ -242,7 +247,7 @@ export default function NotificationsPage() {
                                             onClick={() => handleAction(n, 'confirm')}
                                             disabled={!!processingId}
                                         >
-                                            {processingId === n.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="h-5 w-5 mr-2" />}
+                                            {processingId === n.id && processingAction === 'confirm' ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="h-5 w-5 mr-2" />}
                                             Confirm Receipt
                                         </Button>
 
@@ -253,7 +258,7 @@ export default function NotificationsPage() {
                                                 onClick={() => handleAction(n, 'reject')}
                                                 disabled={!!processingId}
                                             >
-                                                <X className="h-5 w-5 mr-1" />
+                                                {processingId === n.id && processingAction === 'reject' ? <Loader2 className="h-5 w-5 animate-spin" /> : <X className="h-5 w-5 mr-1" />}
                                                 No
                                             </Button>
 

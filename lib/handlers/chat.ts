@@ -218,10 +218,13 @@ export async function handleChat(
 
     // PAYMENT DETECTION: Check if user is claiming to have made a payment
     // This runs BEFORE AI generation to ensure notifications are sent immediately
+    // Store result to prevent duplicate notification when AI also outputs [PAYMENT_RECEIVED]
+    let paymentClaimAlreadyProcessed = false
     try {
         const { processPaymentClaim } = require('@/lib/services/payment-claim-handler')
         const paymentResult = await processPaymentClaim(messageText, contact, conversation, settings, agentId)
         if (paymentResult.processed) {
+            paymentClaimAlreadyProcessed = true // Flag to skip AI tag trigger
             logger.info('Payment claim detected and processed', {
                 module: 'chat',
                 contactId: contact.id,
@@ -606,14 +609,22 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     // 6. Tag Stripping & Notification Trigger (Internal Tags)
     if (responseText.includes('[PAYMENT_RECEIVED]')) {
         console.log('[Chat] Tag [PAYMENT_RECEIVED] detected in AI response. Triggering notification & stripping...')
+
+        // CRITICAL: Strip the tag globally so it's not queued/sent
         responseText = responseText.replace(/\[PAYMENT_RECEIVED\]/g, '').trim()
 
-        // Trigger notification manually if not already done by the user message scanner
-        try {
-            const { notifyPaymentClaim } = require('@/lib/services/payment-claim-handler')
-            await notifyPaymentClaim(contact, conversation, settings, null, null, agentId)
-        } catch (e) {
-            console.error('[Chat] Failed to trigger notification from tag', e)
+        // Trigger notification ONLY if user message didn't already create one (Smart Deduplication)
+        // This ensures 20 different users = 20 notifications, but same message from same user = 1 notification
+        if (!paymentClaimAlreadyProcessed) {
+            console.log('[Chat] User message did NOT trigger payment claim. Triggering from AI tag...')
+            try {
+                const { notifyPaymentClaim } = require('@/lib/services/payment-claim-handler')
+                await notifyPaymentClaim(contact, conversation, settings, null, null, agentId)
+            } catch (e) {
+                console.error('[Chat] Failed to trigger notification from tag', e)
+            }
+        } else {
+            console.log('[Chat] User message ALREADY triggered payment claim. Skipping AI tag trigger (Smart Dedup).')
         }
     }
 
