@@ -18,11 +18,7 @@ try {
             apiKey: apiKey // Pass the DB key explicitly
         }
     )
-    systemPrompt,   // System Prompt (Persona/Rules)
-        [],             // History (Empty)
-        fullUserMessage,// User Message (Content to process)
-        { max_tokens: 200, temperature: 0.3 } // Verified stable by user & tests
-            )
+
 
     let cleanResult = humanizedText.replace(/"/g, '').trim()
 
