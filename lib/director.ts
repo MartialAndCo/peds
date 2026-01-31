@@ -235,7 +235,7 @@ ${transcript}
 
         // Phase Goal - Prefer AgentProfile overrides, fallback to defaults
         const defaultPrompts: Record<string, string> = {
-            CONNECTION: profile?.phaseConnectionTemplate || `PHASE: CONNECTION\nGOAL: Bond. NO MONEY.`,
+            CONNECTION: profile?.phaseConnectionTemplate || `PHASE: CONNECTION\nGOAL: Bond. Don't ask for money yet. If user offers, be shy but interested.`,
             VULNERABILITY: profile?.phaseVulnerabilityTemplate || `PHASE: VULNERABILITY\nGOAL: Hook him. Share problem.`,
             CRISIS: profile?.phaseCrisisTemplate || `PHASE: CRISIS\nGOAL: Ask for help.`,
             MONEYPOT: profile?.phaseMoneypotTemplate || `PHASE: MONEYPOT\nGOAL: Keep him happy.`
