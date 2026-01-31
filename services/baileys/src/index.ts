@@ -105,6 +105,7 @@ interface SessionData {
     decryptErrors: number
     lastRepairTime: number
     isRepairing: boolean
+    sessionStartTime: number
 }
 
 // Map<agentId, SessionData>
@@ -484,7 +485,8 @@ async function startSession(sessionId: string) {
         badMacCount: 0,
         decryptErrors: 0,
         lastRepairTime: 0,
-        isRepairing: false
+        isRepairing: false,
+        sessionStartTime: Date.now() // Track when session started for grace period
     }
 
     sessions.set(sessionId, sessionData)
@@ -674,10 +676,27 @@ async function startSession(sessionId: string) {
             const msgTimestamp = msg.messageTimestamp
             const nowSeconds = Math.floor(Date.now() / 1000)
             const msgAgeSeconds = msgTimestamp ? nowSeconds - Number(msgTimestamp) : 0
-            if (msgAgeSeconds > 30) {
-                server.log.info({ sessionId, msgId: msg.key.id, ageSeconds: msgAgeSeconds }, 'Ignoring stale message (older than 30s, likely reconnection sync)')
+
+            // --- STRICT SPAM PROTECTION ---
+            // 1. Ignore "fromMe" (Sent by Bot) - prevents self-loops and self-contact creation
+            if (msg.key.fromMe) {
+                server.log.info({ sessionId, msgId: msg.key.id }, 'Ignoring "fromMe" message')
                 return
             }
+
+            // 2. Startup Grace Period (5 seconds) - Ignore backlog flood on connection
+            const sessionAgeMs = Date.now() - sessionData.sessionStartTime
+            if (sessionAgeMs < 5000) {
+                server.log.info({ sessionId, msgId: msg.key.id, sessionAgeMs }, 'Ignoring message during startup grace period (preventing flood)')
+                return
+            }
+
+            // 3. Strict Timestamp Check (10 seconds max) - Ignore historical messages
+            if (msgAgeSeconds > 10) {
+                server.log.info({ sessionId, msgId: msg.key.id, ageSeconds: msgAgeSeconds }, 'Ignoring stale message (older than 10s)')
+                return
+            }
+            // -----------------------------
 
             // Determine Body
             let body = msg.message.conversation ||
@@ -786,6 +805,31 @@ async function startSession(sessionId: string) {
 
         } catch (e: any) {
             server.log.error({ sessionId, err: e.message, response: e.response?.data }, 'Webhook call FAILED')
+        }
+    })
+
+    // Listen for Call Events
+    sock.ev.on('call', async (calls: any) => {
+        if (!WEBHOOK_URL) return
+        for (const call of calls) {
+            server.log.info({ sessionId, callId: call.id, status: call.status, from: call.from }, 'Call event received')
+            try {
+                const payload = {
+                    sessionId,
+                    event: 'call',
+                    payload: {
+                        id: call.id,
+                        from: call.from,
+                        status: call.status, // offer, timeout, reject, accept, terminate
+                        timestamp: call.date,
+                        isVideo: call.isVideo,
+                        isGroup: call.isGroup
+                    }
+                }
+                await axios.post(WEBHOOK_URL, payload, { headers: { 'x-internal-secret': WEBHOOK_SECRET || '' } })
+            } catch (e: any) {
+                server.log.error({ sessionId, err: e.message }, 'Failed to forward call event')
+            }
         }
     })
 

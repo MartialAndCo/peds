@@ -109,6 +109,40 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: true, type: 'reaction' })
         }
 
+        // Handle Call Events & Transform to Message
+        if (body.event === 'call') {
+            const call = body.payload
+            // Only handle 'offer' (ringing)
+            if (call.status === 'offer') {
+                console.log(`[Webhook] Incoming Call detected from ${call.from}`)
+
+                // Transform to "message" event so the endpoint continues processing it as a normal message
+                // This triggers the standard AI flow (queue -> cron -> AI reply)
+                body.event = 'message'
+                const callType = call.isVideo ? 'video call' : 'voice call'
+
+                body.payload = {
+                    id: `call-${call.id}`,
+                    from: call.from,
+                    body: `[SYSTEM: Incoming ${callType} from user. You cannot answer. Reply politely that you cannot take calls.]`,
+                    fromMe: false,
+                    type: 'chat',
+                    messageKey: {
+                        remoteJid: call.from,
+                        fromMe: false,
+                        id: call.id
+                    },
+                    _data: {
+                        notifyName: 'Caller',
+                        phoneNumber: call.from.split('@')[0]
+                    }
+                }
+                // Fall through to standard message processing...
+            } else {
+                return NextResponse.json({ success: true, ignored: true, reason: 'call_state_ignored' })
+            }
+        }
+
         // Ignore non-message events
         if (body.event !== 'message') {
             return NextResponse.json({ success: true, ignored: true })
