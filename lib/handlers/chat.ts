@@ -297,7 +297,10 @@ export async function handleChat(
     try {
         // AI GENERATION LOGIC
         // Pass options (containing previousResponse) to the generator
-        const result = await generateAndSendAI(conversation, contact, settings, messageText, payload, agentId, options)
+        const result = await generateAndSendAI(conversation, contact, settings, messageText, payload, agentId, {
+            ...options,
+            paymentClaimAlreadyProcessed
+        })
 
         // 8. Payment Claim Detection: MOVED to Tag-Based in generateAndSendAI
         // We no longer scan user text. We listen for [PAYMENT_RECEIVED] from AI.
@@ -615,7 +618,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
         // Trigger notification ONLY if user message didn't already create one (Smart Deduplication)
         // This ensures 20 different users = 20 notifications, but same message from same user = 1 notification
-        if (!paymentClaimAlreadyProcessed) {
+        if (!options?.paymentClaimAlreadyProcessed) {
             console.log('[Chat] User message did NOT trigger payment claim. Triggering from AI tag...')
             try {
                 const { notifyPaymentClaim } = require('@/lib/services/payment-claim-handler')
