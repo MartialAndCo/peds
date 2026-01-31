@@ -342,8 +342,19 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                             const dataUrl = result.media.url
                             await whatsapp.markAsRead(contact.phone_whatsapp).catch(() => { })
 
-                            if (dataUrl.startsWith('data:image')) await whatsapp.sendImage(contact.phone_whatsapp, dataUrl, undefined, agentId)
-                            else await whatsapp.sendVideo(contact.phone_whatsapp, dataUrl, undefined, agentId)
+                            // Fix: Don't assume everything that isn't data:image is a video.
+                            // Check extension or context match.
+                            const isDataImage = dataUrl.startsWith('data:image')
+                            const isVideoExt = dataUrl.match(/\.(mp4|mov|avi|webm|mkv)(\?|$)/i)
+                            const isVideoIntent = analysis.intentCategory?.toLowerCase().includes('video')
+
+                            const shouldSendAsVideo = !isDataImage && (isVideoExt || isVideoIntent)
+
+                            if (shouldSendAsVideo) {
+                                await whatsapp.sendVideo(contact.phone_whatsapp, dataUrl, undefined, agentId)
+                            } else {
+                                await whatsapp.sendImage(contact.phone_whatsapp, dataUrl, undefined, agentId)
+                            }
 
                             await prisma.media.update({
                                 where: { id: result.media.id },

@@ -672,7 +672,16 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
                     }
 
                     await whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => { })
-                    await whatsapp.sendImage(contact.phone_whatsapp, dataUrl, result.media.caption || '', agentId)
+
+                    // Smart Send: Check if it's actually a video
+                    const isVideo = (result.media.mimeType && result.media.mimeType.startsWith('video')) ||
+                        (dataUrl.match(/\.(mp4|mov|avi|webm|mkv)(\?|$)/i));
+
+                    if (isVideo) {
+                        await whatsapp.sendVideo(contact.phone_whatsapp, dataUrl, result.media.caption || '', agentId)
+                    } else {
+                        await whatsapp.sendImage(contact.phone_whatsapp, dataUrl, result.media.caption || '', agentId)
+                    }
 
                     // 2. Mark as Sent
                     // sentTo is String[]
