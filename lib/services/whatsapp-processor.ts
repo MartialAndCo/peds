@@ -267,9 +267,85 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
 
         if (payload.type === 'chat') {
             try {
-                const analysis = await mediaService.analyzeRequest(messageText, contact.phone_whatsapp)
+                // Fetch conversation and history BEFORE media analysis (needed for paywall detection)
+                let currentConversation = await prisma.conversation.findFirst({
+                    where: {
+                        contactId: contact.id,
+                        agentId: agentId,
+                        status: { in: ['active', 'paused'] }
+                    },
+                    include: { prompt: true }
+                })
+
+                // Build conversation history for context-aware paywall detection
+                const lastMessages = currentConversation ? await prisma.message.findMany({
+                    where: { conversationId: currentConversation.id },
+                    orderBy: { timestamp: 'desc' },
+                    take: 10
+                }) : []
+                const history = lastMessages.reverse().map(m => ({
+                    role: m.sender === 'contact' ? 'user' : 'assistant',
+                    content: m.message_text
+                }))
+
+                // Analyze with conversation context for smart paywall detection
+                const analysis = await mediaService.analyzeRequest(messageText, contact.phone_whatsapp, agentId, history)
 
                 if (analysis && analysis.isMediaRequest) {
+                    // =============================================================
+                    // PAYWALL TRIGGERED: User requested blocked content BUT offered payment
+                    // =============================================================
+                    if (analysis.paywallTriggered) {
+                        console.log('[WhatsApp] PAYWALL TRIGGERED - User offered payment for blocked content')
+
+                        const paywallSystemPrompt = `(SYSTEM: User wants to PAY for content. They offered money. 
+You should ACCEPT with enthusiasm but DEMAND PAYMENT FIRST before sending anything.
+Say something like: "omg sérieux? 😍 ok mais envoie l'argent d'abord et après je t'envoie" 
+DO NOT send the content yet. Wait for payment confirmation.
+Keep response SHORT and excited.)`
+
+                        // Use Director to build full prompt
+                        const { director } = require('@/lib/director')
+                        const { phase, details, reason } = await director.determinePhase(contact.phone_whatsapp, agentId)
+                        const fullSystemPrompt = await director.buildSystemPrompt(
+                            settings,
+                            contact,
+                            phase,
+                            details,
+                            currentConversation?.prompt?.system_prompt || "You are a friend.",
+                            agentId,
+                            reason
+                        )
+
+                        const provider = settings.ai_provider || 'venice'
+                        let aiPaywallResponse = ""
+                        const userMessageWithInstruction = `${messageText}\n\n${paywallSystemPrompt}`
+
+                        if (provider === 'anthropic') {
+                            aiPaywallResponse = await anthropic.chatCompletion(fullSystemPrompt, history, userMessageWithInstruction, { apiKey: settings.anthropic_api_key, model: settings.anthropic_model })
+                        } else {
+                            aiPaywallResponse = await venice.chatCompletion(fullSystemPrompt, history, userMessageWithInstruction, { apiKey: settings.venice_api_key, model: settings.venice_model })
+                        }
+
+                        await whatsapp.markAsRead(contact.phone_whatsapp).catch(() => { })
+                        await whatsapp.sendText(contact.phone_whatsapp, aiPaywallResponse, undefined, agentId)
+
+                        if (currentConversation) {
+                            await prisma.message.create({
+                                data: {
+                                    conversationId: currentConversation.id,
+                                    sender: 'ai',
+                                    message_text: aiPaywallResponse,
+                                    status: 'SENT'
+                                }
+                            })
+                        }
+                        return null // Short-circuit - paywall handled
+                    }
+
+                    // =============================================================
+                    // NORMAL REFUSAL: Blocked content, no payment offered
+                    // =============================================================
                     if (!analysis.allowed) {
                         // Refusal Logic
                         const refusalReason = analysis.refusalReason || "forbidden content"

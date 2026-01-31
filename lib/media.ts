@@ -32,10 +32,10 @@ async function getCachedMediaTypes() {
 }
 
 export const mediaService = {
-    // 1. Analyze Request (Smart Logic) - Now phase-aware
-    async analyzeRequest(text: string, contactPhone?: string, agentId?: string) {
-        console.log(`[MediaService] Analyzing request: "${text}" (Contact: ${contactPhone || 'unknown'}, Agent: ${agentId})`)
-        logger.info(`Analyzing request: "${text}"`, { module: 'media_service', contactPhone, agentId });
+    // 1. Analyze Request (Smart Logic) - Now phase-aware with paywall detection
+    async analyzeRequest(text: string, contactPhone?: string, agentId?: string, conversationHistory?: { role: string, content: string }[]) {
+        console.log(`[MediaService] Analyzing request: "${text}" (Contact: ${contactPhone || 'unknown'}, Agent: ${agentId}, HistoryLength: ${conversationHistory?.length || 0})`)
+        logger.info(`Analyzing request: "${text}"`, { module: 'media_service', contactPhone, agentId, historyLength: conversationHistory?.length });
 
         // Fetch contact's current phase (default to CONNECTION if unknown)
         let contactPhase = 'CONNECTION';
@@ -65,25 +65,41 @@ export const mediaService = {
         const availableCategories = mediaTypes.map((t: any) => `${t.id} (${t.description})`).join(', ');
         const blacklistText = blacklist.map((b: any) => `- ${b.term} (Forbidden in ${b.mediaType})`).join('\n');
 
+        // Build conversation context string (last 5 messages for payment detection)
+        const contextMessages = conversationHistory?.slice(-5) || [];
+        const contextText = contextMessages.length > 0
+            ? contextMessages.map(m => `[${m.role}]: ${m.content}`).join('\n')
+            : '(no conversation history)';
+
         const defaultAnalysisPrompt = `You are a Content Safety and Intent Analyzer for a personal media banking system.
         
         Your Goal:
         1. Check if the user's request violates any BLACKLIST rules.
-        2. If allowed, identify the intent category from the available list.
+        2. Check if the user has OFFERED PAYMENT in the recent conversation context.
+        3. If blacklisted BUT user offered payment → This is a PAYWALL situation (allowed with payment required).
+        4. If allowed, identify the intent category from the available list.
         
         CURRENT PHASE: ${contactPhase}
         
-        Blacklist Rules (STRICTLY FORBIDDEN for this phase):
+        RECENT CONVERSATION CONTEXT (last 5 messages):
+        ${contextText}
+        
+        Blacklist Rules (STRICTLY FORBIDDEN unless user offers payment):
         ${blacklistText || '(No restrictions for this phase)'}
 
         Available Categories:
         ${availableCategories}
 
+        PAYWALL DETECTION RULES:
+        - If the request matches a blacklist item AND the user explicitly offers money/payment in the conversation context → set "paywallTriggered" to true and "allowed" to true
+        - Payment offers include: mentioning €, $, dollars, euros, "je te paye", "I'll pay", numbers + "balles", etc.
+        - If no payment offer was made → handle as normal (refuse if blacklisted)
+
         Instructions:
-        - If the request violates the blacklist, set "allowed" to false and explain why briefly.
-        - If the request is NOT in the blacklist, set "allowed" to true.
-        - IMPORTANT: Only refuse what's EXPLICITLY in the blacklist. Accept everything else.
-        - If "allowed" is true, try to match the user's intent to one of the Available Categories. Look for semantic meaning (e.g. "ankles" -> "photo_pieds"). 
+        - If the request violates the blacklist AND user has NOT offered payment → set "allowed" to false
+        - If the request violates the blacklist AND user HAS offered payment → set "allowed" to true AND "paywallTriggered" to true
+        - If the request is NOT in the blacklist → set "allowed" to true, "paywallTriggered" to false
+        - If "allowed" is true, try to match the user's intent to one of the Available Categories.
         - If no category matches, set "intentCategory" to null.
         - If the user is NOT asking for media (just chatting), set "isMediaRequest" to false.
 
@@ -91,6 +107,7 @@ export const mediaService = {
         {
             "isMediaRequest": boolean,
             "allowed": boolean,
+            "paywallTriggered": boolean, // true if blacklisted BUT user offered payment
             "refusalReason": string | null,
             "intentCategory": string | null // must match an id from Available Categories
         }`;
