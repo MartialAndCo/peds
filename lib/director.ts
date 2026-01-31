@@ -362,6 +362,8 @@ ${transcript}
         }
 
         // ULTRA CRITICAL STYLE RULES - Integrated directly, not from profile
+        const paypalExample = effectiveSettings['payment_paypal_username'] || 'my_paypal';
+
         const criticalStyleBlock = isFrench ? `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -380,7 +382,7 @@ Exemples: "yeah" / "idk 🥺" / "stressed 😭" / "phone gettin cut off 😭 | m
 
 **PAIEMENT:**
 Attends qu'on DEMANDE avant de donner infos:
-User: "what's your paypal?" → "lena9200" (pas "paypal: lena9200")
+User: "what's your paypal?" → "${paypalExample}" (pas "paypal: ${paypalExample}")
 
 **[PAYMENT_RECEIVED]:**
 UNIQUEMENT après "sent"/"done" (passé), JAMAIS après "sending" (futur)
@@ -404,7 +406,7 @@ Examples: "yeah" / "idk 🥺" / "stressed 😭" / "phone gettin cut off 😭 | m
 
 **PAYMENT:**
 Wait to be ASKED before giving info:
-User: "what's your paypal?" → "lena9200" (not "paypal: lena9200")
+User: "what's your paypal?" → "${paypalExample}" (not "paypal: ${paypalExample}")
 
 **[PAYMENT_RECEIVED]:**
 ONLY after "sent"/"done" (past), NEVER after "sending" (future)
