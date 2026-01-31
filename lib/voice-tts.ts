@@ -86,7 +86,8 @@ export const voiceTtsService = {
                 text: vocalReadyText,
                 voiceId: agent.voiceModelId!,
                 agentId: options.agentId,
-                language: locale.startsWith('fr') ? 'French' : 'English'
+                language: locale.startsWith('fr') ? 'French' : 'English',
+                skipTranscription: true // User Request: Activate Skip Transcription/Translation by default
             })
 
             if (!ttsResult.audioBase64) {

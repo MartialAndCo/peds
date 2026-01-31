@@ -36,7 +36,8 @@ RÈGLES CRITIQUES :
 2. HÉSITATIONS : Ajoute des "..." partout.
 3. FAMILIER : "Je ne suis pas" -> "J'suis pas". "Il y a" -> "Y'a".
 4. INTERDICTION : N'ajoute AUCUNE information qui n'est pas dans le texte.
-5. Sortie : UNIQUEMENT le texte réécrit.`
+5. ⛔ PAS D'EMOJIS : Ne mets JAMAIS d'emojis. Le TTS ne sait pas les lire. (Strict!)
+6. Sortie : UNIQUEMENT le texte réécrit.`
             : `You are a Vocal Humanizer Engine.
 TASK: Rewrite the text to sound SPOKEN and SPONTANEOUS (Young Adult).
 
@@ -52,7 +53,8 @@ CRITICAL RULES:
 2. HESITATIONS: Add "..." everywhere.
 3. SHORTENINGS: "going to" -> "gonna", "I am" -> "I'm".
 4. FORBIDDEN: Do NOT add information not present in source.
-5. Output: ONLY the rewritten text.`
+5. ⛔ NO EMOJIS: Never include emojis. TTS cannot read them. (Strict!)
+6. Output: ONLY the rewritten text.`
 
         // Add the input explicitly to force focus (Stable Pattern)
         const fullUserMessage = isFrench
@@ -62,13 +64,24 @@ CRITICAL RULES:
         try {
             // Use a cheaper/faster model if possible (Haiku or Venice default)
             const humanizedText = await venice.chatCompletion(
-                fullUserMessage,
-                [],
-                systemPrompt,
+                systemPrompt,   // System Prompt (Persona/Rules)
+                [],             // History (Empty)
+                fullUserMessage,// User Message (Content to process)
                 { max_tokens: 200, temperature: 0.3 } // Verified stable by user & tests
             )
 
-            const cleanResult = humanizedText.replace(/"/g, '').trim()
+            let cleanResult = humanizedText.replace(/"/g, '').trim()
+
+            // MECHANICAL CLEANUP (Safety Net) 🛡️
+            // Remove Emojis (Ranges for generic emojis, symbols, pictographs)
+            // Note: This regex covers most common emoji ranges
+            cleanResult = cleanResult.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '')
+
+            // Remove Markdown formatting just in case
+            cleanResult = cleanResult.replace(/[*_~`]/g, '')
+
+            // Normalize spaces
+            cleanResult = cleanResult.replace(/\s+/g, ' ').trim()
 
             logger.info('Voice Humanized', {
                 module: 'voice-humanizer',
@@ -80,8 +93,8 @@ CRITICAL RULES:
 
         } catch (e: any) {
             logger.error('Voice Humanizer Failed (Fallback to original)', e, { module: 'voice-humanizer' })
-            // Fix lint: e is unknown, cast or use safely
-            return text
+            // Return original but stripped of emojis as baseline safety
+            return text.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '')
         }
     }
 }

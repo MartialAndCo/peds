@@ -574,13 +574,20 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         }))
 
         // Run AI validator (pass Venice API key from settings)
-        const cleanedMessage = await messageValidator.validateAndClean(
-            responseText,
-            validatorHistory,
-            lastContent,
-            settings.venice_api_key,
-            agentLocale // Pass the locale!
-        )
+        // CRITICAL: NEVER validate Voice messages (the validator destroys them/splits them)
+        let cleanedMessage = responseText
+
+        if (responseText.trim().startsWith('[VOICE]')) {
+            logger.info('Skipping Message Validator for [VOICE] message', { module: 'chat' })
+        } else {
+            cleanedMessage = await messageValidator.validateAndClean(
+                responseText,
+                validatorHistory,
+                lastContent,
+                settings.venice_api_key,
+                agentLocale
+            )
+        }
 
         // Update responseText with cleaned version
         if (cleanedMessage && cleanedMessage !== responseText) {
