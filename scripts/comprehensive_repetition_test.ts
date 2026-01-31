@@ -4,7 +4,7 @@ import { venice } from '@/lib/venice'
 
 async function runScenario(name: string, history: any[], newMessage: string) {
     console.log(`\n\n=== SCENARIO: ${name} ===`);
-    
+
     // Mock Data
     const mockSettings = {
         prompt_identity_template: "Role: You are a 17yo girl named Lena.",
@@ -29,7 +29,7 @@ async function runScenario(name: string, history: any[], newMessage: string) {
         'CONNECTION',
         details,
         'Girlfriend',
-        1
+        '1'
     );
 
     console.log("History:");
@@ -44,7 +44,7 @@ async function runScenario(name: string, history: any[], newMessage: string) {
             { temperature: 0.7 }
         );
         console.log(`\n>>> AI RESPONSE: "${response}"`);
-        
+
         // Basic heuristics
         if (response.toLowerCase().includes("told you") || response.toLowerCase().includes("deja dit") || response.toLowerCase().includes("already")) {
             console.log("✅ PASS: Correctly refused to repeat.");
@@ -53,7 +53,7 @@ async function runScenario(name: string, history: any[], newMessage: string) {
         } else {
             console.log("❓ CHECK: Verify manually if logic held.");
         }
-        
+
     } catch (e: any) {
         console.error("Error:", e.message);
     }
