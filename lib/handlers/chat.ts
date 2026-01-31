@@ -744,6 +744,37 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     //     data: { conversationId: conversation.id, sender: 'ai', message_text: responseText.replace(/\|\|\|/g, '\n'), timestamp: new Date() }
     // })
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PRE-SEND CHECK: Look for NEW messages that arrived DURING AI processing
+    // If the user sent more messages while we were generating, abort this response
+    // and let the latest message's handler deal with ALL messages in context.
+    // ═══════════════════════════════════════════════════════════════════════════
+    const currentMsgId = (await prisma.message.findFirst({ where: { waha_message_id: payload.id } }))?.id
+    if (currentMsgId) {
+        const newerUserMessages = await prisma.message.findMany({
+            where: {
+                conversationId: conversation.id,
+                sender: 'contact',
+                id: { gt: currentMsgId }
+            },
+            orderBy: { timestamp: 'asc' }
+        })
+
+        if (newerUserMessages.length > 0) {
+            console.log(`[Chat] PRE-SEND ABORT: ${newerUserMessages.length} newer message(s) detected. Letting latest handler respond.`)
+            logger.info('Pre-send abort: newer messages detected', {
+                module: 'chat',
+                currentMsgId,
+                newerCount: newerUserMessages.length,
+                newerIds: newerUserMessages.map(m => m.id)
+            })
+            // Don't send this response - the newest message's handler will include ALL context
+            return { handled: true, result: 'presend_aborted_newer_messages' }
+        }
+    }
+    // ═══════════════════════════════════════════════════════════════════════════
+
+
     if (isVoice) {
         const { voiceTtsService } = require('@/lib/voice-tts')
         const voiceText = responseText.replace(/\|+/g, '. ')
