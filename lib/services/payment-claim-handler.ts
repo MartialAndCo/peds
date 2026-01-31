@@ -86,7 +86,7 @@ export async function notifyPaymentClaim(
             contactId: contact.id,
             status: 'PENDING',
             createdAt: {
-                gt: new Date(Date.now() - 15000) // 15 seconds window
+                gt: new Date(Date.now() - 60000) // 60 seconds window (Increased from 15s to prevent AI echo duplicates)
             }
         }
     })
@@ -355,7 +355,7 @@ export async function processPaymentClaimDecision(
                 effectiveAgentId
             )
 
-            const rejectInstruction = `\n\n[SYSTEM UPDATE]: The user claims to have sent a payment${claim.claimedMethod ? ` via ${claim.claimedMethod}` : ''}. You just checked your ACTUAL ${claim.claimedMethod ? `${claim.claimedMethod} account` : 'bank account/wallet'} and NOTHING has arrived. You must tell the user that you have NOT received it${claim.claimedMethod ? ` on ${claim.claimedMethod}` : ''}. Be firm but natural.`
+            const rejectInstruction = `\n\n[SYSTEM UPDATE]: The user claims to have sent a payment${claim.claimedMethod ? ` via ${claim.claimedMethod}` : ''}. You just checked your ACTUAL ${claim.claimedMethod ? `${claim.claimedMethod} account` : 'bank account/wallet'} and NOTHING has arrived. You must tell the user that you have NOT received it${claim.claimedMethod ? ` on ${claim.claimedMethod}` : ''}. Be firm but natural. Do NOT say thanks. Do NOT confirm.\nCRITICAL: Do NOT output [PAYMENT_RECEIVED] tag.`
 
             try {
                 let notReceivedMsg = await venice.chatCompletion(
@@ -364,7 +364,7 @@ export async function processPaymentClaimDecision(
                     'I sent the money',
                     { apiKey: vKey, model: vModel }
                 )
-                notReceivedMsg = notReceivedMsg.replace(/\*[^*]+\*/g, '').trim()
+                notReceivedMsg = notReceivedMsg.replace(/\*[^*]+\*/g, '').replace(/\[PAYMENT_RECEIVED\]/g, '').trim()
 
                 await whatsapp.sendText(claim.contact.phone_whatsapp, notReceivedMsg, undefined, effectiveAgentId as string)
 
