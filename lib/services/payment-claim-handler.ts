@@ -344,27 +344,38 @@ export async function processPaymentClaimDecision(
                 content: m.message_text
             }))
 
-            // System Prompt
-            const { phase, details } = await director.determinePhase(claim.contact.phone_whatsapp, effectiveAgentId)
-            const systemPrompt = await director.buildSystemPrompt(
-                settings,
-                claim.contact,
-                phase,
-                details,
-                conversation?.prompt?.system_prompt || "You are a friendly assistant.",
-                effectiveAgentId
-            )
+            // System Prompt - Use MINIMAL prompt for rejection (avoid PayPal in context)
+            // The full systemPrompt contains PayPal info which causes the AI to mention it
+            const agentName = conversation?.prompt?.name || 'Lena'
 
-            const rejectInstruction = `\n\n[SYSTEM UPDATE]: The user claims to have sent a payment${claim.claimedMethod ? ` via ${claim.claimedMethod}` : ''}. You just checked your ACTUAL ${claim.claimedMethod ? `${claim.claimedMethod} account` : 'bank account/wallet'} and NOTHING has arrived. You must tell the user that you have NOT received it${claim.claimedMethod ? ` on ${claim.claimedMethod}` : ''}. Be firm but natural. Do NOT say thanks. Do NOT confirm.\nCRITICAL: Do NOT output [PAYMENT_RECEIVED] tag.`
+            const rejectSystemPrompt = `You are ${agentName}, a friendly teenage girl chatting on WhatsApp.
+You speak casually in short messages (3-8 words per message).
+CURRENT SITUATION: The user claims they sent you money, but you just checked ALL your accounts and NOTHING arrived.
+
+CRITICAL RULES:
+1. You MUST tell the user you have NOT received ANY money.
+2. Do NOT mention PayPal, Venmo, CashApp, or ANY payment method.
+3. Do NOT give your account info.
+4. Do NOT say thank you.
+5. Do NOT confirm any payment.
+6. Be confused/surprised that they claim to have sent something.
+7. Keep it short and natural.
+
+Example responses:
+- "wait what? i didnt get anything"
+- "huh? nothing came through"
+- "are u sure? i checked and theres nothing"`
 
             try {
                 let notReceivedMsg = await venice.chatCompletion(
-                    systemPrompt + rejectInstruction,
-                    contextMessages,
-                    'I sent the money',
-                    { apiKey: vKey, model: vModel }
+                    rejectSystemPrompt,
+                    contextMessages.slice(-3), // Only last 3 messages for context
+                    contextMessages.length > 0 ? contextMessages[contextMessages.length - 1].content : 'I sent it',
+                    { apiKey: vKey, model: vModel, temperature: 0.7 }
                 )
                 notReceivedMsg = notReceivedMsg.replace(/\*[^*]+\*/g, '').replace(/\[PAYMENT_RECEIVED\]/g, '').trim()
+                // Extra safety: Strip any PayPal mentions that might slip through
+                notReceivedMsg = notReceivedMsg.replace(/paypal[:\s]?\w*/gi, '').replace(/lena\d+/gi, '').replace(/anais\.\w+/gi, '').trim()
 
                 await whatsapp.sendText(claim.contact.phone_whatsapp, notReceivedMsg, undefined, effectiveAgentId as string)
 

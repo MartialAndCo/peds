@@ -241,30 +241,32 @@ export default function NotificationsPage() {
 
                                 {/* Actions for Payment Claims */}
                                 {isPayment && !n.isRead && (
-                                    <div className="mt-5 grid grid-cols-2 gap-3">
+                                    <div className="mt-5 flex flex-col gap-3">
+                                        {/* Row 1: Confirm (Full Width) */}
                                         <Button
-                                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold h-11 rounded-xl shadow-lg shadow-emerald-900/20 active:scale-[0.98] transition-all"
+                                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold h-12 rounded-xl shadow-lg shadow-emerald-900/20 active:scale-[0.98] transition-all w-full"
                                             onClick={() => handleAction(n, 'confirm')}
                                             disabled={!!processingId}
                                         >
                                             {processingId === n.id && processingAction === 'confirm' ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="h-5 w-5 mr-2" />}
-                                            Confirm Receipt
+                                            ✓ Yes, Received
                                         </Button>
 
+                                        {/* Row 2: No and Wait (Side by Side) */}
                                         <div className="grid grid-cols-2 gap-2">
                                             <Button
                                                 variant="outline"
-                                                className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/20 h-11 rounded-xl"
+                                                className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/20 h-12 rounded-xl"
                                                 onClick={() => handleAction(n, 'reject')}
                                                 disabled={!!processingId}
                                             >
                                                 {processingId === n.id && processingAction === 'reject' ? <Loader2 className="h-5 w-5 animate-spin" /> : <X className="h-5 w-5 mr-1" />}
-                                                No
+                                                ✗ Not Received
                                             </Button>
 
                                             <Button
                                                 variant="ghost"
-                                                className="text-white/40 hover:text-white hover:bg-white/5 h-11 rounded-xl"
+                                                className="text-white/40 hover:text-white hover:bg-white/5 h-12 rounded-xl"
                                                 onClick={() => handleAction(n, 'wait')}
                                                 disabled={!!processingId}
                                             >
