@@ -24,8 +24,21 @@ export const leadService = {
 
         // Normalize 06/07 to +33 (default FR if no country code)
         let finalPhone = cleanPhone
-        if (cleanPhone.startsWith('06') || cleanPhone.startsWith('07')) {
-            finalPhone = '+33' + cleanPhone.substring(1)
+
+        // FIX: Truncate French numbers that absorbed extra digits (common issue with leads providing metadata inline)
+        // Standard French mobile: 10 digits (starting with 0) or +33 + 9 digits.
+
+        // Case 1: Starts with +33. Expected length 12 (+33 + 9 digits).
+        if (finalPhone.startsWith('+33') && finalPhone.length > 12) {
+            finalPhone = finalPhone.substring(0, 12)
+        }
+        // Case 2: Starts with 06/07. Expected length 10.
+        else if ((finalPhone.startsWith('06') || finalPhone.startsWith('07')) && finalPhone.length > 10) {
+            finalPhone = finalPhone.substring(0, 10)
+        }
+
+        if (finalPhone.startsWith('06') || finalPhone.startsWith('07')) {
+            finalPhone = '+33' + finalPhone.substring(1)
         }
 
         // Remove the phone from the text to get potential context

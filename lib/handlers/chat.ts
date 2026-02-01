@@ -648,10 +648,10 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         const { mediaService } = require('@/lib/media'); // Lazy import
         (async () => {
             try {
-                const typeId = await mediaService.findMediaTypeByKeyword(keyword)
+                let typeId = await mediaService.findMediaTypeByKeyword(keyword)
                 if (!typeId) {
-                    console.log(`[Chat] Image keyword "${keyword}" not found in MediaTypes.`)
-                    return
+                    console.log(`[Chat] Image keyword "${keyword}" not found directly. Using as raw typeId to trigger Source Request.`)
+                    typeId = keyword
                 }
 
                 const result = await mediaService.processRequest(contact.phone_whatsapp, typeId)

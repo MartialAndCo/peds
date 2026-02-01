@@ -473,6 +473,9 @@ ${voiceRule}
 ${sRules}
 
 ${simplifiedPaymentBlock}
+
+
+
 `
         // Helper to avoid undefined
         function filterEmptyLines(strings: any, ...values: any[]) { return "" }
