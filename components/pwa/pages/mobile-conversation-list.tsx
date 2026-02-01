@@ -49,7 +49,7 @@ export function MobileConversationList({ conversations, loading, agentId }: Mobi
                                         ? "bg-orange-500/10 border-orange-500/30 text-orange-400"
                                         : "bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border-white/10"
                                 )}>
-                                    {conv.contact.name.charAt(0).toUpperCase()}
+                                    {(conv.contact?.name || 'Inconnu').charAt(0).toUpperCase()}
                                 </div>
                                 {needsContext && (
                                     <div className="absolute -bottom-0.5 -right-0.5 bg-orange-500 rounded-full p-0.5 border-2 border-[#0f172a]">
@@ -65,7 +65,7 @@ export function MobileConversationList({ conversations, loading, agentId }: Mobi
                                         "truncate text-base",
                                         isUnread ? "font-bold text-white" : "font-semibold text-white/90"
                                     )}>
-                                        {conv.contact.name}
+                                        {conv.contact?.name || 'Inconnu'}
                                     </h3>
                                     <span className={cn(
                                         "text-xs truncate ml-2",

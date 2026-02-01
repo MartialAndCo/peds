@@ -67,11 +67,11 @@ export function MobileContactList({ contacts, onSearch, loading, agentId, refres
                             <div className="flex items-center gap-4">
                                 <div className="h-12 w-12 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-white/10 flex items-center justify-center">
                                     <span className="text-white font-semibold text-lg">
-                                        {contact.name.charAt(0).toUpperCase()}
+                                        {(contact.name || 'Inconnu').charAt(0).toUpperCase()}
                                     </span>
                                 </div>
                                 <div>
-                                    <h3 className="text-white font-medium text-base">{contact.name}</h3>
+                                    <h3 className="text-white font-medium text-base">{contact.name || 'Inconnu'}</h3>
                                     <p className="text-white/40 text-sm font-mono">{contact.phone_whatsapp}</p>
                                 </div>
                             </div>
@@ -97,10 +97,10 @@ export function MobileContactList({ contacts, onSearch, loading, agentId, refres
 
                                 <div className="h-24 w-24 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-white/10 flex items-center justify-center mb-4">
                                     <span className="text-white font-bold text-3xl">
-                                        {selectedContact.name.charAt(0).toUpperCase()}
+                                        {(selectedContact.name || 'Inconnu').charAt(0).toUpperCase()}
                                     </span>
                                 </div>
-                                <h2 className="text-2xl font-bold text-white text-center">{selectedContact.name}</h2>
+                                <h2 className="text-2xl font-bold text-white text-center">{selectedContact.name || 'Inconnu'}</h2>
                                 <p className="text-white/50 font-mono mt-1">{selectedContact.phone_whatsapp}</p>
 
                                 <div className="flex items-center gap-4 mt-6 w-full max-w-xs">

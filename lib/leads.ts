@@ -73,6 +73,7 @@ export const leadService = {
             targetContact = await prisma.contact.create({
                 data: {
                     phone_whatsapp: targetPhone,
+                    name: 'Inconnu',
                     source: 'lead_provider',
                     notes: `Context: ${context}`,
                     status: 'new'
