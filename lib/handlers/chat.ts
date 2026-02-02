@@ -488,7 +488,9 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     // Queue if delay > 10s (reduced from 22s to avoid CRON 504 timeouts)
     // CRON has ~30s timeout, AI call takes ~10-15s, so any delay > 10s risks timeout
     if (timing.delaySeconds > 10) {
-        const scheduledAt = new Date(Date.now() + timing.delaySeconds * 1000)
+        // Ensure minimum 60s delay so CRON picks it up in next run (not same minute)
+        const effectiveDelay = Math.max(timing.delaySeconds, 60)
+        const scheduledAt = new Date(Date.now() + effectiveDelay * 1000)
 
         // Generate NOW
         const responseText = await callAI(settings, conversation, systemPrompt, contextMessages, lastContent)
