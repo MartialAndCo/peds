@@ -34,7 +34,9 @@ export default function WorkspaceContactsPage() {
     const fetchContacts = async (query = '') => {
         setLoading(true)
         try {
-            const params = query ? { search: query } : {}
+            const params: any = query ? { search: query } : {}
+            if (agentId) params.agentId = agentId // Filter by current workspace
+
             const res = await axios.get('/api/contacts', { params })
             setContacts(res.data)
         } catch (error) {

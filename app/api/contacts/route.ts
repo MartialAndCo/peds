@@ -22,12 +22,20 @@ export async function GET(req: Request) {
     try {
         const { searchParams } = new URL(req.url)
         const status = searchParams.get('status')
+        const agentId = searchParams.get('agentId') // NEW: Filter by agent
         const limit = parseInt(searchParams.get('limit') || '50')
         const page = parseInt(searchParams.get('page') || '1')
         const skip = (page - 1) * limit
 
         const where: any = {}
         if (status) where.status = status
+
+        // NEW: Filter by Agent Binding
+        if (agentId) {
+            where.agentContacts = {
+                some: { agentId: agentId }
+            }
+        }
 
         const contacts = await prisma.contact.findMany({
             where,
