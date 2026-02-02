@@ -588,6 +588,12 @@ Keep response SHORT and excited.)`
             // --- WAKE UP LOGIC ---
             // If conversation is paused waiting for lead, UNPAUSE it now because we received a message!
             const meta = conversation.metadata as any
+
+            // Log for debugging
+            if (conversation.status === 'paused') {
+                console.log(`[Processor] Conversation ${conversation.id} is PAUSED. Checking for WAITING_FOR_LEAD... Meta state: ${meta?.state}`)
+            }
+
             if (conversation.status === 'paused' && meta?.state === 'WAITING_FOR_LEAD') {
                 console.log(`[Processor] Waking up conversation ${conversation.id} (Lead initiated contact)`)
                 conversation = await prisma.conversation.update({

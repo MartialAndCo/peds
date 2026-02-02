@@ -127,9 +127,24 @@ export const leadService = {
                 }
             })
         } else {
-            // Even if existing, we might want to ensure 'WAITING_FOR_LEAD' if it was idle?
-            // User didn't specify behavior for existing convs, but "updating notes" implies we just add info.
-            // If it's already active, we shouldn't pause it.
+            // FIX: If conversation exists but is PAUSED (e.g. user messaged before lead provider),
+            // we MUST enable the 'WAITING_FOR_LEAD' state so the next message wakes it up.
+            // Or if we want to be even smarter: if it's paused, it means the user is waiting.
+
+            if (existingConv.status === 'paused') {
+                const currentMeta = (existingConv.metadata as any) || {}
+                // Only update if not already in that state (to avoid unnecessary writes, though harmless)
+                await prisma.conversation.update({
+                    where: { id: existingConv.id },
+                    data: {
+                        metadata: {
+                            ...currentMeta,
+                            state: 'WAITING_FOR_LEAD',
+                            leadContext: context
+                        }
+                    }
+                })
+            }
         }
 
         // 3. Acknowledge with Reaction
