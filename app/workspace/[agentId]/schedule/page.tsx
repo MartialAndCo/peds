@@ -131,8 +131,8 @@ function StatusBadge({ status }: { status: string }) {
     )
 }
 
-export default async function SchedulePage({ params }: { params: { agentId: string } }) {
-    const { agentId } = params
+export default async function SchedulePage({ params }: { params: Promise<{ agentId: string }> }) {
+    const { agentId } = await params
 
     // Fetch Agent Profile
     const agentProfile = await prisma.agentProfile.findUnique({

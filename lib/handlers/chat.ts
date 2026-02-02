@@ -485,6 +485,32 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         console.log(`[Chat] Injected Life Context: ${(timing as any).activityContext.substring(0, 80)}...`)
     }
 
+    // QUEUE AWARENESS: Let AI see pending messages and decide to cancel if needed
+    const pendingQueueItems = await prisma.messageQueue.findMany({
+        where: {
+            conversationId: conversation.id,
+            status: 'PENDING'
+        },
+        orderBy: { scheduledAt: 'asc' }
+    })
+
+    let queuePrompt = ""
+    if (pendingQueueItems.length > 0) {
+        const queueContext = pendingQueueItems.map((item: any) => {
+            const type = item.mediaUrl ? (item.mediaUrl.includes('audio') ? 'Voice' : 'Media') : 'Text'
+            const preview = item.content?.substring(0, 60) || '[No content]'
+            const time = item.scheduledAt ? new Date(item.scheduledAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : 'now'
+            return `- ID:${item.id} (${type}, ${time}): "${preview}${item.content?.length > 60 ? '...' : ''}"`
+        }).join('\n')
+
+        const locale = agentLocale.startsWith('fr') ? 'fr' : 'en'
+        queuePrompt = locale === 'fr'
+            ? `\n\n[INTERFACE SYSTÈME]\nMESSAGES EN ATTENTE:\n${queueContext}\n\nCOMMANDES:\n- [CANCEL:ID] : Annule le message ID (ne sera pas envoyé).\n\nINSTRUCTION: Si le nouveau message rend un message en attente obsolète, répétitif ou incohérent, tu DOIS utiliser la commande [CANCEL:ID] au début de ta réponse.\n⚠️ RÈGLE: N'annule PAS si le nouveau message est court ou neutre (ex: "ok", "lol", emoji). Annule seulement s'il y a une vraie contradiction.\nExemple: [CANCEL:42] Bonne nuit !`
+            : `\n\n[SYSTEM INTERFACE]\nPENDING MESSAGES:\n${queueContext}\n\nCOMMANDS:\n- [CANCEL:ID] : Cancels message ID (will not be sent).\n\nINSTRUCTION: If the new message makes a pending message obsolete, redundant, or incoherent, you MUST use the [CANCEL:ID] command at the start of your response.\n⚠️ RULE: DO NOT cancel if the new message is short or neutral (e.g., "ok", "lol", emoji). Cancel only if there is a real contradiction.\nExample: [CANCEL:42] Goodnight!`
+
+        console.log(`[Chat] Prepared Queue Context for injection: ${pendingQueueItems.length} items`)
+    }
+
     // Queue if delay > 10s (reduced from 22s to avoid CRON 504 timeouts)
     // CRON has ~30s timeout, AI call takes ~10-15s, so any delay > 10s risks timeout
     if (timing.delaySeconds > 10) {
@@ -493,7 +519,8 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         const scheduledAt = new Date(Date.now() + effectiveDelay * 1000)
 
         // Generate NOW
-        const responseText = await callAI(settings, conversation, systemPrompt, contextMessages, lastContent)
+        const finalSystemPrompt = systemPrompt + queuePrompt
+        const responseText = await callAI(settings, conversation, finalSystemPrompt, contextMessages, lastContent)
 
         await prisma.messageQueue.create({
             data: {
@@ -526,7 +553,8 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         }
 
         try {
-            responseText = await callAI(settings, conversation, currentSystemPrompt, contextMessages, lastContent)
+            const finalSystemPrompt = currentSystemPrompt + queuePrompt
+            responseText = await callAI(settings, conversation, finalSystemPrompt, contextMessages, lastContent)
         } catch (error: any) {
             console.error(`[Chat] AI Attempt ${attempts} failed:`, error.message)
 
@@ -563,6 +591,30 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
     console.log(`[Chat] AI Response (raw): "${responseText.substring(0, 100)}${responseText.length > 100 ? '...' : ''}"`)
 
+    // QUEUE AWARENESS: Parse and execute CANCEL commands from AI response
+    const cancelMatches = responseText.matchAll(/\[CANCEL:\s*(\d+)\]/gi)
+    const cancelledIds: string[] = []
+    for (const match of cancelMatches) {
+        const queueId = match[1]
+        if (queueId) {
+            cancelledIds.push(queueId)
+        }
+    }
+
+    if (cancelledIds.length > 0) {
+        console.log(`[Chat] AI decided to cancel queue items: ${cancelledIds.join(', ')}`)
+        await prisma.messageQueue.updateMany({
+            where: {
+                id: { in: cancelledIds },
+                conversationId: conversation.id,
+                status: 'PENDING'
+            },
+            data: { status: 'CANCELLED_BY_AI' }
+        })
+        // Remove CANCEL tokens from the final response
+        responseText = responseText.replace(/\[CANCEL:\d+\]/gi, '').trim()
+        console.log(`[Chat] Cleaned response: "${responseText.substring(0, 80)}..."`)
+    }
     // 5.5. AI-POWERED MESSAGE VALIDATION & CLEANING
     // Use dedicated AI agent to clean formatting, validate timing, split long messages
     try {
