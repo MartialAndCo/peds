@@ -6,10 +6,11 @@ import axios from 'axios'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
-import { Trash, MessageSquare, Search, Pencil, AlertTriangle, FileText, Eye } from 'lucide-react'
+import { Trash, MessageSquare, Search, Pencil, AlertTriangle, FileText, Eye, Sparkles } from 'lucide-react'
 import { useRouter, useParams } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { ContextDialog } from '@/components/contacts/context-dialog'
+import { SmartAddDialog } from '@/components/contacts/smart-add-dialog'
 import { cn } from '@/lib/utils'
 import { usePWAMode } from '@/hooks/use-pwa-mode'
 import { MobileContactList } from '@/components/pwa/pages/mobile-contact-list'
@@ -26,6 +27,9 @@ export default function WorkspaceContactsPage() {
     // Context Dialog State
     const [selectedContact, setSelectedContact] = useState<any>(null)
     const [contextOpen, setContextOpen] = useState(false)
+
+    // Smart Add Dialog State
+    const [smartAddOpen, setSmartAddOpen] = useState(false)
 
     useEffect(() => {
         fetchContacts()
@@ -105,11 +109,26 @@ export default function WorkspaceContactsPage() {
                 onSaved={() => fetchContacts(search)}
             />
 
+            {/* Smart Add Dialog */}
+            <SmartAddDialog
+                open={smartAddOpen}
+                onOpenChange={setSmartAddOpen}
+                agentId={agentId as string}
+                onSuccess={() => fetchContacts(search)}
+            />
+
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="space-y-1">
                     <h2 className="text-3xl font-bold tracking-tight text-white">Contacts</h2>
                     <p className="text-white/40 text-sm italic">Manage contacts, add context, and perform HARD delete.</p>
                 </div>
+                <Button
+                    onClick={() => setSmartAddOpen(true)}
+                    className="bg-amber-500 hover:bg-amber-600 text-black"
+                >
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Smart Add
+                </Button>
             </div>
 
             <form onSubmit={handleSearch} className="flex gap-3 glass p-4 rounded-xl border-white/10">

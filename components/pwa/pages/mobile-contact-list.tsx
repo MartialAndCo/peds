@@ -3,11 +3,12 @@
 import { useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Search, Phone, MessageSquare, MoreHorizontal, User } from 'lucide-react'
+import { Search, Phone, MessageSquare, MoreHorizontal, User, Sparkles } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { MobileSmartAdd } from './mobile-smart-add'
 
 interface MobileContactListProps {
     contacts: any[]
@@ -22,6 +23,7 @@ export function MobileContactList({ contacts, onSearch, loading, agentId, refres
     const [search, setSearch] = useState('')
     const [selectedContact, setSelectedContact] = useState<any>(null)
     const [detailsOpen, setDetailsOpen] = useState(false)
+    const [smartAddOpen, setSmartAddOpen] = useState(false)
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault()
@@ -146,6 +148,22 @@ export function MobileContactList({ contacts, onSearch, loading, agentId, refres
                     )}
                 </SheetContent>
             </Sheet>
+
+            {/* Smart Add Sheet */}
+            <MobileSmartAdd
+                open={smartAddOpen}
+                onOpenChange={setSmartAddOpen}
+                agentId={agentId}
+                onSuccess={refresh}
+            />
+
+            {/* FAB Button */}
+            <button
+                onClick={() => setSmartAddOpen(true)}
+                className="fixed bottom-24 right-4 z-30 w-14 h-14 rounded-full bg-amber-500 shadow-lg shadow-amber-500/30 flex items-center justify-center active:scale-95 transition-transform"
+            >
+                <Sparkles className="h-6 w-6 text-black" />
+            </button>
         </div>
     )
 }
