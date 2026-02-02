@@ -5,6 +5,9 @@ import { logger, trace } from '@/lib/logger'
 import { runpod } from '@/lib/runpod'
 import { whatsapp } from '@/lib/whatsapp'
 
+// Allow up to 300 seconds (5 mins) for AI processing - Max for most serverless functions
+export const maxDuration = 300
+
 /**
  * CRON Endpoint: Process Incoming Message Queue
  * Supports Async AI Jobs (RunPod) to avoid timeouts.

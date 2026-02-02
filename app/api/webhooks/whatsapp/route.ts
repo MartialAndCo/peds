@@ -112,6 +112,16 @@ export async function POST(req: Request) {
         // Handle Call Events & Transform to Message
         if (body.event === 'call') {
             const call = body.payload
+
+            // CRITICAL FIX: Ignore calls from unresolved LIDs
+            // When someone calls BEFORE sending their first message, we only have a LID (e.g. "197495682506894@lid")
+            // which cannot be resolved to a real phone number. Processing this would create a ghost contact
+            // with a fake phone number. We must wait for the first text message to resolve the LID.
+            if (call.from?.includes('@lid')) {
+                console.log(`[Webhook] Ignoring call from unresolved LID: ${call.from} - waiting for first message to resolve`)
+                return NextResponse.json({ success: true, ignored: true, reason: 'call_from_lid_unresolved' })
+            }
+
             // Only handle 'offer' (ringing)
             if (call.status === 'offer') {
                 console.log(`[Webhook] Incoming Call detected from ${call.from}`)
