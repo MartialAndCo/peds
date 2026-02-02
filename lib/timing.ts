@@ -1,5 +1,6 @@
 import { addMinutes, addHours, format, subMinutes } from 'date-fns'
 import { toZonedTime } from 'date-fns-tz'
+import { personaSchedule } from '@/lib/services/persona-schedule'
 
 export class TimingManager {
     // Randomized Daily Schedules (Deterministic based on date)
@@ -64,76 +65,59 @@ export class TimingManager {
         return { start: todaySchoolStart, end: todaySchoolEnd }
     }
 
-    static analyzeContext(lastUserMessageTime: Date | null, phase: string, isHighPriority: boolean = false, timezone: string = 'Europe/Paris'): { mode: 'FAST' | 'NORMAL' | 'SLOW' | 'SLEEP' | 'INSTANT_TEST', delaySeconds: number, shouldGhost: boolean } {
+    /**
+     * Analyze context and determine response delay.
+     * Uses PersonaSchedule for activity status.
+     * 
+     * SIMPLIFIED LOGIC (per user request):
+     * - SLEEP: Ghost until wakeup
+     * - SCHOOL (BUSY): 25-45 minute delay (she texts discreetly)
+     * - AVAILABLE: Fast/Normal flow (ping-pong possible)
+     */
+    static analyzeContext(lastUserMessageTime: Date | null, phase: string, isHighPriority: boolean = false, timezone: string = 'Europe/Paris'): { mode: 'FAST' | 'NORMAL' | 'SLOW' | 'SLEEP' | 'INSTANT_TEST', delaySeconds: number, shouldGhost: boolean, activityContext?: string } {
         const nowZoned = this.getZonedTime(timezone)
-        const dayOfWeek = nowZoned.getDay() // 0 = Sunday, 6 = Saturday
 
-        // 0. PRIORITY OVERRIDE
-        if (isHighPriority) {
-            // Payment or Validation -> FAST (10s - 30s)
-            // Even if sleeping? Maybe not if deep sleep, but high priority implies "don't ghost for hours".
-            // Let's say if sleeping, we reduce wakeup delay? 
-            // User request: "Répond plus vite quand il y a texture argent".
+        // Get current activity from PersonaSchedule
+        const activity = personaSchedule.getCurrentActivity(timezone)
+        const contextPrompt = personaSchedule.getContextPrompt(timezone)
 
-            // If sleeping, we shouldn't reply instantly (suspicious), but maybe wake up sooner?
-            // For now, let's treat it as FAST Flow if awake.
-            const sleep = this.getSleepWindow(timezone)
-            const isSleeping = nowZoned >= sleep.start && nowZoned <= sleep.end
-
-            if (!isSleeping) {
-                const delay = Math.floor(Math.random() * (30 - 10 + 1)) + 10 // 10s - 30s
-                return { mode: 'FAST', delaySeconds: delay, shouldGhost: true }
-            }
+        // 0. PRIORITY OVERRIDE (Payment/Urgent)
+        if (isHighPriority && activity.status !== 'SLEEP') {
+            const delay = Math.floor(Math.random() * (30 - 10 + 1)) + 10 // 10s - 30s
+            return { mode: 'FAST', delaySeconds: delay, shouldGhost: true, activityContext: contextPrompt }
         }
 
-        // 1. Check Sleep
-        const sleep = this.getSleepWindow(timezone)
-        const isSleeping = nowZoned >= sleep.start && nowZoned <= sleep.end
-
-        if (isSleeping) {
-            // Wakeup Logic
+        // 1. SLEEP: Ghost until wakeup
+        if (activity.status === 'SLEEP') {
+            const sleep = this.getSleepWindow(timezone)
             const diffMs = sleep.end.getTime() - nowZoned.getTime()
             const delaySeconds = Math.max(0, Math.floor(diffMs / 1000)) + 60 * this.getDailyRandom(timezone, 5, 30, 'wakeup-delay')
-            return { mode: 'SLEEP', delaySeconds, shouldGhost: false } // Do NOT Mark Read if sleeping
+            return { mode: 'SLEEP', delaySeconds, shouldGhost: false, activityContext: contextPrompt }
         }
 
-        // 2. Check Flow (Conversation Speed)
-        // If last message was < 5 mins ago, we are "in flow" -> Fast Replies
+        // 2. SCHOOL (BUSY): 25-45 minute delay (discreet texting)
+        if (activity.status === 'BUSY') {
+            // 20% chance of quick "break" reply (Pause Déj or between classes)
+            const isBreak = Math.random() > 0.8
+            if (isBreak) {
+                const delay = Math.floor(Math.random() * (120 - 30 + 1)) + 30 // 30s - 2m
+                return { mode: 'FAST', delaySeconds: delay, shouldGhost: true, activityContext: contextPrompt }
+            }
+            // Normal school delay: 25-45 minutes
+            const delayMins = Math.floor(Math.random() * (45 - 25 + 1)) + 25
+            return { mode: 'SLOW', delaySeconds: delayMins * 60, shouldGhost: true, activityContext: contextPrompt }
+        }
+
+        // 3. AVAILABLE: Check Flow Mode (Ping-Pong)
         const minsSinceLastMsg = lastUserMessageTime ? (new Date().getTime() - lastUserMessageTime.getTime()) / 1000 / 60 : 999
         if (minsSinceLastMsg < 5) {
-            // In Flow -> Fast Mode: 5s - 15s (Ensure inline processing < 22s)
-            const delay = Math.floor(Math.random() * (15 - 5 + 1)) + 5
-            return { mode: 'FAST', delaySeconds: delay, shouldGhost: true }
+            // In Flow -> Fast Mode: 5s - 2m (extended range for realism)
+            const delay = Math.floor(Math.random() * (120 - 5 + 1)) + 5
+            return { mode: 'FAST', delaySeconds: delay, shouldGhost: true, activityContext: contextPrompt }
         }
 
-        // 3. Check School / Work (WEEKDAYS ONLY)
-        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
-        if (!isWeekend) {
-            const school = this.getSchoolWindow(timezone)
-            const isSchool = nowZoned >= school.start && nowZoned <= school.end
-
-            if (isSchool) {
-                // School Mode: 80% Ghosting, 20% Break
-                const isBreak = Math.random() > 0.8
-                if (isBreak) {
-                    const delay = Math.floor(Math.random() * (120 - 30 + 1)) + 30 // 30s - 2m
-                    return { mode: 'FAST', delaySeconds: delay, shouldGhost: true }
-                } else {
-                    // Wait until school ends + buffer
-                    const diffMs = school.end.getTime() - nowZoned.getTime()
-                    const delay = Math.max(0, Math.floor(diffMs / 1000)) + 60 * Math.floor(Math.random() * 30) // End + 0-30m
-                    return { mode: 'SLOW', delaySeconds: delay, shouldGhost: true } // Mark read, reply later (Ghosting)
-                }
-            }
-        }
-
-        // 4. Default / Free Time (Weekend or After School)
-        // Normal random variation: 2 min - 15 min
-        // Weekends -> Maybe slightly faster available? 
-        // User asked "Is it taken into account?". 
-        // Implementation: Effectively yes, because we SKIP School logic which imposes massive delays.
-        // So weekends = Free Time all day = 2-15m delays vs School (hours).
+        // 4. AVAILABLE but not in flow: Normal delay 2-15 min
         const delay = Math.floor(Math.random() * (15 * 60 - 2 * 60 + 1)) + 2 * 60
-        return { mode: 'NORMAL', delaySeconds: delay, shouldGhost: true }
+        return { mode: 'NORMAL', delaySeconds: delay, shouldGhost: true, activityContext: contextPrompt }
     }
 }

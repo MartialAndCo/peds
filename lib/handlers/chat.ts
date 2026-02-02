@@ -479,8 +479,15 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
     console.log(`[Timing] Final - Mode: ${timing.mode}, Delay: ${timing.delaySeconds}s`)
 
-    // Queue if delay > 22s
-    if (timing.delaySeconds > 22) {
+    // INJECT LIFE CONTEXT INTO SYSTEM PROMPT (Self-Awareness)
+    if ((timing as any).activityContext) {
+        systemPrompt += `\n\n${(timing as any).activityContext}`
+        console.log(`[Chat] Injected Life Context: ${(timing as any).activityContext.substring(0, 80)}...`)
+    }
+
+    // Queue if delay > 10s (reduced from 22s to avoid CRON 504 timeouts)
+    // CRON has ~30s timeout, AI call takes ~10-15s, so any delay > 10s risks timeout
+    if (timing.delaySeconds > 10) {
         const scheduledAt = new Date(Date.now() + timing.delaySeconds * 1000)
 
         // Generate NOW
