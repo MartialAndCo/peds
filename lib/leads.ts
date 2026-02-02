@@ -7,26 +7,43 @@ export const leadService = {
      * Parse incoming text to extract Phone and Context.
      */
     parseLeadMessage(text: string) {
-        // Regex to find phone numbers (flexible: +33, 06, etc)
-        // Handled: spaces, dots, dashes, non-breaking spaces
-        const phoneRegex = /(?:\+|00)?(?:[0-9][\-\.\s(\)]?){6,14}[0-9]/g
+        // Strict parsing: Phone is the FIRST contiguous token. Everything after the first space is context.
+        // This is based on user rule: "As soon as there is a space, it's no longer the number".
 
-        const phones = text.match(phoneRegex)
+        const trimmedText = text.trim()
+        if (!trimmedText) return { error: 'EMPTY_TEXT' }
 
-        if (!phones || phones.length === 0) {
-            return { error: 'NO_PHONE_FOUND' }
+        // Find the split point (first space)
+        // Use a regex to find the first whitespace (including non-breaking space if any, though ' ' is usually enough)
+        const match = trimmedText.match(/\s/)
+        const firstSpaceIndex = match ? match.index : -1
+
+        let rawPhone = ''
+        let context = ''
+
+        if (firstSpaceIndex === -1 || firstSpaceIndex === undefined) {
+            rawPhone = trimmedText
+            context = "No context provided."
+        } else {
+            rawPhone = trimmedText.substring(0, firstSpaceIndex)
+            context = trimmedText.substring(firstSpaceIndex + 1).trim() || "No context provided."
         }
 
-        // Assume the first one is the target
-        const rawPhone = phones[0]
-        // Clean: remove spaces, dots, dashes, parens
-        const cleanPhone = rawPhone.replace(/[\s\.\-\(\)]/g, '').replace(/^00/, '+')
+        // Clean: remove dots, dashes, parens (just in case)
+        const cleanPhone = rawPhone.replace(/[\.\-\(\)]/g, '').replace(/^00/, '+')
+
+        // Basic validation: must contain digits
+        if (!/\d/.test(cleanPhone)) {
+            return { error: 'NO_PHONE_FOUND' }
+        }
 
         // Normalize 06/07 to +33 (default FR if no country code)
         let finalPhone = cleanPhone
 
-        // FIX: Truncate French numbers that absorbed extra digits (common issue with leads providing metadata inline)
-        // Standard French mobile: 10 digits (starting with 0) or +33 + 9 digits.
+        // Truncate logic still useful if multiple numbers are mistakenly attached, 
+        // e.g. "061234567818" (forgot space). 
+        // But user said "I put 18 ans" (space implied). 
+        // Keeping it for safety.
 
         // Case 1: Starts with +33. Expected length 12 (+33 + 9 digits).
         if (finalPhone.startsWith('+33') && finalPhone.length > 12) {
@@ -40,10 +57,6 @@ export const leadService = {
         if (finalPhone.startsWith('06') || finalPhone.startsWith('07')) {
             finalPhone = '+33' + finalPhone.substring(1)
         }
-
-        // Remove the phone from the text to get potential context
-        // We replace only the first occurrence
-        const context = text.replace(rawPhone, '').trim() || "No context provided."
 
         return {
             phone: finalPhone,

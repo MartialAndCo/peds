@@ -273,6 +273,21 @@ model TrustLog {
   @@map("trust_logs")
 }
 
+// Signal-based trust tracking (replaces numeric TrustLog)
+model SignalLog {
+  id          Int      @id @default(autoincrement())
+  agentId     String
+  contactId   String
+  signal      String   // The signal: RESPONSIVE, ATTACHED, DEFENSIVE, etc.
+  action      String   // DETECTED or LOST
+  reason      String?  // AI explanation for the detection/loss
+  createdAt   DateTime @default(now())
+
+  @@index([agentId, contactId])
+  @@index([createdAt])
+  @@map("signal_logs")
+}
+
 model Setting {
   id    Int    @id @default(autoincrement())
   key   String @unique
@@ -537,10 +552,12 @@ model AgentContact {
   contactId       String
 
   // State from Contact (Isolated)
-  trustScore      Int      @default(0)
+  trustScore      Int      @default(0)  // DEPRECATED - kept for backward compat, use signals
+  signals         String[] @default([]) // Active trust signals: ["RESPONSIVE", "ATTACHED", ...]
   phase           String   @default("CONNECTION")
   lastPhaseUpdate DateTime @default(now())
   lastTrustAnalysis DateTime @default(now())
+  lastSignalAnalysis DateTime @default(now())
 
   // Stats
   messageCount    Int      @default(0)
@@ -562,6 +579,7 @@ model AgentContact {
   @@index([contactId])
   @@map("agent_contacts")
 }
+
 
 
 model PendingVoiceValidation {

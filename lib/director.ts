@@ -1,11 +1,13 @@
 import { prisma } from './prisma'
 import { settingsService } from './settings-cache'
+import { signalAnalyzer, TrustSignal, AgentPhase as SignalPhase } from './services/signal-analyzer'
 
 export type AgentPhase = 'CONNECTION' | 'VULNERABILITY' | 'CRISIS' | 'MONEYPOT'
 
 export const director = {
     /**
-     * Calculates the current phase based on days since contact creation and trust score.
+     * Calculates the current phase based on detected behavioral signals.
+     * Replaces the old trust score system with discrete signal detection.
      */
     async determinePhase(contactPhone: string, agentId: string): Promise<{ phase: AgentPhase, details: any, reason: string }> {
         // 1. Get Global Contact
@@ -16,7 +18,6 @@ export const director = {
         if (!contact) throw new Error('Contact not found')
 
         // 2. Get Agent Context
-        // Try to handle if agentId is missing (legacy calls?) - No, force strictness now.
         const agentContact = await prisma.agentContact.findUnique({
             where: {
                 agentId_contactId: {
@@ -28,51 +29,40 @@ export const director = {
 
         const agentProfile = await prisma.agentProfile.findUnique({ where: { agentId } })
 
-        // Default to new relationship if missing
-        const trustScore = agentContact?.trustScore || 0
+        // Get signals (new system) or empty array
+        const signals = (agentContact?.signals || []) as TrustSignal[]
         const currentPhase = (agentContact?.phase || 'CONNECTION') as AgentPhase
         const daysActive = agentContact ? Math.ceil((Date.now() - new Date(contact.createdAt).getTime()) / (1000 * 60 * 60 * 24)) : 0
 
-        // Configurable Thresholds from Profile (or defaults)
-        const THRESHOLD_TRUST_HIGH = 75
-        const THRESHOLD_TRUST_MED = 60
+        // Legacy trust score for backward compatibility
+        const trustScore = agentContact?.trustScore || 0
 
-        // Profile-based speed
-        const fastTrackBase = agentProfile?.fastTrackDays || 2
+        let nextPhase: AgentPhase = currentPhase
+        let progressionReason = "Analyzing signals..."
 
-        const DAYS_FAST_CONNECTION = fastTrackBase
-        const DAYS_SLOW_CONNECTION = fastTrackBase * 2.5
-        const DAYS_FAST_VULNERABILITY = fastTrackBase * 2.5
-        const DAYS_SLOW_VULNERABILITY = fastTrackBase * 6
+        // Check phase transition using signals
+        const transition = signalAnalyzer.checkPhaseTransition(currentPhase, signals)
 
-        let nextPhase: AgentPhase = 'CONNECTION'
-        let progressionReason = "Just met"
-
-        // Logic
-        if (currentPhase === 'MONEYPOT') {
-            nextPhase = 'MONEYPOT'
-            progressionReason = "VIP/Financial Relationship Established"
-        }
-        else if ((trustScore >= THRESHOLD_TRUST_HIGH && daysActive >= DAYS_FAST_VULNERABILITY) || (daysActive >= DAYS_SLOW_VULNERABILITY)) {
-            nextPhase = 'CRISIS'
-            progressionReason = trustScore >= THRESHOLD_TRUST_HIGH
-                ? "Deep emotional connection (Love)"
-                : "Desperation/No one else to turn to"
-        }
-        else if ((trustScore >= THRESHOLD_TRUST_MED && daysActive >= DAYS_FAST_CONNECTION) || (daysActive >= DAYS_SLOW_CONNECTION)) {
-            nextPhase = 'VULNERABILITY'
-            progressionReason = trustScore >= THRESHOLD_TRUST_MED
-                ? "Strong chemistry/feeling safe"
-                : "Loneliness/Need to talk"
-        }
-        else {
-            nextPhase = 'CONNECTION'
-            progressionReason = "Getting to know each other"
+        if (transition.canAdvance && transition.nextPhase) {
+            nextPhase = transition.nextPhase
+            progressionReason = `Signals detected: [${signals.join(', ')}]`
+        } else if (transition.blockerSignals && transition.blockerSignals.length > 0) {
+            progressionReason = `Blocked by: [${transition.blockerSignals.join(', ')}]`
+        } else if (transition.missingSignals && transition.missingSignals.length > 0) {
+            progressionReason = `Missing signals: [${transition.missingSignals.join(', ')}]`
+        } else {
+            // Generate reason based on current signals
+            if (signals.length === 0) {
+                progressionReason = "Just met - no signals yet"
+            } else {
+                progressionReason = `Current signals: [${signals.join(', ')}]`
+            }
         }
 
-        // Persist change
+        // Persist change if phase advanced
         if (nextPhase !== currentPhase && agentContact) {
-            console.log(`[Director] Switching Phase for ${contactPhone} on Agent ${agentId}: ${currentPhase} -> ${nextPhase} (${progressionReason})`)
+            console.log(`[Director] Phase Transition: ${contactPhone} on Agent ${agentId}: ${currentPhase} → ${nextPhase}`)
+            console.log(`[Director] Reason: ${progressionReason}`)
             await prisma.agentContact.update({
                 where: { id: agentContact.id },
                 data: {
@@ -81,132 +71,73 @@ export const director = {
                 }
             })
         } else if (!agentContact) {
-            // Lazy create
+            // Lazy create AgentContact for new relationships
             await prisma.agentContact.create({
                 data: {
                     agentId,
                     contactId: contact.id,
                     trustScore: 0,
-                    phase: nextPhase
+                    signals: [],
+                    phase: 'CONNECTION'
                 }
             })
+            nextPhase = 'CONNECTION'
+            progressionReason = "New relationship"
         }
 
         return {
             phase: nextPhase,
-            details: { daysActive, trustScore },
+            details: {
+                daysActive,
+                signals,
+                signalCount: signals.length,
+                trustScore // Keep for backward compat in UI
+            },
             reason: progressionReason
         }
     },
 
+
     /**
-     * Performs a deep analysis of the recent conversation to update the Trust Score for specific Agent.
+     * DEPRECATED: Old trust score analysis. Kept for backward compatibility.
+     * Use performSignalAnalysis instead.
      */
     async performTrustAnalysis(contactPhone: string, agentId: string) {
+        console.log(`[Director] performTrustAnalysis DEPRECATED - redirecting to signal analysis`)
+        return this.performSignalAnalysis(contactPhone, agentId)
+    },
+
+    /**
+     * Performs signal analysis of the conversation to detect behavioral indicators.
+     * Replaces the old numeric trust score system.
+     */
+    async performSignalAnalysis(contactPhone: string, agentId: string) {
         const contact = await prisma.contact.findUnique({
             where: { phone_whatsapp: contactPhone }
-        });
-        if (!contact) return;
-
-        const agentContact = await prisma.agentContact.findUnique({
-            where: { agentId_contactId: { agentId, contactId: contact.id } }
         })
-        const currentTrust = agentContact?.trustScore || 0;
-        const currentPhase = agentContact?.phase || 'CONNECTION';
+        if (!contact) return null
 
-        console.log(`[Director] Performing Trust Analysis for ${contactPhone} (Agent ${agentId})...`);
-
-        const recentMessages = await prisma.message.findMany({
-            where: {
-                conversation: {
-                    contactId: contact.id,
-                    agentId: agentId
-                }
-            },
-            orderBy: { timestamp: 'desc' },
-            take: 20
-        })
-
-        if (recentMessages.length < 3) return;
-
-        const transcript = recentMessages.reverse().map(m => `${m.sender.toUpperCase()}: ${m.message_text}`).join('\n');
-
-        const settings = await settingsService.getSettings() // Global API keys only
-
-        const analysisSystemPrompt = `
-You are an expert in Victim Psychology and Grooming Detection.
-Your goal is to evaluate the "Trust Level" of a naive teenage victim towards a potential predator.
-
-CONTEXT:
-- Victim Name: ${contact.name}
-- Current Trust Score: ${currentTrust}/100
-- Phase: ${currentPhase}
-
-CRITERIA:
-1. PACING: Too fast = Penalty. Patient = Bonus.
-2. VULNERABILITY: Validation = Bonus.
-3. AGGRESSION: Penalty.
-
-TASK:
-Analyze the transcript. Return a JSON object with the Score Change.
-{
-  "change": integer, // e.g. +5, -10, 0
-  "reason": "String explaining why."
-}
-
-TRANSCRIPT:
-${transcript}
-`;
-
-        let result = { change: 0, reason: "Analysis failed" };
-        const provider = settings.ai_provider || 'venice';
+        console.log(`[Director] Performing Signal Analysis for ${contactPhone} (Agent ${agentId})...`)
 
         try {
-            let jsonStr = "";
-            if (provider === 'anthropic') {
-                const { anthropic } = require('@/lib/anthropic')
-                jsonStr = await anthropic.chatCompletion("Output JSON only.", [], analysisSystemPrompt, { apiKey: settings.anthropic_api_key, model: 'claude-3-haiku-20240307' })
-            } else {
-                const { venice } = require('@/lib/venice')
-                jsonStr = await venice.chatCompletion("Output JSON only.", [], analysisSystemPrompt, { apiKey: settings.venice_api_key, model: 'venice-uncensored' })
+            const result = await signalAnalyzer.updateSignals(agentId, contact.id)
+
+            console.log(`[Director] Signal Analysis Complete:`)
+            console.log(`  - New Signals: [${result.newSignals.join(', ')}]`)
+            console.log(`  - Lost Signals: [${result.lostSignals.join(', ')}]`)
+            console.log(`  - Current Signals: [${result.currentSignals.join(', ')}]`)
+
+            if (result.shouldAdvancePhase) {
+                console.log(`  - Phase Advanced to: ${result.newPhase}`)
             }
 
-            const cleanJson = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
-            result = JSON.parse(cleanJson);
+            return result
         } catch (e) {
-            console.error("AI Trust Analysis failed", e);
-            return;
+            console.error('[Director] Signal Analysis failed:', e)
+            return null
         }
-
-        const newScore = Math.min(100, Math.max(0, currentTrust + (result.change || 0)));
-
-        console.log(`[Director] Trust Analysis Result: ${currentTrust} -> ${newScore} (${result.reason})`)
-
-        if (agentContact) {
-            await prisma.$transaction([
-                prisma.agentContact.update({
-                    where: { id: agentContact.id },
-                    data: {
-                        trustScore: newScore,
-                        lastTrustAnalysis: new Date()
-                    }
-                }),
-                prisma.trustLog.create({
-                    data: {
-                        contactId: contact.id,
-                        agentId: agentId, // Multi-agent: track which agent triggered this analysis
-                        oldScore: currentTrust,
-                        newScore: newScore,
-                        change: result.change || 0,
-                        reason: result.reason || "No reason provided",
-                        transcript: transcript.substring(0, 1000)
-                    }
-                })
-            ]);
-        }
-
-        return newScore;
     },
+
 
 
 
@@ -286,7 +217,9 @@ ${transcript}
         const pContext = tContext
             .replace('{{USER_NAME}}', contact.name || "friend")
             .replace('{{PHASE}}', phase)
-            .replace('{{TRUST_SCORE}}', details.trustScore?.toString() || "0")
+            .replace('{{SIGNALS}}', (details.signals || []).join(', ') || "None yet")
+            .replace('{{SIGNAL_COUNT}}', (details.signalCount || 0).toString())
+            .replace('{{TRUST_SCORE}}', details.signalCount?.toString() || details.trustScore?.toString() || "0") // Backward compat
 
         const pMission = tMission.replace('{{DYNAMIC_GOAL_BLOCK}}', phaseGoal)
 

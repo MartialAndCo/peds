@@ -418,13 +418,14 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         }
     }
 
+    const effectiveAgentId = agentId || conversation?.agentId || '1' // Fallback if absolutely missing
+
     if (shouldAnalyze) {
-        console.log(`[Chat] Triggering Trust Analysis for ${contact.phone_whatsapp}...`);
-        // Run in background to not block response
-        director.performTrustAnalysis(contact.phone_whatsapp).catch(console.error);
+        console.log(`[Chat] Triggering Signal Analysis for ${contact.phone_whatsapp}...`);
+        // FIXED: Now correctly passing agentId and using performSignalAnalysis
+        director.performSignalAnalysis(contact.phone_whatsapp, effectiveAgentId).catch(console.error);
     }
 
-    const effectiveAgentId = agentId || conversation?.agentId || 1 // Fallback to 1 if absolutely missing
     const { phase, details, reason } = await director.determinePhase(contact.phone_whatsapp, effectiveAgentId)
     let systemPrompt = await director.buildSystemPrompt(settings, contact, phase, details, conversation.prompt.system_prompt, effectiveAgentId, reason)
 
