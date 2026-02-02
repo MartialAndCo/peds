@@ -1,5 +1,7 @@
 import { personaSchedule } from '@/lib/services/persona-schedule'
+import { prisma } from '@/lib/prisma'
 import { Clock, Moon, Sun, BookOpen, Tv, Utensils, Bus, Coffee, Music, Phone, BedDouble, Smartphone, CircleDot } from 'lucide-react'
+import { toZonedTime } from 'date-fns-tz'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,20 +45,23 @@ function generateWeeklySchedule(timezone: string) {
 
     // For each day
     for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
-        const dayIndex = (new Date().getDay() + dayOffset) % 7
+        // Calculate the day index based on the *Agent's* current day in their timezone
+        const nowZoned = toZonedTime(new Date(), timezone)
+        const currentDayIndex = nowZoned.getDay()
+
+        const dayIndex = (currentDayIndex + dayOffset) % 7
         const dayName = days[dayIndex]
         schedule[dayName] = []
 
         // For each hour (7h - 23h for display)
         for (let hour = 7; hour <= 23; hour++) {
-            // Create a fake date for that day/hour
-            const fakeDate = new Date()
-            fakeDate.setDate(fakeDate.getDate() + dayOffset)
-            fakeDate.setHours(hour, 0, 0, 0)
+            // Mock the day for the schedule generation logic 
+            // Logic in generateWeeklySchedule needs to replicate persona-schedule.ts logic relative to that day
+            // Since persona-schedule.ts uses `new Date()` internally and zones it, we need to trick it or replicate logic.
+            // Actually, the `personaSchedule` service doesn't expose a "get schedule for day X" method, it calculates based on "now".
+            // But we reproduced the logic in the previous file. I'll stick to the reproduced logic here for display.
 
-            // Mock the timezone check by directly computing what the schedule would be
             const isWeekend = dayIndex === 0 || dayIndex === 6
-
             let activity: ReturnType<typeof personaSchedule.getCurrentActivity>
 
             // Sleep
@@ -126,23 +131,32 @@ function StatusBadge({ status }: { status: string }) {
     )
 }
 
-export default function SchedulePage() {
-    const timezone = 'Europe/Paris' // Default for display
+export default async function SchedulePage({ params }: { params: { agentId: string } }) {
+    const { agentId } = params
+
+    // Fetch Agent Profile
+    const agentProfile = await prisma.agentProfile.findUnique({
+        where: { agentId },
+        include: { agent: true }
+    })
+
+    const timezone = agentProfile?.timezone || 'Europe/Paris'
     const currentActivity = personaSchedule.getCurrentActivity(timezone)
     const weeklySchedule = generateWeeklySchedule(timezone)
     const days = Object.keys(weeklySchedule)
 
-    // Get current day for highlighting
-    const currentDay = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'][new Date().getDay()]
-    const currentHour = new Date().getHours()
+    // Calculate current day/hour in Agent's Timezone
+    const nowZoned = toZonedTime(new Date(), timezone)
+    const currentDay = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'][nowZoned.getDay()]
+    const currentHour = nowZoned.getHours()
 
     return (
         <div className="space-y-8">
             {/* Header */}
             <div className="mb-8">
-                <h1 className="text-2xl font-semibold text-white">Planning Hebdomadaire</h1>
+                <h1 className="text-2xl font-semibold text-white">Life Schedule</h1>
                 <p className="text-white/40 text-sm mt-1">
-                    Simulation de vie de l'agent (Timezone: {timezone})
+                    Simulation de vie pour <span className="text-white font-medium">{agentProfile?.agent?.name || 'l\'agent'}</span> (Timezone: {timezone})
                 </p>
             </div>
 
@@ -165,8 +179,11 @@ export default function SchedulePage() {
                     <div className="text-right">
                         <div className="flex items-center gap-2 text-white/60">
                             <Clock className="w-4 h-4" />
-                            <span className="font-mono">{new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                            <span className="font-mono">
+                                {nowZoned.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: timezone })}
+                            </span>
                         </div>
+                        <p className="text-white/20 text-xs mt-1">Heure locale agent</p>
                     </div>
                 </div>
             </div>

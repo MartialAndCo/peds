@@ -41,6 +41,7 @@ export default function WorkspaceLayout({
             routes: [
                 { label: 'Connectivity', icon: Zap, href: `/workspace/${agentId}/connection` },
                 { label: 'Identity', icon: Fingerprint, href: `/workspace/${agentId}/identity` },
+                { label: 'Life Schedule', icon: Clock, href: `/workspace/${agentId}/schedule` },
                 { label: 'Settings', icon: Settings, href: `/workspace/${agentId}/settings` },
             ]
         },

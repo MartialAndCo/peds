@@ -42,6 +42,7 @@ export function SidebarWorkspace() {
             title: "Configuration",
             routes: [
                 { label: 'Identity', icon: Fingerprint, href: `${baseUrl}/identity` },
+                { label: 'Life Schedule', icon: Clock, href: `${baseUrl}/schedule` },
                 { label: 'Connectivity', icon: Zap, href: `${baseUrl}/connection` },
                 { label: 'Settings', icon: Settings, href: `${baseUrl}/settings` },
                 { label: 'Moderation', icon: ShieldCheck, href: `${baseUrl}/moderation` },
