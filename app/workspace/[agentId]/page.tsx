@@ -4,13 +4,14 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import axios from 'axios'
 import Link from 'next/link'
-import { Loader2, MessageSquare, Wifi, WifiOff, Settings, Fingerprint, Zap } from 'lucide-react'
+import { Loader2, MessageSquare, Wifi, WifiOff, Settings, Fingerprint, Zap, Sparkles } from 'lucide-react'
 
 import { usePWAMode } from '@/hooks/use-pwa-mode'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AgentQuickAdd } from '@/components/dashboard/agent-quick-add'
+import { MobileSmartAdd } from '@/components/pwa/pages/mobile-smart-add'
 
 export default function AgentOverviewPage() {
     const { isPWAStandalone } = usePWAMode()
@@ -23,6 +24,7 @@ export default function AgentOverviewPage() {
     const [stats, setStats] = useState({ conversations: 0, messages: 0 })
     const [wahaStatus, setWahaStatus] = useState<string>('UNKNOWN')
     const [loading, setLoading] = useState(true)
+    const [smartAddOpen, setSmartAddOpen] = useState(false)
 
     // Render logic update for PWA Header
     const PWAHeader = () => (
@@ -38,7 +40,13 @@ export default function AgentOverviewPage() {
                 </Button>
                 <h1 className="text-xl font-bold text-white">Overview</h1>
             </div>
-            <AgentQuickAdd agentId={safeAgentId} className="h-9 px-3 text-sm bg-blue-600/90 hover:bg-blue-600" />
+            <Button
+                onClick={() => setSmartAddOpen(true)}
+                className="h-9 px-3 text-sm bg-amber-500 hover:bg-amber-600 text-black"
+            >
+                <Sparkles className="h-4 w-4 mr-1" />
+                Smart Lead
+            </Button>
         </div>
     )
 
@@ -96,6 +104,16 @@ export default function AgentOverviewPage() {
 
     return (
         <div className="space-y-8">
+            {/* Smart Add Sheet (PWA) */}
+            {isPWAStandalone && (
+                <MobileSmartAdd
+                    open={smartAddOpen}
+                    onOpenChange={setSmartAddOpen}
+                    agentId={safeAgentId}
+                    onSuccess={() => fetchData()}
+                />
+            )}
+
             {isPWAStandalone ? <PWAHeader /> : (
                 /* Desktop Header */
                 <div className="flex justify-between items-start">

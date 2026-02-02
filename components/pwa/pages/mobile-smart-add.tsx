@@ -148,7 +148,7 @@ export function MobileSmartAdd({ open, onOpenChange, agentId, onSuccess }: Mobil
                             </div>
 
                             {/* Submit Button (Sticky Bottom) */}
-                            <div className="p-6 pt-0 pwa-safe-area-bottom">
+                            <div className="p-6 pt-0 pb-28">
                                 <Button
                                     onClick={handleSubmit}
                                     disabled={loading || !phone || !platform || !conversation}
