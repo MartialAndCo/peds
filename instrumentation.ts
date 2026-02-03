@@ -9,5 +9,9 @@ export async function register() {
         // const { QueueWorker } = await import('@/lib/worker')
         // QueueWorker.start()
         console.log('[Instrumentation] Worker disabled for Serverless (Using Cron instead)')
+
+        // Initialize Supervisor (Queue Monitoring)
+        const { initSupervisor } = await import('@/lib/services/supervisor')
+        initSupervisor()
     }
 }

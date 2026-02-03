@@ -8,11 +8,16 @@ import { coherenceAgent } from './coherence-agent';
 import { contextAgent } from './context-agent';
 import { phaseAgent } from './phase-agent';
 import { actionAgent } from './action-agent';
+import { queueAgent } from './queue-agent';
 import type {
     AnalysisContext,
     SupervisorAlert,
     AlertSeverity
 } from './types';
+
+// Surveillance de la file d'attente
+let queueMonitorInterval: NodeJS.Timeout | null = null;
+const QUEUE_MONITOR_INTERVAL_MS = 30 * 1000; // 30 secondes
 
 // Batch processing pour les alertes non-CRITICAL
 let alertBatch: SupervisorAlert[] = [];
@@ -421,8 +426,118 @@ export const supervisorOrchestrator = {
             recentAlerts,
             health
         };
+    },
+
+    /**
+     * Démarre la surveillance périodique de la file d'attente
+     * À appeler au démarrage de l'application
+     */
+    startQueueMonitoring(): void {
+        if (queueMonitorInterval) {
+            console.log('[Supervisor] Queue monitoring already running');
+            return;
+        }
+
+        console.log('[Supervisor] Starting queue monitoring (every 30s)');
+
+        // Première exécution immédiate
+        this.checkQueueForStuckMessages();
+
+        // Puis toutes les 30 secondes
+        queueMonitorInterval = setInterval(() => {
+            this.checkQueueForStuckMessages();
+        }, QUEUE_MONITOR_INTERVAL_MS);
+    },
+
+    /**
+     * Arrête la surveillance de la file d'attente
+     */
+    stopQueueMonitoring(): void {
+        if (queueMonitorInterval) {
+            clearInterval(queueMonitorInterval);
+            queueMonitorInterval = null;
+            console.log('[Supervisor] Queue monitoring stopped');
+        }
+    },
+
+    /**
+     * Vérifie les messages bloqués en file d'attente
+     * Appelé périodiquement par le timer
+     */
+    async checkQueueForStuckMessages(): Promise<void> {
+        try {
+            const result = await queueAgent.analyzeQueue('SYSTEM');
+
+            if (result.alerts.length === 0) return;
+
+            console.log(`[Supervisor] 🚨 ${result.alerts.length} message(s) stuck in queue detected`);
+
+            // Traiter les alertes CRITICAL immédiatement
+            const criticalAlerts = result.alerts.filter(a => a.severity === 'CRITICAL');
+            const otherAlerts = result.alerts.filter(a => a.severity !== 'CRITICAL');
+
+            for (const alert of criticalAlerts) {
+                await this.processQueueAlert(alert);
+            }
+
+            // Batch les autres alertes
+            if (otherAlerts.length > 0) {
+                this.batchAlerts(otherAlerts);
+            }
+
+        } catch (error) {
+            console.error('[Supervisor] Queue monitoring failed:', error);
+        }
+    },
+
+    /**
+     * Traite une alerte de file d'attente
+     * Similaire à processCriticalAlert mais pour les alertes QUEUE
+     */
+    async processQueueAlert(alert: SupervisorAlert): Promise<void> {
+        console.log(`[Supervisor] 🚨 QUEUE ALERT: ${alert.title}`);
+
+        // 1. Sauvegarder dans la DB
+        const savedAlert = await prisma.supervisorAlert.create({
+            data: {
+                agentId: alert.agentId,
+                conversationId: alert.conversationId,
+                contactId: alert.contactId,
+                agentType: alert.agentType,
+                alertType: alert.alertType,
+                severity: alert.severity,
+                title: alert.title,
+                description: alert.description,
+                evidence: alert.evidence,
+                status: 'NEW',
+                autoPaused: false
+            }
+        });
+
+        // 2. Créer une notification dans le système existant
+        await prisma.notification.create({
+            data: {
+                title: alert.title,
+                message: alert.description.substring(0, 200),
+                type: 'SYSTEM',
+                entityId: savedAlert.id,
+                metadata: {
+                    supervisorAlert: true,
+                    severity: alert.severity,
+                    agentType: alert.agentType,
+                    conversationId: alert.conversationId,
+                    contactId: alert.contactId,
+                    queueAlert: true
+                }
+            }
+        });
+
+        // 3. Notification push si CRITICAL
+        if (alert.severity === 'CRITICAL') {
+            await this.sendPushNotification(alert);
+        }
     }
 };
 
 // Export pour usage dans les hooks
-export { coherenceAgent, contextAgent, phaseAgent, actionAgent };
+export { coherenceAgent, contextAgent, phaseAgent, actionAgent, queueAgent };

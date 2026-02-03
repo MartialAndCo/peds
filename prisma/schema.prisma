@@ -358,6 +358,7 @@ model MessageQueue {
   status         String      @default("PENDING") // PENDING, SENT, FAILED
   attempts       Int         @default(0)
   createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt @default(now())
   
   @@index([status, scheduledAt])
 }

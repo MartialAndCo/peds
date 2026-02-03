@@ -93,8 +93,8 @@ export function SupervisorClient({ agents }: { agents: Agent[] }) {
                             key={sev}
                             onClick={() => setFilter(sev)}
                             className={`px-3 py-1 rounded-lg text-sm transition-colors ${filter === sev
-                                    ? "bg-white/20 text-white"
-                                    : "bg-white/5 text-white/60 hover:bg-white/10"
+                                ? "bg-white/20 text-white"
+                                : "bg-white/5 text-white/60 hover:bg-white/10"
                                 }`}
                         >
                             {sev === "ALL" ? "Tous" : sev}
@@ -108,8 +108,8 @@ export function SupervisorClient({ agents }: { agents: Agent[] }) {
                             key={st}
                             onClick={() => setStatusFilter(st)}
                             className={`px-3 py-1 rounded-lg text-sm transition-colors ${statusFilter === st
-                                    ? "bg-white/20 text-white"
-                                    : "bg-white/5 text-white/60 hover:bg-white/10"
+                                ? "bg-white/20 text-white"
+                                : "bg-white/5 text-white/60 hover:bg-white/10"
                                 }`}
                         >
                             {st === "ALL" ? "Tous statuts" : st === "NEW" ? "Nouveaux" : "En cours"}
@@ -206,6 +206,15 @@ function AlertCard({
                         <p className="text-white/60 text-sm mt-1 line-clamp-2">{alert.description}</p>
                     </div>
                     <div className="flex items-center gap-2">
+                        {alert.agentType === 'QUEUE' && (
+                            <a
+                                href="/admin/queue"
+                                className="px-3 py-1 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 rounded-lg text-xs transition-colors"
+                                title="Voir la file d'attente"
+                            >
+                                Queue
+                            </a>
+                        )}
                         <button
                             onClick={() => setExpanded(!expanded)}
                             className="p-2 bg-white/5 hover:bg-white/10 rounded-lg transition-colors"

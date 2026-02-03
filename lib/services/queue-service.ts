@@ -12,14 +12,19 @@ export class QueueService {
         const now = new Date()
         console.log(`[QueueService] Processing Message Queue... Server time: ${now.toISOString()}`)
 
+        // 1. Cleanup Stuck Jobs (older than 5 mins)
+        // Jobs that are stuck in PROCESSING due to server crash/timeout
+        await this.cleanupStuckJobs()
+
         // 1. Find Pending Messages due NOW
+        // Reduced batch size from 50 to 10 to prevent timeouts
         const pendingMessages = await prisma.messageQueue.findMany({
             where: {
                 status: 'PENDING',
                 scheduledAt: { lte: now }
             },
             include: { contact: true, conversation: true },
-            take: 50,
+            take: 10,
             orderBy: { scheduledAt: 'asc' }
         })
 
@@ -213,6 +218,31 @@ export class QueueService {
         // But the user just asked for the Class for now.
         // Let's just log this capability.
         return { count: failed.length, warning: "Checking logic before retry implementation." }
+    }
+
+    /**
+    * Release locks on jobs that have been PROCESSING for > 5 minutes.
+    */
+    async cleanupStuckJobs() {
+        try {
+            const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000)
+            const result = await prisma.messageQueue.updateMany({
+                where: {
+                    status: 'PROCESSING',
+                    updatedAt: { lt: fiveMinutesAgo }
+                },
+                data: {
+                    status: 'PENDING',
+                    attempts: { increment: 1 } // Mark that it failed once implicitly
+                }
+            })
+
+            if (result.count > 0) {
+                console.log(`[QueueService] ⚠️ Cleaned up ${result.count} stuck jobs (reset to PENDING).`)
+            }
+        } catch (error) {
+            console.error('[QueueService] Failed to cleanup stuck jobs:', error)
+        }
     }
 }
 

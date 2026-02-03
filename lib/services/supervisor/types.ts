@@ -2,7 +2,7 @@
  * Supervisor AI - Types communs pour le système de supervision
  */
 
-export type SupervisorAgentType = 'COHERENCE' | 'CONTEXT' | 'PHASE' | 'ACTION';
+export type SupervisorAgentType = 'COHERENCE' | 'CONTEXT' | 'PHASE' | 'ACTION' | 'QUEUE';
 
 export type AlertSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
@@ -26,7 +26,10 @@ export type AlertType =
     | 'UNREQUESTED_PHOTO'
     | 'UNREQUESTED_IMAGE_TAG'
     | 'VOICE_WITHOUT_TRIGGER'
-    | 'PHOTO_WRONG_PHASE';
+    | 'PHOTO_WRONG_PHASE'
+    // Queue Agent
+    | 'STUCK_IN_QUEUE'
+    | 'QUEUE_OVERDUE';
 
 export interface SupervisorAlert {
     id?: string;
@@ -96,4 +99,14 @@ export interface ActionEvidence {
     aiResponse: string;
     detectedKeywords?: string[];
     currentPhase?: string;
+}
+
+export interface QueueEvidence {
+    queueItemId: string;
+    scheduledAt: string;
+    currentTime: string;
+    delayMinutes: number;
+    contactPhone?: string;
+    messagePreview?: string;
+    status: string;
 }

@@ -15,7 +15,7 @@ async function runCron(name: string, endpoint: string) {
                 'Authorization': `Bearer ${process.env.CRON_SECRET}`,
                 'x-vercel-cron': 'true' // Bypass potential checks
             },
-            timeout: 10000
+            timeout: 60000
         });
         // Only log if something interesting happens or just keep it minimal
         if (res.data?.processed > 0 || res.data?.results?.length > 0) {

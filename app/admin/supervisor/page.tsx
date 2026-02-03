@@ -46,13 +46,21 @@ export default async function SupervisorPage() {
         _count: { severity: true }
     });
 
+    // Statistiques par type d'agent (pour les alertes QUEUE)
+    const agentTypeStats = await prisma.supervisorAlert.groupBy({
+        by: ["agentType"],
+        where: { status: "NEW" },
+        _count: { agentType: true }
+    });
+
     const stats = {
         total: totalAlerts,
         critical: severityStats.find(s => s.severity === "CRITICAL")?._count?.severity || 0,
         high: severityStats.find(s => s.severity === "HIGH")?._count?.severity || 0,
         medium: severityStats.find(s => s.severity === "MEDIUM")?._count?.severity || 0,
         low: severityStats.find(s => s.severity === "LOW")?._count?.severity || 0,
-        new: newAlerts
+        new: newAlerts,
+        queueAlerts: agentTypeStats.find(s => s.agentType === "QUEUE")?._count?.agentType || 0
     };
 
     return (
@@ -83,7 +91,7 @@ export default async function SupervisorPage() {
             </div>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <div className="glass rounded-xl p-4 border-l-4 border-red-500">
                     <div className="text-white/40 text-sm">🔴 Critical</div>
                     <div className="text-2xl font-bold text-white mt-1">{stats.critical}</div>
@@ -104,6 +112,11 @@ export default async function SupervisorPage() {
                     <div className="text-white/40 text-sm">📊 Total 24h</div>
                     <div className="text-2xl font-bold text-white mt-1">{stats.total}</div>
                 </div>
+                <a href="/admin/queue" className={`glass rounded-xl p-4 border-l-4 ${stats.queueAlerts > 0 ? 'border-pink-500 bg-pink-500/10' : 'border-gray-500'} hover:bg-white/5 transition-colors`}>
+                    <div className={`text-sm ${stats.queueAlerts > 0 ? 'text-pink-400' : 'text-white/40'}`}>⏱️ Queue</div>
+                    <div className="text-2xl font-bold text-white mt-1">{stats.queueAlerts}</div>
+                    {stats.queueAlerts > 0 && <div className="text-xs text-pink-400 mt-1">Messages bloqués</div>}
+                </a>
             </div>
 
             {/* Agent Health Overview */}
