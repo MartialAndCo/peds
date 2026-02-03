@@ -611,4 +611,19 @@ model PendingVoiceValidation {
   @@map("pending_voice_validations")
 }
 
+model DiscordBot {
+  id          String   @id  // Discord User ID
+  username    String
+  
+  // The agent assigned to this bot
+  agentId     String?
+  agent       Agent?   @relation(fields: [agentId], references: [id])
+  
+  lastSeen    DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("discord_bots")
+}
+
 
