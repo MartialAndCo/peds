@@ -218,7 +218,7 @@ export const phaseAgent = {
      */
     async analyzePhaseTransition(
         agentId: string,
-        contactId: string,
+        contactId: string | null | undefined,
         fromPhase: string,
         toPhase: string,
         conversationId: number
@@ -238,6 +238,8 @@ export const phaseAgent = {
 
         // Si transition vers MONEYPOT sans paiement = anomalie
         if (toPhase === 'MONEYPOT' && !recentPayment) {
+            if (!contactId) return null;
+
             const agentContact = await prisma.agentContact.findUnique({
                 where: { agentId_contactId: { agentId, contactId } }
             });

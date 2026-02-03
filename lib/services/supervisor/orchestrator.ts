@@ -408,7 +408,7 @@ export const supervisorOrchestrator = {
                 where: { agentId },
                 orderBy: { createdAt: 'desc' },
                 take: 5
-            })
+            }) as unknown as SupervisorAlert[]
         ]);
 
         let health: 'HEALTHY' | 'WARNING' | 'CRITICAL' = 'HEALTHY';

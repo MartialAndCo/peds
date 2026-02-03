@@ -178,7 +178,7 @@ export const actionAgent = {
         aiResponse: string,
         agentId: string,
         conversationId: number,
-        contactId?: string
+        contactId?: string | null
     ): SupervisorAlert | null {
         // Vérifier si l'utilisateur a explicitement demandé une photo
         const userAskedPhoto = PHOTO_REQUEST_KEYWORDS.some(kw =>
@@ -231,7 +231,7 @@ export const actionAgent = {
         context: {
             agentId: string;
             conversationId: number;
-            contactId?: string;
+            contactId?: string | null;
             triggerMessage: string;
             phase: string;
             sentMediaType?: string;
