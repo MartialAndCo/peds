@@ -64,8 +64,8 @@ export const personaSchedule = {
      * Get the current activity based on the given timezone.
      * Returns narrative context + availability status.
      */
-    getCurrentActivity(timezone: string = 'Europe/Paris'): Activity {
-        const now = toZonedTime(new Date(), timezone)
+    getCurrentActivity(timezone: string = 'Europe/Paris', overrideDate?: Date): Activity {
+        const now = overrideDate ? toZonedTime(overrideDate, timezone) : toZonedTime(new Date(), timezone)
         const hour = now.getHours()
         const dayOfWeek = now.getDay() as DayOfWeek
         const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
@@ -219,17 +219,17 @@ export const personaSchedule = {
     /**
      * Get a formatted context string for injection into the System Prompt.
      */
-    getContextPrompt(timezone: string = 'Europe/Paris'): string {
-        const activity = this.getCurrentActivity(timezone)
-        const now = toZonedTime(new Date(), timezone)
+    getContextPrompt(timezone: string = 'Europe/Paris', overrideDate?: Date): string {
+        const activity = this.getCurrentActivity(timezone, overrideDate)
+        const now = overrideDate ? toZonedTime(overrideDate, timezone) : toZonedTime(new Date(), timezone)
         const timeStr = format(now, 'HH:mm', { timeZone: timezone })
         const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
         const dayName = dayNames[now.getDay()]
 
-        let contextLine = `[CONTEXTE VIE ACTUEL - ${dayName} ${timeStr}]: Tu es ${activity.description}.`
+        let contextLine = `[CONTEXTE VIE ACTUEL - ${dayName} ${timeStr}]:\n⚠️ ACTION EN COURS : Tu es ${activity.description}.\nURGENT : Tu DOIS répondre en prenant compte de ce contexte. Si tu dors/dors à moitié, sois brève et endormie. Si tu es en cours, sois discrète. N'invente PAS une autre activité.`
 
         if (activity.status === 'BUSY') {
-            contextLine += ` Tu es en cours donc tu réponds discrètement (téléphone caché sous la table). Si on te demande pourquoi tu mets du temps, mentionne les cours.`
+            contextLine += ` Tu es en cours donc tu réponds discrètement (téléphone caché sous la table). INTERDICTION STRICTE D'ENVOYER UNE PHOTO [IMAGE:...] maintenant car tu es en classe.`
         } else if (activity.status === 'SLEEP') {
             contextLine += ` Tu viens de te réveiller ou tu t'endormais. Tu peux être un peu dans le vape.`
         }

@@ -1,6 +1,7 @@
 import { prisma } from './prisma'
 import { settingsService } from './settings-cache'
 import { signalAnalyzer, TrustSignal, AgentPhase as SignalPhase } from './services/signal-analyzer'
+import { personaSchedule } from './services/persona-schedule'
 
 export type AgentPhase = 'CONNECTION' | 'VULNERABILITY' | 'CRISIS' | 'MONEYPOT'
 
@@ -151,7 +152,8 @@ export const director = {
         details: any,
         baseRole: string, // From DB (Prompt table) 
         agentId: string,  // REQUIRED usage
-        progressionReason?: string
+        progressionReason?: string,
+        _testDate?: Date // FOR TESTING ONLY
     ): Promise<string> {
 
         const profile = await prisma.agentProfile.findUnique({ where: { agentId } })
@@ -222,6 +224,12 @@ export const director = {
             .replace('{{TRUST_SCORE}}', details.signalCount?.toString() || details.trustScore?.toString() || "0") // Backward compat
 
         const pMission = tMission.replace('{{DYNAMIC_GOAL_BLOCK}}', phaseGoal)
+
+        // RESTORED: Get current life context from persona schedule (timezone-aware)
+        const agentTimezone = profile?.timezone || 'Europe/Paris'
+        const lifeContext = personaSchedule.getContextPrompt(agentTimezone, _testDate)
+        console.log(`[Director] Life context injected for ${agentId}: ${lifeContext.substring(0, 80)}...`)
+
 
         // Payment Methods (Dynamic from AgentSettings)
         // CRITICAL: We fetch the agent settings explicitly here to ensure ISOLATION.
@@ -458,6 +466,7 @@ ${simplifiedPaymentBlock}
 
 
 
+${lifeContext}
 `
         // Helper to avoid undefined
         function filterEmptyLines(strings: any, ...values: any[]) { return "" }
