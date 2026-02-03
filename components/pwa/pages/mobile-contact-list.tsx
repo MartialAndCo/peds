@@ -58,32 +58,34 @@ export function MobileContactList({ contacts, onSearch, loading, agentId, refres
                 ) : contacts.length === 0 ? (
                     <div className="text-center py-10 text-white/30">No contacts found</div>
                 ) : (
-                    contacts.map((contact) => (
-                        <div
-                            key={contact.id}
-                            onClick={() => openDetails(contact)}
-                            className="bg-white/[0.03] active:bg-white/[0.08] border border-white/5 rounded-2xl p-4 flex items-center justify-between transition-colors"
-                        >
-                            <div className="flex items-center gap-4">
-                                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-white/10 flex items-center justify-center">
-                                    <span className="text-white font-semibold text-lg">
-                                        {(contact.name || 'Inconnu').charAt(0).toUpperCase()}
-                                    </span>
-                                </div>
-                                <div>
-                                    <h3 className="text-white font-medium text-base">{contact.name || 'Inconnu'}</h3>
-                                    <p className="text-white/40 text-sm font-mono">{contact.phone_whatsapp}</p>
+                    <>
+                        {/* SECTION 1: NEW LEADS (Waiting for Reply) */}
+                        {contacts.some(c => c.status === 'new') && (
+                            <div className="mb-6">
+                                <h3 className="text-xs font-bold uppercase tracking-widest text-sky-400 mb-3 px-2 flex items-center gap-2">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
+                                    New Leads
+                                </h3>
+                                <div className="space-y-3">
+                                    {contacts.filter(c => c.status === 'new').map((contact) => (
+                                        <ContactCard key={contact.id} contact={contact} onClick={() => openDetails(contact)} isLead={true} />
+                                    ))}
                                 </div>
                             </div>
+                        )}
 
-                            <div className="flex flex-col items-end gap-1">
-                                <span className={cn(
-                                    "w-2 h-2 rounded-full",
-                                    contact.status === 'active' ? "bg-emerald-500 box-shadow-glow-emerald" : "bg-white/20"
-                                )} />
+                        {/* SECTION 2: ACTIVE & OTHERS */}
+                        {contacts.some(c => c.status !== 'new') && (
+                            <div>
+                                <h3 className="text-xs font-bold uppercase tracking-widest text-white/30 mb-3 px-2">Active Contacts</h3>
+                                <div className="space-y-3">
+                                    {contacts.filter(c => c.status !== 'new').map((contact) => (
+                                        <ContactCard key={contact.id} contact={contact} onClick={() => openDetails(contact)} />
+                                    ))}
+                                </div>
                             </div>
-                        </div>
-                    ))
+                        )}
+                    </>
                 )}
             </div>
 
@@ -146,6 +148,50 @@ export function MobileContactList({ contacts, onSearch, loading, agentId, refres
                     )}
                 </SheetContent>
             </Sheet>
+        </div>
+    )
+}
+
+function ContactCard({ contact, onClick, isLead }: { contact: any, onClick: () => void, isLead?: boolean }) {
+    return (
+        <div
+            onClick={onClick}
+            className={cn(
+                "bg-white/[0.03] active:bg-white/[0.08] border rounded-2xl p-4 flex items-center justify-between transition-colors",
+                isLead ? "border-sky-500/20 bg-sky-500/5" : "border-white/5"
+            )}
+        >
+            <div className="flex items-center gap-4">
+                <div className={cn(
+                    "h-12 w-12 rounded-full flex items-center justify-center border",
+                    isLead ? "bg-sky-500/20 border-sky-500/30 text-sky-200" : "bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border-white/10 text-white"
+                )}>
+                    <span className="font-semibold text-lg">
+                        {(contact.name || 'Inconnu').charAt(0).toUpperCase()}
+                    </span>
+                </div>
+                <div>
+                    <h3 className={cn("font-medium text-base", isLead ? "text-sky-100" : "text-white")}>
+                        {contact.name || 'Inconnu'}
+                    </h3>
+                    <p className={cn("text-sm font-mono", isLead ? "text-sky-300/50" : "text-white/40")}>
+                        {contact.phone_whatsapp}
+                    </p>
+                </div>
+            </div>
+
+            <div className="flex flex-col items-end gap-1">
+                {isLead ? (
+                    <Badge variant="outline" className="text-[10px] border-sky-500/30 text-sky-400 bg-sky-500/10 px-1.5 py-0.5">
+                        NEW
+                    </Badge>
+                ) : (
+                    <span className={cn(
+                        "w-2 h-2 rounded-full",
+                        contact.status === 'active' ? "bg-emerald-500 box-shadow-glow-emerald" : "bg-white/20"
+                    )} />
+                )}
+            </div>
         </div>
     )
 }
