@@ -1,3 +1,4 @@
+
 /**
  * Test simple du Supervisor AI - Vérification des patterns mécaniques
  * Pas besoin de TypeScript ni de Prisma pour ce test

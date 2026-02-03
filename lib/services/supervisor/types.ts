@@ -32,22 +32,22 @@ export interface SupervisorAlert {
     id?: string;
     agentId: string;
     conversationId: number;
-    contactId?: string;
+    contactId?: string | null;
     agentType: SupervisorAgentType;
     alertType: AlertType;
     severity: AlertSeverity;
     title: string;
     description: string;
     evidence: Record<string, any>;
-    status?: AlertStatus;
-    autoPaused?: boolean;
-    createdAt?: Date;
+    status?: AlertStatus | null;
+    autoPaused?: boolean | null;
+    createdAt?: Date | null;
 }
 
 export interface AnalysisContext {
     agentId: string;
     conversationId: number;
-    contactId?: string;
+    contactId?: string | null;
     userMessage: string;
     aiResponse: string;
     history: { role: 'user' | 'ai'; content: string }[];
