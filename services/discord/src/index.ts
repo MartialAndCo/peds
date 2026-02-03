@@ -40,10 +40,12 @@ client.on('messageCreate', async (message) => {
         return;
     }
 
+    const agentId = process.env.AGENT_ID || 'default';
+
     try {
         // Prepare payload for Director (matching Baileys format roughly)
         const payload = {
-            sessionId: 'discord_default', // Single session for now
+            sessionId: `discord_${agentId}`, // Tag with specific agent ID
             event: 'message',
             payload: {
                 id: message.id,
