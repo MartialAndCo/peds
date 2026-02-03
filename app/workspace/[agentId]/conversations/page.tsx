@@ -97,7 +97,16 @@ export default function WorkspaceConversationsPage() {
                                     className="cursor-pointer border-white/5 hover:bg-white/5 transition-all group"
                                     onClick={() => router.push(`/workspace/${agentId}/conversations/${conv.id}`)}
                                 >
-                                    <TableCell className="font-semibold text-white/90 py-4">{conv.contact.name}</TableCell>
+                                    <TableCell className="font-semibold text-white/90 py-4">
+                                        {(conv.contact.name && conv.contact.name !== 'Inconnu') ? (
+                                            conv.contact.name
+                                        ) : (
+                                            <div className="flex items-center gap-2">
+                                                <Badge variant="outline" className="border-sky-500/20 bg-sky-500/10 text-sky-400 text-[9px] px-1.5 py-0">NOUVEAU</Badge>
+                                                <span className="font-mono text-white/60 text-xs">{conv.contact.phone_whatsapp}</span>
+                                            </div>
+                                        )}
+                                    </TableCell>
                                     <TableCell>
                                         <Badge className={cn(
                                             "px-2 py-0.5 text-[9px] font-bold uppercase tracking-tighter",

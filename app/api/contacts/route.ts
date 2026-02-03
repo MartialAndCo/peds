@@ -30,11 +30,12 @@ export async function GET(req: Request) {
         const where: any = {}
         if (status) where.status = status
 
-        // NEW: Filter by Agent Binding
+        // NEW: Filter by Agent Binding (AgentContact OR Conversation)
         if (agentId) {
-            where.agentContacts = {
-                some: { agentId: agentId }
-            }
+            where.OR = [
+                { agentContacts: { some: { agentId: agentId } } },
+                { conversations: { some: { agentId: agentId } } }
+            ]
         }
 
         const contacts = await prisma.contact.findMany({
