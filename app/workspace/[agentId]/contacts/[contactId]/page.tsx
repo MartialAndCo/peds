@@ -26,7 +26,7 @@ export default function ContactDetailsPage() {
             try {
                 // Fetch basic contact details
                 // Ideally this endpoints supports fetching by ID directly
-                const res = await axios.get(`/api/contacts/${contactId}`)
+                const res = await axios.get(`/api/contacts/${contactId}?agentId=${agentId}`)
                 setContact(res.data)
 
                 // Fetch Media (Messages with mediaUrl)

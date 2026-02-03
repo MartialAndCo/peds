@@ -22,8 +22,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
         const { id } = await params
+        const { searchParams } = new URL(req.url)
+        const agentId = searchParams.get('agentId')
 
-        const contact = await prisma.contact.findUnique({
+        const contact: any = await prisma.contact.findUnique({
             where: { id },
             include: {
                 conversations: {
@@ -34,11 +36,26 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
                 },
                 payments: {
                     orderBy: { createdAt: 'desc' }
-                }
+                },
+                agentContacts: agentId ? {
+                    where: { agentId: agentId }
+                } : false
             }
         })
 
         if (!contact) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+        // 🧠 SMART OVERRIDE: If Agent Context is requested, show Agent-Specific Phase/Score
+        if (agentId && contact.agentContacts && contact.agentContacts.length > 0) {
+            const ac = contact.agentContacts[0]
+            console.log(`[API] Contact Context Override for Agent ${agentId}: Phase ${contact.agentPhase} -> ${ac.phase}`)
+
+            contact.agentPhase = ac.phase
+            contact.trustScore = ac.trustScore // or use signals if UI supports it
+
+            // Inject agentContact info for robust UIs
+            contact._agentContext = ac
+        }
 
         return NextResponse.json(contact)
     } catch (error) {
