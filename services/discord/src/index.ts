@@ -155,6 +155,35 @@ server.get('/health', async (req, reply) => {
     return { status: 'ok', discord: client.isReady() ? 'connected' : 'disconnected' };
 });
 
+// --- TYPING INDICATOR API ---
+server.post('/api/sendStateTyping', async (req: any, reply) => {
+    const { chatId, isTyping } = req.body;
+
+    if (!chatId) return reply.code(400).send({ error: 'Missing chatId' });
+
+    try {
+        const user = await client.users.fetch(chatId);
+        if (!user) return reply.code(404).send({ error: 'User not found' });
+
+        const channel = await user.createDM();
+
+        if (isTyping) {
+            logger.info(`Starting typing indicator for ${user.tag}`);
+            channel.sendTyping();
+        } else {
+            // Discord API doesn't have a "stop typing" command, it stops automatically or when message sent.
+            // We can just ignore false, or maybe send a silent heartbeat? 
+            // For now, logging.
+            // logger.info(`Stopping typing indicator (No-op in DiscordJS)`);
+        }
+
+        return { success: true };
+    } catch (error: any) {
+        logger.error('Failed to set typing state:', error);
+        return reply.code(500).send({ error: error.message });
+    }
+});
+
 // --- Startup ---
 
 const start = async () => {

@@ -428,6 +428,24 @@ export const whatsapp = {
 
     async sendTypingState(chatId: string, isTyping: boolean, agentId?: string) {
         const { endpoint, apiKey } = await getConfig()
+
+        // --- DISCORD ROUTING ---
+        if (chatId.startsWith('DISCORD_')) {
+            const discordEndpoint = process.env.DISCORD_API_ENDPOINT || 'http://13.60.16.81:3002'
+            const discordUserId = chatId.replace('DISCORD_', '').replace('@discord', '')
+            try {
+                await axios.post(`${discordEndpoint}/api/sendStateTyping`, {
+                    chatId: discordUserId,
+                    isTyping
+                }, { timeout: 5000 })
+                return
+            } catch (e: any) {
+                logger.error('Discord typing failed', e, { module: 'discord' })
+                return
+            }
+        }
+        // -----------------------
+
         try {
             const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
             await axios.post(`${endpoint}/api/sendStateTyping`, {
