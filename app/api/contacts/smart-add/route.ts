@@ -55,7 +55,17 @@ export async function POST(req: Request) {
         const promptGenerator = PROMPTS[locale as keyof typeof PROMPTS] || PROMPTS['fr-FR']
         const systemPrompt = promptGenerator(body.platform)
 
-        // 2. Call Venice AI to generate context
+        // 2. Get Venice API key from settings
+        const { settingsService } = require('@/lib/settings-cache')
+        const settings = await settingsService.getSettings()
+        const veniceApiKey = settings.venice_api_key
+
+        if (!veniceApiKey) {
+            console.error('[SmartAdd] No Venice API key configured!')
+            return NextResponse.json({ error: 'AI service not configured' }, { status: 500 })
+        }
+
+        // 3. Call Venice AI to generate context
         console.log(`[SmartAdd] Generating context for phone ${body.phone.slice(-4)}...`)
 
         const generatedContext = await venice.chatCompletion(
@@ -63,7 +73,8 @@ export async function POST(req: Request) {
             [], // No history
             body.conversation, // User message = the pasted conversation
             {
-                model: 'venice-uncensored',
+                apiKey: veniceApiKey,
+                model: settings.venice_model || 'venice-uncensored',
                 temperature: 0.5, // Lower for more factual extraction
                 max_tokens: 300
             }
