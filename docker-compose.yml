@@ -17,8 +17,6 @@ services:
       - ./services/baileys/auth_info_baileys:/app/auth_info_baileys
       - .:/repo # Mount the full repo for git operations
 
-      - .:/repo # Mount the full repo for git operations
-
   discord-bot:
     build: ./services/discord
     container_name: discord_bot
