@@ -654,6 +654,22 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         responseText = messageValidator.mechanicalClean(responseText, lastContent)
     }
 
+    // 🚨 LAST-RESORT SAFETY: Strip ANY SYSTEM blocks that might have leaked through 🚨
+    // This catches AI chain-of-thought commentary like "(SYSTEM: This response maintains...)"
+    const beforeSanitize = responseText
+    responseText = responseText.replace(/\(SYSTEM:\s*[^)]*\)/gi, '')
+    responseText = responseText.replace(/\[SYSTEM:\s*[^\]]*\]/gi, '')
+    responseText = responseText.replace(/\(Note:\s*[^)]*\)/gi, '')
+    responseText = responseText.replace(/\(This response[^)]*\)/gi, '')
+    responseText = responseText.trim()
+    if (responseText !== beforeSanitize) {
+        console.warn('[Chat] 🚨 SYSTEM LEAK DETECTED AND REMOVED! This should not happen.')
+        logger.error('SYSTEM block leaked through validator', new Error('SYSTEM_LEAK'), {
+            module: 'chat',
+            before: beforeSanitize.substring(0, 200)
+        })
+    }
+
     console.log(`[Chat] AI Response (final): "${responseText.substring(0, 100)}${responseText.length > 100 ? '...' : ''}"`)
 
     // 6. Tag Stripping & Notification Trigger (Internal Tags)

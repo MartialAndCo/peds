@@ -52,6 +52,17 @@ export const messageValidator = {
         // Also strip double asterisks often used for actions like **smiles** -> smiles
         // cleanedRaw = cleanedRaw.replace(/\*\*/g, '') 
 
+        // 🚨 CRITICAL: Remove AI Chain-of-Thought Leakage 🚨
+        // Some LLMs (Venice, RunPod) may include internal commentary that should NEVER be sent.
+        // Patterns: (SYSTEM: ...) or [SYSTEM: ...] or (Note: ...) or similar
+        cleanedRaw = cleanedRaw.replace(/\(SYSTEM:\s*[^)]*\)/gi, '')
+        cleanedRaw = cleanedRaw.replace(/\[SYSTEM:\s*[^\]]*\]/gi, '')
+        cleanedRaw = cleanedRaw.replace(/\(Note:\s*[^)]*\)/gi, '')
+        cleanedRaw = cleanedRaw.replace(/\(AI Note:\s*[^)]*\)/gi, '')
+        cleanedRaw = cleanedRaw.replace(/\(Internal:\s*[^)]*\)/gi, '')
+        cleanedRaw = cleanedRaw.replace(/\(This response[^)]*\)/gi, '')
+        cleanedRaw = cleanedRaw.trim()
+
         if (cleanedRaw !== rawMessage.trim()) {
             logger.info('Global markdown cleaner removed artifacts', { module: 'message-validator' })
         }
@@ -417,6 +428,14 @@ Output: "jsais pas|||[IMAGE:selfie]|||t'en penses quoi ?" (GARDE !)
      */
     mechanicalClean(message: string, lastUserMessage: string): string {
         let cleaned = message
+
+        // 🚨 CRITICAL: Remove AI Chain-of-Thought Leakage FIRST 🚨
+        cleaned = cleaned.replace(/\(SYSTEM:\s*[^)]*\)/gi, '')
+        cleaned = cleaned.replace(/\[SYSTEM:\s*[^\]]*\]/gi, '')
+        cleaned = cleaned.replace(/\(Note:\s*[^)]*\)/gi, '')
+        cleaned = cleaned.replace(/\(AI Note:\s*[^)]*\)/gi, '')
+        cleaned = cleaned.replace(/\(Internal:\s*[^)]*\)/gi, '')
+        cleaned = cleaned.replace(/\(This response[^)]*\)/gi, '')
 
         // 1. Remove bold
         cleaned = cleaned.replace(/\*\*(.+?)\*\*/g, '$1')
