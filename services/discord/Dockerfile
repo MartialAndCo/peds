@@ -7,7 +7,7 @@ COPY package*.json ./
 
 # Install dependencies
 # Install dependencies (including dev for building)
-RUN npm ci
+RUN npm install
 
 # Copy source
 COPY tsconfig.json ./
