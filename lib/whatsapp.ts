@@ -80,6 +80,27 @@ export const whatsapp = {
         logger.info('Sending text message', { module: 'whatsapp', chatId, textPreview, sessionId })
         const { endpoint, apiKey } = await getConfig()
 
+        // --- DISCORD ROUTING ---
+        if (chatId.startsWith('DISCORD_')) {
+            const discordEndpoint = process.env.DISCORD_API_ENDPOINT || 'http://16.171.66.98:3002' // Default to EC2 Discord Service
+            const discordUserId = chatId.replace('DISCORD_', '').replace('@discord', '')
+
+            try {
+                logger.info(`Routing to Discord Service: ${discordEndpoint}`, { chatId, discordUserId })
+                const response = await axios.post(`${discordEndpoint}/api/sendText`, {
+                    chatId: discordUserId,
+                    text
+                }, {
+                    timeout: 15000
+                })
+                return response.data
+            } catch (error: any) {
+                logger.error('Discord sendText failed', error, { module: 'discord', chatId })
+                throw new Error(`Failed to send Discord message: ${error.message}`)
+            }
+        }
+        // -----------------------
+
         if (!endpoint) {
             logger.warn('WHATSAPP_ENDPOINT not configured', { module: 'whatsapp' })
             return { id: 'mock-id' }
