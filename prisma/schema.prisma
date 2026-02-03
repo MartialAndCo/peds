@@ -117,6 +117,7 @@ model Agent {
   profile       AgentProfile?
   agentContacts AgentContact[]
   pendingVoiceValidations PendingVoiceValidation[]
+  discordBots   DiscordBot[]
 
   @@map("agents")
 }
