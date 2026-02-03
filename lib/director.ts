@@ -227,7 +227,8 @@ export const director = {
 
         // RESTORED: Get current life context from persona schedule (timezone-aware)
         const agentTimezone = profile?.timezone || 'Europe/Paris'
-        const lifeContext = personaSchedule.getContextPrompt(agentTimezone, _testDate)
+        const agentLocale = (profile?.locale || 'fr-FR').toLowerCase()
+        const lifeContext = personaSchedule.getContextPrompt(agentTimezone, _testDate, agentLocale)
         console.log(`[Director] Life context injected for ${agentId}: ${lifeContext.substring(0, 80)}...`)
 
 
