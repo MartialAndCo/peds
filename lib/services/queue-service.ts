@@ -23,7 +23,23 @@ export class QueueService {
             orderBy: { scheduledAt: 'asc' }
         })
 
-        if (pendingMessages.length === 0) return { processed: 0, pending: 0 }
+        console.log(`[QueueService] Found ${pendingMessages.length} pending messages due now.`)
+
+        if (pendingMessages.length === 0) {
+            // DEBUG: Find next upcoming message to check timezone/logic
+            const nextMsg = await prisma.messageQueue.findFirst({
+                where: { status: 'PENDING' },
+                orderBy: { scheduledAt: 'asc' },
+                select: { id: true, scheduledAt: true }
+            })
+            if (nextMsg) {
+                const diffMinutes = Math.round((nextMsg.scheduledAt.getTime() - now.getTime()) / 60000)
+                console.log(`[QueueService] DEBUG: Next message (ID: ${nextMsg.id}) is scheduled for ${nextMsg.scheduledAt.toISOString()} (in ${diffMinutes} mins). Server time is ${now.toISOString()}`)
+            } else {
+                console.log(`[QueueService] DEBUG: No pending messages found in the entire queue.`)
+            }
+            return { processed: 0, pending: 0 }
+        }
 
         const results = []
 

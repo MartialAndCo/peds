@@ -12,7 +12,9 @@ export async function GET(req: Request) {
         }
         */
 
+        console.log('[Cron] Triggered process-queue endpoint')
         const result = await queueService.processPendingMessages()
+        console.log(`[Cron] process-queue complete. Processed: ${result.processed}`)
 
         return NextResponse.json({
             success: true,
