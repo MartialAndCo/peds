@@ -32,12 +32,17 @@ export default function SettingsPage() {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [activeTab, setActiveTab] = useState('infrastructure')
+    const [agents, setAgents] = useState<any[]>([])
 
     const fetchSettings = useCallback(() => {
         axios.get('/api/settings').then(res => {
             setSettings((prev: any) => ({ ...prev, ...res.data }))
             setLoading(false)
         }).catch(e => console.error(e))
+
+        axios.get('/api/agents').then(res => {
+            setAgents(res.data)
+        }).catch(e => console.error('Failed to fetch agents'))
     }, [])
 
     useEffect(() => {
@@ -49,8 +54,10 @@ export default function SettingsPage() {
         setSaving(true)
         try {
             await axios.put('/api/settings', settings)
+            toast({ title: "Settings Saved ✅", className: "bg-green-600 border-none text-white" })
         } catch (error) {
             console.error('Error saving settings')
+            toast({ title: "Save Failed", variant: "destructive" })
         } finally {
             setSaving(false)
         }
@@ -64,6 +71,7 @@ export default function SettingsPage() {
 
     const tabs = [
         { id: 'infrastructure', label: 'Infrastructure', icon: Server },
+        { id: 'integrations', label: 'Integrations', icon: Check },
         { id: 'intelligence', label: 'Intelligence', icon: Brain },
         { id: 'sessions', label: 'Sessions', icon: Loader2 },
     ]
@@ -253,6 +261,42 @@ export default function SettingsPage() {
                                 >
                                     Clear Queues
                                 </Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Integrations Tab */}
+                {activeTab === 'integrations' && (
+                    <div className="space-y-6">
+                        {/* Discord Configuration */}
+                        <div className="glass rounded-2xl p-6 border border-[#5865F2]/20 bg-[#5865F2]/5">
+                            <h3 className="text-[#5865F2] font-medium mb-4 flex items-center gap-2">
+                                <span className="text-xl">🤖</span> Discord Integration
+                            </h3>
+                            <p className="text-white/60 text-sm mb-6">
+                                Configure which Agent should respond to Discord messages. This allows you to have a dedicated personality for your Discord interactions.
+                            </p>
+
+                            <div className="space-y-2">
+                                <label className="text-white/60 text-xs font-medium uppercase tracking-wider">
+                                    Active Discord Agent
+                                </label>
+                                <select
+                                    value={settings.discord_agent_id || ''}
+                                    onChange={(e) => setSettings({ ...settings, discord_agent_id: e.target.value })}
+                                    className="w-full bg-white/[0.04] border border-white/[0.08] text-white rounded-md p-3 focus:outline-none focus:ring-2 focus:ring-[#5865F2]"
+                                >
+                                    <option value="" className="bg-[#0f172a] text-white/50">-- Select an Agent --</option>
+                                    {agents.map((agent: any) => (
+                                        <option key={agent.id} value={agent.id} className="bg-[#0f172a]">
+                                            {agent.name} ({agent.phone || 'No phone'})
+                                        </option>
+                                    ))}
+                                </select>
+                                <p className="text-white/30 text-xs">
+                                    Messages received by the Discord service will be processed by this agent.
+                                </p>
                             </div>
                         </div>
                     </div>

@@ -9,12 +9,22 @@ export async function GET() {
     const session = await getServerSession(authOptions)
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+    // 1. Fetch Legacy KV Settings
     const settings = await prisma.setting.findMany()
-    // Convert array to object
     const settingsMap = settings.reduce((acc, curr) => {
         acc[curr.key] = curr.value
         return acc
     }, {} as Record<string, string>)
+
+    // 2. Fetch New System Settings
+    const systemSettings = await prisma.systemSettings.findUnique({
+        where: { id: 'default' }
+    })
+
+    // Merge System Settings into Map
+    if (systemSettings?.discordAgentId) {
+        settingsMap['discord_agent_id'] = systemSettings.discordAgentId
+    }
 
     // If critical keys are missing, populate with active defaults (Env or Hardcoded)
     if (!settingsMap['waha_api_key'] || !settingsMap['waha_endpoint']) {
@@ -34,6 +44,19 @@ export async function PUT(req: Request) {
         const json = await req.json()
         // json is object { key: value, key2: value2 }
 
+        // 1. Handle System Settings (Structured)
+        if (json.discord_agent_id !== undefined) {
+            await prisma.systemSettings.upsert({
+                where: { id: 'default' },
+                update: { discordAgentId: json.discord_agent_id || null },
+                create: { id: 'default', discordAgentId: json.discord_agent_id || null }
+            })
+            // Remove from json so it doesn't get saved to legacy settings table if not needed
+            // But actually, we can leave it or remove it. Let's rely on explicit handling.
+            delete json.discord_agent_id
+        }
+
+        // 2. Handle Legacy Settings (KV Store)
         const updates = Object.entries(json).map(([key, value]) => {
             return prisma.setting.upsert({
                 where: { key },
@@ -42,8 +65,10 @@ export async function PUT(req: Request) {
             })
         })
 
-        await prisma.$transaction(updates)
-        settingsService.invalidate()
+        if (updates.length > 0) {
+            await prisma.$transaction(updates)
+            settingsService.invalidate()
+        }
 
         return NextResponse.json({ success: true })
     } catch (error: any) {
