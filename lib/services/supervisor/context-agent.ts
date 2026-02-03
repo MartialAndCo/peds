@@ -1,6 +1,6 @@
 /**
  * Context Agent
- * Détecte les problèmes de contexte:
+ * Détecte les problèmes de contexte via analyse LLM (Venice)
  * - Perte de contexte (réponses hors sujet)
  * - Sauts de sujet brutaux
  * - Réponses à des questions non posées
@@ -21,15 +21,7 @@ export const contextAgent = {
     async analyze(context: AnalysisContext): Promise<AgentAnalysisResult> {
         const alerts: SupervisorAlert[] = [];
 
-        const { aiResponse, userMessage, history, agentId, conversationId, contactId } = context;
-
-        // Analyse mécanique simple d'abord
-        const mechanicalAlert = this.mechanicalCheck(context);
-        if (mechanicalAlert) {
-            alerts.push(mechanicalAlert);
-        }
-
-        // Analyse IA pour détections complexes
+        // Analyse LLM principale - détection intelligente de l'incohérence
         const aiAlert = await this.aiAnalysis(context);
         if (aiAlert) {
             alerts.push(aiAlert);
@@ -37,139 +29,19 @@ export const contextAgent = {
 
         return {
             alerts,
-            shouldPause: false, // Contexte ne pause pas auto (pas CRITICAL)
-            confidence: alerts.length > 0 ? 0.8 : 0
+            shouldPause: alerts.some(a => a.severity === 'CRITICAL'),
+            confidence: alerts.length > 0 ? 0.85 : 0
         };
     },
 
     /**
-     * Vérification mécanique rapide
-     */
-    mechanicalCheck(context: AnalysisContext): SupervisorAlert | null {
-        const { aiResponse, userMessage, agentId, conversationId, contactId, history } = context;
-
-        // Pattern: L'utilisateur pose une question, l'IA répond par une présentation
-        const userQuestionPatterns = [
-            /\?$/,
-            /quoi\s+$/i,
-            /comment\s+/i,
-            /pourquoi\s+/i,
-            /où\s+/i,
-            /quand\s+/i,
-            /qui\s+/i,
-            /what\s+/i,
-            /how\s+/i,
-            /why\s+/i,
-            /where\s+/i,
-            /when\s+/i
-        ];
-
-        const isUserQuestion = userQuestionPatterns.some(p => p.test(userMessage.trim()));
-
-        if (isUserQuestion) {
-            // Vérifier si l'IA répond avec une présentation générique
-            const genericIntroPatterns = [
-                /^je m'appelle/i,
-                /^j'ai\s+\d+/i,
-                /^je suis\s+(une?\s+)?\w+\s+de\s+\d+/i,
-                /^moi\s+c'est/i,
-                /^je suis\s+\w+\s*,?\s*j'ai/i,
-                /^hi\s*,?\s*i'm/i,
-                /^my name is/i,
-                /^i'm\s+\w+\s*,?\s*i'm\s+\d+/i,
-                /^i am\s+\w+/i
-            ];
-
-            const isGenericIntro = genericIntroPatterns.some(p => p.test(aiResponse.trim()));
-
-            if (isGenericIntro) {
-                const evidence: ContextEvidence = {
-                    userAsked: userMessage,
-                    aiAnswered: aiResponse,
-                    contextMismatch: 'L\'IA se présente au lieu de répondre à la question',
-                    relevantHistory: history.slice(-3).map(h => h.content.substring(0, 100))
-                };
-
-                return {
-                    agentId,
-                    conversationId,
-                    contactId,
-                    agentType: 'CONTEXT',
-                    alertType: 'CONTEXT_LOSS',
-                    severity: 'HIGH',
-                    title: 'Perte de contexte détectée',
-                    description: `L'utilisateur a posé une question ("${userMessage.substring(0, 50)}...") mais l'IA a répondu avec une présentation générique: "${aiResponse.substring(0, 100)}..."`,
-                    evidence: evidence as Record<string, any>
-                };
-            }
-        }
-
-        // Pattern: L'IA parle de quelque chose qui n'a pas été mentionné
-        // Ex: L'utilisateur dit "ok", l'IA parle de "mon frère"
-        if (userMessage.length <= 5 && aiResponse.length > 50) {
-            const shortAcknowledgments = ['ok', 'oui', 'nan', 'lol', 'mdr', 'haha', 'cool', 'nice'];
-            const isShortAck = shortAcknowledgments.some(a =>
-                userMessage.toLowerCase().trim() === a
-            );
-
-            if (isShortAck) {
-                // Vérifier si l'IA introduit un nouveau sujet non sollicité
-                const newTopicPatterns = [
-                    /mon frère/i,
-                    /ma sœur/i,
-                    /mon copain/i,
-                    /mon ex/i,
-                    /mon père/i,
-                    /ma mère/i,
-                    /mon ami/i,
-                    /ma meilleure amie/i,
-                    /my brother/i,
-                    /my sister/i,
-                    /my boyfriend/i,
-                    /my ex/i,
-                    /my dad/i,
-                    /my mom/i,
-                    /my friend/i,
-                    /my best friend/i
-                ];
-
-                const introducesNewTopic = newTopicPatterns.some(p => p.test(aiResponse));
-
-                if (introducesNewTopic) {
-                    const evidence: ContextEvidence = {
-                        userAsked: userMessage,
-                        aiAnswered: aiResponse,
-                        contextMismatch: 'L\'IA introduit un nouveau sujet (famille/amis) sans sollicitation',
-                        relevantHistory: history.slice(-3).map(h => h.content.substring(0, 100))
-                    };
-
-                    return {
-                        agentId,
-                        conversationId,
-                        contactId,
-                        agentType: 'CONTEXT',
-                        alertType: 'TOPIC_JUMP',
-                        severity: 'MEDIUM',
-                        title: 'Changement de sujet non sollicité',
-                        description: `L'utilisateur a juste dit "${userMessage}" mais l'IA a introduit un nouveau sujet personnel: "${aiResponse.substring(0, 100)}..."`,
-                        evidence: evidence as Record<string, any>
-                    };
-                }
-            }
-        }
-
-        return null;
-    },
-
-    /**
-     * Analyse IA pour les cas complexes
+     * Analyse LLM complète avec Venice
+     * Détecte toutes les formes d'incohérence contextuelle
      */
     async aiAnalysis(context: AnalysisContext): Promise<SupervisorAlert | null> {
-        const { aiResponse, userMessage, history, agentId, conversationId, contactId } = context;
+        const { aiResponse, userMessage, history, agentId, conversationId, contactId, phase } = context;
 
-        // Ne pas analyser les messages courts
-        if (aiResponse.length < 30) return null;
-
+        // Toujours analyser, même les messages courts peuvent être incohérents
         const settings = await settingsService.getSettings();
         const apiKey = settings.venice_api_key;
 
@@ -178,73 +50,135 @@ export const contextAgent = {
             return null;
         }
 
-        const recentHistory = history.slice(-5);
+        // Construire un historique plus complet pour le contexte
+        const recentHistory = history.slice(-8); // Augmenter pour plus de contexte
         const historyText = recentHistory
-            .map(h => `${h.role === 'user' ? 'USER' : 'AI'}: ${h.content.substring(0, 150)}`)
+            .map(h => `${h.role === 'user' ? 'USER' : 'AI'}: ${h.content}`)
             .join('\n');
 
-        const analysisPrompt = `Tu es un superviseur AI qui analyse la cohérence contextuelle.
+        const analysisPrompt = `Tu es un superviseur strict qui analyse la cohérence d'une conversation WhatsApp entre une ado et un contact.
 
-HISTORIQUE RÉCENT:
-${historyText}
+CONTEXTE:
+- L'IA joue le rôle d'une adolescente (16-18 ans)
+- Phase actuelle de la relation: ${phase || 'inconnue'}
+- La conversation doit être naturelle et cohérente
 
-MESSAGE DE L'UTILISATEUR:
-${userMessage}
+HISTORIQUE DE LA CONVERSATION:
+${historyText || '(Début de conversation)'}
+
+DERNIER MESSAGE DU CONTACT:
+"""${userMessage}"""
 
 RÉPONSE DE L'IA:
-${aiResponse}
+"""${aiResponse}"""
 
-ANALYSE:
-1. La réponse de l'IA est-elle en rapport avec le message de l'utilisateur ?
-2. L'IA a-t-elle bien compris le contexte de la conversation ?
-3. Y a-t-il une incohérence flagrante ?
+ANALYSE REQUISE:
+1. La réponse de l'IA a-t-elle un SENS par rapport au dernier message du contact ?
+2. L'IA semble-t-elle répondre à une AUTRE conversation (comme s'il y avait confusion de contexte) ?
+3. Y a-t-il un décalage temporel flagrant (ex: contact dit "bonne nuit", IA parle de "manger") ?
+4. L'IA ignore-t-elle complètement le message du contact ?
+5. Y a-t-une rupture brutale de fil conversationnel ?
 
-Réponds UNIQUEMENT en JSON:
+EXEMPLES D'INCOHÉRENCE (à détecter):
+- Contact: "Bonne nuit" → IA: "Ouais ça va / je mange" = INCOHÉRENT (décalage temporel)
+- Contact: "??" → IA présente son nom = INCOHÉRENT (mauvais contexte)
+- Contact: parle de X → IA parle de Y sans lien = SAUT DE SUJET
+- Contact pose question → IA répond à côté = PERTE DE CONTEXTE
+
+Réponds UNIQUEMENT en JSON valide:
 {
-  "coherent": boolean,
-  "contextLoss": boolean,
-  "issue": string | null,  // Description du problème si incohérent
-  "severity": "LOW" | "MEDIUM" | "HIGH",
-  "confidence": number  // 0-1
+  "coherent": boolean,           // true si la réponse a du sens dans le contexte
+  "contextLoss": boolean,        // true si l'IA répond à côté ou ignore le message
+  "topicJump": boolean,          // true si changement brutal de sujet non justifié
+  "wrongConversation": boolean,  // true si l'IA semble répondre à une autre conversation
+  "issue": string | null,        // Description précise du problème
+  "severity": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
+  "explanation": string,         // Explication de l'analyse
+  "confidence": number           // 0.0 à 1.0
 }
 
-Règles:
-- contextLoss = true si l'IA répond à côté, ignore la question, ou change de sujet bizarrement
-- Sois strict sur la cohérence`;
+RÈGLES STRICTES:
+- "contextLoss" = true si l'IA ne répond pas DU TOUT à ce que dit le contact
+- "wrongConversation" = true si la réponse semble correspondre à un AUTRE moment de la conversation
+- "topicJump" = true si changement de sujet brutal sans transition
+- Sévérité CRITICAL si l'IA semble complètement perdue ou répond à une autre conversation
+- Sois EXTRÊMEMENT strict sur la cohérence temporelle et contextuelle`;
+
+        let response: string = '';
 
         try {
-            const response = await venice.chatCompletion(
+            response = await venice.chatCompletion(
                 analysisPrompt,
                 [],
-                'Analyse la cohérence contextuelle',
-                { apiKey, model: 'llama-3.3-70b', temperature: 0.1, max_tokens: 300 }
+                'Analyse cohérence contextuelle',
+                {
+                    apiKey,
+                    model: 'llama-3.3-70b', // Venice medium
+                    temperature: 0.05,       // Très faible pour plus de précision
+                    max_tokens: 500
+                }
             );
 
-            const cleanJson = response.replace(/```json/g, '').replace(/```/g, '').trim();
+            // Nettoyer la réponse JSON
+            let cleanJson = response
+                .replace(/```json/g, '')
+                .replace(/```/g, '')
+                .trim();
+
+            // Extraire JSON si encapsulé dans du texte
+            const jsonMatch = cleanJson.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                cleanJson = jsonMatch[0];
+            }
+
             const analysis = JSON.parse(cleanJson);
 
-            if (analysis.contextLoss && analysis.confidence > 0.7) {
+            // Log pour debug
+            console.log('[ContextAgent] LLM Analysis:', {
+                coherent: analysis.coherent,
+                contextLoss: analysis.contextLoss,
+                wrongConversation: analysis.wrongConversation,
+                confidence: analysis.confidence,
+                issue: analysis.issue
+            });
+
+            // Déclencher une alerte si problème détecté avec assez de confiance
+            if ((analysis.contextLoss || analysis.wrongConversation || analysis.topicJump) &&
+                analysis.confidence > 0.75) {
+
                 const evidence: ContextEvidence = {
                     userAsked: userMessage,
                     aiAnswered: aiResponse,
-                    contextMismatch: analysis.issue || 'Perte de contexte détectée par analyse IA',
+                    contextMismatch: analysis.issue || analysis.explanation || 'Incohérence contextuelle détectée',
                     relevantHistory: history.slice(-3).map(h => h.content.substring(0, 100))
                 };
+
+                // Déterminer le type d'alerte
+                let alertType: 'CONTEXT_LOSS' | 'TOPIC_JUMP' | 'WRONG_RECIPIENT' = 'CONTEXT_LOSS';
+                if (analysis.wrongConversation) alertType = 'WRONG_RECIPIENT';
+                else if (analysis.topicJump) alertType = 'TOPIC_JUMP';
 
                 return {
                     agentId,
                     conversationId,
                     contactId,
                     agentType: 'CONTEXT',
-                    alertType: 'CONTEXT_LOSS',
+                    alertType,
                     severity: analysis.severity || 'MEDIUM',
-                    title: 'Perte de contexte (analyse IA)',
-                    description: `L'IA ne répond pas au message de l'utilisateur. ${analysis.issue}`,
+                    title: analysis.wrongConversation
+                        ? '⚠️ L\'IA répond à une autre conversation'
+                        : analysis.topicJump
+                            ? 'Saut de sujet détecté'
+                            : 'Perte de contexte détectée',
+                    description: `[Confiance: ${Math.round(analysis.confidence * 100)}%] ${analysis.issue || analysis.explanation}.\n\nContact: "${userMessage.substring(0, 80)}${userMessage.length > 80 ? '...' : ''}"\nIA: "${aiResponse.substring(0, 80)}${aiResponse.length > 80 ? '...' : ''}"`,
                     evidence: evidence as Record<string, any>
                 };
             }
         } catch (error) {
-            console.error('[ContextAgent] AI analysis failed:', error);
+            console.error('[ContextAgent] LLM analysis failed:', error);
+            if (response) {
+                console.error('[ContextAgent] Raw response:', response);
+            }
         }
 
         return null;
