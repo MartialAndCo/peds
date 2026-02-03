@@ -30,23 +30,28 @@ export async function POST(req: Request) {
 
         const payload = body.payload
 
-        // Resolve Agent ID from sessionId (discord_default or agent-specific)
+        // Resolve Agent ID:
+        // Priority 1: System Settings (dynamic configuration via UI)
+        // Priority 2: Payload session ID (fallback)
+        // Priority 3: Default
         let agentId = 'default'
-        if (body.sessionId) {
-            const sid = body.sessionId.toString()
-            if (sid.startsWith('discord_')) {
-                // Extract agent ID if format is discord_{agentId}
-                const potentialAgentId = sid.replace('discord_', '')
-                if (potentialAgentId !== 'default') {
-                    const agent = await prisma.agent.findUnique({ where: { id: potentialAgentId } })
-                    if (agent) agentId = potentialAgentId
-                }
-            } else {
-                agentId = sid
+
+        try {
+            const settings = await prisma.systemSettings.findUnique({
+                where: { id: 'default' }
+            })
+            if (settings?.discordAgentId) {
+                agentId = settings.discordAgentId
+                console.log(`[Discord Webhook] Using configured Agent ID from Settings: ${agentId}`)
+            } else if (body.sessionId && body.sessionId.toString().startsWith('discord_')) {
+                // ... Fallback logic ...
+                agentId = body.sessionId.toString().replace('discord_', '')
             }
+        } catch (e) {
+            logger.warn('Failed to fetch system settings', { error: e })
         }
 
-        console.log(`[Discord Webhook] Resolved Agent ID: ${agentId} (from sessionId: ${body.sessionId})`)
+        console.log(`[Discord Webhook] Final Resolved Agent ID: ${agentId}`)
 
         // 2. DEDUPLICATION CHECK
         const messageId = payload?.id
