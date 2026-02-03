@@ -73,6 +73,7 @@ model Contact {
   paymentClaims   PendingPaymentClaim[]
   agentContacts   AgentContact[]
   pendingVoiceValidations PendingVoiceValidation[]
+  supervisorAlerts SupervisorAlert[]
 
   @@index([status])
   @@index([source])
@@ -230,6 +231,7 @@ model Conversation {
   prompt          Prompt    @relation(fields: [promptId], references: [id])
   messages        Message[]
   messageQueue    MessageQueue[]
+  supervisorAlerts SupervisorAlert[]
 
   @@index([status])
   @@index([contactId, status])
@@ -625,6 +627,48 @@ model DiscordBot {
   updatedAt   DateTime @updatedAt
   
   @@map("discord_bots")
+}
+
+// ============================================================================
+// SUPERVISOR AI - AI Health Monitoring System
+// ============================================================================
+
+model SupervisorAlert {
+  id              String   @id @default(uuid())
+  agentId         String
+  conversationId  Int
+  contactId       String?
+  
+  // Classification
+  agentType       String   // 'COHERENCE', 'CONTEXT', 'PHASE', 'ACTION'
+  alertType       String   // 'REPETITION', 'SYSTEM_LEAK', 'UNREQUESTED_PHOTO', etc.
+  severity        String   // 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'
+  
+  // Contenu
+  title           String   // Titre court pour le dashboard
+  description     String   @db.Text  // Description complète
+  evidence        Json     // Données structurées selon le type
+  
+  // État
+  status          String   @default("NEW") // NEW, INVESTIGATING, RESOLVED, FALSE_POSITIVE
+  adminNotes      String?  @db.Text
+  
+  // Auto-actions taken
+  autoPaused      Boolean  @default(false) // Si la conversation a été auto-paused
+  
+  // Métadonnées
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  conversation    Conversation? @relation(fields: [conversationId], references: [id])
+  contact         Contact?      @relation(fields: [contactId], references: [id])
+  
+  @@index([agentId, status])
+  @@index([severity, status])
+  @@index([agentType, createdAt])
+  @@index([createdAt])
+  @@map("supervisor_alerts")
 }
 
 

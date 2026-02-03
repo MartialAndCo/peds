@@ -672,6 +672,35 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
     console.log(`[Chat] AI Response (final): "${responseText.substring(0, 100)}${responseText.length > 100 ? '...' : ''}"`)
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SUPERVISOR AI - Real-time monitoring
+    // ═══════════════════════════════════════════════════════════════════════════
+    try {
+        const { supervisorOrchestrator } = require('@/lib/services/supervisor')
+
+        // Préparer le contexte pour le supervisor
+        const supervisorContext = {
+            agentId: effectiveAgentId,
+            conversationId: conversation.id,
+            contactId: contact.id,
+            userMessage: lastContent,
+            aiResponse: responseText,
+            history: contextMessages.map((m: any) => ({
+                role: m.role === 'user' ? 'user' as const : 'ai' as const,
+                content: m.content
+            })),
+            phase: phase
+        }
+
+        // Analyse asynchrone (non-bloquante)
+        supervisorOrchestrator.analyzeResponse(supervisorContext).catch((err: any) => {
+            console.error('[Chat] Supervisor analysis failed:', err)
+        })
+    } catch (supervisorError) {
+        console.error('[Chat] Failed to initialize supervisor:', supervisorError)
+    }
+    // ═══════════════════════════════════════════════════════════════════════════
+
     // 6. Tag Stripping & Notification Trigger (Internal Tags)
     // PAYMENT DETECTION: Now ONLY via AI tag (keyword detection removed to avoid false positives)
     if (responseText.includes('[PAYMENT_RECEIVED]')) {

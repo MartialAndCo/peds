@@ -16,7 +16,8 @@ import {
     Globe,
     ListTodo,
     Mic2,
-    TrendingUp
+    TrendingUp,
+    BrainCircuit
 } from 'lucide-react'
 
 const adminRoutes = [
@@ -39,6 +40,7 @@ const adminRoutes = [
     {
         title: "System",
         routes: [
+            { label: 'Supervisor AI', icon: BrainCircuit, href: '/admin/supervisor' },
             { label: 'Monitor', icon: ListTodo, href: '/admin/system' },
             { label: 'Voice Library', icon: Mic2, href: '/admin/voices' },
             { label: 'Settings', icon: Settings, href: '/admin/settings' },

@@ -1,13 +1,44 @@
+// Migration: Add SupervisorAlert table for AI Health Monitoring System
+// Run: npx prisma migrate dev --name add_supervisor_alerts
 
-model Message {
-  id              Int          @id @default(autoincrement())
+model SupervisorAlert {
+  id              String   @id @default(uuid())
+  agentId         String
   conversationId  Int
-  sender          String       // 'ai' or 'contact'
-  message_text    String
-  waha_message_id String?      @unique // <--- ADDING THIS
-  timestamp       DateTime     @default(now())
+  contactId       String?
   
-  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-
-  @@map("messages")
+  // Classification
+  agentType       String   // 'COHERENCE', 'CONTEXT', 'PHASE', 'ACTION'
+  alertType       String   // 'REPETITION', 'SYSTEM_LEAK', 'UNREQUESTED_PHOTO', etc.
+  severity        String   // 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'
+  
+  // Contenu
+  title           String   // Titre court pour le dashboard
+  description     String   @db.Text  // Description complète
+  evidence        Json     // Données structurées selon le type
+  
+  // État
+  status          String   @default("NEW") // NEW, INVESTIGATING, RESOLVED, FALSE_POSITIVE
+  adminNotes      String?  @db.Text
+  
+  // Auto-actions taken
+  autoPaused      Boolean  @default(false) // Si la conversation a été auto-paused
+  
+  // Métadonnées
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  conversation    Conversation? @relation(fields: [conversationId], references: [id])
+  contact         Contact?      @relation(fields: [contactId], references: [id])
+  
+  @@index([agentId, status])
+  @@index([severity, status])
+  @@index([agentType, createdAt])
+  @@index([createdAt])
+  @@map("supervisor_alerts")
 }
+
+// Note: After adding this model, run:
+// npx prisma migrate dev --name add_supervisor_alerts
+// npx prisma generate
