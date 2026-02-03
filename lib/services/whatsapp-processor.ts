@@ -661,8 +661,12 @@ Keep response SHORT and excited.)`
                 console.log(`[Processor] Conversation ${conversation.id} is PAUSED. Checking for WAITING_FOR_LEAD... Meta state: ${meta?.state}`)
             }
 
-            if (conversation.status === 'paused' && meta?.state === 'WAITING_FOR_LEAD') {
-                console.log(`[Processor] Waking up conversation ${conversation.id} (Lead initiated contact)`)
+            // FIXED: Wake up conversation if it's paused and we received a message
+            // This covers BOTH WAITING_FOR_LEAD (Smart Add) AND regular paused conversations
+            if (conversation.status === 'paused') {
+                const isWaitingForLead = meta?.state === 'WAITING_FOR_LEAD'
+
+                console.log(`[Processor] Waking up conversation ${conversation.id} (Lead initiated contact, wasWaiting: ${isWaitingForLead})`)
                 conversation = await prisma.conversation.update({
                     where: { id: conversation.id },
                     data: {
@@ -670,7 +674,8 @@ Keep response SHORT and excited.)`
                         metadata: {
                             ...meta,
                             state: 'active', // clear waiting state
-                            becameActiveAt: new Date()
+                            becameActiveAt: new Date(),
+                            wokenBy: 'incoming_message'
                         }
                     },
                     include: { prompt: true }
