@@ -40,13 +40,15 @@ interface TransitionRule {
     requiredFrom?: TrustSignal[] // Pool of signals to count from
     requiredAll?: TrustSignal[]  // All these signals must be present
     blockers?: TrustSignal[]     // If any of these are present, block transition
+    minDays?: number             // Minimum duration in current phase/relationship
 }
 
 export const PHASE_TRANSITIONS: Record<string, TransitionRule> = {
     'CONNECTION_TO_VULNERABILITY': {
         requiredCount: 2,
         requiredFrom: ['RESPONSIVE', 'INTERESTED', 'EMOTIONALLY_OPEN', 'PROACTIVE'],
-        blockers: ['DEFENSIVE']
+        blockers: ['DEFENSIVE'],
+        minDays: 2 // Prevent day-1 jumps
     },
     'VULNERABILITY_TO_CRISIS': {
         requiredAll: ['ATTACHED', 'EMOTIONALLY_OPEN'],
@@ -230,6 +232,11 @@ RULES:
         const currentSignals = new Set<TrustSignal>((agentContact.signals || []) as TrustSignal[])
         const currentPhase = agentContact.phase as AgentPhase
 
+        // Calculate daysActive
+        const contact = await prisma.contact.findUnique({ where: { id: contactId } })
+        const contactCreatedAt = contact?.createdAt || new Date()
+        const daysActive = Math.max(0, (Date.now() - contactCreatedAt.getTime()) / (1000 * 60 * 60 * 24))
+
         // Run AI analysis
         const analysis = await this.analyzeConversation(agentId, contactId)
 
@@ -276,7 +283,7 @@ RULES:
         const finalSignals = Array.from(currentSignals)
 
         // Check phase transition
-        const transition = this.checkPhaseTransition(currentPhase, finalSignals)
+        const transition = this.checkPhaseTransition(currentPhase, finalSignals, daysActive)
 
         // Persist
         await prisma.agentContact.update({
@@ -305,13 +312,14 @@ RULES:
     },
 
     /**
-     * Check if phase transition is possible based on current signals
+     * Check if phase transition is possible based on current signals and conditions
      */
-    checkPhaseTransition(currentPhase: AgentPhase, signals: TrustSignal[]): {
+    checkPhaseTransition(currentPhase: AgentPhase, signals: TrustSignal[], daysActive: number = 0): {
         canAdvance: boolean
         nextPhase?: AgentPhase
         missingSignals?: TrustSignal[]
         blockerSignals?: TrustSignal[]
+        timeRemaining?: number
     } {
         const signalSet = new Set(signals)
 
@@ -363,6 +371,11 @@ RULES:
                 const missing = rule.requiredFrom.filter(s => !signalSet.has(s))
                 return { canAdvance: false, missingSignals: missing }
             }
+        }
+
+        // Check time constraint
+        if (rule.minDays && daysActive < rule.minDays) {
+            return { canAdvance: false, timeRemaining: rule.minDays - daysActive }
         }
 
         return { canAdvance: true, nextPhase }
