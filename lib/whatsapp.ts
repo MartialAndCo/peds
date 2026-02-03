@@ -91,7 +91,7 @@ export const whatsapp = {
                     chatId: discordUserId,
                     text
                 }, {
-                    timeout: 15000
+                    timeout: 30000 // Increased to 30s to accommodate typing simulation (max 10s)
                 })
                 return response.data
             } catch (error: any) {
