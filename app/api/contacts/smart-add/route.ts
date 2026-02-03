@@ -5,16 +5,28 @@ import { authOptions } from '@/lib/auth'
 import { venice } from '@/lib/venice'
 import { z } from 'zod'
 
+// Schema with optional phone/discordId depending on contactType
 const smartAddSchema = z.object({
-    phone: z.string().min(8).regex(/^\+?[0-9\s]+$/, 'Invalid phone number'),
+    phone: z.string().optional(),
+    discordId: z.string().optional(),
+    contactType: z.enum(['whatsapp', 'discord']).default('whatsapp'),
     platform: z.string().min(1, 'Platform is required'),
     conversation: z.string().min(10, 'Conversation is too short'),
     agentId: z.string().min(1, 'Agent ID is required'),
-})
+}).refine(
+    (data) => {
+        if (data.contactType === 'whatsapp') {
+            return data.phone && data.phone.length >= 8 && /^\+?[0-9\s]+$/.test(data.phone)
+        } else {
+            return data.discordId && data.discordId.length >= 2
+        }
+    },
+    { message: 'Invalid identifier for selected contact type' }
+)
 
-// Prompts by locale
+// Prompts by locale - updated to work for both platforms
 const PROMPTS = {
-    'fr-FR': (platform: string) => `Tu es une ado de 15 ans. Tu vas reprendre cette conversation sur WhatsApp.
+    'fr-FR': (platform: string, targetPlatform: string) => `Tu es une ado de 15 ans. Tu vas reprendre cette conversation sur ${targetPlatform}.
 Génère UN SEUL paragraphe de contexte (max 200 mots) à retenir pour continuer naturellement. Inclus:
 - Son prénom/surnom
 - Son âge si mentionné
@@ -25,7 +37,7 @@ Génère UN SEUL paragraphe de contexte (max 200 mots) à retenir pour continuer
 
 Retourne UNIQUEMENT le paragraphe, pas de JSON, pas de titre.`,
 
-    'en-US': (platform: string) => `You are a 15 year old girl. You will continue this conversation on WhatsApp.
+    'en-US': (platform: string, targetPlatform: string) => `You are a 15 year old girl. You will continue this conversation on ${targetPlatform}.
 Generate ONE paragraph of context (max 200 words) to remember for a seamless continuation. Include:
 - Their name/nickname
 - Their age if mentioned
@@ -45,6 +57,9 @@ export async function POST(req: Request) {
         const json = await req.json()
         const body = smartAddSchema.parse(json)
 
+        const isDiscord = body.contactType === 'discord'
+        const targetPlatform = isDiscord ? 'Discord' : 'WhatsApp'
+
         // 1. Get Agent Profile for locale
         const agentProfile = await prisma.agentProfile.findUnique({
             where: { agentId: body.agentId },
@@ -53,7 +68,7 @@ export async function POST(req: Request) {
 
         const locale = agentProfile?.locale || 'fr-FR'
         const promptGenerator = PROMPTS[locale as keyof typeof PROMPTS] || PROMPTS['fr-FR']
-        const systemPrompt = promptGenerator(body.platform)
+        const systemPrompt = promptGenerator(body.platform, targetPlatform)
 
         // 2. Get Venice API key from settings
         const { settingsService } = require('@/lib/settings-cache')
@@ -66,7 +81,7 @@ export async function POST(req: Request) {
         }
 
         // 3. Call Venice AI to generate context
-        console.log(`[SmartAdd] Generating context for phone ${body.phone.slice(-4)}...`)
+        console.log(`[SmartAdd] Generating context for ${isDiscord ? 'Discord:' + body.discordId : 'Phone:' + body.phone?.slice(-4)}...`)
 
         const generatedContext = await venice.chatCompletion(
             systemPrompt,
@@ -86,36 +101,77 @@ export async function POST(req: Request) {
 
         console.log(`[SmartAdd] Context generated (${generatedContext.length} chars)`)
 
-        // 3. Normalize phone
-        let normalizedPhone = body.phone.replace(/\s/g, '')
-        if (/^0[67]/.test(normalizedPhone)) {
-            normalizedPhone = '+33' + normalizedPhone.substring(1)
-        }
-
-        // 4. Create/Update Contact
-        let contact = await prisma.contact.findUnique({
-            where: { phone_whatsapp: normalizedPhone }
-        })
-
+        // 4. Create/Update Contact based on type
+        let contact
         const contextNote = `[Smart Add - ${body.platform}]\n${generatedContext}`
 
-        if (!contact) {
-            contact = await prisma.contact.create({
-                data: {
-                    phone_whatsapp: normalizedPhone,
-                    name: 'Inconnu', // AI might extract name, but we keep it simple for now
-                    source: 'smart_add',
-                    notes: contextNote,
-                    status: 'new'
-                }
+        if (isDiscord) {
+            // DISCORD: Use discordId as identifier
+            const discordId = body.discordId!.replace('#', '_') // Normalize user#1234 to user_1234
+            const phoneWhatsapp = `DISCORD_${discordId}` // Unique identifier for phone_whatsapp field
+
+            contact = await prisma.contact.findFirst({
+                where: { discordId: discordId }
             })
+
+            if (!contact) {
+                // Also check by phone_whatsapp pattern
+                contact = await prisma.contact.findFirst({
+                    where: { phone_whatsapp: phoneWhatsapp }
+                })
+            }
+
+            if (!contact) {
+                contact = await prisma.contact.create({
+                    data: {
+                        phone_whatsapp: phoneWhatsapp,
+                        discordId: discordId,
+                        name: body.discordId!, // Use original username as name
+                        source: 'smart_add',
+                        notes: contextNote,
+                        status: 'new'
+                    }
+                })
+                console.log(`[SmartAdd] Created Discord contact: ${contact.id}`)
+            } else {
+                contact = await prisma.contact.update({
+                    where: { id: contact.id },
+                    data: {
+                        notes: (contact.notes ? contact.notes + '\n\n' : '') + contextNote,
+                        discordId: discordId // Ensure discordId is set
+                    }
+                })
+                console.log(`[SmartAdd] Updated existing Discord contact: ${contact.id}`)
+            }
         } else {
-            contact = await prisma.contact.update({
-                where: { id: contact.id },
-                data: {
-                    notes: (contact.notes ? contact.notes + '\n\n' : '') + contextNote
-                }
+            // WHATSAPP: Use phone number
+            let normalizedPhone = body.phone!.replace(/\s/g, '')
+            if (/^0[67]/.test(normalizedPhone)) {
+                normalizedPhone = '+33' + normalizedPhone.substring(1)
+            }
+
+            contact = await prisma.contact.findUnique({
+                where: { phone_whatsapp: normalizedPhone }
             })
+
+            if (!contact) {
+                contact = await prisma.contact.create({
+                    data: {
+                        phone_whatsapp: normalizedPhone,
+                        name: 'Inconnu', // AI might extract name, but we keep it simple for now
+                        source: 'smart_add',
+                        notes: contextNote,
+                        status: 'new'
+                    }
+                })
+            } else {
+                contact = await prisma.contact.update({
+                    where: { id: contact.id },
+                    data: {
+                        notes: (contact.notes ? contact.notes + '\n\n' : '') + contextNote
+                    }
+                })
+            }
         }
 
         // 5. Create Conversation (WAITING_FOR_LEAD)
@@ -145,10 +201,12 @@ export async function POST(req: Request) {
                         metadata: {
                             state: 'WAITING_FOR_LEAD',
                             leadContext: generatedContext,
-                            platform: body.platform
+                            platform: body.platform,
+                            contactType: body.contactType
                         }
                     }
                 })
+                console.log(`[SmartAdd] Created conversation with WAITING_FOR_LEAD state`)
             }
         } else if (existingConv.status === 'paused') {
             // Update existing paused conversation
@@ -159,16 +217,19 @@ export async function POST(req: Request) {
                         ...(existingConv.metadata as any || {}),
                         state: 'WAITING_FOR_LEAD',
                         leadContext: generatedContext,
-                        platform: body.platform
+                        platform: body.platform,
+                        contactType: body.contactType
                     }
                 }
             })
+            console.log(`[SmartAdd] Updated existing conversation with WAITING_FOR_LEAD state`)
         }
 
         return NextResponse.json({
             success: true,
             contact,
-            generatedContext
+            generatedContext,
+            contactType: body.contactType
         }, { status: 201 })
 
     } catch (error: any) {
