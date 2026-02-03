@@ -48,8 +48,19 @@ export async function POST(req: Request) {
                 if (discordBot?.agentId) {
                     agentId = discordBot.agentId
                     console.log(`[Discord Webhook] Resolved Agent ${agentId} for Bot ${botId}`)
+                }
+            }
+
+            // Fallback: If agentId is still 'default' (or invalid), fetch the first active agent
+            if (agentId === 'default') {
+                const firstAgent = await prisma.agent.findFirst({
+                    where: { isActive: true }
+                })
+                if (firstAgent) {
+                    agentId = firstAgent.id
+                    console.log(`[Discord Webhook] No specific agent found, falling back to first active agent: ${agentId}`)
                 } else {
-                    console.log(`[Discord Webhook] Unknown or Unassigned Bot ${botId}, using default agent`)
+                    console.warn('[Discord Webhook] CRITICAL: No active agents found in database!')
                 }
             }
         } catch (e) {
