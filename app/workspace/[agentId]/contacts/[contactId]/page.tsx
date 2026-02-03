@@ -126,6 +126,29 @@ export default function ContactDetailsPage() {
                                     ))}
                                 </div>
                             </div>
+
+                            {/* NEW: Behavioral Signals */}
+                            <div className="pt-4 border-t border-white/5">
+                                <span className="text-xs uppercase tracking-widest text-white/50 font-bold block mb-3">Active Signals</span>
+                                <div className="flex flex-wrap gap-2">
+                                    {contact._agentContext?.signals && contact._agentContext.signals.length > 0 ? (
+                                        contact._agentContext.signals.map((signal: string) => {
+                                            const info = SIGNAL_INFO[signal] || { emoji: '❓', label: signal }
+                                            return (
+                                                <div key={signal} className={cn(
+                                                    "px-2 py-1 rounded bg-white/5 border border-white/10 text-[10px] font-medium flex items-center gap-1.5",
+                                                    signal === 'DEFENSIVE' ? "border-red-500/50 bg-red-500/10 text-red-200" : "text-white/80"
+                                                )}>
+                                                    <span>{info.emoji}</span>
+                                                    <span>{info.label}</span>
+                                                </div>
+                                            )
+                                        })
+                                    ) : (
+                                        <p className="text-xs text-white/20 italic">No signals detected yet.</p>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -243,4 +266,15 @@ function InfoRow({ icon: Icon, label, value, className }: any) {
             <span className={cn("font-medium text-white", className)}>{value}</span>
         </div>
     )
+}
+
+const SIGNAL_INFO: Record<string, { emoji: string, label: string }> = {
+    RESPONSIVE: { emoji: '🔵', label: 'Responsive' },
+    EMOTIONALLY_OPEN: { emoji: '💛', label: 'Emotionally Open' },
+    PROACTIVE: { emoji: '🟣', label: 'Proactive' },
+    COMPLIANT: { emoji: '✅', label: 'Compliant' },
+    DEFENSIVE: { emoji: '🔴', label: 'Defensive' },
+    INTERESTED: { emoji: '🟢', label: 'Interested' },
+    ATTACHED: { emoji: '🩷', label: 'Attached' },
+    FINANCIAL_TRUST: { emoji: '💰', label: 'Financial Trust' }
 }
