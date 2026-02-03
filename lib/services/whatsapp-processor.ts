@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { venice } from '@/lib/venice'
 import { anthropic } from '@/lib/anthropic'
 import { whatsapp } from '@/lib/whatsapp'
+import { discord } from '@/lib/discord'
 import { NextResponse } from 'next/server'
 import { logger } from '@/lib/logger'
 import { settingsService } from '@/lib/settings-cache'
@@ -37,24 +38,42 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
         // Ignore own messages (unless it's a status update for our own message)
         if (payload.fromMe && payload.event !== 'message.update') return { status: 'ignored_from_me' }
 
-        let from = payload.from // e.g. 33612345678@c.us or @s.whatsapp.net
 
-        // Normalize if coming from raw Baileys
-        if (from.includes('@s.whatsapp.net')) {
+        let from = payload.from // e.g. 33612345678@c.us or @s.whatsapp.net or DISCORD_123@discord
+
+        // --- PLATFORM DETECTION ---
+        const isDiscord = from.includes('@discord') || from.startsWith('DISCORD_') || payload._data?.platform === 'discord'
+        const platform = isDiscord ? 'discord' : 'whatsapp'
+
+        if (isDiscord) {
+            console.log('[Processor] Discord message detected')
+        }
+
+        // Normalize if coming from raw Baileys (WhatsApp only)
+        if (!isDiscord && from.includes('@s.whatsapp.net')) {
             from = from.replace('@s.whatsapp.net', '@c.us')
         }
 
-        if (from.includes('@lid')) {
-            // LID Handling
-        } else if (!from.includes('@c.us')) {
-            logger.debug('Ignored non-user JID', { from, module: 'processor' })
-            return { status: 'ignored_group' }
+        // For Discord, accept @discord suffix
+        // For WhatsApp, require @c.us or @lid
+        if (!isDiscord) {
+            if (from.includes('@lid')) {
+                // LID Handling - continue below
+            } else if (!from.includes('@c.us')) {
+                logger.debug('Ignored non-user JID', { from, module: 'processor' })
+                return { status: 'ignored_group' }
+            }
         }
 
-        // Standardize phone number or LID
+        // Standardize phone number or LID or Discord ID
         let normalizedPhone = `+${from.split('@')[0]}`
 
-        if (from.includes('@lid')) {
+        // Discord: Use DISCORD_ prefix as identifier
+        if (isDiscord) {
+            const discordId = from.replace('@discord', '').replace('DISCORD_', '')
+            normalizedPhone = `DISCORD_${discordId}`
+            console.log(`[Processor] Normalized Discord ID: ${normalizedPhone}`)
+        } else if (from.includes('@lid')) {
             // LID Handling - Try to resolve to phone number
             if (payload._data?.phoneNumber) {
                 logger.debug('Replacing LID with resolved phone number', { lid: from, pn: payload._data.phoneNumber, module: 'processor' })
@@ -66,6 +85,23 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                 logger.debug('Using LID as identifier (phone number not available)', { lid: from, module: 'processor' })
                 normalizedPhone = from // Use the full LID as identifier (e.g., "76712679350466@lid")
             }
+        }
+
+        // Helper function to send text via correct platform
+        const sendText = async (phone: string, text: string, replyTo?: string) => {
+            if (platform === 'discord') {
+                return discord.sendText(phone, text, agentId)
+            } else {
+                return whatsapp.sendText(phone, text, replyTo, agentId)
+            }
+        }
+
+        // Helper to mark as read (WhatsApp only for now)
+        const markAsRead = async (phone: string) => {
+            if (platform === 'whatsapp') {
+                return whatsapp.markAsRead(phone).catch(() => { })
+            }
+            return Promise.resolve()
         }
 
         // Fetch Settings Early
@@ -245,23 +281,54 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
             (voiceSourcePhone && cleanSender === voiceSourcePhone.replace('+', '')) ||
             (leadProviderPhone && cleanSender === leadProviderPhone.replace('+', ''));
 
-        const contact = await prisma.contact.upsert({
-            where: { phone_whatsapp: normalizedPhone },
-            update: {
-                // Update the phone number if we resolved it from LID
-                ...(wasLidResolved ? { phone_whatsapp: normalizedPhone } : {}),
-                // Ensure system numbers stay hidden if they were somehow unhidden? Or just set it?
-                // Better to just set it on create, but maybe update too if it became a system number?
-                ...(isSystemNumber ? { isHidden: true } : {})
-            },
-            create: {
-                phone_whatsapp: normalizedPhone,
-                name: payload._data?.notifyName || "Inconnu",
-                source: 'WhatsApp Incoming',
-                status: 'new',
-                isHidden: isSystemNumber || false
+        // --- DISCORD-WHATSAPP BRIDGING ---
+        // For Discord users, first try to find by discordId, then create if not found
+        let contact;
+
+        if (isDiscord) {
+            const discordId = normalizedPhone.replace('DISCORD_', '')
+
+            // First: Check if this Discord user already has a linked contact
+            contact = await prisma.contact.findFirst({
+                where: { discordId }
+            })
+
+            if (contact) {
+                console.log(`[Processor] Found linked contact for Discord user ${discordId}: ${contact.phone_whatsapp}`)
+            } else {
+                // Create a new contact with Discord as primary identifier
+                // phone_whatsapp will be the Discord ID temporarily until they provide their number
+                contact = await prisma.contact.create({
+                    data: {
+                        phone_whatsapp: normalizedPhone, // DISCORD_123456
+                        discordId: discordId,
+                        name: payload._data?.notifyName || "Discord User",
+                        source: 'Discord Incoming',
+                        status: 'new'
+                    }
+                })
+                console.log(`[Processor] Created Discord contact: ${contact.id}`)
             }
-        })
+        } else {
+            // Standard WhatsApp flow
+            contact = await prisma.contact.upsert({
+                where: { phone_whatsapp: normalizedPhone },
+                update: {
+                    // Update the phone number if we resolved it from LID
+                    ...(wasLidResolved ? { phone_whatsapp: normalizedPhone } : {}),
+                    // Ensure system numbers stay hidden if they were somehow unhidden? Or just set it?
+                    // Better to just set it on create, but maybe update too if it became a system number?
+                    ...(isSystemNumber ? { isHidden: true } : {})
+                },
+                create: {
+                    phone_whatsapp: normalizedPhone,
+                    name: payload._data?.notifyName || "Inconnu",
+                    source: 'WhatsApp Incoming',
+                    status: 'new',
+                    isHidden: isSystemNumber || false
+                }
+            })
+        }
 
         const { mediaService } = require('@/lib/media')
 

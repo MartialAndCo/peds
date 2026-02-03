@@ -44,6 +44,7 @@ model Prompt {
 model Contact {
   id              String         @id @default(cuid())
   phone_whatsapp  String         @unique
+  discordId       String?        @unique // Discord User ID for cross-platform linking
   name            String?
   source          String?        @default("manual")
   notes           String?
