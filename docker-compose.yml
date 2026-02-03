@@ -15,14 +15,22 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./services/baileys/auth_info_baileys:/app/auth_info_baileys
-      - .:/repo  # Mount the full repo for git operations
+      - .:/repo # Mount the full repo for git operations
 
+      - .:/repo # Mount the full repo for git operations
 
-  cron:
-    build: ./services/cron
-    container_name: nextjs_cron
+  discord-bot:
+    build: ./services/discord
+    container_name: discord_bot
     restart: unless-stopped
-    volumes:
-      - ./services/cron/crontab:/etc/crontabs/root
+    ports:
+      - "3002:3002"
+    environment:
+      - WEBHOOK_URL=https://main.d2in5shy58lp10.amplifyapp.com/api/webhooks/discord
+      - PORT=3002
+      # DISCORD_TOKEN will be loaded from .env file on host
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
     depends_on:
       - whatsapp-server
+
+  cron:
