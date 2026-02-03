@@ -36,7 +36,7 @@ export async function POST(req: Request) {
 
         return NextResponse.json({ success: true, bot })
     } catch (error: any) {
-        logger.error('Failed to register Discord heartbeat', { error })
+        logger.error('Failed to register Discord heartbeat', error)
         return NextResponse.json({ error: error.message }, { status: 500 })
     }
 }
