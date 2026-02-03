@@ -12,7 +12,7 @@ const cleanKey = (key?: string) => {
 export async function getConfig() {
     // Known defaults
     const KNOWN_KEY = 'e3f9a1c4d8b2f0a7c5e6d9b1a4f8c2d0e7b5a9c3f1d4b8e6a2f0c7'
-    const KNOWN_ENDPOINT = 'http://16.171.66.98:3001'
+    const KNOWN_ENDPOINT = 'http://13.60.16.81:3001'
 
     try {
         const settings = await settingsService.getSettings() || {}
@@ -82,7 +82,7 @@ export const whatsapp = {
 
         // --- DISCORD ROUTING ---
         if (chatId.startsWith('DISCORD_')) {
-            const discordEndpoint = process.env.DISCORD_API_ENDPOINT || 'http://16.171.66.98:3002' // Default to EC2 Discord Service
+            const discordEndpoint = process.env.DISCORD_API_ENDPOINT || 'http://13.60.16.81:3002' // Default to EC2 Discord Service
             const discordUserId = chatId.replace('DISCORD_', '').replace('@discord', '')
 
             try {
