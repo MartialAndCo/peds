@@ -124,8 +124,22 @@ server.post('/api/sendText', async (req: any, reply) => {
             return reply.code(404).send({ error: 'User not found' });
         }
 
+        // Create DM Channel explicitly to simulate typing
+        const channel = await user.createDM();
+
+        // --- TYPING SIMULATION ---
+        // Calculate delay: ~50ms per char, min 1s, max 10s
+        const typingDuration = Math.min(Math.max(text.length * 50, 1000), 10000);
+
+        logger.info(`Simulating typing for ${typingDuration}ms...`);
+        channel.sendTyping(); // Trigger "User is typing..." indicator
+
+        // Wait for the calculated duration
+        await new Promise(resolve => setTimeout(resolve, typingDuration));
+        // -------------------------
+
         // Send Message
-        await user.send(text);
+        await channel.send(text);
 
         logger.info(`Sent message to ${user.tag}`);
         return { success: true };
