@@ -611,16 +611,4 @@ model PendingVoiceValidation {
   @@map("pending_voice_validations")
 }
 
-model SystemSettings {
-  id              String   @id @default("default")
-  
-  // Service Configuration
-  discordAgentId  String?  // The agent ID assigned to handle Discord messages
-  
-  whatsappEnabled Boolean  @default(true)
-  discordEnabled  Boolean  @default(true) // Master switch
-  
-  updatedAt       DateTime @updatedAt
-  
-  @@map("system_settings")
-}
+

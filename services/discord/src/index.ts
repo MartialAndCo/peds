@@ -1,14 +1,28 @@
+
 import { Client } from 'discord.js-selfbot-v13';
 import fastify from 'fastify';
 import axios from 'axios';
 import dotenv from 'dotenv';
+import debug from 'debug';
 
 dotenv.config();
 
-const PORT = 3002; // Different port from Baileys
+const logger = {
+    info: debug('discord:info'),
+    error: debug('discord:error'),
+    warn: debug('discord:warn')
+};
+
+// Enable debug logs by default
+debug.enable('discord:*');
+
+const PORT = parseInt(process.env.PORT || '3002', 10);
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const WEBHOOK_URL = process.env.WEBHOOK_URL;
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
+
+// Extract base URL for API (remove /api/webhooks/discord)
+const BASE_API_URL = WEBHOOK_URL?.replace('/api/webhooks/discord', '/api') || 'http://localhost:3000/api';
 
 if (!DISCORD_TOKEN) {
     console.error('FATAL: DISCORD_TOKEN is not defined.');
@@ -17,13 +31,38 @@ if (!DISCORD_TOKEN) {
 
 // --- Discord Client Setup ---
 const client = new Client();
-
 const server = fastify({ logger: true });
+
+// --- Helper: Heartbeat ---
+const sendHeartbeat = async () => {
+    if (!client.user) return
+
+    try {
+        await axios.post(`${BASE_API_URL}/integrations/discord/heartbeat`, {
+            botId: client.user.id,
+            username: client.user.username
+        }, {
+            headers: {
+                'Content-Type': 'application/json',
+                'x-internal-secret': WEBHOOK_SECRET || ''
+            }
+        })
+        logger.info(`Heartbeat sent for ${client.user.username} (${client.user.id})`)
+    } catch (e: any) {
+        logger.error(`Heartbeat failed: ${e.message}`)
+    }
+}
 
 // --- Event Handlers ---
 
 client.on('ready', async () => {
-    console.log(`[Discord] Logged in as ${client.user?.tag} (${client.user?.id})!`);
+    logger.info(`Logged in as ${client.user?.tag} (${client.user?.id})!`);
+
+    // Register immediately
+    await sendHeartbeat();
+
+    // Keep alive every minute
+    setInterval(sendHeartbeat, 60 * 1000);
 });
 
 client.on('messageCreate', async (message) => {
@@ -33,19 +72,17 @@ client.on('messageCreate', async (message) => {
     // 2. Only handle DMs (Direct Messages) for now
     if (message.channel.type !== 'DM') return;
 
-    console.log(`[Discord] Received DM from ${message.author.tag}: ${message.content}`);
+    logger.info(`Received DM from ${message.author.tag}: ${message.content}`);
 
     if (!WEBHOOK_URL) {
-        console.warn('[Discord] No WEBHOOK_URL configured, skipping forward.');
+        logger.warn('No WEBHOOK_URL configured, skipping forward.');
         return;
     }
-
-    const agentId = process.env.AGENT_ID || 'default';
 
     try {
         // Prepare payload for Director (matching Baileys format roughly)
         const payload = {
-            sessionId: `discord_${agentId}`, // Tag with specific agent ID
+            sessionId: `discord_${client.user?.id}`, // Tag with Bot ID
             event: 'message',
             payload: {
                 id: message.id,
@@ -53,7 +90,7 @@ client.on('messageCreate', async (message) => {
                 body: message.content,
                 fromMe: false,
                 type: 'chat',
-                platform: 'discord', // Explicitly mark as discord
+                platform: 'discord',
                 _data: {
                     notifyName: message.author.username,
                     discriminator: message.author.discriminator
@@ -66,11 +103,8 @@ client.on('messageCreate', async (message) => {
             headers: { 'x-internal-secret': WEBHOOK_SECRET || '' }
         });
 
-        // Mark as read (simulate human behavior)
-        // await message.channel.sendTyping(); // Optional: trigger typing
-
     } catch (error: any) {
-        console.error('[Discord] Failed to forward message:', error.message);
+        logger.error('Failed to forward message:', error.message);
     }
 });
 
@@ -93,11 +127,11 @@ server.post('/api/sendText', async (req: any, reply) => {
         // Send Message
         await user.send(text);
 
-        console.log(`[Discord] Sent message to ${user.tag}`);
+        logger.info(`Sent message to ${user.tag}`);
         return { success: true };
 
     } catch (error: any) {
-        console.error('[Discord] Failed to send message:', error);
+        logger.error('Failed to send message:', error);
         return reply.code(500).send({ error: error.message });
     }
 });
@@ -112,7 +146,7 @@ server.get('/health', async (req, reply) => {
 const start = async () => {
     try {
         await server.listen({ port: PORT, host: '0.0.0.0' });
-        console.log(`[Discord] API listening on port ${PORT}`);
+        logger.info(`API listening on port ${PORT}`);
 
         await client.login(DISCORD_TOKEN);
     } catch (err) {

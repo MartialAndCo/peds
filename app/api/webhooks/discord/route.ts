@@ -31,24 +31,29 @@ export async function POST(req: Request) {
         const payload = body.payload
 
         // Resolve Agent ID:
-        // Priority 1: System Settings (dynamic configuration via UI)
-        // Priority 2: Payload session ID (fallback)
-        // Priority 3: Default
         let agentId = 'default'
+        let botId: string | undefined
+
+        // Extract Bot ID from session ID (discord_{botId})
+        if (body.sessionId && body.sessionId.toString().startsWith('discord_')) {
+            botId = body.sessionId.toString().replace('discord_', '')
+        }
 
         try {
-            const settings = await prisma.systemSettings.findUnique({
-                where: { id: 'default' }
-            })
-            if (settings?.discordAgentId) {
-                agentId = settings.discordAgentId
-                console.log(`[Discord Webhook] Using configured Agent ID from Settings: ${agentId}`)
-            } else if (body.sessionId && body.sessionId.toString().startsWith('discord_')) {
-                // ... Fallback logic ...
-                agentId = body.sessionId.toString().replace('discord_', '')
+            if (botId) {
+                // Try to find assigned agent for this specific bot
+                const discordBot = await prisma.discordBot.findUnique({
+                    where: { id: botId }
+                })
+                if (discordBot?.agentId) {
+                    agentId = discordBot.agentId
+                    console.log(`[Discord Webhook] Resolved Agent ${agentId} for Bot ${botId}`)
+                } else {
+                    console.log(`[Discord Webhook] Unknown or Unassigned Bot ${botId}, using default agent`)
+                }
             }
         } catch (e) {
-            logger.warn('Failed to fetch system settings', { error: e })
+            logger.warn('Failed to resolve Discord Bot agent', { error: e })
         }
 
         console.log(`[Discord Webhook] Final Resolved Agent ID: ${agentId}`)

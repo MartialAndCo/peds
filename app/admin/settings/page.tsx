@@ -9,6 +9,71 @@ import { SessionManager } from '@/components/settings/session-manager'
 import { clearAllQueues } from '@/app/actions/queue'
 import { useToast } from '@/components/ui/use-toast'
 
+function DiscordBotList({ agents }: { agents: any[] }) {
+    const [bots, setBots] = useState<any[]>([])
+    const [loading, setLoading] = useState(true)
+    const { toast } = useToast()
+
+    const fetchBots = useCallback(() => {
+        axios.get('/api/integrations/discord').then(res => {
+            setBots(res.data)
+            setLoading(false)
+        })
+    }, [])
+
+    useEffect(() => { fetchBots() }, [fetchBots])
+
+    const handleAssign = async (botId: string, agentId: string) => {
+        try {
+            await axios.put('/api/integrations/discord', { botId, agentId })
+            toast({ title: "Agent Assigned 🔗", className: "bg-green-600 border-none text-white" })
+            fetchBots()
+        } catch (e) {
+            toast({ title: "Failed to assign", variant: "destructive" })
+        }
+    }
+
+    if (loading) return <Loader2 className="animate-spin h-5 w-5 text-white/40" />
+    if (bots.length === 0) return (
+        <div className="p-4 rounded-xl bg-white/5 border border-dashed border-white/10 text-center">
+            <p className="text-white/40 text-sm">No Discord Bots detected yet.</p>
+            <p className="text-white/30 text-xs mt-1">Start your Discord Service to register.</p>
+        </div>
+    )
+
+    return (
+        <div className="space-y-4">
+            {bots.map(bot => (
+                <div key={bot.id} className="flex items-center justify-between p-4 rounded-xl bg-black/20 border border-white/5">
+                    <div className="flex items-center gap-3">
+                        <div className={`h-2 w-2 rounded-full ${new Date(bot.lastSeen).getTime() > Date.now() - 1000 * 60 * 5 ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} />
+                        <div>
+                            <p className="text-white font-medium">{bot.username}</p>
+                            <p className="text-white/40 text-xs font-mono">ID: {bot.id}</p>
+                            <p className="text-white/30 text-[10px]">
+                                Last Seen: {new Date(bot.lastSeen).toLocaleTimeString()}
+                            </p>
+                        </div>
+                    </div>
+
+                    <select
+                        value={bot.agentId || ''}
+                        onChange={(e) => handleAssign(bot.id, e.target.value)}
+                        className="bg-white/[0.04] border border-white/[0.08] text-white text-sm rounded-md p-2 w-[200px] focus:outline-none focus:ring-1 focus:ring-[#5865F2]"
+                    >
+                        <option value="" className="bg-[#0f172a] text-white/50">-- Select Agent --</option>
+                        {agents.map((agent: any) => (
+                            <option key={agent.id} value={agent.id} className="bg-[#0f172a]">
+                                {agent.name}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+            ))}
+        </div>
+    )
+}
+
 export default function SettingsPage() {
     const [settings, setSettings] = useState<any>({
         waha_endpoint: '',
