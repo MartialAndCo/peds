@@ -720,11 +720,11 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
     // 6. Notification Trigger (Internal Tags)
     // PAYMENT DETECTION: Now ONLY via AI tag (keyword detection removed to avoid false positives)
-    if (responseText.includes('[PAYMENT_RECEIVED]')) {
+    if (responseText.includes('[PAYMENT_RECEIVED]') || responseText.includes('[PAIEMENT_REÇU]') || responseText.includes('[PAIEMENT_RECU]')) {
         console.log('[Chat] Tag [PAYMENT_RECEIVED] detected in AI response. Triggering notification & stripping...')
 
         // CRITICAL: Strip the tag globally so it's not queued/sent
-        responseText = responseText.replace(/\[PAYMENT_RECEIVED\]/g, '').trim()
+        responseText = responseText.replace(/\[PAYMENT_RECEIVED\]|\[PAIEMENT_REÇU\]|\[PAIEMENT_RECU\]/g, '').trim()
 
         // Trigger notification (AI has full context - no keyword-based duplicate risk now)
         try {

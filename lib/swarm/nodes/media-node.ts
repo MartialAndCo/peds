@@ -23,13 +23,11 @@ export async function mediaNode(state: SwarmState): Promise<Partial<SwarmState>>
   const msg = userMessage.toLowerCase();
   
   // === BLACKLIST CHECK ===
-  // Récupérer les règles blacklist pour cette phase + globales
+  // UNIQUEMENT les règles spécifiques à cet agent ET pour la phase actuelle
   const blacklistRules = await prisma.blacklistRule.findMany({
     where: {
-      OR: [
-        { phase: phase },
-        { phase: 'all' }
-      ],
+      agentId: agentId,  // UNIQUEMENT cet agent (pas de globales)
+      phase: phase,       // UNIQUEMENT cette phase (pas de 'all')
       mediaType: { in: ['image', 'all'] }
     }
   });

@@ -373,7 +373,7 @@ Example responses:
                     contextMessages.length > 0 ? contextMessages[contextMessages.length - 1].content : 'I sent it',
                     { apiKey: vKey, model: vModel, temperature: 0.7 }
                 )
-                notReceivedMsg = notReceivedMsg.replace(/\*[^*]+\*/g, '').replace(/\[PAYMENT_RECEIVED\]/g, '').trim()
+                notReceivedMsg = notReceivedMsg.replace(/\*[^*]+\*/g, '').replace(/\[PAYMENT_RECEIVED\]|\[PAIEMENT_REÇU\]|\[PAIEMENT_RECU\]/g, '').trim()
                 // Extra safety: Strip any PayPal mentions that might slip through
                 notReceivedMsg = notReceivedMsg.replace(/paypal[:\s]?\w*/gi, '').replace(/lena\d+/gi, '').replace(/anais\.\w+/gi, '').trim()
 

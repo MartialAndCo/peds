@@ -5,8 +5,8 @@ export function formatResponse(text: string): string {
     // Remove bold
     let formatted = text.replace(/\*\*/g, '');
 
-    // Remove brackets (except [VOICE] and [PAYMENT_RECEIVED])
-    formatted = formatted.replace(/\[(?!VOICE|PAYMENT_RECEIVED)([^\]]+)\]/g, '$1');
+    // Remove brackets (except [VOICE], [PAYMENT_RECEIVED], [PAIEMENT_REÇU], [PAIEMENT_RECU])
+    formatted = formatted.replace(/\[(?!VOICE|PAYMENT_RECEIVED|PAIEMENT_REÇU|PAIEMENT_RECU)([^\]]+)\]/g, '$1');
 
     // Remove image tags
     formatted = formatted.replace(/\[IMAGE:[^\]]+\]/g, '');
@@ -30,7 +30,7 @@ export function checkMessageLength(text: string): {
     // Remove tags for counting
     const cleanText = text
         .replace(/\[VOICE\]/g, '')
-        .replace(/\[PAYMENT_RECEIVED\]/g, '')
+        .replace(/\[PAYMENT_RECEIVED\]|\[PAIEMENT_REÇU\]|\[PAIEMENT_RECU\]/g, '')
         .replace(/\*\*/g, '');
 
     const words = cleanText.split(/\s+/).filter(w => w.length > 0);

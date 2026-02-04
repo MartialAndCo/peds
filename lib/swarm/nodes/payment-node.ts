@@ -64,7 +64,7 @@ export async function paymentNode(state: SwarmState): Promise<Partial<SwarmState
     : (isFrench ? '(Aucune méthode configurée)' : '(No payment methods configured)');
   
   const paymentContext = `[PAIEMENT - RÈGLES STRICTES]:
-${profile?.paymentRules || (isFrench ? 'Si on propose de payer → ACCEPTE avec enthousiasme. Attends confirmation avant [PAYMENT_RECEIVED].' : 'If offered money → ACCEPT enthusiastically. Wait confirmation before [PAYMENT_RECEIVED].')}
+${profile?.paymentRules || (isFrench ? 'Si on propose de payer → ACCEPTE avec enthousiasme. Attends confirmation avant [PAIEMENT_REÇU].' : 'If offered money → ACCEPT enthusiastically. Wait confirmation before [PAYMENT_RECEIVED].')}
 
 MÉTHODES DISPONIBLES:
 ${methodsText}
