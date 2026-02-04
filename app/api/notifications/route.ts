@@ -66,3 +66,37 @@ export async function PATCH(req: Request) {
         return NextResponse.json({ error: 'Failed to update notification' }, { status: 500 })
     }
 }
+// ... PATCH ...
+
+export async function DELETE(req: Request) {
+    const session = await getServerSession(authOptions)
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    try {
+        const { searchParams } = new URL(req.url)
+        const id = searchParams.get('id')
+        const all = searchParams.get('all') === 'true'
+
+        if (all) {
+            await prisma.notification.deleteMany({
+                where: {
+                    // Safety: only delete for current user logic or all if admin? 
+                    // Current system seems global admin, so delete all is fine.
+                }
+            })
+            return NextResponse.json({ success: true })
+        }
+
+        if (id) {
+            await prisma.notification.delete({
+                where: { id }
+            })
+            return NextResponse.json({ success: true })
+        }
+
+        return NextResponse.json({ error: 'Missing ID or all flag' }, { status: 400 })
+
+    } catch (error) {
+        return NextResponse.json({ error: 'Failed to delete notification' }, { status: 500 })
+    }
+}

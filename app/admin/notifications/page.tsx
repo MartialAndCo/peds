@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Bell, Check, X, Clock, DollarSign, ArrowLeft, Loader2, RefreshCw, Mic, Play, Pause } from 'lucide-react'
+import { Bell, Check, X, Clock, DollarSign, ArrowLeft, Loader2, RefreshCw, Mic, Play, Pause, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { useToast } from "@/components/ui/use-toast"
+import { motion, AnimatePresence, PanInfo } from 'framer-motion'
 
 interface Notification {
     id: string
@@ -130,8 +131,32 @@ export default function NotificationsPage() {
         fetchNotifications()
     }
 
+    const handleClearAll = async () => {
+        if (!confirm('Are you sure you want to delete all notifications?')) return
+
+        try {
+            await fetch('/api/notifications?all=true', { method: 'DELETE' })
+            setNotifications([])
+            toast({ title: "Deleted", description: "All notifications cleared." })
+        } catch (error) {
+            console.error(error)
+        }
+    }
+
+    const handleSwipeDelete = async (id: string) => {
+        // Optimistic update
+        setNotifications(prev => prev.filter(n => n.id !== id))
+
+        try {
+            await fetch(`/api/notifications?id=${id}`, { method: 'DELETE' })
+        } catch (error) {
+            console.error('Failed to delete', error)
+            fetchNotifications() // Revert on error
+        }
+    }
+
     return (
-        <div className="min-h-screen bg-[#0f172a] pb-20">
+        <div className="min-h-screen bg-[#0f172a] pb-20 overflow-x-hidden">
             {/* Header */}
             <div className="sticky top-0 z-10 bg-[#0f172a]/95 backdrop-blur-xl border-b border-white/10 px-4 h-16 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -140,9 +165,14 @@ export default function NotificationsPage() {
                     </Button>
                     <h1 className="text-xl font-bold text-white tracking-tight">Notification Center</h1>
                 </div>
-                <Button variant="ghost" size="icon" onClick={fetchNotifications} className="text-white/40 hover:text-white">
-                    <RefreshCw className="h-5 w-5" />
-                </Button>
+                <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="icon" onClick={handleClearAll} className="text-red-400 hover:text-red-300 hover:bg-white/5">
+                        <Trash2 className="h-5 w-5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={fetchNotifications} className="text-white/40 hover:text-white">
+                        <RefreshCw className="h-5 w-5" />
+                    </Button>
+                </div>
             </div>
 
             {/* List */}
@@ -160,148 +190,167 @@ export default function NotificationsPage() {
                         <p className="text-sm opacity-60 mt-1">No new alerts.</p>
                     </div>
                 ) : (
-                    notifications.map(n => {
-                        const isPayment = n.type === 'PAYMENT_CLAIM';
-                        const isTtsFailure = n.type === 'TTS_FAILURE';
-                        // Construct better message for Payment
-                        // Metadata: amount, method, contactName
-                        const amount = n.metadata?.amount || '?'
-                        const method = n.metadata?.method || 'unknown method'
-                        const sender = n.metadata?.contactName || 'Someone'
+                    <AnimatePresence mode="popLayout">
+                        {notifications.map(n => {
+                            const isPayment = n.type === 'PAYMENT_CLAIM';
+                            const isTtsFailure = n.type === 'TTS_FAILURE';
+                            // Construct better message for Payment
+                            // Metadata: amount, method, contactName
+                            const amount = n.metadata?.amount || '?'
+                            const method = n.metadata?.method || 'unknown method'
+                            const sender = n.metadata?.contactName || 'Someone'
+                            const cleanMethod = method === 'AI_DETECTED' ? 'AI' : method;
+                            const ttsText = n.metadata?.originalText || ''
 
-                        // Clean up "AI_DETECTED" if present
-                        const cleanMethod = method === 'AI_DETECTED' ? 'AI' : method;
+                            return (
+                                <motion.div
+                                    key={n.id}
+                                    layout
+                                    initial={{ opacity: 0, x: -20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: -100, transition: { duration: 0.2 } }}
+                                    drag="x"
+                                    dragConstraints={{ left: 0, right: 0 }}
+                                    onDragEnd={(_, info: PanInfo) => {
+                                        if (info.offset.x < -100 || info.offset.x > 100) {
+                                            handleSwipeDelete(n.id)
+                                        }
+                                    }}
+                                    className="relative touch-pan-y"
+                                >
+                                    {/* Background Hint for Delete */}
+                                    {/* <div className="absolute inset-0 flex items-center justify-between px-6 bg-red-500/20 rounded-3xl -z-10">
+                                        <Trash2 className="h-6 w-6 text-red-400" />
+                                        <Trash2 className="h-6 w-6 text-red-400" />
+                                    </div> */}
 
-                        // TTS failure metadata
-                        const ttsText = n.metadata?.originalText || ''
-
-                        return (
-                            <div key={n.id} className={cn(
-                                "rounded-3xl p-5 border transition-all relative overflow-hidden group",
-                                n.isRead ? "bg-white/5 border-white/5 opacity-60" : "bg-[#1e293b] border-white/10 shadow-lg shadow-black/20"
-                            )}>
-                                {!n.isRead && <div className="absolute top-4 right-4 h-2 w-2 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]" />}
-
-                                <div className="flex items-start gap-4">
                                     <div className={cn(
-                                        "h-12 w-12 rounded-2xl flex items-center justify-center shrink-0 shadow-inner",
-                                        isPayment ? "bg-emerald-500/10 text-emerald-400"
-                                            : isTtsFailure ? "bg-amber-500/10 text-amber-400"
-                                                : "bg-blue-500/10 text-blue-400"
+                                        "rounded-3xl p-5 border transition-all relative overflow-hidden group select-none cursor-grab active:cursor-grabbing",
+                                        n.isRead ? "bg-white/5 border-white/5 opacity-60" : "bg-[#1e293b] border-white/10 shadow-lg shadow-black/20"
                                     )}>
-                                        {isPayment ? <DollarSign className="h-6 w-6" />
-                                            : isTtsFailure ? <Mic className="h-6 w-6" />
-                                                : <Bell className="h-6 w-6" />}
-                                    </div>
+                                        {!n.isRead && <div className="absolute top-4 right-4 h-2 w-2 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]" />}
 
-                                    <div className="flex-1 space-y-1">
-                                        <div className="flex justify-between items-start pr-4">
-                                            <h3 className="text-white font-bold text-base tracking-tight">
-                                                {isPayment ? "Payment Claim" : isTtsFailure ? "🎤 Voice Note Failed" : n.title}
-                                            </h3>
-                                        </div>
-
-                                        {isPayment ? (
-                                            <div className="text-white/80 text-sm leading-relaxed">
-                                                <span className="font-semibold text-white">{sender}</span> claims to have sent <span className="font-bold text-emerald-400">{amount === '?' ? 'money' : amount}</span>
-                                                {cleanMethod && cleanMethod !== 'unknown method' && cleanMethod !== 'AI' && (
-                                                    <> via <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-white/10 text-white/60">{cleanMethod}</Badge></>
-                                                )}
-                                                .
+                                        <div className="flex items-start gap-4">
+                                            <div className={cn(
+                                                "h-12 w-12 rounded-2xl flex items-center justify-center shrink-0 shadow-inner",
+                                                isPayment ? "bg-emerald-500/10 text-emerald-400"
+                                                    : isTtsFailure ? "bg-amber-500/10 text-amber-400"
+                                                        : "bg-blue-500/10 text-blue-400"
+                                            )}>
+                                                {isPayment ? <DollarSign className="h-6 w-6" />
+                                                    : isTtsFailure ? <Mic className="h-6 w-6" />
+                                                        : <Bell className="h-6 w-6" />}
                                             </div>
-                                        ) : isTtsFailure ? (
-                                            <div className="text-white/80 text-sm leading-relaxed space-y-3">
-                                                {/* Conversation summary from n.message */}
-                                                <div className="bg-black/30 rounded-xl p-3 space-y-2">
-                                                    <p className="text-white/50 text-xs font-medium uppercase tracking-wide">📋 Conversation:</p>
-                                                    <div className="text-white/70 text-xs space-y-1 whitespace-pre-line">
-                                                        {n.message.split('\n').filter(line => line.startsWith('🤖') || line.startsWith('👤')).slice(0, 5).map((line, i) => (
-                                                            <p key={i} className={line.startsWith('🤖') ? 'text-blue-300' : 'text-white/60'}>{line}</p>
-                                                        ))}
-                                                    </div>
+
+                                            <div className="flex-1 space-y-1">
+                                                <div className="flex justify-between items-start pr-4">
+                                                    <h3 className="text-white font-bold text-base tracking-tight">
+                                                        {isPayment ? "Payment Claim" : isTtsFailure ? "🎤 Voice Note Failed" : n.title}
+                                                    </h3>
                                                 </div>
 
-                                                {/* Original text that was supposed to be spoken */}
-                                                {ttsText && (
-                                                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-2">
-                                                        <p className="text-amber-400/80 text-xs font-medium mb-1">🗣️ Texte à dire:</p>
-                                                        <p className="text-white/80 text-sm italic">"{ttsText}"</p>
+                                                {isPayment ? (
+                                                    <div className="text-white/80 text-sm leading-relaxed">
+                                                        <span className="font-semibold text-white">{sender}</span> claims to have sent <span className="font-bold text-emerald-400">{amount === '?' ? 'money' : amount}</span>
+                                                        {cleanMethod && cleanMethod !== 'unknown method' && cleanMethod !== 'AI' && (
+                                                            <> via <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-white/10 text-white/60">{cleanMethod}</Badge></>
+                                                        )}
+                                                        .
                                                     </div>
+                                                ) : isTtsFailure ? (
+                                                    <div className="text-white/80 text-sm leading-relaxed space-y-3">
+                                                        <div className="bg-black/30 rounded-xl p-3 space-y-2">
+                                                            <p className="text-white/50 text-xs font-medium uppercase tracking-wide">📋 Conversation:</p>
+                                                            <div className="text-white/70 text-xs space-y-1 whitespace-pre-line">
+                                                                {n.message.split('\n').filter(line => line.startsWith('🤖') || line.startsWith('👤')).slice(0, 5).map((line, i) => (
+                                                                    <p key={i} className={line.startsWith('🤖') ? 'text-blue-300' : 'text-white/60'}>{line}</p>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+
+                                                        {ttsText && (
+                                                            <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-2">
+                                                                <p className="text-amber-400/80 text-xs font-medium mb-1">🗣️ Texte à dire:</p>
+                                                                <p className="text-white/80 text-sm italic">"{ttsText}"</p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-white/60 text-sm">{n.message}</p>
                                                 )}
+
+                                                <p className="text-white/20 text-xs font-mono pt-1">
+                                                    {new Date(n.createdAt).toLocaleString()}
+                                                </p>
                                             </div>
-                                        ) : (
-                                            <p className="text-white/60 text-sm">{n.message}</p>
+                                        </div>
+
+                                        {isPayment && !n.isRead && (
+                                            <div className="mt-5 flex flex-col gap-3">
+                                                <Button
+                                                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold h-12 rounded-xl shadow-lg shadow-emerald-900/20 active:scale-[0.98] transition-all w-full"
+                                                    onClick={() => handleAction(n, 'confirm')}
+                                                    disabled={!!processingId}
+                                                    onPointerDownCapture={e => e.stopPropagation()} // Prevent drag
+                                                >
+                                                    {processingId === n.id && processingAction === 'confirm' ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="h-5 w-5 mr-2" />}
+                                                    ✓ Yes, Received
+                                                </Button>
+
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <Button
+                                                        variant="outline"
+                                                        className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/20 h-12 rounded-xl"
+                                                        onClick={() => handleAction(n, 'reject')}
+                                                        disabled={!!processingId}
+                                                        onPointerDownCapture={e => e.stopPropagation()}
+                                                    >
+                                                        {processingId === n.id && processingAction === 'reject' ? <Loader2 className="h-5 w-5 animate-spin" /> : <X className="h-5 w-5 mr-1" />}
+                                                        ✗ Not Received
+                                                    </Button>
+
+                                                    <Button
+                                                        variant="ghost"
+                                                        className="text-white/40 hover:text-white hover:bg-white/5 h-12 rounded-xl"
+                                                        onClick={() => handleAction(n, 'wait')}
+                                                        disabled={!!processingId}
+                                                        onPointerDownCapture={e => e.stopPropagation()}
+                                                    >
+                                                        Wait
+                                                    </Button>
+                                                </div>
+                                            </div>
                                         )}
 
-                                        <p className="text-white/20 text-xs font-mono pt-1">
-                                            {new Date(n.createdAt).toLocaleString()}
-                                        </p>
+                                        {isTtsFailure && !n.isRead && (
+                                            <div className="mt-5 grid grid-cols-2 gap-3">
+                                                <Button
+                                                    className="bg-blue-600 hover:bg-blue-500 text-white font-semibold h-11 rounded-xl shadow-lg shadow-blue-900/20 active:scale-[0.98] transition-all"
+                                                    onClick={() => handleTtsAction(n, 'continue')}
+                                                    disabled={!!processingId}
+                                                    onPointerDownCapture={e => e.stopPropagation()}
+                                                >
+                                                    {processingId === n.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Play className="h-5 w-5 mr-2" />}
+                                                    Continue (Shy Text)
+                                                </Button>
+
+                                                <Button
+                                                    variant="outline"
+                                                    className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/20 h-11 rounded-xl"
+                                                    onClick={() => handleTtsAction(n, 'pause')}
+                                                    disabled={!!processingId}
+                                                    onPointerDownCapture={e => e.stopPropagation()}
+                                                >
+                                                    <Pause className="h-5 w-5 mr-1" />
+                                                    Pause Conv
+                                                </Button>
+                                            </div>
+                                        )}
                                     </div>
-                                </div>
-
-                                {/* Actions for Payment Claims */}
-                                {isPayment && !n.isRead && (
-                                    <div className="mt-5 flex flex-col gap-3">
-                                        {/* Row 1: Confirm (Full Width) */}
-                                        <Button
-                                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold h-12 rounded-xl shadow-lg shadow-emerald-900/20 active:scale-[0.98] transition-all w-full"
-                                            onClick={() => handleAction(n, 'confirm')}
-                                            disabled={!!processingId}
-                                        >
-                                            {processingId === n.id && processingAction === 'confirm' ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="h-5 w-5 mr-2" />}
-                                            ✓ Yes, Received
-                                        </Button>
-
-                                        {/* Row 2: No and Wait (Side by Side) */}
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <Button
-                                                variant="outline"
-                                                className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/20 h-12 rounded-xl"
-                                                onClick={() => handleAction(n, 'reject')}
-                                                disabled={!!processingId}
-                                            >
-                                                {processingId === n.id && processingAction === 'reject' ? <Loader2 className="h-5 w-5 animate-spin" /> : <X className="h-5 w-5 mr-1" />}
-                                                ✗ Not Received
-                                            </Button>
-
-                                            <Button
-                                                variant="ghost"
-                                                className="text-white/40 hover:text-white hover:bg-white/5 h-12 rounded-xl"
-                                                onClick={() => handleAction(n, 'wait')}
-                                                disabled={!!processingId}
-                                            >
-                                                Wait
-                                            </Button>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Actions for TTS Failures */}
-                                {isTtsFailure && !n.isRead && (
-                                    <div className="mt-5 grid grid-cols-2 gap-3">
-                                        <Button
-                                            className="bg-blue-600 hover:bg-blue-500 text-white font-semibold h-11 rounded-xl shadow-lg shadow-blue-900/20 active:scale-[0.98] transition-all"
-                                            onClick={() => handleTtsAction(n, 'continue')}
-                                            disabled={!!processingId}
-                                        >
-                                            {processingId === n.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Play className="h-5 w-5 mr-2" />}
-                                            Continue (Shy Text)
-                                        </Button>
-
-                                        <Button
-                                            variant="outline"
-                                            className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/20 h-11 rounded-xl"
-                                            onClick={() => handleTtsAction(n, 'pause')}
-                                            disabled={!!processingId}
-                                        >
-                                            <Pause className="h-5 w-5 mr-1" />
-                                            Pause Conv
-                                        </Button>
-                                    </div>
-                                )}
-                            </div>
-                        )
-                    })
+                                </motion.div>
+                            )
+                        })}
+                    </AnimatePresence>
                 )}
             </div>
 
