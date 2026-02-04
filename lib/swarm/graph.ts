@@ -1,78 +1,81 @@
-// Moteur d'exécution du graph multi-agent (inspiré LangGraph)
+// Moteur d'exécution du graph multi-agent avec support parallèle et barrières
 import type { SwarmState, NodeFunction, EdgeConfig } from './types'
 
+interface NodeInfo {
+    name: string
+    fn: NodeFunction
+    dependencies: string[]  // Nodes qui doivent s'exécuter avant
+}
+
 export class SwarmGraph {
-    private nodes: Map<string, NodeFunction> = new Map()
-    private edges: Map<string, EdgeConfig[]> = new Map()
+    private nodes: Map<string, NodeInfo> = new Map()
 
-    addNode(name: string, fn: NodeFunction) {
-        this.nodes.set(name, fn)
-        if (!this.edges.has(name)) {
-            this.edges.set(name, [])
-        }
-    }
-
-    addEdge(from: string, to: string, condition?: (state: SwarmState) => boolean) {
-        if (!this.edges.has(from)) {
-            this.edges.set(from, [])
-        }
-        this.edges.get(from)!.push({ from, to, condition })
-    }
-
-    addConditionalEdges(
-        from: string,
-        conditionFn: (state: SwarmState) => string,
-        targets: Record<string, string>
-    ) {
-        // Pour les edges conditionnels complexes
-        this.edges.set(from, Object.entries(targets).map(([key, to]) => ({
-            from,
-            to,
-            condition: (state: SwarmState) => conditionFn(state) === key
-        })))
+    addNode(name: string, fn: NodeFunction, dependencies: string[] = []) {
+        this.nodes.set(name, { name, fn, dependencies })
     }
 
     async execute(startNode: string, initialState: SwarmState): Promise<SwarmState> {
-        let currentNode = startNode
-        let state: SwarmState = initialState
-        const visited = new Set<string>()
+        let state: SwarmState = { ...initialState, contexts: initialState.contexts || {} }
+        const executed = new Set<string>()
         let iterations = 0
-        const MAX_ITERATIONS = 20
+        const MAX_ITERATIONS = 100
 
-        console.log(`[Swarm] Starting execution from node: ${currentNode}`)
+        console.log(`[Swarm] Starting execution from: ${startNode}`)
 
-        while (currentNode !== 'END' && iterations < MAX_ITERATIONS) {
+        while (iterations < MAX_ITERATIONS) {
             iterations++
-
-            // Exécuter le node actuel
-            const node = this.nodes.get(currentNode)
-            if (!node) {
-                throw new Error(`[Swarm] Node "${currentNode}" not found`)
+            
+            // Trouver tous les nodes prêts (toutes les dépendances sont exécutées)
+            const readyNodes: string[] = []
+            for (const [name, info] of this.nodes) {
+                if (executed.has(name)) continue
+                const depsSatisfied = info.dependencies.every(dep => executed.has(dep))
+                if (depsSatisfied && !readyNodes.includes(name)) {
+                    readyNodes.push(name)
+                }
             }
 
-            console.log(`[Swarm] [${iterations}] Executing: ${currentNode}`)
-            const startTime = Date.now()
-
-            try {
-                const result = await node(state)
-                state = { ...state, ...result }
-
-                const duration = Date.now() - startTime
-                console.log(`[Swarm] [${iterations}] ${currentNode} completed in ${duration}ms`)
-
-                // Déterminer le prochain node
-                const nextNode = this.getNextNode(currentNode, state)
-
-                if (nextNode === currentNode) {
-                    console.warn(`[Swarm] Loop detected at ${currentNode}, breaking`)
+            if (readyNodes.length === 0) {
+                // Vérifier si on a tout exécuté ou si on est bloqué
+                const remaining = Array.from(this.nodes.keys()).filter(n => !executed.has(n))
+                if (remaining.length === 0) {
+                    console.log('[Swarm] All nodes executed')
                     break
                 }
+                console.warn('[Swarm] Deadlock detected! Remaining:', remaining)
+                break
+            }
 
-                currentNode = nextNode
+            console.log(`[Swarm] [${iterations}] Ready nodes: ${readyNodes.join(', ')}`)
 
-            } catch (error) {
-                console.error(`[Swarm] Error in node ${currentNode}:`, error)
-                state.error = `Error in ${currentNode}: ${error}`
+            // Exécuter tous les nodes prêts en PARALLÈLE
+            const results = await Promise.all(
+                readyNodes.map(async (nodeName) => {
+                    const info = this.nodes.get(nodeName)!
+                    const startTime = Date.now()
+                    
+                    try {
+                        console.log(`[Swarm] → Starting ${nodeName}...`)
+                        const result = await info.fn(state)
+                        const duration = Date.now() - startTime
+                        console.log(`[Swarm] ✓ ${nodeName} done (${duration}ms)`)
+                        return { name: nodeName, result, success: true }
+                    } catch (error: any) {
+                        console.error(`[Swarm] ✗ ${nodeName} failed:`, error.message)
+                        return { name: nodeName, result: { error: `Error in ${nodeName}: ${error.message}` }, success: false }
+                    }
+                })
+            )
+
+            // Mettre à jour l'état et marquer comme exécuté
+            for (const { name, result } of results) {
+                executed.add(name)
+                state = { ...state, ...result }
+            }
+
+            // Vérifier si on a une réponse (fin du workflow)
+            if (state.response) {
+                console.log(`[Swarm] Response generated, stopping`)
                 break
             }
         }
@@ -82,45 +85,7 @@ export class SwarmGraph {
             state.error = 'Max iterations reached'
         }
 
-        console.log(`[Swarm] Execution completed in ${iterations} iterations`)
+        console.log(`[Swarm] Completed: ${executed.size}/${this.nodes.size} nodes, ${iterations} iterations`)
         return state
-    }
-
-    private getNextNode(currentNode: string, state: SwarmState): string {
-        const edges = this.edges.get(currentNode) || []
-
-        // Trouver une edge avec condition satisfaite
-        for (const edge of edges) {
-            if (!edge.condition || edge.condition(state)) {
-                return edge.to
-            }
-        }
-
-        // Si pas d'edge valide, chercher une edge sans condition
-        const defaultEdge = edges.find(e => !e.condition)
-        if (defaultEdge) {
-            return defaultEdge.to
-        }
-
-        // Sinon, END
-        return 'END'
-    }
-
-    // Exécution parallèle de plusieurs nodes
-    async executeParallel(nodeNames: string[], state: SwarmState): Promise<Partial<SwarmState>[]> {
-        console.log(`[Swarm] Parallel execution: ${nodeNames.join(', ')}`)
-
-        const results = await Promise.all(
-            nodeNames.map(async (name) => {
-                const node = this.nodes.get(name)
-                if (!node) {
-                    console.warn(`[Swarm] Node ${name} not found`)
-                    return {}
-                }
-                return node(state)
-            })
-        )
-
-        return results
     }
 }

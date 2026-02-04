@@ -1,17 +1,7 @@
-import { SwarmState, IntentionResult } from './types';
-import { SwarmGraph } from './graph';
-import {
-  intentionNode,
-  memoryNode,
-  personaNode,
-  timingNode,
-  phaseNode,
-  styleNode,
-  paymentNode,
-  mediaNode,
-  voiceNode,
-  responseNode
-} from './nodes';
+import { prisma } from '@/lib/prisma';
+import { personaSchedule } from '@/lib/services/persona-schedule';
+
+const API_KEY = process.env.VENICE_API_KEY;
 
 export async function runSwarm(
   userMessage: string,
@@ -21,109 +11,103 @@ export async function runSwarm(
   userName: string,
   lastMessageType?: string
 ): Promise<string> {
-  console.log(`[Swarm] Starting swarm for agent ${agentId}, contact ${contactId}`);
-  console.log(`[Swarm] Message: "${userMessage.substring(0, 50)}..."`);
+  console.log(`[Swarm] ${userMessage}`);
   
-  const graph = new SwarmGraph();
-  
-  // Node 1: Détection d'intention
-  graph.addNode('intention', async (state: SwarmState) => {
-    const result = await intentionNode(state);
-    // Fallback complet si l'intention est manquante ou incomplète
-    const fullIntention = result.intention && result.intention.urgence !== undefined 
-      ? result.intention 
-      : {
-          intention: 'general' as const,
-          sousIntention: 'question' as const,
-          urgence: 'normal' as const,
-          besoinTiming: true,
-          besoinMemoire: false,
-          besoinPhase: false,
-          besoinPayment: false,
-          besoinMedia: false,
-          besoinVoice: false,
-          confiance: 0.5
-        };
-    return { ...result, intention: fullIntention };
+  const profile = await prisma.agentProfile.findUnique({
+    where: { agentId },
+    select: {
+      contextTemplate: true,
+      styleRules: true,
+      identityTemplate: true,
+      phaseConnectionTemplate: true,
+      phaseVulnerabilityTemplate: true,
+      phaseCrisisTemplate: true,
+      phaseMoneypotTemplate: true,
+      paymentRules: true,
+      safetyRules: true,
+      timezone: true,
+      locale: true
+    }
   });
-  
-  // Nodes de contexte (parallèles selon l'intention)
-  graph.addNode('timing', timingNode);
-  graph.addNode('persona', personaNode);
-  graph.addNode('style', styleNode);
-  graph.addNode('phase', phaseNode);
-  graph.addNode('memory', memoryNode);
-  graph.addNode('payment', paymentNode);
-  graph.addNode('media', mediaNode);
-  graph.addNode('voice', voiceNode);
-  graph.addNode('response', responseNode);
-  
-  // Définition des edges (transitions)
-  
-  // Depuis intention
-  graph.addEdge('intention', 'timing'); // Toujours besoin du timing
-  graph.addEdge('intention', 'persona'); // Toujours besoin de l'identité
-  graph.addEdge('intention', 'style'); // Toujours besoin du style
-  
-  // Conditionnels depuis intention
-  graph.addEdge('intention', 'phase', (state) => 
-    state.intention?.besoinPhase !== false
-  );
-  graph.addEdge('intention', 'memory', (state) => 
-    state.intention?.besoinMemoire === true
-  );
-  graph.addEdge('intention', 'payment', (state) => 
-    state.intention?.intention === 'paiement' || 
-    state.userMessage.toLowerCase().includes('paypal') ||
-    state.userMessage.toLowerCase().includes('argent') ||
-    state.userMessage.toLowerCase().includes('money') ||
-    state.userMessage.toLowerCase().includes('send')
-  );
-  graph.addEdge('intention', 'media', (state) => 
-    state.intention?.intention === 'photo' ||
-    state.userMessage.toLowerCase().includes('photo') ||
-    state.userMessage.toLowerCase().includes('pic') ||
-    state.userMessage.toLowerCase().includes('image') ||
-    state.userMessage.toLowerCase().includes('selfie')
-  );
-  graph.addEdge('intention', 'voice', (state) => 
-    state.intention?.intention === 'vocal' ||
-    state.lastMessageType === 'voice' ||
-    state.lastMessageType === 'ptt'
-  );
-  
-  // Rassemblement vers response (tous les chemins mènent à response)
-  graph.addEdge('timing', 'response');
-  graph.addEdge('persona', 'response');
-  graph.addEdge('style', 'response');
-  graph.addEdge('phase', 'response');
-  graph.addEdge('memory', 'response');
-  graph.addEdge('payment', 'response');
-  graph.addEdge('media', 'response');
-  graph.addEdge('voice', 'response');
-  
-  // État initial
-  const initialState: SwarmState = {
-    userMessage,
-    history,
-    contactId,
-    agentId,
-    userName,
-    lastMessageType: lastMessageType || 'text',
-    contexts: {}
-  };
-  
-  // Exécution
-  console.log('[Swarm] Executing graph...');
-  const finalState = await graph.execute('intention', initialState);
-  
-  if (!finalState.response) {
-    throw new Error('Swarm did not generate a response');
-  }
-  
-  console.log(`[Swarm] Response generated: "${finalState.response.substring(0, 50)}..."`);
-  return finalState.response;
-}
 
-export * from './types';
-export { SwarmGraph } from './graph';
+  if (!profile) throw new Error('Profile not found');
+
+  // Récupérer la phase
+  const agentContact = await prisma.agentContact.findFirst({
+    where: { agentId, contactId },
+    select: { phase: true }
+  });
+
+  const phase = agentContact?.phase || 'CONNECTION';
+  let phaseTemplate = profile.phaseConnectionTemplate || '';
+  if (phase === 'VULNERABILITY') phaseTemplate = profile.phaseVulnerabilityTemplate || '';
+  if (phase === 'CRISIS') phaseTemplate = profile.phaseCrisisTemplate || '';
+  if (phase === 'MONEYPOT') phaseTemplate = profile.phaseMoneypotTemplate || '';
+
+  // Récupérer le contexte temps (CRITIQUE)
+  const timezone = profile.timezone || 'Europe/Paris';
+  const locale = (profile.locale || 'fr-FR').toLowerCase();
+  const timingContext = personaSchedule.getContextPrompt(timezone, undefined, locale);
+
+  // Nettoyer l'identity (supprimer la partie "Tu es une EXPERTE...")
+  const identityClean = (profile.identityTemplate || '')
+    .replace(/Tu es une EXPERTE en conversation naturelle qui incarne Anaïs, 15 ans\./, '')
+    .replace(/Un amateur se répète[\s\S]*?Si non → reformule\./, '');
+
+  // Assembler le prompt: TEMPS EN PREMIER, puis identity, puis contexte
+  const systemPrompt = `RÈGLE ULTRA CRITIQUE: Tu es ANAÏS, 15 ans, ADO. PAS une IA.
+INTERDIT: "IA", "modèle", "Venice", "créée", "payée".
+ORIGINE: "jsuis de Paris". NAISSANCE: "2009, 15 ans".
+
+${timingContext}
+
+${identityClean}
+
+${profile.contextTemplate || ''}
+
+${phaseTemplate}
+
+${profile.styleRules || ''}
+
+${profile.safetyRules || ''}
+
+${profile.paymentRules || ''}`;
+
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    ...history.slice(-3).map((m: any) => ({
+      role: m.role === 'ai' ? 'assistant' : 'user',
+      content: m.content
+    })),
+    { role: 'user', content: userMessage }
+  ];
+
+  const res = await fetch('https://api.venice.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'venice-uncensored',
+      messages,
+      temperature: 0.7,
+      max_tokens: 20
+    })
+  });
+
+  if (!res.ok) throw new Error(`API ${res.status}`);
+  
+  const data = await res.json();
+  let response = data.choices?.[0]?.message?.content?.trim() || 'jsuis là';
+  
+  response = response
+    .replace(/\n+/g, ' ')
+    .replace(/\s*\|\s*/g, ' | ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  
+  response = response.replace(/\s*\|\s*\|/g, ' |');
+  
+  return response;
+}

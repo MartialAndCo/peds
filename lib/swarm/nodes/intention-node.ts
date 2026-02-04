@@ -41,59 +41,39 @@ EXEMPLES:
 - "Appelle-moi" → intention: "vocal", besoinVoice: true
 - "Ton chat s'appelle comment ?" → intention: "personnel", besoinMemoire: true`
 
-    // Essayer d'abord avec llama-3.3-70b (plus rapide pour la classification)
-    // Si restriction/refus → fallback sur venice-uncensored
-    const modelsToTry = [
-        settings.venice_model || 'llama-3.3-70b',
-        'venice-uncensored'
-    ]
+    // Utiliser venice-uncensored (non censuré et fiable)
+    const model = 'venice-uncensored'
     
-    let lastError: any
-    
-    for (const model of modelsToTry) {
-        try {
-            console.log(`[Swarm][Intention] Trying model: ${model}`)
-            
-            const response = await venice.chatCompletion(
-                prompt,
-                history.slice(-3),
-                'Analyse l\'intention',
-                {
-                    apiKey: settings.venice_api_key,
-                    model,
-                    temperature: 0.1,
-                    max_tokens: 300
-                }
-            )
-
-            // Nettoyer la réponse JSON
-            const cleanJson = response
-                .replace(/```json/g, '')
-                .replace(/```/g, '')
-                .trim()
-
-            const intention: IntentionResult = JSON.parse(cleanJson)
-
-            console.log(`[Swarm][Intention] Detected with ${model}:`, intention)
-
-            return { intention }
-
-        } catch (error: any) {
-            console.warn(`[Swarm][Intention] Failed with ${model}:`, error.message)
-            lastError = error
-            
-            // Si c'est une erreur de restriction/parsing, on continue au modèle suivant
-            // Sinon on throw direct
-            if (!error.message?.includes('restriction') && 
-                !error.message?.includes('refused') &&
-                !error.message?.includes('JSON')) {
-                break
+    try {
+        console.log(`[Swarm][Intention] Using model: ${model}`)
+        
+        const response = await venice.chatCompletion(
+            prompt,
+            history.slice(-3),
+            'Analyse',
+            {
+                apiKey: settings.venice_api_key,
+                model,
+                temperature: 0.1,
+                max_tokens: 300
             }
-        }
+        )
+
+        // Nettoyer la réponse JSON
+        const cleanJson = response
+            .replace(/```json/g, '')
+            .replace(/```/g, '')
+            .trim()
+
+        const intention: IntentionResult = JSON.parse(cleanJson)
+
+        console.log(`[Swarm][Intention] Detected:`, intention.intention, '| urgency:', intention.urgence)
+
+        return { intention }
+
+    } catch (error: any) {
+        console.warn(`[Swarm][Intention] Failed:`, error.message)
     }
-    
-    // Tous les modèles ont échoué → fallback général
-    console.error('[Swarm][Intention] All models failed, using fallback:', lastError)
 
     return {
         intention: {

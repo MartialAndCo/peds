@@ -37,6 +37,7 @@ export interface SwarmState {
     photoType?: string
     shouldSendVoice?: boolean
     currentPhase?: string
+    isBlacklisted?: boolean  // Si la demande média est blacklistée
 }
 
 export interface IntentionResult {

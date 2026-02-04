@@ -24,7 +24,8 @@ export async function GET() {
         where: whereClause,
         include: {
             agentPrompts: true,
-            settings: true
+            settings: true,
+            discordBots: true
         },
         orderBy: { createdAt: 'asc' }
     })

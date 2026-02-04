@@ -1,30 +1,22 @@
-import { SwarmState } from '../types';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma'
+import type { SwarmState } from '../types'
 
 export async function personaNode(state: SwarmState): Promise<Partial<SwarmState>> {
-  console.log('[Swarm] personaNode: Chargement identité');
-  
-  const profile = await prisma.agentProfile.findUnique({
-    where: { agentId: state.agentId }
-  });
-  
-  if (!profile) {
-    throw new Error(`AgentProfile not found for ${state.agentId}`);
-  }
-  
-  const personaContext = `[QUI TU ES]:
-${profile.identityTemplate || ''}
+    const { agentId } = state
 
-[TA SITUATION]:
-${profile.contextTemplate || ''}
+    console.log('[Swarm][Persona] Fetching persona for agent:', agentId)
 
-[TA MISSION]:
-${profile.missionTemplate || ''}`;
-  
-  return {
-    contexts: {
-      ...state.contexts,
-      persona: personaContext
+    const profile = await prisma.agentProfile.findUnique({
+        where: { agentId },
+        select: { contextTemplate: true }
+    })
+
+    console.log('[Swarm][Persona] Found:', profile ? 'YES' : 'NO', 'Length:', profile?.contextTemplate?.length || 0)
+
+    return {
+        contexts: {
+            ...state.contexts,
+            persona: profile?.contextTemplate || ''
+        }
     }
-  };
 }
