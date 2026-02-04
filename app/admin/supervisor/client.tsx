@@ -123,6 +123,29 @@ export function SupervisorClient({ agents }: { agents: Agent[] }) {
                 >
                     <RefreshCw className={`w-4 h-4 text-white/60 ${loading ? "animate-spin" : ""}`} />
                 </button>
+                <div className="h-6 w-px bg-white/10 mx-2" />
+                <button
+                    onClick={async () => {
+                        if (!confirm("Attention: Cette action supprimera TOUTES les alertes de la base de données. Continuer ?")) return;
+                        try {
+                            setLoading(true);
+                            await fetch("/api/supervisor", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ action: "flush" }),
+                            });
+                            await fetchAlerts();
+                        } catch (error) {
+                            console.error("Flush failed:", error);
+                        } finally {
+                            setLoading(false);
+                        }
+                    }}
+                    className="p-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-colors"
+                    title="Supprimer toutes les alertes (Flush)"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>
+                </button>
             </div>
 
             {/* Alerts List */}

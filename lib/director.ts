@@ -2,6 +2,7 @@ import { prisma } from './prisma'
 import { settingsService } from './settings-cache'
 import { signalAnalyzer, TrustSignal, AgentPhase as SignalPhase } from './services/signal-analyzer'
 import { personaSchedule } from './services/persona-schedule'
+import { aiConfig } from './config/ai-mode'
 
 export type AgentPhase = 'CONNECTION' | 'VULNERABILITY' | 'CRISIS' | 'MONEYPOT'
 
@@ -154,7 +155,13 @@ export const director = {
         agentId: string,  // REQUIRED usage
         progressionReason?: string,
         _testDate?: Date // FOR TESTING ONLY
-    ): Promise<string> {
+    ): Promise<string | null> {
+
+        // PHASE 3: Si mode SWARM actif, retourner null pour utiliser le swarm
+        if (aiConfig.isSwarm()) {
+            console.log('[Director] SWARM mode active - delegating to swarm orchestrator')
+            return null
+        }
 
         const profile = await prisma.agentProfile.findUnique({ where: { agentId } })
 
@@ -447,30 +454,59 @@ When user says only "ok", "bye", "bisous", "kisses", "goodnight" with nothing el
                 !line.includes('ONE REQUEST');
         }).join('\n');
 
+        // PHASE 1: ANTI-RÉPÉTITION - Récupération des phrases récentes
+        const antiRepeatBlock = await this.buildAntiRepeatBlock(contact.id, isFrench)
+
+        // PHASE 1: NOUVEL ORDRE DU PROMPT
+        // Priorité: Contexte temps réel > Objectif > Identité > Règles
         return `
-### SYSTEM INSTRUCTIONS
-${pIdentity}
+### CONTEXTE IMMÉDIAT (PRIORITAIRE)
+${lifeContext}
 
-${pContext}
-
-${contact.notes ? `\n\n[CONTEXTE CRITIQUE - CE QUE TU SAIS DÉJÀ SUR LUI]:\n${contact.notes}\n(NE LE REDEMANDE PAS! Utilise ces infos pour rebondir)` : ''}
-
+### OBJECTIF ACTUEL
 ${pMission}
 
+${contact.notes ? `[CE QUE TU SAIS SUR ${contact.name || 'LUI'}]:\n${contact.notes}` : ''}
+
+### QUI TU ES
+${pIdentity}
+
+### TA SITUATION
+${pContext}
+
+### RÈGLES CRITIQUES
 ${criticalStyleBlock}
+
+${antiRepeatBlock}
 
 ${voiceRule}
 
 ${sRules}
 
 ${simplifiedPaymentBlock}
-
-
-
-${lifeContext}
 `
-        // Helper to avoid undefined
-        function filterEmptyLines(strings: any, ...values: any[]) { return "" }
+    },
 
+    // PHASE 1: Nouvelle méthode pour l'anti-répétition
+    async buildAntiRepeatBlock(contactId: string, isFrench: boolean): Promise<string> {
+        const recentMessages = await prisma.message.findMany({
+            where: {
+                conversation: { contactId },
+                sender: 'ai'
+            },
+            orderBy: { timestamp: 'desc' },
+            take: 5,
+            select: { message_text: true }
+        })
+
+        if (recentMessages.length === 0) return ''
+
+        const phrases = recentMessages
+            .map(m => `- "${m.message_text.substring(0, 40)}${m.message_text.length > 40 ? '...' : ''}"`)
+            .join('\n')
+
+        return isFrench
+            ? `\n🚫 NE PAS RÉPÉTER CES PHRASES:\n${phrases}\n`
+            : `\n🚫 DO NOT REPEAT THESE PHRASES:\n${phrases}\n`
     }
 }

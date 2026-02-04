@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
             aiResponse,
             checks: results,
             passed: allPassed,
-            systemPromptLength: systemPrompt.length
+            systemPromptLength: systemPrompt?.length || 0
         })
 
     } catch (error: any) {

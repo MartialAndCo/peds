@@ -65,8 +65,8 @@ export const queueAgent = {
                 };
 
                 const alert: SupervisorAlert = {
-                    id: `queue-${msg.id}-${now.getTime()}`,
-                    agentId: agentId || 'SYSTEM',
+                    id: `queue-${msg.id}`, // Stable ID
+                    agentId: msg.conversation?.agentId || agentId || 'SYSTEM',
                     conversationId: msg.conversationId || 0,
                     contactId: msg.contactId,
                     agentType: 'QUEUE',
@@ -138,7 +138,7 @@ export const queueAgent = {
             };
 
             return {
-                id: `queue-${msg.id}-${now.getTime()}`,
+                id: `queue-${msg.id}`, // Stable ID based on queue item ID
                 agentId: msg.conversation?.agentId || 'SYSTEM',
                 conversationId: msg.conversationId || 0,
                 contactId: msg.contactId,

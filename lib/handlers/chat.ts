@@ -429,10 +429,15 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     const { phase, details, reason } = await director.determinePhase(contact.phone_whatsapp, effectiveAgentId)
     let systemPrompt = await director.buildSystemPrompt(settings, contact, phase, details, conversation.prompt.system_prompt, effectiveAgentId, reason)
 
-    // Inject memories with clearer phrasing to avoid AI confusing user facts with its own identity
-    if (memories.length > 0) {
-        const memoryBlock = memories.map((m: any) => `- ${m.memory}`).join('\n')
-        systemPrompt += `\n\n[WHAT YOU KNOW ABOUT THE PERSON YOU'RE TALKING TO]:\n${memoryBlock}`
+    // PHASE 3: Si mode SWARM, systemPrompt est null - on passe directement à callAI
+    if (systemPrompt === null) {
+        console.log('[Chat] SWARM mode detected - skipping classic prompt assembly')
+    } else {
+        // Mode CLASSIC: Inject memories with clearer phrasing
+        if (memories.length > 0) {
+            const memoryBlock = memories.map((m: any) => `- ${m.memory}`).join('\n')
+            systemPrompt += `\n\n[WHAT YOU KNOW ABOUT THE PERSON YOU'RE TALKING TO]:\n${memoryBlock}`
+        }
     }
 
     // 3. Timing
@@ -479,8 +484,8 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
     console.log(`[Timing] Final - Mode: ${timing.mode}, Delay: ${timing.delaySeconds}s`)
 
-    // INJECT LIFE CONTEXT INTO SYSTEM PROMPT (Self-Awareness)
-    if ((timing as any).activityContext) {
+    // INJECT LIFE CONTEXT INTO SYSTEM PROMPT (Self-Awareness) - Uniquement en mode CLASSIC
+    if (systemPrompt !== null && (timing as any).activityContext) {
         systemPrompt += `\n\n${(timing as any).activityContext}`
         console.log(`[Chat] Injected Life Context: ${(timing as any).activityContext.substring(0, 80)}...`)
     }
@@ -519,8 +524,8 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         const scheduledAt = new Date(Date.now() + effectiveDelay * 1000)
 
         // Generate NOW
-        const finalSystemPrompt = systemPrompt + queuePrompt
-        const responseText = await callAI(settings, conversation, finalSystemPrompt, contextMessages, lastContent)
+        const finalSystemPrompt = systemPrompt !== null ? systemPrompt + queuePrompt : null
+        const responseText = await callAI(settings, conversation, finalSystemPrompt, contextMessages, lastContent, contact, agentId)
 
         await prisma.messageQueue.create({
             data: {
@@ -553,8 +558,8 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         }
 
         try {
-            const finalSystemPrompt = currentSystemPrompt + queuePrompt
-            responseText = await callAI(settings, conversation, finalSystemPrompt, contextMessages, lastContent)
+            const finalSystemPrompt = currentSystemPrompt !== null ? currentSystemPrompt + queuePrompt : null
+            responseText = await callAI(settings, conversation, finalSystemPrompt, contextMessages, lastContent, contact, effectiveAgentId)
         } catch (error: any) {
             console.error(`[Chat] AI Attempt ${attempts} failed:`, error.message)
 
@@ -670,7 +675,19 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         })
     }
 
-    console.log(`[Chat] AI Response (final): "${responseText.substring(0, 100)}${responseText.length > 100 ? '...' : ''}"`)
+    // 5.8. TAG STRIPPING (EARLY) - Before Supervisor sees it
+    // We strip [IMAGE:...] tags now so they don't appear in Supervisor Dashboard or User Chat.
+    const imageKeywords: string[] = []
+    const imageTagRegex = /\[IMAGE:(.+?)\]/g
+    let imgMatch
+    // Extract all keywords
+    while ((imgMatch = imageTagRegex.exec(responseText)) !== null) {
+        imageKeywords.push(imgMatch[1].trim())
+    }
+    // Remove all tags globally
+    responseText = responseText.replace(imageTagRegex, '').trim()
+
+    console.log(`[Chat] AI Response (final cleaned): "${responseText.substring(0, 100)}${responseText.length > 100 ? '...' : ''}"`)
 
     // ═══════════════════════════════════════════════════════════════════════════
     // SUPERVISOR AI - Real-time monitoring
@@ -684,7 +701,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
             conversationId: conversation.id,
             contactId: contact.id,
             userMessage: lastContent,
-            aiResponse: responseText,
+            aiResponse: responseText, // Now CLEAN
             history: contextMessages.map((m: any) => ({
                 role: m.role === 'user' ? 'user' as const : 'ai' as const,
                 content: m.content
@@ -701,7 +718,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     }
     // ═══════════════════════════════════════════════════════════════════════════
 
-    // 6. Tag Stripping & Notification Trigger (Internal Tags)
+    // 6. Notification Trigger (Internal Tags)
     // PAYMENT DETECTION: Now ONLY via AI tag (keyword detection removed to avoid false positives)
     if (responseText.includes('[PAYMENT_RECEIVED]')) {
         console.log('[Chat] Tag [PAYMENT_RECEIVED] detected in AI response. Triggering notification & stripping...')
@@ -720,7 +737,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     }
 
     // Safety: Final Check (If still empty after retries/stripping, abort)
-    if (!responseText || responseText.trim().length === 0) {
+    if ((!responseText || responseText.trim().length === 0) && imageKeywords.length === 0) {
         console.warn(`[Chat] AI returned empty response after ${attempts} attempts for Conv ${conversation.id}. Aborting send.`)
         return { handled: true, result: 'ai_response_empty' }
     }
@@ -744,75 +761,84 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     // before AI generation (see line 184-197)
 
 
-    // Image Logic ([IMAGE:keyword])
-    const imageMatch = responseText.match(/\[IMAGE:(.+?)\]/)
-    if (imageMatch) {
-        const keyword = imageMatch[1].trim()
-        responseText = responseText.replace(imageMatch[0], '').trim()
-        console.log(`[Chat] AI wanted to send image: ${keyword}`)
+    // Image Logic ([IMAGE:keyword]) - Processed from extracted keywords
+    if (imageKeywords.length > 0) {
+        const keyword = imageKeywords[0];
+        console.log(`[Chat] AI wanted to send ${imageKeywords.length} image(s). Check availability for: ${keyword}`)
 
-        // Handle Image Async (Fire & Forget)
         const { mediaService } = require('@/lib/media'); // Lazy import
-        (async () => {
-            try {
-                let typeId = await mediaService.findMediaTypeByKeyword(keyword)
-                if (!typeId) {
-                    console.log(`[Chat] Image keyword "${keyword}" not found directly. Using as raw typeId to trigger Source Request.`)
-                    typeId = keyword
-                }
 
-                const result = await mediaService.processRequest(contact.phone_whatsapp, typeId)
+        // Synchronously check availability (AWAITED)
+        let typeId = await mediaService.findMediaTypeByKeyword(keyword)
+        if (!typeId) {
+            console.log(`[Chat] Image keyword "${keyword}" not found directly. Using as raw typeId.`)
+            typeId = keyword
+        }
 
-                if (result.action === 'SEND' && result.media) {
-                    console.log(`[Chat] Found media ${result.media.id} for "${typeId}". Sending...`)
+        const mediaResult = await mediaService.processRequest(contact.phone_whatsapp, typeId)
 
-                    // 1. Send Image
-                    // Ensure data is proper DataURL or Base64 (assuming stored as Base64 or URL)
-                    let dataUrl = result.media.data
-                    if (dataUrl && !dataUrl.startsWith('http') && !dataUrl.startsWith('data:')) {
-                        dataUrl = `data:${result.media.mimeType || 'image/jpeg'};base64,${dataUrl}`
-                    }
+        if (mediaResult.action === 'SEND' && mediaResult.media) {
+            console.log(`[Chat] ✅ Media available for "${typeId}". Sending image + original text.`)
 
-                    await whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => { })
-
-                    // Smart Send: Check if it's actually a video
-                    const isVideo = (result.media.mimeType && result.media.mimeType.startsWith('video')) ||
-                        (dataUrl.match(/\.(mp4|mov|avi|webm|mkv)(\?|$)/i));
-
-                    if (isVideo) {
-                        await whatsapp.sendVideo(contact.phone_whatsapp, dataUrl, result.media.caption || '', agentId)
-                    } else {
-                        await whatsapp.sendImage(contact.phone_whatsapp, dataUrl, result.media.caption || '', agentId)
-                    }
-
-                    // 2. Mark as Sent
-                    // sentTo is String[]
-                    const currentSentTo = result.media.sentTo || []
-                    if (!currentSentTo.includes(contact.phone_whatsapp)) {
-                        await prisma.media.update({
-                            where: { id: result.media.id },
-                            data: { sentTo: { push: contact.phone_whatsapp } }
-                        })
-                    }
-
-                    // 3. Save Message to Database (So it shows in UI)
-                    await prisma.message.create({
-                        data: {
-                            conversationId: conversation.id,
-                            sender: 'ai',
-                            message_text: `[Sent Media: ${keyword}]`,
-                            mediaUrl: result.media.url || dataUrl, // Store URL or Base64 (prefer URL if available)
-                            timestamp: new Date()
+                // EXECUTE ASYNC SEND (Fire & Forget to strictly unblock queues, but handled internally)
+                ; (async () => {
+                    try {
+                        const result = mediaResult // reuse
+                        // 1. Send Image
+                        let dataUrl = result.media.data
+                        if (dataUrl && !dataUrl.startsWith('http') && !dataUrl.startsWith('data:')) {
+                            dataUrl = `data:${result.media.mimeType || 'image/jpeg'};base64,${dataUrl}`
                         }
-                    })
-                } else if (result.action === 'REQUEST_SOURCE') {
-                    console.log(`[Chat] No media for "${typeId}". Requesting source...`)
-                    await mediaService.requestFromSource(contact.phone_whatsapp, typeId, settings, agentId)
-                }
-            } catch (e: any) {
-                console.error('[Chat] Failed to process AI Image request', e)
-            }
-        })()
+
+                        await whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => { })
+
+                        // Smart Send: Check if it's actually a video
+                        const isVideo = (result.media.mimeType && result.media.mimeType.startsWith('video')) ||
+                            (dataUrl.match(/\.(mp4|mov|avi|webm|mkv)(\?|$)/i));
+
+                        if (isVideo) {
+                            await whatsapp.sendVideo(contact.phone_whatsapp, dataUrl, result.media.caption || '', agentId)
+                        } else {
+                            await whatsapp.sendImage(contact.phone_whatsapp, dataUrl, result.media.caption || '', agentId)
+                        }
+
+                        // 2. Mark as Sent
+                        const currentSentTo = result.media.sentTo || []
+                        if (!currentSentTo.includes(contact.phone_whatsapp)) {
+                            await prisma.media.update({
+                                where: { id: result.media.id },
+                                data: { sentTo: { push: contact.phone_whatsapp } }
+                            })
+                        }
+
+                        // 3. Save Message to Database (So it shows in UI)
+                        await prisma.message.create({
+                            data: {
+                                conversationId: conversation.id,
+                                sender: 'ai',
+                                message_text: `[Sent Media: ${keyword}]`,
+                                mediaUrl: result.media.url || dataUrl,
+                                timestamp: new Date()
+                            }
+                        })
+                    } catch (e: any) {
+                        console.error('[Chat] Failed to process AI Image sends', e)
+                    }
+                })()
+
+        } else {
+            // ACTION: REQUEST_SOURCE (Media Missing)
+            console.log(`[Chat] ❌ Media missing for "${typeId}". STRICT RULE: Silence & Request Source.`)
+
+            // 1. TRIGGER SOURCE REQUEST
+            await mediaService.requestFromSource(contact.phone_whatsapp, typeId, settings, agentId)
+
+            // 2. ABORT RESPONSE (Strict Silence)
+            // User requirement: "If you don't have the photo, you don't answer."
+            // The response will be handled later when admin provides the media (via processAdminMedia logic).
+            console.log(`[Chat] Aborting text response because media is pending.`)
+            return { handled: true, result: 'media_pending_silence' }
+        }
     }
 
     // If response is ONLY a reaction, stop here (don't send empty text)
@@ -934,16 +960,30 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     return { handled: true, result: 'sent', textBody: responseText }
 }
 
-async function callAI(settings: any, conv: any, sys: string, ctx: any[], last: string) {
+async function callAI(settings: any, conv: any, sys: string | null, ctx: any[], last: string, contact?: any, agentId?: string) {
+    // PHASE 3: SWARM MODE
+    const { aiConfig } = require('@/lib/config/ai-mode')
+    
+    if (aiConfig.isSwarm() && contact && agentId) {
+        console.log('[Chat] SWARM mode active - using multi-agent orchestration')
+        const { runSwarm } = require('@/lib/swarm')
+        const response = await runSwarm(
+            last,
+            ctx,
+            contact.id,
+            agentId,
+            contact.name || 'friend',
+            contact.lastMessageType || 'text'
+        )
+        return response.replace(new RegExp('\\*[^*]+\\*', 'g'), '').trim()
+    }
+    
+    // Si sys est null (mode swarm demandé mais pas de contact/agentId), on fallback
+    if (!sys) {
+        throw new Error('System prompt is null and swarm mode cannot be used without contact/agentId')
+    }
+
     // PRIMARY PROVIDER: VENICE
-    // Fallback logic is handled inside venice.ts (to RunPod)
-
-    // Explicitly check for 'runpod' override setting only if needed, otherwise default to Venice.
-    // User requested: Venice Principal, RunPod Secondaire (fallback), OpenRouter Dégage.
-
-    // However, we respect the 'ai_provider' setting specifically if it forces runpod.
-    // If it's 'anthropic' or 'openrouter', we FORCE Venice anyway based on user request "OpenRouter dégage".
-
     const provider = settings.ai_provider === 'runpod' ? 'runpod' : 'venice'
 
     // SANITIZATION: Fix invalid model names from database
@@ -966,10 +1006,8 @@ async function callAI(settings: any, conv: any, sys: string, ctx: any[], last: s
     let txt = ""
     if (provider === 'venice') {
         const { venice } = require('@/lib/venice')
-        // Venice wrapper handles the fallback to RunPod internally on failure (402, 500, etc.)
         txt = await venice.chatCompletion(sys, ctx, last, params)
     } else {
-        // RunPod Direct
         const { runpod } = require('@/lib/runpod')
         txt = await runpod.chatCompletion(sys, ctx, last, params)
     }

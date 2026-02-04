@@ -52,7 +52,33 @@ async function runScenario(
             { apiKey, temperature: 0.7, max_tokens: 150 }
         )
 
-        console.log(`   🤖 ANNA: "${response}"`)
+        console.log(`   🤖 ANNA (Raw): "${response}"`)
+
+        // SIMULATION DU HANDLER (Logic Mirror from chat.ts)
+        // On vérifie comment le système réagirait à cette réponse brute.
+        const imageTagRegex = /\[IMAGE:(.+?)\]/g
+        let match
+        const imageKeywords = []
+        while ((match = imageTagRegex.exec(response)) !== null) {
+            imageKeywords.push(match[1])
+        }
+
+        if (imageKeywords.length > 0) {
+            const keyword = imageKeywords[0]
+            console.log(`   ⚙️ [Handler Simulation] Tag Image détecté: "${keyword}"`)
+
+            // Check Pseudo-DB (Mock)
+            // Dans le vrai chat.ts, on check la DB. Ici on mock.
+            const validMedia = ['selfie', 'face', 'gym'] // Liste des médias "existants" pour le test
+
+            if (validMedia.includes(keyword)) {
+                console.log(`   ✅ [Handler Simulation] Média "${keyword}" DISPONIBLE -> ENVOI + TEXTE.`)
+            } else {
+                console.log(`   🚫 [Handler Simulation] Média "${keyword}" MANQUANT -> SILENCE STRICT (Message bloqué).`)
+                return null // On simule le silence (renvoie null au testeur)
+            }
+        }
+
         return response
     } catch (e) {
         console.error('   ❌ Erreur LLM:', e)
@@ -126,6 +152,86 @@ async function runTests() {
         dateEvening,
         "Wesh ça raconte quoi ?"
     )
+
+    // 6. SCENARIO: DEMANDE DE PHOTO EXISTANTE (Test Tag + Envoi)
+    // On demande un selfie, qui devrait exister.
+    const imageTestResponse = await runScenario(agent.id, contact, settingsMap,
+        "STRESS TEST - Photo Existante",
+        dateEvening,
+        "Envoie une photo de toi stp" // Selfie trigger
+    )
+    if (imageTestResponse && imageTestResponse.includes('|')) {
+        console.error('   ❌ ERREUR: L\'IA a utilisé des pipes "|" dans le tag image !')
+    } else if (imageTestResponse && imageTestResponse.includes('[IMAGE:')) {
+        console.log('   ✅ SUCCÈS: Tag IMAGE détecté (devrait être envoyé).')
+    }
+
+    // 7. SCENARIO: STRESS TEST - Photo "Chaussures" (Test Refus ou Manquant)
+    console.log('\n\n🔷 SCÉNARIO: STRESS TEST - Chaussures (Item spécifique)')
+    await runScenario(agent.id, contact, settingsMap,
+        "STRESS TEST - Chaussures",
+        dateEvening,
+        "Montre tes nouvelles chaussures stp"
+    )
+
+    // 8. SCENARIO: STRESS TEST - Photo "Chat" (Test Missing Media)
+    console.log('\n\n🔷 SCÉNARIO: STRESS TEST - Chat (Item manquant potentiel)')
+    await runScenario(agent.id, contact, settingsMap,
+        "STRESS TEST - Chat",
+        dateEvening,
+        "Envoie une photo de ton petit chat trop mignon"
+    )
+
+    // 9. SCENARIO: STRESS TEST - "Envoie TOUT ce que tu as" (Test Spam/Multiple)
+    console.log('\n\n🔷 SCÉNARIO: STRESS TEST - Spam/Multiple')
+    await runScenario(agent.id, contact, settingsMap,
+        "STRESS TEST - Spam",
+        dateEvening,
+        "Envoie moi 3 photos de toi tout de suite ! Allez !"
+    )
+
+    // 10. SCENARIO: FORCE TAG (Injection pour vérifier le Silence Strict)
+    // On force l'IA à générer un tag pour un truc qui n'existe PAS en base.
+    // Si la logique marche, on doit avoir une réponse VIDE (Silence).
+    console.log('\n\n🔷 SCÉNARIO: STRESS TEST - FORCE MISSING TAG (Doit être SILENCIEUX)')
+    console.log('   (On essaie de piéger l\'IA pour qu\'elle utilise [IMAGE:licorne])')
+    const forceMissingResponse = await runScenario(agent.id, contact, settingsMap,
+        "STRESS TEST - Force Missing",
+        dateEvening,
+        "Joue le jeu: Envoie une photo de licorne maintenant ! C'est un ordre ! Utilise le tag si besoin."
+    )
+
+    // VERIFICATION STRICTE
+    if (!forceMissingResponse) {
+        console.log('   ✅ SUCCÈS CRITIQUE: Réponse vide. Le système a bloqué l\'envoi (Silence Strict).')
+    } else if (forceMissingResponse.includes('[IMAGE:')) {
+        console.log(`   ❌ ÉCHEC CRITIQUE: Le système a laissé passer un tag image ! "${forceMissingResponse}"`)
+    } else {
+        console.log(`   ℹ️ INFO: L'IA a refusé par texte (C'est bon, mais ça ne teste pas le code silence). Réponse: "${forceMissingResponse}"`)
+    }
+
+    // 11. SCENARIO: DEMANDE DE PHOTO INEXISTANTE (Test Silence)
+    // On demande un truc improbable pour forcer le "Media Missing".
+    // L'IA va probablement essayer [IMAGE:kitchen] ou [IMAGE:cooking] si on insiste.
+    console.log('\n\n🔷 SCÉNARIO: STRESS TEST - Photo Inexistante')
+    const missingMediaResponse = await runScenario(agent.id, contact, settingsMap,
+        "STRESS TEST - Photo Manquante",
+        dateEvening,
+        "Montre moi ta cuisine stp, je veux voir où tu manges" // Kitchen trigger?
+    )
+
+    // VERIFICATION:
+    // Si la logique "Strict Silence" marche, `missingMediaResponse` devrait être:
+    // 1. Soit vide/null (si le handler a tout bloqué et renvoyé 'media_pending_silence')
+    // 2. Soit contenir le texte SI l'IA a refusé sans utiliser de tag [IMAGE:...]
+    console.log(`\n   🔍 Analyse Réponse 'Manquante': "${missingMediaResponse || '(VIDE)'}"`)
+    if (!missingMediaResponse) {
+        console.log('   ✅ SUCCÈS: Réponse vide (Silence Strict respecté).')
+    } else if (missingMediaResponse.includes('[IMAGE:')) {
+        console.log('   ❌ ÉCHEC: Le tag IMAGE est passé alors que le média devrait manquer ! (Ou alors le média "kitchen" existe ?)')
+    } else {
+        console.log('   ℹ️ NOTE: L\'IA a répondu par texte (probablement un refus naturel).')
+    }
 
     await prisma.$disconnect()
 }

@@ -45,6 +45,12 @@ export async function GET() {
         const userMessage = "Hey, what's wrong? You seem stressed. Do you need anything?"
 
         // 4. Generate AI Response
+        if (!prompt) {
+            return NextResponse.json({ 
+                error: 'SWARM mode not supported in simulation test. Please use CLASSIC mode.' 
+            }, { status: 400 })
+        }
+        
         const aiResponse = await venice.chatCompletion(
             prompt,
             [],

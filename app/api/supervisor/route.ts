@@ -87,8 +87,13 @@ export async function POST(req: Request) {
         const { action } = await req.json();
 
         if (action === 'flush') {
+            // Flush batch first
             await supervisorOrchestrator.flushBatch();
-            return NextResponse.json({ success: true, message: 'Batch flushed' });
+
+            // Delete all supervisor alerts
+            await prisma.supervisorAlert.deleteMany({});
+
+            return NextResponse.json({ success: true, message: 'All alerts flushed' });
         }
 
         return NextResponse.json({ error: 'Unknown action' }, { status: 400 });

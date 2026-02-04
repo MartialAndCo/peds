@@ -495,6 +495,36 @@ export const supervisorOrchestrator = {
      * Similaire à processCriticalAlert mais pour les alertes QUEUE
      */
     async processQueueAlert(alert: SupervisorAlert): Promise<void> {
+        // Deduplication: Check for existing active alerts for this queue item
+        // We fetch active queue alerts and check evidence in memory to avoid complex JSON queries
+        const activeQueueAlerts = await prisma.supervisorAlert.findMany({
+            where: {
+                agentType: 'QUEUE',
+                status: { in: ['NEW', 'INVESTIGATING'] },
+                // Optional optimization: Filter by agentId if we trust attribution
+                agentId: alert.agentId
+            }
+        });
+
+        const targetQueueItemId = (alert.evidence as any).queueItemId;
+        const existingAlert = activeQueueAlerts.find(a => (a.evidence as any)?.queueItemId === targetQueueItemId);
+
+        if (existingAlert) {
+            console.log(`[Supervisor] ⚠️ Updating existing alert ${existingAlert.id} for queue item ${targetQueueItemId}`);
+
+            // Update existing alert
+            await prisma.supervisorAlert.update({
+                where: { id: existingAlert.id },
+                data: {
+                    severity: alert.severity, // Upgrade severity if needed
+                    description: alert.description, // Update description with new delay
+                    evidence: alert.evidence, // Update evidence
+                    updatedAt: new Date()
+                }
+            });
+            return; // Stop here, do not create new alert or notification
+        }
+
         console.log(`[Supervisor] 🚨 QUEUE ALERT: ${alert.title}`);
 
         // 1. Sauvegarder dans la DB
