@@ -1,14 +1,10 @@
 
 export async function register() {
     if (process.env.NEXT_RUNTIME === 'nodejs') {
-        // Only run in Node.js environment (server), not edge or browser
         console.log('[Instrumentation] Registering Background Services...')
 
-        // Dynamic import to avoid bundling issues
-        // Dynamic import to avoid bundling issues
-        // const { QueueWorker } = await import('@/lib/worker')
-        // QueueWorker.start()
-        console.log('[Instrumentation] Worker disabled for Serverless (Using Cron instead)')
+        // QueueWorker: Disabled (using external CRON on EC2)
+        console.log('[Instrumentation] Worker disabled (using external CRON)')
 
         // Initialize Supervisor (Queue Monitoring)
         const { initSupervisor } = await import('@/lib/services/supervisor')

@@ -8,8 +8,8 @@ export class QueueWorker {
     private static CHECK_INTERVAL = 30 * 1000
 
     static start() {
-        console.log('[QueueWorker] Start Ignored (Disabled for Serverless Safety)')
-        return; // HARD DISABLE
+        console.log('[QueueWorker] Start Ignored (Disabled - using external CRON)')
+        return; // External CRON on EC2 handles this
 
         if (this.isRunning) return
         this.isRunning = true
