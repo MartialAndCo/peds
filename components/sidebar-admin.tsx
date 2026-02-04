@@ -17,8 +17,7 @@ import {
     ListTodo,
     Mic2,
     TrendingUp,
-    BrainCircuit,
-    Cpu
+    BrainCircuit
 } from 'lucide-react'
 
 const adminRoutes = [
@@ -42,7 +41,6 @@ const adminRoutes = [
         title: "System",
         routes: [
             { label: 'Supervisor AI', icon: BrainCircuit, href: '/admin/supervisor' },
-            { label: 'AI Mode', icon: Cpu, href: '/admin/ai-mode' },
             { label: 'Monitor', icon: ListTodo, href: '/admin/system' },
             { label: 'Voice Library', icon: Mic2, href: '/admin/voices' },
             { label: 'Settings', icon: Settings, href: '/admin/settings' },

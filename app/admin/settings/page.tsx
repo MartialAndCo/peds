@@ -86,6 +86,7 @@ export default function SettingsPage() {
         openrouter_api_key: '',
         openrouter_model: 'cognitivecomputations/dolphin-mistral-24b-venice-edition:free',
         ai_provider: 'venice',
+        ai_mode: 'CLASSIC',
         groq_api_key: '',
         mem0_api_key: '',
         // AI Parameters
@@ -113,6 +114,13 @@ export default function SettingsPage() {
     useEffect(() => {
         fetchSettings()
     }, [fetchSettings])
+
+    // Sync AI Mode with server runtime
+    useEffect(() => {
+        if (settings.ai_mode) {
+            axios.post('/api/ai-mode', { mode: settings.ai_mode }).catch(() => {})
+        }
+    }, [settings.ai_mode])
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -424,6 +432,35 @@ export default function SettingsPage() {
                 {/* Intelligence Tab */}
                 {activeTab === 'intelligence' && (
                     <div className="space-y-6">
+                        {/* AI Mode Selection */}
+                        <div className="glass rounded-2xl p-6">
+                            <h3 className="text-white font-medium mb-4">AI Mode</h3>
+                            <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+                                <div>
+                                    <p className="text-white font-medium">SWARM Multi-Agent</p>
+                                    <p className="text-white/40 text-xs mt-1">
+                                        {settings.ai_mode === 'SWARM' 
+                                            ? '10 agents spécialisés (intention, timing, persona, style...)' 
+                                            : 'Mode traditionnel (1 prompt unique)'}
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setSettings({
+                                        ...settings,
+                                        ai_mode: settings.ai_mode === 'SWARM' ? 'CLASSIC' : 'SWARM'
+                                    })}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.ai_mode === 'SWARM' ? 'bg-green-500' : 'bg-white/20'
+                                        }`}
+                                >
+                                    <span
+                                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.ai_mode === 'SWARM' ? 'translate-x-6' : 'translate-x-1'
+                                            }`}
+                                    />
+                                </button>
+                            </div>
+                        </div>
+
                         {/* AI Provider Selection */}
                         <div className="glass rounded-2xl p-6">
                             <h3 className="text-white font-medium mb-4">AI Provider</h3>
