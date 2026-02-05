@@ -11,7 +11,9 @@ import {
 import { parseLogLine, generateLogId } from './error-patterns'
 
 // Configuration des endpoints
-const BAILEYS_ENDPOINT = process.env.WAHA_ENDPOINT || 'http://13.60.16.81:3001'
+// Force le port 3001 (Baileys) car parfois WAHA_ENDPOINT est configuré avec le mauvais port
+const RAW_ENDPOINT = process.env.WAHA_ENDPOINT || 'http://13.60.16.81:3001'
+const BAILEYS_ENDPOINT = RAW_ENDPOINT.replace(':3000', ':3001') // Fix si jamais 3000 est configuré
 const BAILEYS_API_KEY = process.env.AUTH_TOKEN || process.env.WAHA_API_KEY
 
 interface LogSourceConfig {
@@ -36,10 +38,11 @@ async function fetchWhatsAppLogs(): Promise<RawLogLine[]> {
       }))
     }
     return []
-  } catch (error) {
-    console.error('[LogAggregator] WhatsApp logs fetch failed:', error)
+  } catch (error: any) {
+    console.error('[LogAggregator] WhatsApp logs fetch failed:', error.message)
+    // Retourne une entrée d'erreur mais ne fait pas planter le dashboard
     return [{
-      line: `Failed to fetch WhatsApp logs: ${(error as Error).message}`,
+      line: `[ERROR] WhatsApp server unreachable: ${error.code || error.message}. Endpoint: ${BAILEYS_ENDPOINT}`,
       source: 'whatsapp',
       timestamp: new Date().toISOString()
     }]
@@ -62,13 +65,17 @@ async function fetchDiscordLogs(): Promise<RawLogLine[]> {
       }))
     }
     return []
-  } catch (error) {
-    console.error('[LogAggregator] Discord logs fetch failed:', error)
-    return [{
-      line: `Failed to fetch Discord logs: ${(error as Error).message}`,
-      source: 'discord',
-      timestamp: new Date().toISOString()
-    }]
+  } catch (error: any) {
+    console.error('[LogAggregator] Discord logs fetch failed:', error.message)
+    // Si Baileys est offline, on retourne une erreur silencieuse
+    if (error.code === 'ECONNREFUSED') {
+      return [{
+        line: `[WARNING] Discord logs unavailable - WhatsApp server offline`,
+        source: 'discord',
+        timestamp: new Date().toISOString()
+      }]
+    }
+    return []
   }
 }
 
@@ -88,8 +95,8 @@ async function fetchCronLogs(): Promise<RawLogLine[]> {
       }))
     }
     return []
-  } catch (error) {
-    console.error('[LogAggregator] Cron logs fetch failed:', error)
+  } catch (error: any) {
+    console.error('[LogAggregator] Cron logs fetch failed:', error.message)
     return []
   }
 }
