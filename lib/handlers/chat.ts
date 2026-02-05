@@ -221,6 +221,32 @@ export async function handleChat(
                 unreadCount: { increment: 1 }
             }
         })
+
+        // 🧠 IMMEDIATE MEMORY EXTRACTION (Fire & Forget)
+        // Extract important facts from user message immediately for better context
+        if (messageText && messageText.length > 10 && !messageText.startsWith('[')) {
+            (async () => {
+                try {
+                    const { memoryExtractionService } = await import('@/lib/services/memory-extraction')
+                    const { memoryService } = await import('@/lib/memory')
+                    
+                    // Quick extract from just this message
+                    const facts = await memoryExtractionService.extractFacts(
+                        `User: ${messageText}`,
+                        settings
+                    )
+                    
+                    if (facts.length > 0) {
+                        const userId = memoryService.buildUserId(contact.phone_whatsapp, agentId || '')
+                        await memoryService.addMany(userId, facts)
+                        console.log(`[Chat] Immediate memory extraction: ${facts.length} facts stored`)
+                    }
+                } catch (e) {
+                    // Silent fail - don't block conversation
+                    console.warn('[Chat] Immediate memory extraction failed:', e)
+                }
+            })()
+        }
     } catch (e: any) {
         if (e.code === 'P2002') return { handled: true, result: 'duplicate' }
         throw e

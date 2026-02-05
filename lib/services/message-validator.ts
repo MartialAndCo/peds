@@ -45,12 +45,12 @@ export const messageValidator = {
         }
 
         // 1.5 GLOBAL MARKDOWN CLEANER (The "Anti-Crâne-Cassé" Rule) 🛡️
-        // Remove ALL backticks completely. They serve no purpose in WhatsApp and look bad.
-        // Also remove asterisks (*) if they are wrapping text (bold/italic) but be careful not to break other things?
-        // Actually, for this specific request, just backticks first.
+        // Remove ALL backticks and asterisks (bold/italic formatting)
         cleanedRaw = cleanedRaw.replace(/`/g, '')
-        // Also strip double asterisks often used for actions like **smiles** -> smiles
-        // cleanedRaw = cleanedRaw.replace(/\*\*/g, '') 
+        // CRITICAL: Strip ALL double asterisks (bold) - **text** -> text
+        cleanedRaw = cleanedRaw.replace(/\*\*/g, '')
+        // Also strip single asterisks that might be used for emphasis *text* -> text
+        cleanedRaw = cleanedRaw.replace(/(?<!\*)\*(?!\*)/g, '') 
 
         // 🚨 CRITICAL: Remove AI Chain-of-Thought Leakage 🚨
         // Some LLMs (Venice, RunPod) may include internal commentary that should NEVER be sent.

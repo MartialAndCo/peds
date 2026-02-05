@@ -15,3 +15,6 @@
 
 # Every 1 minute: Process RVC Voice Conversion Jobs
 * * * * * curl -s "https://main.d2in5shy58lp10.amplifyapp.com/api/cron/process-voice" > /dev/null
+
+# Every 1 hour: Extract Memories from Conversations
+0 * * * * curl -s "https://main.d2in5shy58lp10.amplifyapp.com/api/cron/extract-memories" > /dev/null

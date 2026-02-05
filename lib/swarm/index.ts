@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { personaSchedule } from '@/lib/services/persona-schedule';
 import { validationNode } from './nodes/validation-node';
+import { memoryService } from '@/lib/memory';
 
 const API_KEY = process.env.VENICE_API_KEY;
 
@@ -50,6 +51,25 @@ export async function runSwarm(
   const locale = (profile.locale || 'fr-FR').toLowerCase();
   const timingContext = personaSchedule.getContextPrompt(timezone, undefined, locale);
 
+  // CHARGER LES MÉMOIRES (CRITIQUE - était manquant !)
+  let memoryContext = '';
+  try {
+    const memoryUserId = memoryService.buildUserId(contactId, agentId);
+    const memories = await memoryService.getAll(memoryUserId);
+    if (memories && memories.length > 0) {
+      const memoryTexts = memories
+        .map((m: any) => typeof m === 'string' ? m : m.memory)
+        .filter(Boolean)
+        .slice(0, 10); // Limiter à 10 mémoires pour ne pas surcharger
+      if (memoryTexts.length > 0) {
+        memoryContext = `\n\n[INFOS SUR CETTE PERSONNE - DONT TU TE SOUVIENS]:\n${memoryTexts.map((m: string) => `- ${m}`).join('\n')}`;
+        console.log(`[Swarm] Loaded ${memoryTexts.length} memories for ${memoryUserId}`);
+      }
+    }
+  } catch (e) {
+    console.warn('[Swarm] Failed to load memories:', e);
+  }
+
   // Nettoyer l'identity (supprimer la partie "Tu es une EXPERTE...")
   const identityClean = (profile.identityTemplate || '')
     .replace(/Tu es une EXPERTE en conversation naturelle qui incarne Anaïs, 14 ans\./, '')
@@ -72,7 +92,9 @@ ${profile.styleRules || ''}
 
 ${profile.safetyRules || ''}
 
-${profile.paymentRules || ''}`;
+${profile.paymentRules || ''}
+
+${memoryContext}`;
 
   const messages = [
     { role: 'system', content: systemPrompt },
@@ -122,7 +144,7 @@ ${profile.paymentRules || ''}`;
       style: profile.styleRules || '', 
       phase: phaseTemplate,
       timing: timingContext,
-      memory: '',
+      memory: memoryContext,
       payment: '',
       media: '',
       voice: ''
