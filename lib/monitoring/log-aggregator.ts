@@ -13,8 +13,20 @@ import { parseLogLine, generateLogId } from './error-patterns'
 // Configuration des endpoints
 // Force le port 3001 (Baileys) car parfois WAHA_ENDPOINT est configuré avec le mauvais port
 const RAW_ENDPOINT = process.env.WAHA_ENDPOINT || 'http://13.60.16.81:3001'
-const BAILEYS_ENDPOINT = RAW_ENDPOINT.replace(':3000', ':3001') // Fix si jamais 3000 est configuré
+// Fix: Remplace explicitement :3000 par :3001, ou force le port si l'URL contient l'IP
+let BAILEYS_ENDPOINT = RAW_ENDPOINT.replace(':3000', ':3001')
+// Double sécurité: si l'URL contient encore :3000 ou n'a pas de port explicite sur l'IP de prod
+if (BAILEYS_ENDPOINT.includes('13.60.16.81:3000')) {
+  BAILEYS_ENDPOINT = 'http://13.60.16.81:3001'
+} else if (BAILEYS_ENDPOINT === 'http://13.60.16.81' || BAILEYS_ENDPOINT === 'https://13.60.16.81') {
+  BAILEYS_ENDPOINT = 'http://13.60.16.81:3001'
+}
 const BAILEYS_API_KEY = process.env.AUTH_TOKEN || process.env.WAHA_API_KEY
+
+// Debug log at module load
+console.log('[LogAggregator] Config - RAW_ENDPOINT:', RAW_ENDPOINT)
+console.log('[LogAggregator] Config - BAILEYS_ENDPOINT:', BAILEYS_ENDPOINT)
+console.log('[LogAggregator] Config - WAHA_ENDPOINT env:', process.env.WAHA_ENDPOINT)
 
 interface LogSourceConfig {
   name: LogSource
@@ -25,6 +37,7 @@ interface LogSourceConfig {
 // Récupère les logs du serveur WhatsApp (Baileys)
 async function fetchWhatsAppLogs(): Promise<RawLogLine[]> {
   try {
+    console.log('[LogAggregator] Fetching WhatsApp logs from:', BAILEYS_ENDPOINT)
     const response = await axios.get(`${BAILEYS_ENDPOINT}/api/logs?lines=200`, {
       headers: { 'X-Api-Key': BAILEYS_API_KEY },
       timeout: 5000

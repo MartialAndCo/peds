@@ -24,7 +24,14 @@ export async function getConfig() {
         // Priority: DB > Env > Known
         const apiKey = (dbKey && dbKey !== 'secret') ? dbKey : (envKey && envKey !== 'secret' ? envKey : KNOWN_KEY)
 
-        const endpoint = (settings['waha_endpoint'] as string) || process.env.WAHA_ENDPOINT || KNOWN_ENDPOINT
+        let endpoint = (settings['waha_endpoint'] as string) || process.env.WAHA_ENDPOINT || KNOWN_ENDPOINT
+        // Fix: Force port 3001 if 3000 is configured (Baileys runs on 3001)
+        endpoint = endpoint.replace(':3000', ':3001')
+        if (endpoint.includes('13.60.16.81:3000')) {
+            endpoint = 'http://13.60.16.81:3001'
+        } else if (endpoint === 'http://13.60.16.81' || endpoint === 'https://13.60.16.81') {
+            endpoint = 'http://13.60.16.81:3001'
+        }
         const defaultSession = (settings['waha_session'] as string) || process.env.WAHA_SESSION || 'default'
 
         return {
@@ -37,8 +44,16 @@ export async function getConfig() {
         logger.warn('Failed to fetch WhatsApp settings, falling back to known defaults', { module: 'whatsapp' })
 
         const envKey = cleanKey(process.env.AUTH_TOKEN || process.env.WAHA_API_KEY)
+        let fallbackEndpoint = process.env.WAHA_ENDPOINT || KNOWN_ENDPOINT
+        // Fix: Force port 3001 if 3000 is configured
+        fallbackEndpoint = fallbackEndpoint.replace(':3000', ':3001')
+        if (fallbackEndpoint.includes('13.60.16.81:3000')) {
+            fallbackEndpoint = 'http://13.60.16.81:3001'
+        } else if (fallbackEndpoint === 'http://13.60.16.81' || fallbackEndpoint === 'https://13.60.16.81') {
+            fallbackEndpoint = 'http://13.60.16.81:3001'
+        }
         return {
-            endpoint: process.env.WAHA_ENDPOINT || KNOWN_ENDPOINT,
+            endpoint: fallbackEndpoint,
             apiKey: envKey || KNOWN_KEY,
             defaultSession: process.env.WAHA_SESSION || 'default',
             webhookSecret: process.env.WEBHOOK_SECRET
