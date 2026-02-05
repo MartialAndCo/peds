@@ -1,7 +1,7 @@
 # PedsAI - Agent Documentation
 
 > **Project**: Peds (PedsAI) - AI-Powered WhatsApp Bot Management Platform
-> **Last Updated**: 2026-02-04
+> **Last Updated**: 2026-02-05
 
 ---
 
@@ -248,6 +248,21 @@ Signals are detected via `signalAnalyzer` and stored in `AgentContact.signals` (
 
 Alerts are created with severity levels (LOW → CRITICAL), with automatic conversation pausing on CRITICAL.
 
+### System Monitoring (NEW)
+
+Real-time error tracking across all services:
+- **Multi-source logs**: WhatsApp (Baileys), Discord, Next.js, Cron
+- **Error classification**: CRITICAL/ERROR/WARN/INFO with pattern detection
+- **Live dashboard**: `/admin/system` with SSE real-time updates
+- **Notifications**: PWA push notifications for CRITICAL errors
+- **TTL cleanup**: Automatic deletion after 7 days
+
+**Key Components**:
+- `lib/monitoring/log-aggregator.ts` - Fetches and parses logs from all sources
+- `lib/monitoring/error-patterns.ts` - Detects error patterns (connection, API, DB, etc.)
+- `app/api/admin/monitor/stream` - Server-Sent Events for real-time updates
+- `app/admin/system/page.tsx` - Dashboard UI with filters and stats
+
 ### Payment Escalation
 
 Dynamic payment request amounts based on tier system:
@@ -412,6 +427,10 @@ Three services defined in `docker-compose.yml`:
 | `lib/services/supervisor/orchestrator.ts` | AI health monitoring |
 | `lib/services/payment-escalation.ts` | Payment tier system |
 | `lib/services/signal-analyzer.ts` | Trust signal detection |
+| `lib/monitoring/log-aggregator.ts` | **System log aggregation (NEW)** |
+| `lib/monitoring/error-patterns.ts` | **Error detection patterns (NEW)** |
+| `app/api/admin/monitor/logs/route.ts` | **Log monitoring API (NEW)** |
+| `app/admin/system/page.tsx` | **System monitoring dashboard (NEW)** |
 | `app/api/webhooks/whatsapp/route.ts` | WhatsApp webhook handler |
 | `middleware.ts` | Auth middleware |
 | `prisma/schema.prisma` | Database schema |

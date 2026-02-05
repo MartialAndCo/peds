@@ -80,10 +80,58 @@ export const supervisorOrchestrator = {
     },
 
     /**
+     * Trouve une alerte active existante pour déduplication
+     * Clé de déduplication: (agentId, contactId, alertType)
+     */
+    async findExistingActiveAlert(alert: SupervisorAlert): Promise<SupervisorAlert | null> {
+        const existing = await prisma.supervisorAlert.findFirst({
+            where: {
+                agentId: alert.agentId,
+                contactId: alert.contactId,
+                alertType: alert.alertType,
+                status: { in: ['NEW', 'INVESTIGATING'] }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        return existing as SupervisorAlert | null;
+    },
+
+    /**
      * Traite une alerte CRITICAL immédiatement
+     * Avec déduplication: met à jour une alerte existante si même (agentId, contactId, alertType)
      */
     async processCriticalAlert(alert: SupervisorAlert, context: AnalysisContext): Promise<void> {
         console.log(`[Supervisor] 🚨 CRITICAL ALERT: ${alert.title}`);
+
+        // Vérifier si une alerte similaire existe déjà
+        const existingAlert = await this.findExistingActiveAlert(alert);
+
+        if (existingAlert) {
+            console.log(`[Supervisor] ⚠️ Updating existing CRITICAL alert ${existingAlert.id} for ${alert.alertType}`);
+
+            // Mettre à jour l'alerte existante avec les nouvelles infos
+            const updatedSeverity = alert.severity === 'CRITICAL' ? 'CRITICAL' : existingAlert.severity;
+
+            await prisma.supervisorAlert.update({
+                where: { id: existingAlert.id },
+                data: {
+                    severity: updatedSeverity,
+                    description: alert.description,
+                    evidence: alert.evidence,
+                    updatedAt: new Date()
+                }
+            });
+
+            // Mettre à jour la conversation si elle existe
+            const savedAlert = { ...existingAlert, ...alert, severity: updatedSeverity };
+
+            // Pause auto si nécessaire (même logique que avant)
+            if (alert.severity === 'CRITICAL') {
+                await this.pauseConversation(context.conversationId, [savedAlert]);
+            }
+
+            return;
+        }
 
         // 1. Sauvegarder dans la DB
         const savedAlert = await prisma.supervisorAlert.create({
@@ -139,6 +187,7 @@ export const supervisorOrchestrator = {
 
     /**
      * Traite le batch d'alertes
+     * Avec déduplication: met à jour les alertes existantes plutôt que de créer des doublons
      */
     async processBatch(): Promise<void> {
         if (alertBatch.length === 0) return;
@@ -149,36 +198,73 @@ export const supervisorOrchestrator = {
 
         console.log(`[Supervisor] Processing batch of ${batchToProcess.length} alerts`);
 
-        // Grouper par gravité
+        // Grouper par gravité (pour les stats)
         const highAlerts = batchToProcess.filter(a => a.severity === 'HIGH');
         const mediumAlerts = batchToProcess.filter(a => a.severity === 'MEDIUM');
         const lowAlerts = batchToProcess.filter(a => a.severity === 'LOW');
 
-        // Sauvegarder toutes les alertes
+        // Traiter chaque alerte avec déduplication
+        const createdAlerts: SupervisorAlert[] = [];
+        const updatedAlerts: SupervisorAlert[] = [];
+
         for (const alert of batchToProcess) {
-            await prisma.supervisorAlert.create({
-                data: {
-                    agentId: alert.agentId,
-                    conversationId: alert.conversationId,
-                    contactId: alert.contactId,
-                    agentType: alert.agentType,
-                    alertType: alert.alertType,
-                    severity: alert.severity,
-                    title: alert.title,
-                    description: alert.description,
-                    evidence: alert.evidence,
-                    status: 'NEW'
-                }
-            });
+            // Vérifier si une alerte similaire existe déjà
+            const existingAlert = await this.findExistingActiveAlert(alert);
+
+            if (existingAlert) {
+                // Mettre à jour l'alerte existante si la gravité est supérieure ou égale
+                const shouldUpgrade = 
+                    (alert.severity === 'CRITICAL' && existingAlert.severity !== 'CRITICAL') ||
+                    (alert.severity === 'HIGH' && !['CRITICAL', 'HIGH'].includes(existingAlert.severity)) ||
+                    (alert.severity === 'MEDIUM' && !['CRITICAL', 'HIGH', 'MEDIUM'].includes(existingAlert.severity));
+
+                await prisma.supervisorAlert.update({
+                    where: { id: existingAlert.id },
+                    data: {
+                        severity: shouldUpgrade ? alert.severity : existingAlert.severity,
+                        description: alert.description,
+                        evidence: alert.evidence,
+                        updatedAt: new Date()
+                    }
+                });
+
+                updatedAlerts.push({ ...existingAlert, ...alert, 
+                    severity: shouldUpgrade ? alert.severity : existingAlert.severity 
+                });
+            } else {
+                // Créer une nouvelle alerte
+                await prisma.supervisorAlert.create({
+                    data: {
+                        agentId: alert.agentId,
+                        conversationId: alert.conversationId,
+                        contactId: alert.contactId,
+                        agentType: alert.agentType,
+                        alertType: alert.alertType,
+                        severity: alert.severity,
+                        title: alert.title,
+                        description: alert.description,
+                        evidence: alert.evidence,
+                        status: 'NEW'
+                    }
+                });
+
+                createdAlerts.push(alert);
+            }
         }
 
-        // Créer une notification résumée si HIGH ou plusieurs MEDIUM
-        if (highAlerts.length > 0 || mediumAlerts.length >= 3) {
-            const summaryTitle = highAlerts.length > 0
-                ? `🟠 ${highAlerts.length} alerte(s) HIGH détectée(s)`
-                : `🟡 ${mediumAlerts.length} alertes MEDIUM`;
+        console.log(`[Supervisor] Batch processed: ${createdAlerts.length} created, ${updatedAlerts.length} updated`);
 
-            const summaryMessage = this.generateBatchSummary(highAlerts, mediumAlerts, lowAlerts);
+        // Créer une notification résumée si HIGH ou plusieurs MEDIUM (seulement pour les nouvelles)
+        const newHighAlerts = createdAlerts.filter(a => a.severity === 'HIGH');
+        const newMediumAlerts = createdAlerts.filter(a => a.severity === 'MEDIUM');
+
+        if (newHighAlerts.length > 0 || newMediumAlerts.length >= 3) {
+            const summaryTitle = newHighAlerts.length > 0
+                ? `🟠 ${newHighAlerts.length} nouvelle(s) alerte(s) HIGH`
+                : `🟡 ${newMediumAlerts.length} nouvelles alertes MEDIUM`;
+
+            const summaryMessage = this.generateBatchSummary(newHighAlerts, newMediumAlerts, 
+                createdAlerts.filter(a => a.severity === 'LOW'));
 
             await prisma.notification.create({
                 data: {
@@ -188,9 +274,10 @@ export const supervisorOrchestrator = {
                     metadata: {
                         supervisorAlert: true,
                         batchAlert: true,
-                        highCount: highAlerts.length,
-                        mediumCount: mediumAlerts.length,
-                        lowCount: lowAlerts.length
+                        highCount: newHighAlerts.length,
+                        mediumCount: newMediumAlerts.length,
+                        lowCount: createdAlerts.filter(a => a.severity === 'LOW').length,
+                        updatedCount: updatedAlerts.length
                     }
                 }
             });

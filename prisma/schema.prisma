@@ -484,7 +484,7 @@ model Notification {
   id        String   @id @default(uuid())
   title     String
   message   String
-  type      String   // 'PAYMENT_CLAIM', 'SYSTEM', 'INFO'
+  type      String   // 'PAYMENT_CLAIM', 'SYSTEM', 'INFO', 'SYSTEM_ERROR', 'TTS_FAILURE'
   
   // Multi-agent: notifications can be agent-specific
   agentId   String?  // If set, notification is for this agent only
@@ -680,6 +680,49 @@ model SupervisorAlert {
   @@index([agentType, createdAt])
   @@index([createdAt])
   @@map("supervisor_alerts")
+}
+
+// ============================================================================
+// SYSTEM MONITORING - Error tracking and logs aggregation
+// ============================================================================
+
+model SystemLog {
+  id          String   @id @default(uuid())
+  
+  // Source du log
+  source      String   // 'whatsapp', 'discord', 'nextjs', 'cron'
+  service     String?  // Sous-service spécifique (ex: 'baileys', 'openai', 'prisma')
+  
+  // Classification
+  level       String   // 'CRITICAL', 'ERROR', 'WARN', 'INFO'
+  category    String   // 'connection', 'api', 'database', 'memory', 'auth', 'system', 'general'
+  
+  // Contenu
+  message     String   @db.Text
+  context     String?  @db.Text  // Stack trace, code erreur, details
+  rawLine     String?  @db.Text  // Ligne de log brute originale
+  
+  // Métadonnées
+  metadata    Json?    // Données additionnelles (timestamp original, container, etc.)
+  
+  // Tracking
+  isRead      Boolean  @default(false)
+  readAt      DateTime?
+  readBy      String?  // User ID qui a lu
+  
+  // Notification
+  notificationCreated Boolean @default(false)  // Si une notification a été créée
+  
+  // TTL - Auto cleanup après 7 jours
+  expiresAt   DateTime // Date d'expiration (createdAt + 7 days)
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([level, isRead])
+  @@index([source, createdAt])
+  @@index([expiresAt])  // Pour le cleanup rapide
+  @@index([createdAt(sort: Desc)])
+  @@map("system_logs")
 }
 
 
