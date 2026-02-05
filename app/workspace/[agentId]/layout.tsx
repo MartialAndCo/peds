@@ -55,15 +55,18 @@ export default function WorkspaceLayout({
         }
     ]
 
+    // Check if we're in a specific conversation (hide tab bar)
+    const isInConversation = pathname?.includes('/conversations/') && pathname.split('/').length > 4
+
     // PWA Render
     if (isPWAStandalone) {
         return (
             <AgentProvider>
                 <PWAShell variant="workspace">
-                    <PWAContent>
+                    <PWAContent className={isInConversation ? "pb-0" : ""}>
                         {children}
                     </PWAContent>
-                    <PWATabBar tabs={tabs} menuItems={menuItems} />
+                    {!isInConversation && <PWATabBar tabs={tabs} menuItems={menuItems} />}
                 </PWAShell>
             </AgentProvider>
         )

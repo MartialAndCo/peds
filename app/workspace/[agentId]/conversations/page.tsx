@@ -1,13 +1,12 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import axios from 'axios'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import { usePWAMode } from '@/hooks/use-pwa-mode'
 import { 
@@ -16,9 +15,7 @@ import {
   RefreshCw, 
   MessageSquare,
   Inbox,
-  X,
-  ChevronLeft,
-  Menu
+  X
 } from 'lucide-react'
 import { ConversationCard, ConversationCardData } from '@/components/conversations/conversation-card'
 import { 
@@ -42,7 +39,6 @@ interface FilterCounts {
 }
 
 export default function WorkspaceConversationsPage() {
-  const router = useRouter()
   const { isPWAStandalone } = usePWAMode()
   const { agentId } = useParams()
   
@@ -57,7 +53,6 @@ export default function WorkspaceConversationsPage() {
   })
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null)
   const [isViewOpen, setIsViewOpen] = useState(false)
-  const [showListOnMobile, setShowListOnMobile] = useState(true)
 
   const fetchConversations = useCallback(async () => {
     setLoading(true)
@@ -85,37 +80,28 @@ export default function WorkspaceConversationsPage() {
   const handleConversationClick = (conversationId: number) => {
     setSelectedConversationId(conversationId)
     setIsViewOpen(true)
-    setShowListOnMobile(false) // Hide list on mobile when conversation opened
-    
-    // Mark as read when opened (will be handled by the view component)
   }
 
   const handleCloseView = () => {
     setIsViewOpen(false)
     setSelectedConversationId(null)
-    setShowListOnMobile(true) // Show list again on mobile
-    fetchConversations() // Refresh to update unread counts
+    fetchConversations()
   }
 
-  const handleBackToList = () => {
-    setShowListOnMobile(true)
-    setIsViewOpen(false)
-    setSelectedConversationId(null)
-  }
-
+  // Get selected conversation data - updates automatically when conversations change
   const selectedConversation = conversations.find(c => c.id === selectedConversationId)
 
-  // MOBILE VIEW (PWA or small screen)
+  // MOBILE PWA VIEW
   if (isPWAStandalone) {
     return (
-      <div className="h-full flex flex-col bg-[#0f172a]">
-        {/* Show Conversation List */}
-        {(!isViewOpen || showListOnMobile) && (
+      <div className="h-full flex flex-col bg-[#0f172a] relative">
+        {/* Conversation List View */}
+        {!isViewOpen && (
           <>
-            {/* Mobile Header */}
-            <div className="sticky top-0 z-10 bg-[#0f172a]/95 backdrop-blur-xl border-b border-white/[0.06] px-3 py-2">
+            {/* Header */}
+            <div className="flex-shrink-0 px-3 py-2 border-b border-white/[0.06] bg-[#0f172a]/95 backdrop-blur z-10">
               <div className="flex items-center justify-between mb-2">
-                <h1 className="text-xl font-bold text-white flex items-center gap-2">
+                <h1 className="text-lg font-bold text-white flex items-center gap-2">
                   <Inbox className="h-5 w-5" />
                   Inbox
                   {counts.unread > 0 && (
@@ -146,8 +132,8 @@ export default function WorkspaceConversationsPage() {
                 />
               </div>
               
-              {/* Mobile Filters */}
-              <div className="mt-2 overflow-x-auto scrollbar-hide">
+              {/* Filters */}
+              <div className="mt-2 overflow-x-auto scrollbar-hide pb-1">
                 <ConversationFilters
                   activeFilter={activeFilter}
                   onFilterChange={setActiveFilter}
@@ -157,20 +143,20 @@ export default function WorkspaceConversationsPage() {
               </div>
             </div>
 
-            {/* Mobile Conversation List - NO NEGATIVE MARGINS */}
-            <ScrollArea className="flex-1">
-              <div className="py-1">
-                {loading && conversations.length === 0 ? (
-                  <div className="flex justify-center py-10">
-                    <Loader2 className="h-8 w-8 animate-spin text-white/30" />
-                  </div>
-                ) : conversations.length === 0 ? (
-                  <div className="text-center py-10 text-white/30">
-                    <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                    <p>No conversations found</p>
-                  </div>
-                ) : (
-                  conversations.map((conv) => (
+            {/* List */}
+            <div className="flex-1 overflow-y-auto">
+              {loading && conversations.length === 0 ? (
+                <div className="flex justify-center py-10">
+                  <Loader2 className="h-8 w-8 animate-spin text-white/30" />
+                </div>
+              ) : conversations.length === 0 ? (
+                <div className="text-center py-10 text-white/30">
+                  <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                  <p>No conversations found</p>
+                </div>
+              ) : (
+                <div className="py-1">
+                  {conversations.map((conv) => (
                     <ConversationCard
                       key={conv.id}
                       conversation={conv}
@@ -178,16 +164,16 @@ export default function WorkspaceConversationsPage() {
                       isSelected={selectedConversationId === conv.id}
                       compact
                     />
-                  ))
-                )}
-              </div>
-            </ScrollArea>
+                  ))}
+                </div>
+              )}
+            </div>
           </>
         )}
 
-        {/* Show Conversation Detail */}
-        {isViewOpen && selectedConversation && !showListOnMobile && (
-          <div className="fixed inset-0 z-50 bg-[#0f172a]">
+        {/* Conversation Detail View - FULL SCREEN, NO TAB BAR */}
+        {isViewOpen && selectedConversation && (
+          <div className="fixed inset-0 z-50 bg-[#0f172a] flex flex-col">
             <ConversationUnifiedView
               conversation={selectedConversation}
               isOpen={isViewOpen}
@@ -200,16 +186,16 @@ export default function WorkspaceConversationsPage() {
     )
   }
 
-  // DESKTOP VIEW - IMPROVED LAYOUT
+  // DESKTOP VIEW
   return (
     <div className="h-[calc(100vh-4rem)] flex">
-      {/* Left Sidebar - Always visible but shrinks when conversation open */}
+      {/* Left Sidebar - Conversation List */}
       <div className={cn(
         "flex flex-col transition-all duration-300 ease-in-out border-r border-white/[0.06]",
-        isViewOpen ? "w-80 lg:w-96" : "w-full max-w-4xl mx-auto"
+        isViewOpen ? "w-80 lg:w-96 flex-shrink-0" : "flex-1 max-w-5xl mx-auto"
       )}>
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
+        <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
               <Inbox className="h-6 w-6" />
@@ -236,7 +222,7 @@ export default function WorkspaceConversationsPage() {
         </div>
 
         {/* Search & Filters */}
-        <div className="px-4 py-3 space-y-3 border-b border-white/[0.06]">
+        <div className="flex-shrink-0 px-4 py-3 space-y-3 border-b border-white/[0.06]">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
             <Input
@@ -265,7 +251,7 @@ export default function WorkspaceConversationsPage() {
         </div>
 
         {/* Conversation List */}
-        <ScrollArea className="flex-1">
+        <div className="flex-1 overflow-y-auto">
           <div className={cn(
             "p-3 space-y-2",
             !isViewOpen && "max-w-2xl mx-auto"
@@ -291,12 +277,12 @@ export default function WorkspaceConversationsPage() {
               ))
             )}
           </div>
-        </ScrollArea>
+        </div>
       </div>
 
       {/* Right Panel - Conversation Detail */}
       {isViewOpen && selectedConversation && (
-        <div className="flex-1 min-w-0 bg-[#0f172a]">
+        <div className="flex-1 min-w-0 bg-[#0f172a] overflow-hidden">
           <ConversationUnifiedView
             conversation={selectedConversation}
             isOpen={isViewOpen}
