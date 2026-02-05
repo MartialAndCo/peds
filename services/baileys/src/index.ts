@@ -131,7 +131,7 @@ server.addHook('onResponse', async (request, reply) => {
 server.addHook('preHandler', async (request, reply) => {
     const urlPath = request.url.split('?')[0]
     // Exempt health checks and log endpoints
-    const exemptPaths = ['/status', '/api/status', '/health', '/api/logs/ingest']
+    const exemptPaths = ['/status', '/api/status', '/health', '/api/logs', '/api/logs/ingest']
     if (exemptPaths.includes(urlPath)) return
 
     const apiKey = request.headers['x-api-key']
@@ -509,6 +509,7 @@ async function startSession(sessionId: string) {
             sessionData.status = 'SCAN_QR_CODE'
             sessionData.qr = qr
             server.log.info({ sessionId }, 'QR Generated')
+            addToLogBuffer(`${new Date().toISOString()} [${sessionId}] QR Code generated - waiting for scan`)
         }
 
         if (connection === 'close') {
@@ -518,6 +519,7 @@ async function startSession(sessionId: string) {
 
             sessionData.status = 'DISCONNECTED'
             server.log.info({ sessionId, statusCode, wasConnected: sessionData.wasConnected, error: lastDisconnect?.error }, 'Connection closed')
+            addToLogBuffer(`${new Date().toISOString()} [${sessionId}] Connection closed - code: ${statusCode || 'unknown'}`)
 
             // Always clean up old session reference to allow restart
             const wasConnected = sessionData.wasConnected
@@ -543,17 +545,21 @@ async function startSession(sessionId: string) {
 
             if (shouldReconnect && (wasConnected || isRestartRequired)) {
                 server.log.info({ sessionId, statusCode, isRestartRequired }, 'Auto-reconnecting (Authenticated or 515)...')
+                addToLogBuffer(`${new Date().toISOString()} [${sessionId}] Auto-reconnecting (status: ${statusCode})`)
                 const delay = isRestartRequired ? 2000 : 5000 // Fast restart for 515
                 setTimeout(() => startSession(sessionId), delay)
             } else if (wasQrTimeout && !wasConnected) {
                 server.log.info({ sessionId }, 'QR timeout - waiting for manual restart (user never scanned)')
+                addToLogBuffer(`${new Date().toISOString()} [${sessionId}] QR timeout - manual restart needed`)
             } else if (wasLoggedOut) {
                 if (!wasConnected) {
                     // Startup Failure: Often a conflict or temporary auth issue
                     server.log.warn({ sessionId, statusCode }, 'Startup 401 (Never connected). Marking as DISCONNECTED (Data preserved).')
+                    addToLogBuffer(`${new Date().toISOString()} [${sessionId}] ERROR: Startup 401 (auth failure)`)
                 } else {
                     // Runtime Failure: Genuine logout or conflict
                     server.log.error({ sessionId, statusCode }, 'Session logged out during runtime. Manual intervention required (Scan/Restart). Data preserved.')
+                    addToLogBuffer(`${new Date().toISOString()} [${sessionId}] ERROR: Session logged out`)
                 }
             }
         } else if (connection === 'open') {
@@ -562,6 +568,7 @@ async function startSession(sessionId: string) {
             sessionData.wasConnected = true // Mark as successfully authenticated
             sessionData.isRepairing = false
             sessionData.decryptErrors = 0 // Reset error counters
+            addToLogBuffer(`${new Date().toISOString()} [${sessionId}] Connection established`)
             sessionData.badMacCount = 0
 
             // Confirm identity registration & Notify App (Self-Healing Mapping)
@@ -623,6 +630,10 @@ async function startSession(sessionId: string) {
     sock.ev.on('messages.upsert', async (m) => {
         // DEBUG: Log ALL incoming messages
         server.log.info({ sessionId, type: m.type, count: m.messages.length }, 'messages.upsert event received')
+        
+        // Add to log buffer for monitoring dashboard
+        const sender = m.messages[0]?.key?.remoteJid?.split('@')[0] || 'unknown'
+        addToLogBuffer(`${new Date().toISOString()} [${sessionId}] Message from ${sender} (${m.messages.length} msgs)`)
 
         // FIX: Only process NEW messages (notify), skip re-delivered ones (append)
         if (m.type !== 'notify') {
@@ -1108,6 +1119,17 @@ server.get('/status', async (req, reply) => {
     }
 
     return { status: targetSession.status, qr: targetSession.qr }
+})
+
+// Health check endpoint
+server.get('/health', async (req: any, reply) => {
+    return { 
+        success: true, 
+        status: 'healthy', 
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        sessions: sessions.size
+    }
 })
 
 // Get Logs (for admin dashboard)
