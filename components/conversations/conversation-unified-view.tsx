@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import axios from 'axios'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -109,10 +109,13 @@ export function ConversationUnifiedView({
     }
   }, [isOpen, conversationId])
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom on initial load (no animation), smooth scroll on new messages
+  const isFirstLoad = useRef(true)
   useEffect(() => {
     if (messagesEndRef.current && !loading) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
+      // Instant scroll on first load, smooth on subsequent updates
+      messagesEndRef.current.scrollIntoView({ behavior: isFirstLoad.current ? 'auto' : 'smooth' })
+      isFirstLoad.current = false
     }
   }, [messages, loading])
 

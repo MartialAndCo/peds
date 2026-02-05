@@ -192,7 +192,7 @@ export default function WorkspaceConversationsPage() {
       {/* Left Sidebar - Conversation List */}
       <div className={cn(
         "flex flex-col transition-all duration-300 ease-in-out border-r border-white/[0.06]",
-        isViewOpen ? "w-80 lg:w-96 flex-shrink-0" : "flex-1 max-w-5xl mx-auto"
+        isViewOpen ? "w-80 lg:w-96 flex-shrink-0" : "flex-1"
       )}>
         {/* Header */}
         <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
@@ -252,10 +252,7 @@ export default function WorkspaceConversationsPage() {
 
         {/* Conversation List */}
         <div className="flex-1 overflow-y-auto">
-          <div className={cn(
-            "p-3 space-y-2",
-            !isViewOpen && "max-w-2xl mx-auto"
-          )}>
+          <div className="p-3 space-y-2">
             {loading && conversations.length === 0 ? (
               <div className="flex justify-center py-10">
                 <Loader2 className="h-10 w-10 animate-spin text-white/30" />
