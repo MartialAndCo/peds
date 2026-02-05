@@ -5,6 +5,7 @@ export interface SwarmState {
     userMessage: string
     history: Array<{ role: string; content: string }>
     contactId: string
+    contactPhone?: string  // Pour les mémoires (différent de contactId)
     agentId: string
     conversationId?: number
     settings?: any
@@ -38,6 +39,9 @@ export interface SwarmState {
     shouldSendVoice?: boolean
     currentPhase?: string
     isBlacklisted?: boolean  // Si la demande média est blacklistée
+    
+    // Profile complet de l'agent (pour accès rapide aux templates)
+    profile?: any
 }
 
 export interface IntentionResult {

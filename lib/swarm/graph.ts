@@ -68,14 +68,33 @@ export class SwarmGraph {
             )
 
             // Mettre à jour l'état et marquer comme exécuté
+            // Accumuler tous les contexts des nodes exécutés dans cette itération
+            const allContexts = { ...state.contexts }
             for (const { name, result } of results) {
                 executed.add(name)
-                state = { ...state, ...result }
+                // Merger SEULEMENT les nouvelles valeurs non-vides
+                if (result.contexts) {
+                    for (const [key, value] of Object.entries(result.contexts)) {
+                        if (value) {  // Ne garder que les valeurs truthy
+                            allContexts[key as keyof typeof allContexts] = value as any
+                        }
+                    }
+                }
             }
+            // Appliquer tous les autres changements d'état (sauf contexts qu'on gère séparément)
+            for (const { name, result } of results) {
+                const { contexts, ...rest } = result
+                state = { ...state, ...rest }
+            }
+            // Mettre à jour les contexts accumulés
 
-            // Vérifier si on a une réponse (fin du workflow)
-            if (state.response) {
-                console.log(`[Swarm] Response generated, stopping`)
+            state = { ...state, contexts: allContexts }
+
+            // Vérifier si on a une réponse ET que tous les nodes sont exécutés
+            // (ne pas s'arrêter juste parce qu'on a une réponse, laisser la validation tourner)
+            const allExecuted = executed.size === this.nodes.size
+            if (state.response && allExecuted) {
+                console.log(`[Swarm] Response generated and all nodes executed, stopping`)
                 break
             }
         }

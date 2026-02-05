@@ -1,74 +1,102 @@
+// Agent "Response" - Génère la réponse finale avec le prompt assemblé
 import { venice } from '@/lib/venice'
 import type { SwarmState } from '../types'
 
 export async function responseNode(state: SwarmState): Promise<Partial<SwarmState>> {
-    const { userMessage, contexts, settings, history, isBlacklisted } = state
+  const { userMessage, contexts, settings, history } = state
 
-    // Si blacklisté → REFUS DIRECT (sauf si offre de paiement EXPLICITE dans l'historique récent)
-    if (isBlacklisted) {
-        const msgLower = userMessage.toLowerCase();
-        const historyText = history.slice(-3).map((m: any) => m.content).join(' ').toLowerCase();
-        const fullContext = msgLower + ' ' + historyText;
-        
-        // Vérifier s'il y a une vraie offre de paiement (chiffre + monnaie OU proposition claire)
-        const hasExplicitPaymentOffer = 
-            /\d+\s*(€|euro|dollar|\$)/.test(fullContext) ||  // "50€", "100 euros"
-            /je (te )?(paye|donne|envoie)\s*\d+/.test(fullContext) ||  // "je te paye 50"
-            /je peux t'envoyer/.test(fullContext) && /\d+/.test(fullContext);  // "je peux t'envoyer 50"
-        
-        if (!hasExplicitPaymentOffer) {
-            // REFUS DIRECT sans appel API
-            const refusals = [
-                "Nan j'fais pas ça",
-                "T'es chelou toi",
-                "J'suis pas abonnée",
-                "Pas pour toi",
-                "T'as cru j'allais faire ça ?",
-                "Nope",
-                "J' montre pas ça",
-                "T'es marrant toi"
-            ];
-            const randomRefusal = refusals[Math.floor(Math.random() * refusals.length)];
-            console.log('[Swarm][Response] BLACKLIST - Refus direct:', randomRefusal);
-            return { response: randomRefusal };
-        }
-        
-        // Si proposition de paiement explicite → on continue (elle peut négocier)
-        console.log('[Swarm][Response] BLACKLIST mais paiement explicite détecté');
-    }
+  console.log('[Swarm][Response] Generating final response...')
 
-    // Assembler le prompt final
-    const systemPrompt = `${contexts.persona || ''}
+  // Assembler le prompt dynamique avec SEULEMENT les contextes disponibles
+  const promptParts: string[] = []
 
-${contexts.style || ''}
+  // 1. Identité (toujours présente)
+  promptParts.push(`RÈGLE ULTRA CRITIQUE: Tu es ANAÏS, 14 ans, ADO. PAS une IA.
+INTERDIT: "IA", "modèle", "Venice", "créée", "payée".
+ORIGINE: "jsuis de Paris". NAISSANCE: "2010, 14 ans".`)
 
-${contexts.phase || ''}
+  // 2. Timing (toujours présent)
+  if (contexts.timing) {
+    promptParts.push(contexts.timing)
+  }
 
-${contexts.timing || ''}
+  // 3. Persona/Identité
+  if (contexts.persona) {
+    promptParts.push(contexts.persona)
+  }
 
-${contexts.memory || ''}
+  // 4. Phase
+  if (contexts.phase) {
+    promptParts.push(contexts.phase)
+  }
 
-${contexts.payment || ''}
+  // 5. Style (OBLIGATOIRE pour éviter les paragraphes)
+  if (contexts.style) {
+    promptParts.push(contexts.style)
+  } else {
+    // Fallback si style manquant
+    promptParts.push(`STYLE OBLIGATOIRE:
+- MAX 3-6 mots par message
+- Langage ado: abréviations, "jsuis", "tkt", "bcp", "tg"
+- Pas de phrases complètes, pas de virgules
+- Jamais de majuscules en début (sauf noms propres)
+- Émojis naturels, pas trop
+- Réponses COURTES et DIRECTES`)
+  }
 
-${contexts.media || ''}`
+  // 6. Mémoire (optionnel)
+  if (contexts.memory) {
+    promptParts.push(contexts.memory)
+  }
 
-    try {
-        const response = await venice.chatCompletion(
-            systemPrompt,
-            [...history.slice(-3), { role: 'user', content: userMessage }],
-            '',
-            {
-                apiKey: settings.venice_api_key,
-                model: 'venice-uncensored',
-                temperature: 0.7,
-                max_tokens: 20
-            }
-        )
+  // 7. Média (optionnel mais CRITIQUE si besoinMedia)
+  if (contexts.media) {
+    promptParts.push(contexts.media)
+  }
 
-        return { response: response.trim() }
+  // 8. Voice (optionnel mais CRITIQUE si besoinVoice)
+  if (contexts.voice) {
+    promptParts.push(contexts.voice)
+  }
 
-    } catch (error: any) {
-        console.error('[Swarm][Response] Error:', error)
-        return { response: 'jsuis là' }
-    }
+  // 9. Payment (optionnel)
+  if (contexts.payment) {
+    promptParts.push(contexts.payment)
+  }
+
+  // Assembler le prompt final
+  const systemPrompt = promptParts.join('\n\n')
+
+  console.log('[Swarm][Response] Prompt assembled, length:', systemPrompt.length)
+
+  try {
+    const response = await venice.chatCompletion(
+      systemPrompt,
+      history.slice(-3).map((m: any) => ({
+        role: m.role === 'user' ? 'user' : 'assistant',
+        content: m.content
+      })),
+      userMessage,
+      {
+        apiKey: settings.venice_api_key,
+        model: settings.venice_model || 'venice-uncensored',
+        temperature: 0.7,
+        max_tokens: 50
+      }
+    )
+
+    const cleanResponse = response
+      .replace(/\n+/g, ' ')
+      .replace(/\s*\|\s*/g, ' | ')
+      .replace(/\s+/g, ' ')
+      .trim()
+
+    console.log('[Swarm][Response] Generated:', cleanResponse.substring(0, 50) + '...')
+
+    return { response: cleanResponse }
+
+  } catch (error: any) {
+    console.error('[Swarm][Response] Failed:', error.message)
+    return { response: 'jsuis là' }
+  }
 }

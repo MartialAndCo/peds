@@ -1,7 +1,19 @@
 import { prisma } from '@/lib/prisma';
-import { personaSchedule } from '@/lib/services/persona-schedule';
-import { validationNode } from './nodes/validation-node';
-import { memoryService } from '@/lib/memory';
+import { SwarmGraph } from './graph';
+import { 
+  intentionNode, 
+  memoryNode, 
+  personaNode, 
+  timingNode, 
+  phaseNode, 
+  styleNode,
+  paymentNode,
+  mediaNode,
+  voiceNode,
+  responseNode,
+  validationNode 
+} from './nodes';
+import type { SwarmState, IntentionResult } from './types';
 
 const API_KEY = process.env.VENICE_API_KEY;
 
@@ -13,8 +25,18 @@ export async function runSwarm(
   userName: string,
   lastMessageType?: string
 ): Promise<string> {
-  console.log(`[Swarm] ${userMessage}`);
+  console.log(`[Swarm] Starting swarm for: "${userMessage.substring(0, 50)}..."`);
+  console.log(`[Swarm] Contact: ${contactId}, Agent: ${agentId}`);
+
+  // Récupérer le contact pour avoir le phone (nécessaire pour les mémoires)
+  const contact = await prisma.contact.findUnique({
+    where: { id: contactId },
+    select: { phone_whatsapp: true }
+  });
   
+  const contactPhone = contact?.phone_whatsapp || contactId; // Fallback sur ID si pas trouvé
+
+  // Récupérer le profil complet
   const profile = await prisma.agentProfile.findUnique({
     where: { agentId },
     select: {
@@ -41,123 +63,104 @@ export async function runSwarm(
   });
 
   const phase = agentContact?.phase || 'CONNECTION';
-  let phaseTemplate = profile.phaseConnectionTemplate || '';
-  if (phase === 'VULNERABILITY') phaseTemplate = profile.phaseVulnerabilityTemplate || '';
-  if (phase === 'CRISIS') phaseTemplate = profile.phaseCrisisTemplate || '';
-  if (phase === 'MONEYPOT') phaseTemplate = profile.phaseMoneypotTemplate || '';
 
-  // Récupérer le contexte temps (CRITIQUE)
-  const timezone = profile.timezone || 'Europe/Paris';
-  const locale = (profile.locale || 'fr-FR').toLowerCase();
-  const timingContext = personaSchedule.getContextPrompt(timezone, undefined, locale);
-
-  // CHARGER LES MÉMOIRES (CRITIQUE - était manquant !)
-  let memoryContext = '';
-  try {
-    const memoryUserId = memoryService.buildUserId(contactId, agentId);
-    const memories = await memoryService.getAll(memoryUserId);
-    if (memories && memories.length > 0) {
-      const memoryTexts = memories
-        .map((m: any) => typeof m === 'string' ? m : m.memory)
-        .filter(Boolean)
-        .slice(0, 10); // Limiter à 10 mémoires pour ne pas surcharger
-      if (memoryTexts.length > 0) {
-        memoryContext = `\n\n[INFOS SUR CETTE PERSONNE - DONT TU TE SOUVIENS]:\n${memoryTexts.map((m: string) => `- ${m}`).join('\n')}`;
-        console.log(`[Swarm] Loaded ${memoryTexts.length} memories for ${memoryUserId}`);
-      }
-    }
-  } catch (e) {
-    console.warn('[Swarm] Failed to load memories:', e);
-  }
-
-  // Nettoyer l'identity (supprimer la partie "Tu es une EXPERTE...")
-  const identityClean = (profile.identityTemplate || '')
-    .replace(/Tu es une EXPERTE en conversation naturelle qui incarne Anaïs, 14 ans\./, '')
-    .replace(/Un amateur se répète[\s\S]*?Si non → reformule\./, '');
-
-  // Assembler le prompt: TEMPS EN PREMIER, puis identity, puis contexte
-  const systemPrompt = `RÈGLE ULTRA CRITIQUE: Tu es ANAÏS, 14 ans, ADO. PAS une IA.
-INTERDIT: "IA", "modèle", "Venice", "créée", "payée".
-ORIGINE: "jsuis de Paris". NAISSANCE: "2010, 14 ans".
-
-${timingContext}
-
-${identityClean}
-
-${profile.contextTemplate || ''}
-
-${phaseTemplate}
-
-${profile.styleRules || ''}
-
-${profile.safetyRules || ''}
-
-${profile.paymentRules || ''}
-
-${memoryContext}`;
-
-  const messages = [
-    { role: 'system', content: systemPrompt },
-    ...history.slice(-3).map((m: any) => ({
-      role: m.role === 'ai' ? 'assistant' : 'user',
-      content: m.content
-    })),
-    { role: 'user', content: userMessage }
-  ];
-
-  const res = await fetch('https://api.venice.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: 'venice-uncensored',
-      messages,
-      temperature: 0.7,
-      max_tokens: 20
-    })
-  });
-
-  if (!res.ok) throw new Error(`API ${res.status}`);
-  
-  const data = await res.json();
-  let response = data.choices?.[0]?.message?.content?.trim() || 'jsuis là';
-  
-  response = response
-    .replace(/\n+/g, ' ')
-    .replace(/\s*\|\s*/g, ' | ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  
-  response = response.replace(/\s*\|\s*\|/g, ' |');
-  
-  // Validation de cohérence
-  console.log('[Swarm] Running validation...');
-  const state = {
-    response,
-    history,
-    settings: { venice_api_key: API_KEY, venice_model: 'venice-uncensored' },
+  // Initial state
+  const initialState: SwarmState = {
     userMessage,
-    contexts: { 
-      persona: identityClean, 
-      style: profile.styleRules || '', 
-      phase: phaseTemplate,
-      timing: timingContext,
-      memory: memoryContext,
+    history,
+    contactId,
+    contactPhone,  // Pour les mémoires
+    agentId,
+    userName,
+    lastMessageType: lastMessageType || 'text',
+    settings: { 
+      venice_api_key: API_KEY || '', 
+      venice_model: 'venice-uncensored',
+      timezone: profile.timezone || 'Europe/Paris',
+      locale: profile.locale || 'fr-FR'
+    },
+    contexts: {
+      persona: '',
+      style: profile.styleRules || '',
+      phase: '',
+      timing: '',
+      memory: '',
       payment: '',
       media: '',
       voice: ''
     },
-    contactId,
-    agentId,
-    userName,
-    lastMessageType: lastMessageType || 'text'
+    profile,
+    currentPhase: phase
   };
+
+  // Créer le graph
+  const graph = new SwarmGraph();
+
+  // ÉTAPE 1: INTENTION (toujours en premier - c'est lui qui décide)
+  graph.addNode('intention', intentionNode);
+
+  // ÉTAPE 2: AGENTS OBLIGATOIRES (exécutés en parallèle après intention)
+  // Ces agents ne dépendent que de l'intention
+  graph.addNode('persona', personaNode, ['intention']);
+  graph.addNode('timing', timingNode, ['intention']);
+  graph.addNode('phase', phaseNode, ['intention']);
+  graph.addNode('style', styleNode, ['intention']); // OBLIGATOIRE pour éviter les paragraphes
+
+  // ÉTAPE 3: AGENTS OPTIONNELS (exécutés si besoin, en parallèle)
+  // Dépendent de l'intention détectée
+  graph.addNode('memory', async (state: SwarmState) => {
+    if (state.intention?.besoinMemoire) {
+      console.log('[Swarm][Memory] Need detected, loading memories...');
+      return await memoryNode(state);
+    }
+    console.log('[Swarm][Memory] No need, skipping');
+    return { contexts: { ...state.contexts, memory: '' } };
+  }, ['intention']);
+
+  graph.addNode('payment', async (state: SwarmState) => {
+    if (state.intention?.besoinPayment && profile.paymentRules) {
+      console.log('[Swarm][Payment] Need detected, loading payment rules...');
+      return await paymentNode(state);
+    }
+    return { contexts: { ...state.contexts, payment: '' } };
+  }, ['intention']);
+
+  graph.addNode('media', async (state: SwarmState) => {
+    if (state.intention?.besoinMedia) {
+      console.log('[Swarm][Media] Need detected, analyzing media request...');
+      return await mediaNode(state);
+    }
+    console.log('[Swarm][Media] No need, skipping');
+    return { contexts: { ...state.contexts, media: '' } };
+  }, ['intention']);
+
+  graph.addNode('voice', async (state: SwarmState) => {
+    if (state.intention?.besoinVoice || state.lastMessageType === 'voice' || state.lastMessageType === 'ptt') {
+      console.log('[Swarm][Voice] Need detected, analyzing voice context...');
+      return await voiceNode(state);
+    }
+    console.log('[Swarm][Voice] No need, skipping');
+    return { contexts: { ...state.contexts, voice: '' } };
+  }, ['intention']);
+
+  // ÉTAPE 4: RÉPONSE (assemble tout et génère)
+  // Dépend de tous les agents précédents
+  graph.addNode('response', responseNode, [
+    'persona', 'timing', 'phase', 'style', 'memory', 'payment', 'media', 'voice'
+  ]);
+
+  // ÉTAPE 5: VALIDATION (vérifie la cohérence)
+  graph.addNode('validation', validationNode, ['response']);
+
+  // Exécuter le graph
+  console.log('[Swarm] Executing graph...');
+  const finalState = await graph.execute('intention', initialState);
+
+  console.log('[Swarm] Graph execution complete');
   
-  const validationResult = await validationNode(state);
-  const finalResponse = validationResult.response || response;
-  
-  console.log(`[Swarm] Final response: "${finalResponse.substring(0, 50)}..."`);
-  return finalResponse;
+  if (finalState.error) {
+    console.error('[Swarm] Error during execution:', finalState.error);
+  }
+
+  return finalState.response || 'jsuis là';
 }

@@ -8,15 +8,29 @@ export async function personaNode(state: SwarmState): Promise<Partial<SwarmState
 
     const profile = await prisma.agentProfile.findUnique({
         where: { agentId },
-        select: { contextTemplate: true }
+        select: { contextTemplate: true, identityTemplate: true }
     })
 
-    console.log('[Swarm][Persona] Found:', profile ? 'YES' : 'NO', 'Length:', profile?.contextTemplate?.length || 0)
+    console.log('[Swarm][Persona] Found:', profile ? 'YES' : 'NO')
+
+    // Combiner identity et context pour avoir une persona complète
+    let persona = ''
+    if (profile?.identityTemplate) {
+        // Nettoyer l'identity (supprimer la partie "Tu es une EXPERTE...")
+        const identityClean = profile.identityTemplate
+            .replace(/Tu es une EXPERTE en conversation naturelle qui incarne Anaïs, 14 ans\./, '')
+            .replace(/Un amateur se répète[\s\S]*?Si non → reformule\./, '')
+        persona += identityClean
+    }
+    if (profile?.contextTemplate) {
+        if (persona) persona += '\n\n'
+        persona += profile.contextTemplate
+    }
 
     return {
         contexts: {
             ...state.contexts,
-            persona: profile?.contextTemplate || ''
+            persona: persona || ''
         }
     }
 }
