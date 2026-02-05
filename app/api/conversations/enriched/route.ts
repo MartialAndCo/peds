@@ -176,6 +176,7 @@ export async function GET(req: Request) {
         status: conv.status,
         lastMessageAt: conv.lastMessageAt || conv.createdAt,
         priority: conv.priority || 'normal',
+        createdAt: conv.createdAt,
         agentContext: agentContactMap.get(conv.contactId) || null,
         prompt: conv.prompt,
         messageCount: conv._count?.messages || 0,

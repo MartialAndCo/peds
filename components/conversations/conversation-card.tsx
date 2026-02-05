@@ -39,6 +39,7 @@ export interface ConversationCardData {
   status: 'active' | 'paused' | 'closed'
   lastMessageAt: string | null
   priority?: 'high' | 'normal' | 'low'
+  createdAt: string
 }
 
 interface ConversationCardProps {

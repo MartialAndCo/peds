@@ -533,7 +533,7 @@ export function ConversationUnifiedView({
                   <div className="text-center p-3 bg-white/5 rounded-lg">
                     <Clock className="h-5 w-5 mx-auto mb-1 text-white/40" />
                     <span className="text-2xl font-bold text-white">
-                      {Math.ceil((Date.now() - new Date(conversation.contact.status === 'new' ? conversation.contact.status : Date.now()).getTime()) / (1000 * 60 * 60 * 24))}
+                      {Math.max(1, Math.ceil((Date.now() - new Date(conversation.createdAt).getTime()) / (1000 * 60 * 60 * 24)))}
                     </span>
                     <p className="text-xs text-white/40">Days Active</p>
                   </div>
