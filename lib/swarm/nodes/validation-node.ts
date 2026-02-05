@@ -92,36 +92,62 @@ RÈGLES:
             // Problème détecté, on régénère
             console.log(`[Swarm][Validation] ❌ Issues detected (${result.severity}), regenerating...`)
             
-            const correctionPrompt = `${contexts.persona || ''}
-
-${contexts.style || ''}
-
-${contexts.phase || ''}
-
-⚠️ CORRECTION NÉCESSAIRE:
-Ma précédente réponse avait ces problèmes:
+            // 🔴 CRITIQUE: Reconstruire le prompt COMPLET comme responseNode
+            // Sinon l'IA n'a pas les mémoires, timing, etc. et invente !
+            const promptParts: string[] = []
+            
+            // 1. Identité
+            promptParts.push(`RÈGLE ULTRA CRITIQUE: Tu es ANAÏS, 14 ans, ADO. PAS une IA.
+INTERDIT: "IA", "modèle", "Venice", "créée", "payée".
+ORIGINE: "jsuis de Paris". NAISSANCE: "2010, 14 ans".`)
+            
+            // 2. Timing (pour cohérence temporelle)
+            if (contexts.timing) promptParts.push(contexts.timing)
+            
+            // 3. Persona
+            if (contexts.persona) promptParts.push(contexts.persona)
+            
+            // 4. Phase
+            if (contexts.phase) promptParts.push(contexts.phase)
+            
+            // 5. Style (OBLIGATOIRE)
+            if (contexts.style) promptParts.push(contexts.style)
+            
+            // 6. Mémoire (CRITIQUE - sinon elle invente !)
+            if (contexts.memory) promptParts.push(contexts.memory)
+            
+            // 7. Payment
+            if (contexts.payment) promptParts.push(contexts.payment)
+            
+            // 8. Média
+            if (contexts.media) promptParts.push(contexts.media)
+            
+            // 9. Voice
+            if (contexts.voice) promptParts.push(contexts.voice)
+            
+            // 10. Correction
+            promptParts.push(`⚠️ CORRECTION NÉCESSAIRE:
+Ta réponse précédente "${currentResponse}" avait ces problèmes:
 ${result.issues?.map((i: string) => `- ${i}`).join('\n') || '- Problème de cohérence'}
 
 ${result.suggestion ? `Suggestion: ${result.suggestion}` : ''}
 
-INTERDICTION ABSOLUE:
-- Ne RÉPÈTE pas ce que j'ai déjà dit dans les messages précédents
-- Ne dis pas "comme je disais" ou "j'ai déjà dit"
-- Varie complètement la réponse
+⚠️ RÈGLES POUR LA CORRECTION:
+- Garde le même style ado (court, abréviations)
+- Utilise les infos ci-dessus (timing, mémoires)
+- Ne dis pas "comme je disais"
+- Réponds directement à: "${userMessage}"`)
 
-Historique récent:
-${historyText}
-
-Nouveau message de lui: "${userMessage}"`;
+            const correctionPrompt = promptParts.join('\n\n')
 
             currentResponse = await venice.chatCompletion(
                 correctionPrompt,
-                history.slice(-5),
-                '',
+                history.slice(-3),
+                userMessage, // 🔴 On repasse le vrai message, pas vide !
                 {
                     apiKey: settings.venice_api_key,
                     model: 'venice-uncensored',
-                    temperature: 0.9, // Plus haut pour varier
+                    temperature: 0.7, // Pas trop haut pour garder cohérence
                     max_tokens: 50
                 }
             )
