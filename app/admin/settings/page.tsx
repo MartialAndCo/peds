@@ -115,31 +115,29 @@ export default function SettingsPage() {
         fetchSettings()
     }, [fetchSettings])
 
-    // Sync AI Mode with server runtime
-    useEffect(() => {
-        if (settings.ai_mode) {
-            axios.post('/api/ai-mode', { mode: settings.ai_mode })
-                .then(() => {
-                    toast({ 
-                        title: `Mode ${settings.ai_mode} activé`, 
-                        description: settings.ai_mode === 'SWARM' 
-                            ? '10 agents spécialisés sont maintenant actifs' 
-                            : 'Mode classique avec 1 prompt unique',
-                        className: settings.ai_mode === 'SWARM' ? "bg-purple-600 border-none text-white" : "bg-blue-600 border-none text-white" 
-                    })
-                })
-                .catch(() => {
-                    toast({ title: "Erreur lors du changement de mode", variant: "destructive" })
-                })
-        }
-    }, [settings.ai_mode])
+    // Note: AI Mode est sauvegardé avec les autres settings dans handleSave
+    // Pas de sync auto ici pour éviter d'écraser la valeur au chargement
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault()
         setSaving(true)
         try {
+            // Sauvegarder tous les settings
             await axios.put('/api/settings', settings)
-            toast({ title: "Settings Saved ✅", className: "bg-green-600 border-none text-white" })
+            
+            // Sync AI Mode avec le serveur runtime
+            if (settings.ai_mode) {
+                await axios.post('/api/ai-mode', { mode: settings.ai_mode })
+                toast({ 
+                    title: `Mode ${settings.ai_mode} activé`, 
+                    description: settings.ai_mode === 'SWARM' 
+                        ? '10 agents spécialisés sont maintenant actifs' 
+                        : 'Mode classique avec 1 prompt unique',
+                    className: settings.ai_mode === 'SWARM' ? "bg-purple-600 border-none text-white" : "bg-blue-600 border-none text-white" 
+                })
+            } else {
+                toast({ title: "Settings Saved ✅", className: "bg-green-600 border-none text-white" })
+            }
         } catch (error) {
             console.error('Error saving settings')
             toast({ title: "Save Failed", variant: "destructive" })
