@@ -188,10 +188,10 @@ export default function WorkspaceConversationsPage() {
 
   // DESKTOP VIEW
   return (
-    <div className="h-[calc(100vh-4rem)] flex">
+    <div className="h-[calc(100vh-4rem)] flex overflow-hidden">
       {/* Left Sidebar - Conversation List */}
       <div className={cn(
-        "flex flex-col transition-all duration-300 ease-in-out border-r border-white/[0.06]",
+        "flex flex-col transition-all duration-300 ease-in-out border-r border-white/[0.06] p-4",
         isViewOpen ? "w-80 lg:w-96 flex-shrink-0" : "flex-1"
       )}>
         {/* Header */}
@@ -250,8 +250,8 @@ export default function WorkspaceConversationsPage() {
           />
         </div>
 
-        {/* Conversation List */}
-        <div className="flex-1 overflow-y-auto">
+        {/* Conversation List - only this scrolls */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
           <div className="p-3 space-y-2">
             {loading && conversations.length === 0 ? (
               <div className="flex justify-center py-10">
@@ -279,7 +279,7 @@ export default function WorkspaceConversationsPage() {
 
       {/* Right Panel - Conversation Detail */}
       {isViewOpen && selectedConversation && (
-        <div className="flex-1 min-w-0 bg-[#0f172a] overflow-hidden">
+        <div className="flex-1 min-w-0 bg-[#0f172a] overflow-hidden p-4 pl-0">
           <ConversationUnifiedView
             conversation={selectedConversation}
             isOpen={isViewOpen}

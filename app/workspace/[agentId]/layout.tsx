@@ -82,9 +82,9 @@ export default function WorkspaceLayout({
                 </div>
 
                 {/* Main Content Area */}
-                <main className="md:pl-64 h-full flex flex-col">
+                <main className="md:pl-64 h-full flex flex-col overflow-hidden">
                     <Navbar />
-                    <div className="flex-1 p-8 pt-6 overflow-y-auto">
+                    <div className="flex-1 overflow-hidden">
                         {children}
                     </div>
                 </main>
