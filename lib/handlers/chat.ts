@@ -633,7 +633,8 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     console.log(`[Chat] AI Response (raw): "${responseText.substring(0, 100)}${responseText.length > 100 ? '...' : ''}"`)
 
     // QUEUE AWARENESS: Parse and execute CANCEL commands from AI response
-    const cancelMatches = responseText.matchAll(/\[CANCEL:\s*(\d+)\]/gi)
+    // FIX: Accept UUIDs (alphanumeric + hyphens), not just digits
+    const cancelMatches = responseText.matchAll(/\[CANCEL:\s*([a-zA-Z0-9-]+)\]/gi)
     const cancelledIds: string[] = []
     for (const match of cancelMatches) {
         const queueId = match[1]
@@ -652,8 +653,8 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
             },
             data: { status: 'CANCELLED_BY_AI' }
         })
-        // Remove CANCEL tokens from the final response
-        responseText = responseText.replace(/\[CANCEL:\d+\]/gi, '').trim()
+        // Remove CANCEL tokens from the final response (FIX: accept UUIDs)
+        responseText = responseText.replace(/\[CANCEL:[a-zA-Z0-9-]+\]/gi, '').trim()
         console.log(`[Chat] Cleaned response: "${responseText.substring(0, 80)}..."`)
     }
     // 5.5. AI-POWERED MESSAGE VALIDATION & CLEANING
