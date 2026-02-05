@@ -606,9 +606,21 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
                 return { handled: true, result: 'async_job_started', jobId }
             }
 
-            // CRITICAL: Handle Quota/Payment Errors (402)
-            if (error.message?.includes('402') || error.message?.includes('Insufficient balance') || error.message?.includes('Quota')) {
-                console.log('[Chat] AI Quota Exceeded. Queuing as AI_FAILED for manual attention.')
+            // CRITICAL: Handle Venice API Rejection (402)
+            if (error.message?.includes('VENICE_API_REJECTED') || error.message?.includes('402') || error.message?.includes('Insufficient balance')) {
+                console.error('[Chat] 🚨 VENICE API REJECTED! Check your credits/API key.')
+                
+                // Log to credit monitor
+                const { creditMonitor } = require('@/lib/services/credit-monitor')
+                creditMonitor.addAlert({
+                    provider: 'venice',
+                    status: 'depleted',
+                    message: `Venice AI rejected request: ${error.message}. Recharge credits at https://venice.ai/settings/billing`,
+                    agentId: effectiveAgentId
+                })
+                
+                // Don't return fallback - let error propagate properly
+                throw new Error('VENICE_CREDITS_DEPLETED')
 
                 await prisma.messageQueue.create({
                     data: {

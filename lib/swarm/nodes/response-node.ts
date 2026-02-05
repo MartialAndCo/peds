@@ -109,6 +109,10 @@ ORIGINE: "jsuis de Paris". NAISSANCE: "2010, 14 ans".`)
 
   } catch (error: any) {
     console.error('[Swarm][Response] Failed:', error.message)
-    return { response: 'jsuis là' }
+    // Si erreur 402 (pas de crédits), throw une erreur claire
+    if (error.message?.includes('402') || error.message?.includes('Insufficient balance')) {
+      throw new Error('AI_QUOTA_EXHAUSTED: Venice AI credits depleted. Please recharge your account or check your API key.')
+    }
+    throw error
   }
 }

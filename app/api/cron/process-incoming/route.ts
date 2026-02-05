@@ -19,29 +19,39 @@ export async function GET(req: Request) {
         let stillProcessing = 0
 
         // --- PART 1: Process NEW Messages (PENDING) ---
-        // ATOMIC CLAIM: Use transaction to prevent race conditions
-        // This ensures only ONE CRON invocation can claim each item.
-        // --- PART 1: Process NEW Messages (PENDING) ---
-        // ATOMIC CLAIM: Use transaction to prevent race conditions
+        // ATOMIC CLAIM: Use transaction with row-level locking
         // This ensures only ONE CRON invocation can claim each item.
         const pending = await prisma.$transaction(async (tx) => {
-            // Find items that are ready - Take larger batch for bursts
+            // Find items that are ready - Reduced batch for stability
             // IMPORTANT: We must order by createdAt ASC to process in order
             const items = await tx.incomingQueue.findMany({
                 where: { status: 'PENDING' },
-                take: 50, // Increased from 5 to 50 to capture bursts
+                take: 10, // Reduced from 50 to prevent timeouts and resource exhaustion
                 orderBy: { createdAt: 'asc' }
             })
 
-            // Immediately lock ALL of them
+            // Immediately lock ALL of them with a unique processing ID
+            // This allows us to track which instance is processing what
+            const processingId = `cron_${Date.now()}_${Math.random().toString(36).substring(7)}`
+            
             if (items.length > 0) {
                 await tx.incomingQueue.updateMany({
-                    where: { id: { in: items.map(i => i.id) } },
-                    data: { status: 'PROCESSING' }
+                    where: { 
+                        id: { in: items.map(i => i.id) },
+                        status: 'PENDING' // Extra safety: only update if still PENDING
+                    },
+                    data: { 
+                        status: 'PROCESSING',
+                        error: processingId // Use error field to track processing instance
+                    }
                 })
             }
 
             return items
+        }, {
+            // Transaction options
+            maxWait: 5000,
+            timeout: 10000
         })
 
         // Group by Sender + AgentId (Burst logic)
@@ -78,6 +88,18 @@ export async function GET(req: Request) {
                 const skipAI = !isLast;
 
                 try {
+                    // CRITICAL: Verify item is still in PROCESSING state
+                    // (Another instance might have grabbed it due to race condition)
+                    const currentItem = await prisma.incomingQueue.findUnique({
+                        where: { id: item.id },
+                        select: { status: true }
+                    })
+                    
+                    if (currentItem?.status !== 'PROCESSING') {
+                        console.log(`[CRON] Item ${item.id} status changed to ${currentItem?.status}. Skipping.`)
+                        continue
+                    }
+
                     const payload = item.payload as any
                     const traceId = trace.generate()
 

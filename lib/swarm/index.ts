@@ -179,5 +179,17 @@ export async function runSwarm(
     console.error('[Swarm] Error during execution:', finalState.error);
   }
 
-  return finalState.response || 'jsuis là';
+  // If no response, throw clear error
+  if (!finalState.response) {
+    console.error('[Swarm] CRITICAL: No response generated!')
+    throw new Error('SWARM_NO_RESPONSE')
+  }
+  
+  // Never return fallback 'jsuis là' - it's meaningless
+  if (finalState.response === 'jsuis là') {
+    console.error('[Swarm] CRITICAL: Fallback response detected!')
+    throw new Error('SWARM_FALLBACK_RESPONSE_NOT_ALLOWED')
+  }
+  
+  return finalState.response;
 }

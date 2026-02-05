@@ -67,19 +67,12 @@ export const venice = {
                 logger.error('Venice AI request failed', error, { module: 'venice', attempt, status, detail })
 
                 if (status === 400 || status === 401 || status === 402 || status === 403 || status === 404 || status === 405) {
-                    console.warn(`[Venice] API Rejection (${status}). Switching to RunPod (Async Fallback)...`)
-                    logger.warn(`Venice failed (${status}), falling back to RunPod`, { module: 'venice', status })
-
-                    // Async Submission to prevent Lambda timeout
-                    const jobId = await runpod.submitJob(systemPrompt, messages, userMessage, {
-                        temperature: config.temperature,
-                        max_tokens: config.max_tokens
-                    })
-                    // Throw special error to be caught by chat handler
-                    const asyncSignal = new Error(`RUNPOD_ASYNC_JOB:${jobId}`)
-                        ; (asyncSignal as any).isAsyncJob = true
-                        ; (asyncSignal as any).jobId = jobId
-                    throw asyncSignal
+                    // CRITICAL: Venice credits depleted or API rejected
+                    console.error(`[Venice] 🚨 API REJECTED (${status}): ${detail}`)
+                    logger.error(`Venice API rejected request`, error, { module: 'venice', status, detail })
+                    
+                    // Throw clear error for upstream handling
+                    throw new Error(`VENICE_API_REJECTED:${status}:${detail}`)
                 }
 
                 // If last attempt, fallback to RunPod

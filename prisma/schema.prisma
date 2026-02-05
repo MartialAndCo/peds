@@ -365,8 +365,9 @@ model MessageQueue {
   mediaType      String?     // 'image', 'video', 'audio', 'document'
   duration       Int?        // Audio duration in ms
   scheduledAt    DateTime
-  status         String      @default("PENDING") // PENDING, SENT, FAILED
+  status         String      @default("PENDING") // PENDING, PROCESSING, SENT, FAILED, INVALID_EMPTY
   attempts       Int         @default(0)
+  error          String?     @db.Text // Error message for failed messages
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt @default(now())
   

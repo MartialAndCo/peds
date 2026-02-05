@@ -73,7 +73,10 @@ const LOCALE_DATA: Record<string, any> = {
             fallback: { name: 'Temps Libre', description: 'tranquille chez moi' }
         },
         prompt: {
-            header: (day: string, time: string) => `[CONTEXTE VIE ACTUEL - ${day} ${time}]:`,
+            header: (day: string, time: string, dayNum?: number, month?: string, year?: number) => 
+                `[CONTEXTE VIE ACTUEL - ${day} ${time}${dayNum ? ` | ${dayNum} ${month} ${year}` : ''}]:`,
+            dateInfo: (day: string, dayNum: number, month: string, year: number) => 
+                `📅 DATE ACTUELLE : Nous sommes ${day.toLowerCase()} ${dayNum} ${month} ${year}.`,
             action: (desc: string) => `⚠️ ACTION EN COURS : Tu es ${desc}.`,
             urgent: "URGENT : Tu DOIS répondre en prenant compte de ce contexte. Si tu dors/dors à moitié, sois brève et endormie. Si tu es en cours, sois discrète. N'invente PAS une autre activité.",
             busyConstraint: "Tu es en cours donc tu réponds discrètement (téléphone caché sous la table). INTERDICTION STRICTE D'ENVOYER UNE PHOTO [IMAGE:...] maintenant car tu es en classe.",
@@ -119,7 +122,10 @@ const LOCALE_DATA: Record<string, any> = {
             fallback: { name: 'Free Time', description: 'chilling at home' }
         },
         prompt: {
-            header: (day: string, time: string) => `[CURRENT LIFE CONTEXT - ${day} ${time}]:`,
+            header: (day: string, time: string, dayNum?: number, month?: string, year?: number) => 
+                `[CURRENT LIFE CONTEXT - ${day} ${time}${dayNum ? ` | ${month} ${dayNum}, ${year}` : ''}]:`,
+            dateInfo: (day: string, dayNum: number, month: string, year: number) => 
+                `📅 CURRENT DATE: Today is ${day}, ${month} ${dayNum}, ${year}.`,
             action: (desc: string) => `⚠️ CURRENT ACTIVITY: You are ${desc}.`,
             urgent: "URGENT: You MUST answer taking this context into account. If you are sleeping/half-asleep, be brief and sleepy. If you are in class, be discreet. DO NOT invent another activity.",
             busyConstraint: "You are in class so you reply discreetly (phone hidden under the table). STRICTLY FORBIDDEN TO SEND A PHOTO [IMAGE:...] now because you are in class.",
@@ -217,8 +223,17 @@ export const personaSchedule = {
         const timeStr = format(now, 'HH:mm', { timeZone: timezone })
         const dayNames = dict.dayNames
         const dayName = dayNames[now.getDay()]
+        
+        // Date complète: jour mois année
+        const fullDate = format(now, 'dd MMMM yyyy', { timeZone: timezone })
+        const monthNames = lang === 'fr' 
+            ? ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre']
+            : ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+        const monthName = monthNames[now.getMonth()]
+        const year = now.getFullYear()
+        const dayOfMonth = now.getDate()
 
-        let contextLine = `${dict.prompt.header(dayName, timeStr)}\n${dict.prompt.action(activity.description)}\n${dict.prompt.urgent}`
+        let contextLine = `${dict.prompt.header(dayName, timeStr, dayOfMonth, monthName, year)}\n${dict.prompt.dateInfo(dayName, dayOfMonth, monthName, year)}\n${dict.prompt.action(activity.description)}\n${dict.prompt.urgent}`
 
         if (activity.status === 'BUSY') {
             contextLine += ` ${dict.prompt.busyConstraint}`

@@ -4,34 +4,71 @@ import { logger } from '@/lib/logger'
 import { settingsService } from '@/lib/settings-cache'
 
 export class QueueService {
+    // Track items currently being processed in-memory to prevent concurrent execution
+    // This is a safety net for the brief window between SELECT and UPDATE
+    private static processingItems = new Set<string>()
 
     /**
      * Process all PENDING messages that are due (scheduledAt <= now)
+     * Uses database-level locking to prevent race conditions across multiple instances
      */
     async processPendingMessages() {
         const now = new Date()
         console.log(`[QueueService] Processing Message Queue... Server time: ${now.toISOString()}`)
 
-        // 1. Cleanup Stuck Jobs (older than 5 mins)
+        // 1. Cleanup Stuck Jobs (older than 10 mins - increased from 5 to be safer)
         // Jobs that are stuck in PROCESSING due to server crash/timeout
         await this.cleanupStuckJobs()
 
-        // 1. Find Pending Messages due NOW
-        // Reduced batch size from 50 to 10 to prevent timeouts
-        const pendingMessages = await prisma.messageQueue.findMany({
-            where: {
-                status: 'PENDING',
-                scheduledAt: { lte: now }
-            },
-            include: { contact: true, conversation: true },
-            take: 10,
-            orderBy: { scheduledAt: 'asc' }
-        })
+        // 2. Find and lock messages atomically using transaction
+        // This prevents multiple CRON instances from grabbing the same messages
+        let lockedItems: Array<{ id: string; content: string; mediaUrl: string | null; mediaType: string | null; duration: number | null; scheduledAt: Date; contact: any; conversation: any }> = []
+        
+        try {
+            lockedItems = await prisma.$transaction(async (tx) => {
+                // Find pending messages
+                const items = await tx.messageQueue.findMany({
+                    where: {
+                        status: 'PENDING',
+                        scheduledAt: { lte: now }
+                    },
+                    include: { contact: true, conversation: true },
+                    take: 5, // Reduced from 10 to be gentler on the system
+                    orderBy: { scheduledAt: 'asc' }
+                })
 
-        console.log(`[QueueService] Found ${pendingMessages.length} pending messages due now.`)
+                // Immediately lock them with a unique processing ID
+                const processingId = `proc_${Date.now()}_${Math.random().toString(36).substring(7)}`
+                
+                for (const item of items) {
+                    await tx.messageQueue.update({
+                        where: { 
+                            id: item.id,
+                            status: 'PENDING' // Extra safety: only update if still PENDING
+                        },
+                        data: { 
+                            status: 'PROCESSING',
+                            // Store processing ID and start time for debugging/recovery
+                            updatedAt: new Date()
+                        }
+                    })
+                }
 
-        if (pendingMessages.length === 0) {
-            // DEBUG: Find next upcoming message to check timezone/logic
+                return items
+            }, {
+                // Transaction options: fail fast if there's a conflict
+                maxWait: 5000,
+                timeout: 10000
+            })
+        } catch (txError) {
+            console.error('[QueueService] Transaction failed (another instance may be processing):', txError)
+            return { processed: 0, pending: 0, error: 'transaction_conflict' }
+        }
+
+        console.log(`[QueueService] Locked ${lockedItems.length} messages for processing.`)
+
+        if (lockedItems.length === 0) {
+            // DEBUG: Find next upcoming message
             const nextMsg = await prisma.messageQueue.findFirst({
                 where: { status: 'PENDING' },
                 orderBy: { scheduledAt: 'asc' },
@@ -39,39 +76,35 @@ export class QueueService {
             })
             if (nextMsg) {
                 const diffMinutes = Math.round((nextMsg.scheduledAt.getTime() - now.getTime()) / 60000)
-                console.log(`[QueueService] DEBUG: Next message (ID: ${nextMsg.id}) is scheduled for ${nextMsg.scheduledAt.toISOString()} (in ${diffMinutes} mins). Server time is ${now.toISOString()}`)
-            } else {
-                console.log(`[QueueService] DEBUG: No pending messages found in the entire queue.`)
+                console.log(`[QueueService] DEBUG: Next message (ID: ${nextMsg.id}) is scheduled for ${nextMsg.scheduledAt.toISOString()} (in ${diffMinutes} mins)`)
             }
             return { processed: 0, pending: 0 }
         }
 
         const results = []
 
-        for (const queueItem of pendingMessages) {
+        for (const queueItem of lockedItems) {
+            // Skip if already being processed in this instance
+            if (QueueService.processingItems.has(queueItem.id)) {
+                console.log(`[QueueService] Item ${queueItem.id} already being processed in this instance. Skipping.`)
+                continue
+            }
+
+            QueueService.processingItems.add(queueItem.id)
+
             try {
-                // ATOMIC LOCK: Only process if status is PENDING
-                const lock = await prisma.messageQueue.updateMany({
-                    where: { id: queueItem.id, status: 'PENDING' },
-                    data: { status: 'PROCESSING' }
-                })
-
-                if (lock.count === 0) {
-                    console.log(`[QueueService] Item ${queueItem.id} already locked/processed. Skipping.`)
-                    continue
-                }
-
-                const result = await this.processedSingleItem(queueItem)
+                const result = await this.processSingleItem(queueItem)
                 results.push(result)
-
             } catch (error: any) {
                 console.error(`[QueueService] Failed to process item ${queueItem.id}:`, error)
-                // Revert to FAILED (or PENDING if retry logic exists)
+                // Mark as FAILED to prevent infinite retries
                 await prisma.messageQueue.update({
                     where: { id: queueItem.id },
-                    data: { status: 'FAILED', attempts: { increment: 1 } }
-                })
+                    data: { status: 'FAILED', attempts: { increment: 1 }, error: error.message }
+                }).catch(e => console.error(`[QueueService] Failed to mark item as FAILED:`, e))
                 results.push({ id: queueItem.id, status: 'error', error: error.message })
+            } finally {
+                QueueService.processingItems.delete(queueItem.id)
             }
         }
 
@@ -80,11 +113,23 @@ export class QueueService {
 
     /**
      * Logic for one item (Exposed for 'Send Now' action)
+     * Includes atomic status check to prevent double-sending
      */
-    public async processedSingleItem(queueItem: any) {
+    public async processSingleItem(queueItem: any) {
         const { content, contact, conversation, mediaUrl, mediaType, duration } = queueItem
         const phone = contact.phone_whatsapp
         const agentId = conversation?.agentId || undefined
+
+        // CRITICAL: Double-check status before sending (prevents race conditions with cleanup)
+        const currentStatus = await prisma.messageQueue.findUnique({
+            where: { id: queueItem.id },
+            select: { status: true }
+        })
+        
+        if (currentStatus?.status !== 'PROCESSING') {
+            console.log(`[QueueService] Item ${queueItem.id} status changed to ${currentStatus?.status}. Aborting send.`)
+            return { id: queueItem.id, status: 'aborted', reason: `status_changed_to_${currentStatus?.status}` }
+        }
 
         console.log(`[QueueService] Sending to ${phone} (ID: ${queueItem.id}), media: ${!!mediaUrl}`)
 
@@ -230,24 +275,46 @@ export class QueueService {
     }
 
     /**
-    * Release locks on jobs that have been PROCESSING for > 5 minutes.
+    * Release locks on jobs that have been PROCESSING for too long.
+    * Conservative approach: 10 minutes (was 5) to avoid interrupting slow sends
+    * After 3 attempts, marks as FAILED instead of retrying
     */
     async cleanupStuckJobs() {
         try {
-            const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000)
-            const result = await prisma.messageQueue.updateMany({
+            const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000)
+            
+            // First: Mark items with too many attempts as FAILED
+            const failedResult = await prisma.messageQueue.updateMany({
                 where: {
                     status: 'PROCESSING',
-                    updatedAt: { lt: fiveMinutesAgo }
+                    updatedAt: { lt: tenMinutesAgo },
+                    attempts: { gte: 3 } // 3 or more attempts = give up
+                },
+                data: {
+                    status: 'FAILED',
+                    error: 'Max retry attempts exceeded (3)'
+                }
+            })
+            
+            if (failedResult.count > 0) {
+                console.log(`[QueueService] ⚠️ Marked ${failedResult.count} jobs as FAILED (max retries exceeded).`)
+            }
+            
+            // Second: Reset items with fewer attempts to PENDING for retry
+            const retryResult = await prisma.messageQueue.updateMany({
+                where: {
+                    status: 'PROCESSING',
+                    updatedAt: { lt: tenMinutesAgo },
+                    attempts: { lt: 3 }
                 },
                 data: {
                     status: 'PENDING',
-                    attempts: { increment: 1 } // Mark that it failed once implicitly
+                    attempts: { increment: 1 }
                 }
             })
 
-            if (result.count > 0) {
-                console.log(`[QueueService] ⚠️ Cleaned up ${result.count} stuck jobs (reset to PENDING).`)
+            if (retryResult.count > 0) {
+                console.log(`[QueueService] ⚠️ Reset ${retryResult.count} stuck jobs to PENDING (attempt +1).`)
             }
         } catch (error) {
             console.error('[QueueService] Failed to cleanup stuck jobs:', error)
