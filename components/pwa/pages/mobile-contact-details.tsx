@@ -22,6 +22,26 @@ export function MobileContactDetails({ contact, media, agentId }: MobileContactD
     const phases = ['CONNECTION', 'VULNERABILITY', 'CRISIS', 'MONEYPOT']
     const currentPhaseIdx = phases.indexOf(contact.agentPhase || 'CONNECTION')
 
+    // Helper to fix base64 URLs that were stored without proper data URI prefix
+    const fixMediaUrl = (url: string | null | undefined): string => {
+        if (!url) return 'https://placehold.co/100x100/000000/FFFFFF?text=No+Image'
+        
+        // Fix raw base64 data that was stored without proper data URI prefix
+        if (url.startsWith('/9j/')) {
+            return `data:image/jpeg;base64,${url}`
+        }
+        if (url.startsWith('iVBOR')) {
+            return `data:image/png;base64,${url}`
+        }
+        if (url.startsWith('R0lGOD')) {
+            return `data:image/gif;base64,${url}`
+        }
+        if (url.startsWith('UklGR')) {
+            return `data:image/webp;base64,${url}`
+        }
+        return url
+    }
+
     return (
         <div className="min-h-screen bg-[#0f172a] pb-24">
             {/* Native Header with Back Button */}
@@ -201,7 +221,7 @@ export function MobileContactDetails({ contact, media, agentId }: MobileContactD
                             {media.map((item, i) => (
                                 <div key={i} className="aspect-square relative bg-white/5">
                                     <img
-                                        src={item.mediaUrl}
+                                        src={fixMediaUrl(item.mediaUrl)}
                                         className="w-full h-full object-cover"
                                         loading="lazy"
                                         onError={(e) => (e.target as HTMLImageElement).src = 'https://placehold.co/100x100/000000/FFFFFF?text=Error'}

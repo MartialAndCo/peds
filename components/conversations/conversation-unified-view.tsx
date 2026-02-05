@@ -227,6 +227,26 @@ export function ConversationUnifiedView({
   const PhaseIcon = phaseInfo.icon
   const trustScore = conversation.contact.trustScore || 0
 
+  // Helper to fix base64 URLs that were stored without proper data URI prefix
+  const fixMediaUrl = (url: string | null | undefined): string | null => {
+    if (!url) return null
+    
+    // Fix raw base64 data that was stored without proper data URI prefix
+    if (url.startsWith('/9j/')) {
+      return `data:image/jpeg;base64,${url}`
+    }
+    if (url.startsWith('iVBOR')) {
+      return `data:image/png;base64,${url}`
+    }
+    if (url.startsWith('R0lGOD')) {
+      return `data:image/gif;base64,${url}`
+    }
+    if (url.startsWith('UklGR')) {
+      return `data:image/webp;base64,${url}`
+    }
+    return url
+  }
+
   return (
     <div className="flex flex-col h-full bg-[#0f172a]">
       {/* FIXED HEADER */}
@@ -321,9 +341,10 @@ export function ConversationUnifiedView({
                   const isAi = m.sender === 'ai'
                   const isContact = m.sender === 'contact'
                   
-                  const isImage = m.mediaUrl && (m.mediaUrl.startsWith('data:image') || m.mediaUrl.match(/\.(jpeg|jpg|gif|png)$/i))
-                  const isVideo = m.mediaUrl && (m.mediaUrl.startsWith('data:video') || m.mediaUrl.match(/\.(mp4|mov)$/i))
-                  const isAudio = m.mediaUrl && (m.mediaUrl.startsWith('data:audio') || m.mediaUrl.match(/\.(mp3|wav|ogg)$/i))
+                  const fixedMediaUrl = fixMediaUrl(m.mediaUrl)
+                  const isImage = fixedMediaUrl && (fixedMediaUrl.startsWith('data:image') || fixedMediaUrl.match(/\.(jpeg|jpg|gif|png)$/i) || fixedMediaUrl.startsWith('/9j/') || fixedMediaUrl.startsWith('iVBOR'))
+                  const isVideo = fixedMediaUrl && (fixedMediaUrl.startsWith('data:video') || fixedMediaUrl.match(/\.(mp4|mov)$/i))
+                  const isAudio = fixedMediaUrl && (fixedMediaUrl.startsWith('data:audio') || fixedMediaUrl.match(/\.(mp3|wav|ogg)$/i))
 
                   return (
                     <div key={m.id} className={cn("flex w-full",
@@ -347,21 +368,21 @@ export function ConversationUnifiedView({
                           </span>
                         </div>
 
-                        {isImage && (
+                        {isImage && fixedMediaUrl && (
                           <div className="mb-2 mt-1">
-                            <a href={m.mediaUrl!} target="_blank" rel="noopener noreferrer">
-                              <img src={m.mediaUrl!} alt="Shared" className="max-w-full rounded-lg max-h-48 object-cover" />
+                            <a href={fixedMediaUrl} target="_blank" rel="noopener noreferrer">
+                              <img src={fixedMediaUrl} alt="Shared" className="max-w-full rounded-lg max-h-48 object-cover" />
                             </a>
                           </div>
                         )}
-                        {isVideo && (
+                        {isVideo && fixedMediaUrl && (
                           <div className="mb-2 mt-1">
-                            <video src={m.mediaUrl!} controls className="max-w-full rounded-lg max-h-48" />
+                            <video src={fixedMediaUrl} controls className="max-w-full rounded-lg max-h-48" />
                           </div>
                         )}
-                        {isAudio && (
+                        {isAudio && fixedMediaUrl && (
                           <div className="mb-2 mt-1">
-                            <AudioPlayer src={m.mediaUrl!} isMe={isMe} />
+                            <AudioPlayer src={fixedMediaUrl} isMe={isMe} />
                           </div>
                         )}
 

@@ -47,6 +47,26 @@ export default function QueuePage() {
         fetchItems()
     }
 
+    // Helper to fix base64 URLs that were stored without proper data URI prefix
+    const fixMediaUrl = (url: string | null | undefined): string | null => {
+        if (!url) return null
+        
+        // Fix raw base64 data that was stored without proper data URI prefix
+        if (url.startsWith('/9j/')) {
+            return `data:image/jpeg;base64,${url}`
+        }
+        if (url.startsWith('iVBOR')) {
+            return `data:image/png;base64,${url}`
+        }
+        if (url.startsWith('R0lGOD')) {
+            return `data:image/gif;base64,${url}`
+        }
+        if (url.startsWith('UklGR')) {
+            return `data:image/webp;base64,${url}`
+        }
+        return url
+    }
+
     return (
         <div className="space-y-4">
             <div className="flex justify-between items-center">
@@ -135,13 +155,13 @@ export default function QueuePage() {
                                                 {item.mediaUrl && (
                                                     <div className="mb-1">
                                                         {(item.mediaType === 'audio' || item.mediaType === 'ptt' || item.mediaUrl.endsWith('.wav') || item.mediaUrl.endsWith('.mp3')) ? (
-                                                            <audio controls src={item.mediaUrl} className="w-full h-8" />
+                                                            <audio controls src={fixMediaUrl(item.mediaUrl) || undefined} className="w-full h-8" />
                                                         ) : (item.mediaType === 'image' || item.mediaType === 'video') ? (
-                                                            <a href={item.mediaUrl} target="_blank" rel="noreferrer">
-                                                                <img src={item.mediaUrl} alt="Media" className="h-16 w-auto object-cover rounded" />
+                                                            <a href={fixMediaUrl(item.mediaUrl) || '#'} target="_blank" rel="noreferrer">
+                                                                <img src={fixMediaUrl(item.mediaUrl) || ''} alt="Media" className="h-16 w-auto object-cover rounded" />
                                                             </a>
                                                         ) : (
-                                                            <a href={item.mediaUrl} target="_blank" className="text-blue-500 underline text-xs">View Media</a>
+                                                            <a href={fixMediaUrl(item.mediaUrl) || '#'} target="_blank" className="text-blue-500 underline text-xs">View Media</a>
                                                         )}
                                                     </div>
                                                 )}

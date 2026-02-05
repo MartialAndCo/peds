@@ -367,7 +367,26 @@ export default function WorkspaceMediaPage() {
     }
 
     // Helper to proxy media URLs to avoid Mixed Content (HTTPS -> HTTP)
+    // Also fixes base64 data URLs that were stored without the data: prefix
     const getProxiedUrl = (url: string) => {
+        if (!url) return url
+        
+        // Fix raw base64 data that was stored without proper data URI prefix
+        // JPEG base64 starts with /9j/, PNG with iVBOR, GIF with R0lGOD, WebP with UklGR
+        if (url.startsWith('/9j/')) {
+            return `data:image/jpeg;base64,${url}`
+        }
+        if (url.startsWith('iVBOR')) {
+            return `data:image/png;base64,${url}`
+        }
+        if (url.startsWith('R0lGOD')) {
+            return `data:image/gif;base64,${url}`
+        }
+        if (url.startsWith('UklGR')) {
+            return `data:image/webp;base64,${url}`
+        }
+        
+        // Proxy HTTP Supabase URLs when on HTTPS
         if (typeof window !== 'undefined' && window.location.protocol === 'https:' && url.startsWith('http://16.171.66.98:8000')) {
             return url.replace('http://16.171.66.98:8000', window.location.origin + '/supabase-proxy')
         }
