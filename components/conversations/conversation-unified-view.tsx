@@ -29,7 +29,10 @@ import {
   UserCircle,
   BarChart3,
   Zap,
-  Clock
+  Clock,
+  Sparkles,
+  Check,
+  Trash2
 } from 'lucide-react'
 import { ConversationCardData } from './conversation-card'
 import { AudioPlayer } from '@/components/chat/audio-player'
@@ -95,6 +98,9 @@ export function ConversationUnifiedView({
   const [hasMore, setHasMore] = useState(true)
   const [exporting, setExporting] = useState(false)
   const [activeTab, setActiveTab] = useState('chat')
+  const [regeneratedResponse, setRegeneratedResponse] = useState<string | null>(null)
+  const [isRegenerating, setIsRegenerating] = useState(false)
+  const [showRegeneratePreview, setShowRegeneratePreview] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const prevScrollHeight = useRef<number>(0)
 
@@ -200,6 +206,55 @@ export function ConversationUnifiedView({
     } finally {
       setExporting(false)
     }
+  }
+
+  // Regenerate AI Response
+  const handleRegenerate = async () => {
+    setIsRegenerating(true)
+    setShowRegeneratePreview(true)
+    try {
+      const res = await axios.post(`/api/conversations/${conversationId}/regenerate`, {
+        messageText: "Continue the conversation naturally."
+      })
+      setRegeneratedResponse(res.data.response)
+    } catch (e: any) {
+      console.error('Regeneration failed:', e)
+      alert('Failed to regenerate: ' + (e.response?.data?.error || e.message))
+    } finally {
+      setIsRegenerating(false)
+    }
+  }
+
+  // Send regenerated response
+  const handleSendRegenerated = async () => {
+    if (!regeneratedResponse) return
+    
+    setSending(true)
+    try {
+      await axios.post(`/api/conversations/${conversationId}/send`, {
+        message_text: regeneratedResponse,
+        sender: 'admin'
+      })
+      
+      // Clear preview
+      setRegeneratedResponse(null)
+      setShowRegeneratePreview(false)
+      
+      // Refresh messages
+      const res = await axios.get(`/api/conversations/${conversationId}/messages?limit=20`)
+      setMessages(res.data.messages || [])
+    } catch (error) {
+      console.error('Failed to send:', error)
+      alert('Failed to send message')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  // Discard regenerated response
+  const handleDiscardRegenerated = () => {
+    setRegeneratedResponse(null)
+    setShowRegeneratePreview(false)
   }
 
   const phase = conversation.contact.agentPhase || 'CONNECTION'
@@ -354,8 +409,78 @@ export function ConversationUnifiedView({
             </div>
           </ScrollArea>
 
+          {/* Regenerate Preview */}
+          {showRegeneratePreview && (
+            <div className="p-4 border-t border-white/[0.06] bg-purple-500/5">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-purple-400 flex items-center gap-1">
+                  <Sparkles className="h-3 w-3" />
+                  AI Generated Response
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleDiscardRegenerated}
+                  className="h-6 text-white/40 hover:text-white"
+                >
+                  <X className="h-3 w-3 mr-1" />
+                  Discard
+                </Button>
+              </div>
+              
+              {isRegenerating ? (
+                <div className="flex items-center gap-2 text-white/40 py-4">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-sm">Generating response...</span>
+                </div>
+              ) : (
+                <>
+                  <div className="bg-white/5 rounded-lg p-3 mb-3 text-sm text-white/90 border border-white/10 max-h-32 overflow-y-auto">
+                    {regeneratedResponse || 'No response generated yet.'}
+                  </div>
+                  
+                  {regeneratedResponse && (
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={handleSendRegenerated}
+                        disabled={sending}
+                        className="flex-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30"
+                      >
+                        {sending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
+                        Send Response
+                      </Button>
+                      <Button
+                        onClick={handleRegenerate}
+                        disabled={isRegenerating}
+                        variant="outline"
+                        className="border-white/10 text-white/60 hover:bg-white/5"
+                      >
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Regenerate
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
           {/* Input */}
           <div className="p-4 border-t border-white/[0.06] bg-[#0f172a]">
+            <div className="flex gap-2 mb-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleRegenerate}
+                disabled={isRegenerating || sending}
+                className="border-purple-500/20 text-purple-400 hover:bg-purple-500/10"
+              >
+                {isRegenerating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                Generate AI Response
+              </Button>
+            </div>
+            
             <form onSubmit={handleSend} className="flex gap-2">
               <Input
                 value={inputText}
