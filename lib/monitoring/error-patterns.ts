@@ -2,6 +2,29 @@ import { ErrorPattern, LogLevel, ErrorCategory } from './types'
 
 // Patterns de détection d'erreurs dans les logs
 export const ERROR_PATTERNS: ErrorPattern[] = [
+  // ========== AMPLIFY (prioritaire) ==========
+  {
+    keywords: ['amplify', 'build failed', 'deploy failed'],
+    level: 'CRITICAL',
+    category: 'system',
+    service: 'amplify',
+    messageTemplate: 'Amplify build/deployment failed'
+  },
+  {
+    keywords: ['frontend build', 'build error', 'npm ERR', 'compilation failed', 'next build', 'npm run build'],
+    level: 'ERROR',
+    category: 'system',
+    service: 'amplify',
+    messageTemplate: 'Frontend build error'
+  },
+  {
+    keywords: ['provisioning', 'provisioning error', 'amplify hosting', 'hosting error'],
+    level: 'ERROR',
+    category: 'system',
+    service: 'amplify',
+    messageTemplate: 'Amplify provisioning error'
+  },
+  
   // ========== CRITICAL ==========
   {
     keywords: ['FATAL', 'fatal error', 'unhandledexception', 'unhandledrejection', 'process.exit'],
@@ -189,6 +212,7 @@ function detectService(line: string, source: string): string {
   const lower = line.toLowerCase()
   
   if (source === 'discord' || lower.includes('discord')) return 'discord'
+  if (lower.includes('amplify')) return 'amplify'
   if (lower.includes('baileys') || lower.includes('whatsapp')) return 'whatsapp'
   if (lower.includes('prisma') || lower.includes('database')) return 'database'
   if (lower.includes('openai') || lower.includes('venice') || lower.includes('anthropic')) return 'ai'

@@ -1,6 +1,6 @@
 // Types pour le système de monitoring
 
-export type LogSource = 'whatsapp' | 'discord' | 'nextjs' | 'cron'
+export type LogSource = 'whatsapp' | 'discord' | 'nextjs' | 'cron' | 'amplify'
 
 export type LogLevel = 'CRITICAL' | 'ERROR' | 'WARN' | 'INFO'
 

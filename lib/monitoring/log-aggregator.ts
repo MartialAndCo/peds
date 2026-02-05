@@ -211,7 +211,7 @@ export async function aggregateLogs(options: FetchLogsOptions = {}): Promise<{
 function calculateStats(logs: LogEntry[]): LogStats {
   const stats: LogStats = {
     total: logs.length,
-    bySource: { whatsapp: 0, discord: 0, nextjs: 0, cron: 0 },
+    bySource: { whatsapp: 0, discord: 0, nextjs: 0, cron: 0, amplify: 0 },
     byLevel: { CRITICAL: 0, ERROR: 0, WARN: 0, INFO: 0 },
     byCategory: { 
       connection: 0, api: 0, database: 0, memory: 0, 

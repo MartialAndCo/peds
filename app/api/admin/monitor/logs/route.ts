@@ -44,9 +44,9 @@ export async function GET(req: Request) {
       take: limit
     })
     
-    // Récupère les logs WhatsApp depuis Baileys
+    // Récupère les logs WhatsApp depuis Baileys (aussi si on demande amplify car ils peuvent contenir des logs amplify)
     let baileysLogs: any[] = []
-    if (sources.includes('whatsapp')) {
+    if (sources.includes('whatsapp') || sources.includes('amplify')) {
       const result = await whatsapp.adminLogs(200)
       if (result.success && result.lines) {
         // Parse les logs Baileys
@@ -54,10 +54,12 @@ export async function GET(req: Request) {
           .map((line: string) => {
             const parsed = parseLogLine(line, 'whatsapp')
             if (!parsed) return null
+            // Si le service est amplify, utiliser amplify comme source aussi
+            const isAmplify = parsed.service === 'amplify'
             return {
-              id: generateLogId('whatsapp', line, new Date()),
+              id: generateLogId(isAmplify ? 'amplify' : 'whatsapp', line, new Date()),
               timestamp: new Date().toISOString(), // On n'a pas le timestamp exact
-              source: 'whatsapp',
+              source: isAmplify ? 'amplify' : 'whatsapp',
               service: parsed.service,
               level: parsed.level,
               category: parsed.category,
@@ -101,7 +103,8 @@ export async function GET(req: Request) {
         whatsapp: filteredLogs.filter(l => l.source === 'whatsapp').length,
         discord: filteredLogs.filter(l => l.source === 'discord').length,
         nextjs: filteredLogs.filter(l => l.source === 'nextjs').length,
-        cron: filteredLogs.filter(l => l.source === 'cron').length
+        cron: filteredLogs.filter(l => l.source === 'cron').length,
+        amplify: filteredLogs.filter(l => l.source === 'amplify').length
       },
       byLevel: {
         CRITICAL: filteredLogs.filter(l => l.level === 'CRITICAL').length,
