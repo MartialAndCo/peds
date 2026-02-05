@@ -23,11 +23,6 @@ if (BAILEYS_ENDPOINT.includes('13.60.16.81:3000')) {
 }
 const BAILEYS_API_KEY = process.env.AUTH_TOKEN || process.env.WAHA_API_KEY
 
-// Debug log at module load
-console.log('[LogAggregator] Config - RAW_ENDPOINT:', RAW_ENDPOINT)
-console.log('[LogAggregator] Config - BAILEYS_ENDPOINT:', BAILEYS_ENDPOINT)
-console.log('[LogAggregator] Config - WAHA_ENDPOINT env:', process.env.WAHA_ENDPOINT)
-
 interface LogSourceConfig {
   name: LogSource
   endpoint: string
