@@ -188,7 +188,7 @@ export function ConversationCard({
                 {trustScore}% trust
               </span>
             )}
-            {!aiEnabled && (
+            {aiEnabled === false && (
               <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 border-white/10 text-white/40">
                 <Bot className="h-2.5 w-2.5 mr-1" />
                 AI Off
@@ -325,7 +325,7 @@ export function ConversationCard({
               )}
 
               {/* AI Status */}
-              {!aiEnabled && (
+              {aiEnabled === false && (
                 <Badge variant="outline" className="text-[10px] px-2 py-0.5 border-white/10 text-white/40">
                   <Bot className="h-3 w-3 mr-1" />
                   AI Off

@@ -57,7 +57,7 @@ export function MobileConversationList({ conversations, loading, agentId }: Mobi
   return (
     <div className="space-y-0 pb-24">
       {conversations.map((conv) => {
-        const lastMessage = conv.messages?.[0]
+        const lastMessage = conv.lastMessage
         const unreadCount = conv.unreadCount || 0
         const needsReply = lastMessage?.sender === 'contact' && unreadCount > 0
         const isNewContact = conv.contact?.status === 'new'
@@ -160,7 +160,7 @@ export function MobileConversationList({ conversations, loading, agentId }: Mobi
                     {trustScore}% trust
                   </span>
                 )}
-                {!conv.ai_enabled && (
+                {conv.aiEnabled === false && (
                   <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 border-white/10 text-white/40">
                     <Bot className="h-2.5 w-2.5 mr-1" />
                     AI Off

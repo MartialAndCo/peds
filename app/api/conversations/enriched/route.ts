@@ -152,11 +152,35 @@ export async function GET(req: Request) {
       agentContactMap = new Map(agentContacts.map(ac => [ac.contactId, ac]))
     }
 
-    // Transform conversations to include agent context
-    const transformedConversations = conversations.map((conv: any) => ({
-      ...conv,
-      agentContext: agentContactMap.get(conv.contactId) || null
-    }))
+    // Transform conversations to match frontend format
+    const transformedConversations = conversations.map((conv: any) => {
+      const lastMsg = conv.messages?.[0]
+      return {
+        id: conv.id,
+        contact: {
+          id: conv.contact.id,
+          name: conv.contact.name,
+          phone_whatsapp: conv.contact.phone_whatsapp,
+          status: conv.contact.status,
+          agentPhase: conv.contact.agentPhase,
+          trustScore: conv.contact.trustScore,
+          source: conv.contact.source,
+        },
+        lastMessage: lastMsg ? {
+          message_text: lastMsg.message_text,
+          sender: lastMsg.sender,
+          timestamp: lastMsg.timestamp,
+        } : undefined,
+        unreadCount: conv.unreadCount || 0,
+        aiEnabled: conv.ai_enabled ?? true,
+        status: conv.status,
+        lastMessageAt: conv.lastMessageAt || conv.createdAt,
+        priority: conv.priority || 'normal',
+        agentContext: agentContactMap.get(conv.contactId) || null,
+        prompt: conv.prompt,
+        messageCount: conv._count?.messages || 0,
+      }
+    })
 
     // Sort conversations
     const sortedConversations = transformedConversations.sort((a: any, b: any) => {
