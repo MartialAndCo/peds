@@ -963,6 +963,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 async function callAI(settings: any, conv: any, sys: string | null, ctx: any[], last: string, contact?: any, agentId?: string) {
     // PHASE 3: SWARM MODE
     const { aiConfig } = require('@/lib/config/ai-mode')
+    await aiConfig.init()
     
     if (aiConfig.isSwarm() && contact && agentId) {
         console.log('[Chat] SWARM mode active - using multi-agent orchestration')

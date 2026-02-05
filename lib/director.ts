@@ -4,6 +4,9 @@ import { signalAnalyzer, TrustSignal, AgentPhase as SignalPhase } from './servic
 import { personaSchedule } from './services/persona-schedule'
 import { aiConfig } from './config/ai-mode'
 
+// Init au chargement
+aiConfig.init().catch(() => {})
+
 export type AgentPhase = 'CONNECTION' | 'VULNERABILITY' | 'CRISIS' | 'MONEYPOT'
 
 export const director = {
