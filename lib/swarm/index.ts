@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { personaSchedule } from '@/lib/services/persona-schedule';
+import { validationNode } from './nodes/validation-node';
 
 const API_KEY = process.env.VENICE_API_KEY;
 
@@ -109,5 +110,32 @@ ${profile.paymentRules || ''}`;
   
   response = response.replace(/\s*\|\s*\|/g, ' |');
   
-  return response;
+  // Validation de cohérence
+  console.log('[Swarm] Running validation...');
+  const state = {
+    response,
+    history,
+    settings: { venice_api_key: API_KEY, venice_model: 'venice-uncensored' },
+    userMessage,
+    contexts: { 
+      persona: identityClean, 
+      style: profile.styleRules || '', 
+      phase: phaseTemplate,
+      timing: timingContext,
+      memory: '',
+      payment: '',
+      media: '',
+      voice: ''
+    },
+    contactId,
+    agentId,
+    userName,
+    lastMessageType: lastMessageType || 'text'
+  };
+  
+  const validationResult = await validationNode(state);
+  const finalResponse = validationResult.response || response;
+  
+  console.log(`[Swarm] Final response: "${finalResponse.substring(0, 50)}..."`);
+  return finalResponse;
 }

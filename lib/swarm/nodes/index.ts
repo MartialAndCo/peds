@@ -8,3 +8,4 @@ export { paymentNode } from './payment-node';
 export { mediaNode } from './media-node';
 export { voiceNode } from './voice-node';
 export { responseNode } from './response-node';
+export { validationNode } from './validation-node';
