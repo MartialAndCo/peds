@@ -16,7 +16,8 @@ export async function POST(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
-        const { text } = await req.json()
+        const { message_text, text } = await req.json()
+        const messageText = message_text || text // Support both formats
         const { id: idStr } = await params
         const conversation = await prisma.conversation.findUnique({
             where: { id: parseInt(idStr) },
@@ -29,14 +30,14 @@ export async function POST(
 
         // Send via WhatsApp with specific Agent Session
         // We cast to string | undefined just in case, though agentId is String? in schema
-        await whatsapp.sendText(conversation.contact.phone_whatsapp, text, undefined, conversation.agentId || undefined)
+        await whatsapp.sendText(conversation.contact.phone_whatsapp, messageText, undefined, conversation.agentId || undefined)
 
         // Save to DB
         const message = await prisma.message.create({
             data: {
                 conversationId: conversation.id,
                 sender: 'admin',
-                message_text: text,
+                message_text: messageText,
                 timestamp: new Date()
             }
         })
