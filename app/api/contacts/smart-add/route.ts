@@ -4,6 +4,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { venice } from '@/lib/venice'
 import { z } from 'zod'
+import { memoryService } from '@/lib/memory'
+import { memoryExtractionService } from '@/lib/services/memory-extraction'
 
 // Schema with optional phone/discordId depending on contactType
 const smartAddSchema = z.object({
@@ -103,12 +105,15 @@ export async function POST(req: Request) {
 
         // 4. Create/Update Contact based on type
         let contact
+        let normalizedPhone: string
+        let identifier: string  // Used for memory storage
         const contextNote = `[Smart Add - ${body.platform}]\n${generatedContext}`
 
         if (isDiscord) {
             // DISCORD: Use discordId as identifier
             const discordId = body.discordId!.replace('#', '_') // Normalize user#1234 to user_1234
-            const phoneWhatsapp = `DISCORD_${discordId}` // Unique identifier for phone_whatsapp field
+            normalizedPhone = `DISCORD_${discordId}` // Unique identifier for phone_whatsapp field
+            identifier = normalizedPhone
 
             contact = await prisma.contact.findFirst({
                 where: { discordId: discordId }
@@ -117,14 +122,14 @@ export async function POST(req: Request) {
             if (!contact) {
                 // Also check by phone_whatsapp pattern
                 contact = await prisma.contact.findFirst({
-                    where: { phone_whatsapp: phoneWhatsapp }
+                    where: { phone_whatsapp: normalizedPhone }
                 })
             }
 
             if (!contact) {
                 contact = await prisma.contact.create({
                     data: {
-                        phone_whatsapp: phoneWhatsapp,
+                        phone_whatsapp: normalizedPhone,
                         discordId: discordId,
                         name: body.discordId!, // Use original username as name
                         source: 'smart_add',
@@ -145,10 +150,11 @@ export async function POST(req: Request) {
             }
         } else {
             // WHATSAPP: Use phone number
-            let normalizedPhone = body.phone!.replace(/\s/g, '')
+            normalizedPhone = body.phone!.replace(/\s/g, '')
             if (/^0[67]/.test(normalizedPhone)) {
                 normalizedPhone = '+33' + normalizedPhone.substring(1)
             }
+            identifier = normalizedPhone
 
             contact = await prisma.contact.findUnique({
                 where: { phone_whatsapp: normalizedPhone }
@@ -174,7 +180,29 @@ export async function POST(req: Request) {
             }
         }
 
-        // 5. Create Conversation (WAITING_FOR_LEAD)
+        // 5. Create/Update AgentContact binding (ensures contact appears in workspace)
+        const existingAgentContact = await prisma.agentContact.findUnique({
+            where: {
+                agentId_contactId: {
+                    agentId: body.agentId,
+                    contactId: contact.id
+                }
+            }
+        })
+
+        if (!existingAgentContact) {
+            await prisma.agentContact.create({
+                data: {
+                    agentId: body.agentId,
+                    contactId: contact.id,
+                    signals: [],
+                    trustScore: 0
+                }
+            })
+            console.log(`[SmartAdd] Created AgentContact binding`)
+        }
+
+        // 6. Create Conversation (WAITING_FOR_LEAD)
         const existingConv = await prisma.conversation.findFirst({
             where: {
                 contactId: contact.id,
@@ -207,6 +235,8 @@ export async function POST(req: Request) {
                     }
                 })
                 console.log(`[SmartAdd] Created conversation with WAITING_FOR_LEAD state`)
+            } else {
+                console.warn(`[SmartAdd] No prompt found, conversation not created but AgentContact exists`)
             }
         } else if (existingConv.status === 'paused') {
             // Update existing paused conversation
@@ -223,6 +253,34 @@ export async function POST(req: Request) {
                 }
             })
             console.log(`[SmartAdd] Updated existing conversation with WAITING_FOR_LEAD state`)
+        }
+
+        // 7. EXTRACT & STORE KEY FACTS TO MEM0 (Long-term memory)
+        // Extract important facts from the generated context immediately
+        try {
+            const { settingsService } = require('@/lib/settings-cache')
+            const settings = await settingsService.getSettings()
+            
+            // Extract facts from the generated context
+            const facts = await memoryExtractionService.extractFacts(
+                `Conversation context from ${body.platform}:\n${generatedContext}`,
+                settings
+            )
+            
+            // Build userId for Mem0 (using identifier defined above)
+            const userId = memoryService.buildUserId(identifier, body.agentId)
+            
+            if (facts.length > 0) {
+                await memoryService.addMany(userId, facts)
+                console.log(`[SmartAdd] Stored ${facts.length} facts in Mem0 for ${identifier}:`, facts)
+            } else {
+                // If no facts extracted, store the context as a memory anyway
+                await memoryService.add(userId, `Context from previous ${body.platform} conversation: ${generatedContext.substring(0, 200)}...`)
+                console.log(`[SmartAdd] Stored summary context in Mem0 (no specific facts extracted)`)
+            }
+        } catch (memError) {
+            // Non-blocking: don't fail if memory extraction fails
+            console.warn('[SmartAdd] Memory extraction failed (non-blocking):', memError)
         }
 
         return NextResponse.json({

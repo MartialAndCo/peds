@@ -157,7 +157,8 @@ export const director = {
         baseRole: string, // From DB (Prompt table) 
         agentId: string,  // REQUIRED usage
         progressionReason?: string,
-        _testDate?: Date // FOR TESTING ONLY
+        _testDate?: Date, // FOR TESTING ONLY
+        conversation?: any // OPTIONAL: for leadContext injection
     ): Promise<string | null> {
 
         // PHASE 3: Si mode SWARM actif, retourner null pour utiliser le swarm
@@ -470,6 +471,18 @@ ${lifeContext}
 ${pMission}
 
 ${contact.notes ? `[CE QUE TU SAIS SUR ${contact.name || 'LUI'}]:\n${contact.notes}` : ''}
+
+${(() => {
+    // Check for leadContext in conversation metadata (Smart Add context)
+    const leadContext = conversation?.metadata?.leadContext || conversation?.metadata?.previousContext
+    if (leadContext) {
+        const platform = conversation?.metadata?.platform || 'la plateforme précédente'
+        return isFrench 
+            ? `[🔄 CONTEXTE DE CONVERSATION IMPORTÉE - ${platform.toUpperCase()}]:\n${leadContext}\n\n⚠️ IMPORTANT: Cette conversation a été importée. Reprends naturellement comme si tu connaissais déjà cette personne. Ne dis pas "bonjour" comme pour une première fois. Continue la conversation là où elle s'était arrêtée.`
+            : `[🔄 IMPORTED CONVERSATION CONTEXT - ${platform.toUpperCase()}]:\n${leadContext}\n\n⚠️ IMPORTANT: This conversation was imported. Continue naturally as if you already know this person. Don't say "hello" like it's the first time. Pick up where the conversation left off.`
+    }
+    return ''
+})()}
 
 ### QUI TU ES
 ${pIdentity}

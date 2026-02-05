@@ -64,6 +64,21 @@ export async function runSwarm(
 
   const phase = agentContact?.phase || 'CONNECTION';
 
+  // Récupérer la conversation active pour le leadContext (Smart Add)
+  const activeConversation = await prisma.conversation.findFirst({
+    where: { 
+      contactId, 
+      agentId,
+      status: { in: ['active', 'paused'] }
+    },
+    select: { metadata: true }
+  });
+
+  // Extraire le leadContext si présent (cast to any for Prisma JSON type)
+  const metadata = activeConversation?.metadata as any
+  const leadContext = metadata?.leadContext || metadata?.previousContext
+  const leadPlatform = metadata?.platform || 'previous platform'
+
   // Initial state
   const initialState: SwarmState = {
     userMessage,
@@ -87,10 +102,12 @@ export async function runSwarm(
       memory: '',
       payment: '',
       media: '',
-      voice: ''
+      voice: '',
+      lead: leadContext ? `[IMPORTED FROM ${leadPlatform.toUpperCase()}]: ${leadContext}` : ''
     },
     profile,
-    currentPhase: phase
+    currentPhase: phase,
+    leadContext: leadContext || undefined
   };
 
   // Créer le graph

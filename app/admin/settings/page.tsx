@@ -118,7 +118,19 @@ export default function SettingsPage() {
     // Sync AI Mode with server runtime
     useEffect(() => {
         if (settings.ai_mode) {
-            axios.post('/api/ai-mode', { mode: settings.ai_mode }).catch(() => {})
+            axios.post('/api/ai-mode', { mode: settings.ai_mode })
+                .then(() => {
+                    toast({ 
+                        title: `Mode ${settings.ai_mode} activé`, 
+                        description: settings.ai_mode === 'SWARM' 
+                            ? '10 agents spécialisés sont maintenant actifs' 
+                            : 'Mode classique avec 1 prompt unique',
+                        className: settings.ai_mode === 'SWARM' ? "bg-purple-600 border-none text-white" : "bg-blue-600 border-none text-white" 
+                    })
+                })
+                .catch(() => {
+                    toast({ title: "Erreur lors du changement de mode", variant: "destructive" })
+                })
         }
     }, [settings.ai_mode])
 
@@ -434,31 +446,75 @@ export default function SettingsPage() {
                     <div className="space-y-6">
                         {/* AI Mode Selection */}
                         <div className="glass rounded-2xl p-6">
-                            <h3 className="text-white font-medium mb-4">AI Mode</h3>
-                            <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-                                <div>
-                                    <p className="text-white font-medium">SWARM Multi-Agent</p>
-                                    <p className="text-white/40 text-xs mt-1">
-                                        {settings.ai_mode === 'SWARM' 
-                                            ? '10 agents spécialisés (intention, timing, persona, style...)' 
-                                            : 'Mode traditionnel (1 prompt unique)'}
-                                    </p>
-                                </div>
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-white font-medium">AI Mode</h3>
+                                <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                                    settings.ai_mode === 'SWARM' 
+                                        ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' 
+                                        : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                                }`}>
+                                    {settings.ai_mode === 'SWARM' ? 'SWARM ACTIF' : 'CLASSIC ACTIF'}
+                                </span>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-4">
+                                {/* CLASSIC Option */}
                                 <button
                                     type="button"
-                                    onClick={() => setSettings({
-                                        ...settings,
-                                        ai_mode: settings.ai_mode === 'SWARM' ? 'CLASSIC' : 'SWARM'
-                                    })}
-                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.ai_mode === 'SWARM' ? 'bg-green-500' : 'bg-white/20'
-                                        }`}
+                                    onClick={() => setSettings({ ...settings, ai_mode: 'CLASSIC' })}
+                                    className={`p-4 rounded-xl border transition-all text-left ${
+                                        settings.ai_mode === 'CLASSIC'
+                                            ? 'bg-blue-500/10 border-blue-500/50 ring-1 ring-blue-500/50'
+                                            : 'bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04]'
+                                    }`}
                                 >
-                                    <span
-                                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.ai_mode === 'SWARM' ? 'translate-x-6' : 'translate-x-1'
-                                            }`}
-                                    />
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                                            settings.ai_mode === 'CLASSIC' ? 'border-blue-500' : 'border-white/30'
+                                        }`}>
+                                            {settings.ai_mode === 'CLASSIC' && <div className="w-2 h-2 rounded-full bg-blue-500" />}
+                                        </div>
+                                        <span className={`font-medium ${settings.ai_mode === 'CLASSIC' ? 'text-blue-400' : 'text-white'}`}>
+                                            CLASSIC
+                                        </span>
+                                    </div>
+                                    <p className="text-white/40 text-xs">
+                                        1 prompt unique par agent. Rapide et simple.
+                                    </p>
+                                </button>
+
+                                {/* SWARM Option */}
+                                <button
+                                    type="button"
+                                    onClick={() => setSettings({ ...settings, ai_mode: 'SWARM' })}
+                                    className={`p-4 rounded-xl border transition-all text-left ${
+                                        settings.ai_mode === 'SWARM'
+                                            ? 'bg-purple-500/10 border-purple-500/50 ring-1 ring-purple-500/50'
+                                            : 'bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04]'
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                                            settings.ai_mode === 'SWARM' ? 'border-purple-500' : 'border-white/30'
+                                        }`}>
+                                            {settings.ai_mode === 'SWARM' && <div className="w-2 h-2 rounded-full bg-purple-500" />}
+                                        </div>
+                                        <span className={`font-medium ${settings.ai_mode === 'SWARM' ? 'text-purple-400' : 'text-white'}`}>
+                                            SWARM
+                                        </span>
+                                    </div>
+                                    <p className="text-white/40 text-xs">
+                                        10 agents spécialisés (intention, timing, persona, style...)
+                                    </p>
                                 </button>
                             </div>
+                            
+                            {settings.ai_mode === 'SWARM' && (
+                                <p className="mt-4 text-xs text-purple-400/80 flex items-center gap-2">
+                                    <span className="inline-block w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
+                                    Le mode SWARM est expérimental et peut être plus lent
+                                </p>
+                            )}
                         </div>
 
                         {/* AI Provider Selection */}

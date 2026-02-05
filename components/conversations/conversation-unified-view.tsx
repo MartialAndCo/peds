@@ -32,6 +32,7 @@ import { ConversationCardData } from './conversation-card'
 import { AudioPlayer } from '@/components/chat/audio-player'
 import { getExportData } from '@/app/actions/conversation'
 import { generateDossier } from '@/lib/pdf-generator'
+import { AIModeIndicator } from '@/components/ai-mode-indicator'
 
 interface ConversationUnifiedViewProps {
   conversation: ConversationCardData
@@ -283,6 +284,7 @@ export function ConversationUnifiedView({
         </div>
         
         <div className="flex items-center gap-2 flex-shrink-0">
+          <AIModeIndicator />
           <Badge 
             variant="outline" 
             className={cn("text-xs px-2 py-0.5 hidden sm:inline-flex", phaseInfo.color)}

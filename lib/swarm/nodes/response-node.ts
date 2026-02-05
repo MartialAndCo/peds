@@ -49,6 +49,11 @@ ORIGINE: "jsuis de Paris". NAISSANCE: "2010, 14 ans".`)
     promptParts.push(contexts.memory)
   }
 
+  // 6.5 Smart Add Context (CRITIQUE pour les conversations importées)
+  if (contexts.lead) {
+    promptParts.push(`🔄 CONTEXTE CONVERSATION IMPORTÉE:\n${contexts.lead}\n\n⚠️ RÈGLE CRITIQUE: Tu connais DÉJÀ cette personne. Reprends comme si c'était une conversation en cours. Pas de "salut" ou "bonjour" comme une première fois. Continue naturellement là où ça s'est arrêté.`)
+  }
+
   // 7. Média (optionnel mais CRITIQUE si besoinMedia)
   if (contexts.media) {
     promptParts.push(contexts.media)

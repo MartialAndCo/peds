@@ -25,7 +25,11 @@ export interface SwarmState {
         payment?: string
         media?: string
         voice?: string
+        lead?: string  // Smart Add context
     }
+    
+    // Smart Add lead context
+    leadContext?: string
 
     // Assemblage
     assembledPrompt?: string

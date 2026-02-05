@@ -463,7 +463,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     }
 
     const { phase, details, reason } = await director.determinePhase(contact.phone_whatsapp, effectiveAgentId)
-    let systemPrompt = await director.buildSystemPrompt(settings, contact, phase, details, conversation.prompt.system_prompt, effectiveAgentId, reason)
+    let systemPrompt = await director.buildSystemPrompt(settings, contact, phase, details, conversation.prompt.system_prompt, effectiveAgentId, reason, undefined, conversation)
 
     // PHASE 3: Si mode SWARM, systemPrompt est null - on passe directement à callAI
     if (systemPrompt === null) {

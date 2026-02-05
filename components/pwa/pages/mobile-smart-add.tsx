@@ -31,6 +31,7 @@ export function MobileSmartAdd({ open, onOpenChange, agentId, onSuccess }: Mobil
     const [conversation, setConversation] = useState('')
     const [loading, setLoading] = useState(false)
     const [success, setSuccess] = useState(false)
+    const [generatedContext, setGeneratedContext] = useState('')
     const [error, setError] = useState('')
 
     const handleSubmit = async () => {
@@ -43,7 +44,7 @@ export function MobileSmartAdd({ open, onOpenChange, agentId, onSuccess }: Mobil
         setError('')
 
         try {
-            await axios.post('/api/contacts/smart-add', {
+            const res = await axios.post('/api/contacts/smart-add', {
                 // Send phone OR discordId based on contactType
                 ...(contactType === 'whatsapp'
                     ? { phone: identifier }
@@ -55,6 +56,7 @@ export function MobileSmartAdd({ open, onOpenChange, agentId, onSuccess }: Mobil
                 agentId
             })
 
+            setGeneratedContext(res.data.generatedContext || '')
             setSuccess(true)
             setTimeout(() => {
                 handleClose()
@@ -78,6 +80,7 @@ export function MobileSmartAdd({ open, onOpenChange, agentId, onSuccess }: Mobil
                 setPlatform('')
                 setConversation('')
                 setSuccess(false)
+                setGeneratedContext('')
                 setError('')
             }, 300)
         }
@@ -116,7 +119,12 @@ export function MobileSmartAdd({ open, onOpenChange, agentId, onSuccess }: Mobil
                                 <Check className="h-10 w-10 text-green-400" />
                             </div>
                             <p className="text-white font-semibold text-lg">Contact Added!</p>
-                            <p className="text-white/40 text-sm mt-1">AI extracted context successfully</p>
+                            {generatedContext && (
+                                <div className="mt-4 p-4 bg-white/5 rounded-xl max-w-sm w-full">
+                                    <p className="text-white/60 text-xs uppercase tracking-wider mb-2">Extracted Context:</p>
+                                    <p className="text-white/80 text-sm line-clamp-4">{generatedContext}</p>
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <>
