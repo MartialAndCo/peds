@@ -49,56 +49,15 @@ async function fetchWhatsAppLogs(): Promise<RawLogLine[]> {
   }
 }
 
-// Récupère les logs Discord via l'endpoint Docker
+// Récupère les logs Discord - DÉSACTIVÉ (docker pas accessible depuis le conteneur)
 async function fetchDiscordLogs(): Promise<RawLogLine[]> {
-  try {
-    const response = await axios.get(`${BAILEYS_ENDPOINT}/api/docker-logs?container=discord_bot&lines=200`, {
-      headers: { 'X-Api-Key': BAILEYS_API_KEY },
-      timeout: 10000
-    })
-    
-    if (response.data.success && Array.isArray(response.data.lines)) {
-      return response.data.lines.map((line: string) => ({
-        line,
-        source: 'discord' as LogSource,
-        timestamp: extractTimestamp(line)
-      }))
-    }
-    return []
-  } catch (error: any) {
-    console.error('[LogAggregator] Discord logs fetch failed:', error.message)
-    // Si Baileys est offline, on retourne une erreur silencieuse
-    if (error.code === 'ECONNREFUSED') {
-      return [{
-        line: `[WARNING] Discord logs unavailable - WhatsApp server offline`,
-        source: 'discord',
-        timestamp: new Date().toISOString()
-      }]
-    }
-    return []
-  }
+  // Retourne vide pour l'instant - les erreurs Discord seront dans les logs WhatsApp si webhook échoue
+  return []
 }
 
-// Récupère les logs Cron via l'endpoint Docker
+// Récupère les logs Cron - DÉSACTIVÉ (docker pas accessible depuis le conteneur)
 async function fetchCronLogs(): Promise<RawLogLine[]> {
-  try {
-    const response = await axios.get(`${BAILEYS_ENDPOINT}/api/docker-logs?container=nextjs_cron&lines=100`, {
-      headers: { 'X-Api-Key': BAILEYS_API_KEY },
-      timeout: 10000
-    })
-    
-    if (response.data.success && Array.isArray(response.data.lines)) {
-      return response.data.lines.map((line: string) => ({
-        line,
-        source: 'cron' as LogSource,
-        timestamp: extractTimestamp(line)
-      }))
-    }
-    return []
-  } catch (error: any) {
-    console.error('[LogAggregator] Cron logs fetch failed:', error.message)
-    return []
-  }
+  return []
 }
 
 // Récupère les logs Next.js internes depuis la DB
@@ -150,6 +109,24 @@ export function parseRawLogs(rawLogs: RawLogLine[]): LogEntry[] {
   const entries: LogEntry[] = []
   
   for (const raw of rawLogs) {
+    // Si la ligne contient "[ERROR]" au début, c'est une erreur système générée par nous
+    if (raw.line.startsWith('[ERROR]') || raw.line.includes('unreachable') || raw.line.includes('ECONNREFUSED')) {
+      const timestamp = raw.timestamp ? new Date(raw.timestamp) : new Date()
+      entries.push({
+        id: generateLogId(raw.source, raw.line, timestamp),
+        timestamp,
+        source: raw.source,
+        service: 'system',
+        level: 'CRITICAL',
+        category: 'connection',
+        message: raw.line.replace('[ERROR]', '').trim(),
+        context: raw.line,
+        rawLine: raw.line,
+        isRead: false
+      })
+      continue
+    }
+    
     const parsed = parseLogLine(raw.line, raw.source)
     if (!parsed) continue // Ignorer les lignes sans erreur
     

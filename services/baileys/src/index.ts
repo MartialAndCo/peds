@@ -131,7 +131,7 @@ server.addHook('onResponse', async (request, reply) => {
 server.addHook('preHandler', async (request, reply) => {
     const urlPath = request.url.split('?')[0]
     // Exempt health checks and log endpoints
-    const exemptPaths = ['/status', '/api/status', '/health', '/api/logs/ingest', '/api/docker-logs']
+    const exemptPaths = ['/status', '/api/status', '/health', '/api/logs/ingest']
     if (exemptPaths.includes(urlPath)) return
 
     const apiKey = request.headers['x-api-key']
@@ -1539,51 +1539,6 @@ server.post('/api/admin/prune', async (req: any, reply) => {
     } catch (e: any) {
         server.log.error(e, 'Prune failed')
         return reply.code(500).send({ error: e.message })
-    }
-})
-
-// Docker Logs Endpoint - Récupère les logs des autres conteneurs
-import { exec } from 'child_process'
-import { promisify } from 'util'
-const execAsync = promisify(exec)
-
-server.get('/api/docker-logs', async (req: any, reply) => {
-    const container = req.query.container as string || 'discord_bot'
-    const lines = parseInt(req.query.lines as string) || 100
-    
-    // Liste des conteneurs autorisés (sécurité)
-    const allowedContainers = ['discord_bot', 'nextjs_cron', 'baos']
-    if (!allowedContainers.includes(container)) {
-        return reply.code(400).send({ 
-            error: 'Container not allowed',
-            allowed: allowedContainers 
-        })
-    }
-
-    try {
-        // Récupérer les logs via docker logs
-        const { stdout, stderr } = await execAsync(
-            `docker logs --tail ${lines} --timestamps ${container} 2>&1`,
-            { timeout: 10000 }
-        )
-        
-        const logs = stdout || stderr || ''
-        const logLines = logs.split('\n').filter(line => line.trim())
-        
-        return { 
-            success: true, 
-            container,
-            lines: logLines,
-            count: logLines.length,
-            timestamp: new Date().toISOString()
-        }
-    } catch (e: any) {
-        server.log.error({ container, error: e.message }, 'Failed to get docker logs')
-        return reply.code(500).send({ 
-            error: 'Failed to get logs',
-            message: e.message,
-            details: 'Make sure docker socket is accessible from this container'
-        })
     }
 })
 
