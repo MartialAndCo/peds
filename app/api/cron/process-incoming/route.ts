@@ -4,6 +4,7 @@ import { processWhatsAppPayload } from '@/lib/services/whatsapp-processor'
 import { logger, trace } from '@/lib/logger'
 import { runpod } from '@/lib/runpod'
 import { whatsapp } from '@/lib/whatsapp'
+import { discord } from '@/lib/discord'
 
 // Allow up to 300 seconds (5 mins) for AI processing - Max for most serverless functions
 export const maxDuration = 300
@@ -150,13 +151,37 @@ export async function GET(req: Request) {
 
                     const payload = job.payload as any
                     const from = payload.payload?.from || ""
-                    // Normalize phone (reuse logic roughly)
-                    const phone = from.includes('@') ? `+${from.split('@')[0]}` : ""
-
-                    if (phone) {
-                        // Send WhatsApp Response
+                    
+                    // Detect platform (Discord vs WhatsApp)
+                    const isDiscord = from.includes('@discord') || from.startsWith('DISCORD_')
+                    
+                    console.log(`[CRON] Sending response to ${from} via ${isDiscord ? 'Discord' : 'WhatsApp'}`)
+                    
+                    if (isDiscord) {
+                        // Discord: Send via Discord service
+                        const discordUserId = from.replace('DISCORD_', '').replace('@discord', '')
+                        await discord.sendText(discordUserId, responseText, job.agentId as unknown as string)
+                        
+                        // Log to conversation
+                        const conv = await prisma.conversation.findFirst({
+                            where: { contact: { phone_whatsapp: from }, status: { in: ['active', 'paused'] } },
+                            orderBy: { updatedAt: 'desc' }
+                        })
+                        if (conv) {
+                            await prisma.message.create({
+                                data: {
+                                    conversationId: conv.id,
+                                    sender: 'ai',
+                                    message_text: responseText,
+                                    timestamp: new Date()
+                                }
+                            })
+                        }
+                    } else if (from.includes('@')) {
+                        // WhatsApp: Normalize and send
+                        const phone = `+${from.split('@')[0]}`
                         await whatsapp.sendText(phone, responseText, undefined, job.agentId as unknown as string)
-
+                        
                         // Try to log it if we can find the conv
                         const conv = await prisma.conversation.findFirst({
                             where: { contact: { phone_whatsapp: phone }, status: { in: ['active', 'paused'] } },
@@ -172,6 +197,8 @@ export async function GET(req: Request) {
                                 }
                             })
                         }
+                    } else {
+                        console.warn(`[CRON] Unknown platform for sender: ${from}`)
                     }
 
                     // Mark DONE

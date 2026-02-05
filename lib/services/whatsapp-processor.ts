@@ -634,21 +634,30 @@ Keep response SHORT and excited.)`
         })
 
         if (!conversation) {
-            console.log('[Processor] No existing conversation found. Creating NEW one (Default: PAUSED)...')
+            console.log('[Processor] No existing conversation found. Creating NEW one...')
             const defaultPrompt = await prisma.prompt.findFirst({ where: { isActive: true } }) || await prisma.prompt.findFirst()
             if (!defaultPrompt) throw new Error('No prompt configured')
 
+            // For Discord: Auto-activate since user initiated contact
+            // For WhatsApp: Start paused (user needs to approve first)
+            const initialStatus = isDiscord ? 'active' : 'paused'
+            
             conversation = await prisma.conversation.create({
                 data: {
                     contactId: contact.id,
                     promptId: defaultPrompt.id,
                     agentId: agentId,
-                    status: 'paused',
-                    ai_enabled: true
+                    status: initialStatus,
+                    ai_enabled: true,
+                    metadata: isDiscord ? {
+                        state: 'active',
+                        becameActiveAt: new Date(),
+                        wokenBy: 'incoming_message'
+                    } : undefined
                 },
                 include: { prompt: true }
             })
-            console.log(`[Processor] New Conversation Created: ID ${conversation.id}, Status: ${conversation.status}`)
+            console.log(`[Processor] New ${isDiscord ? 'Discord' : 'WhatsApp'} Conversation Created: ID ${conversation.id}, Status: ${conversation.status}`)
         } else {
             console.log(`[Processor] Found Existing Conversation: ID ${conversation.id}, Status: ${conversation.status}`)
 
