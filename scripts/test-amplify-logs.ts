@@ -55,6 +55,18 @@ const testLogs = [
     line: '{"level":30,"time":1770301616977,"pid":17,"msg":"Info log"}',
     expectedService: 'nextjs',
     expectedLevel: null
+  },
+  {
+    name: 'False positive - timestamp with 504',
+    line: '2026-02-05T17:46:57.504Z [GET] /api/sessions/default/status - 200',
+    expectedService: 'whatsapp',
+    expectedLevel: null  // Ne doit pas être détecté comme erreur 504
+  },
+  {
+    name: 'Real 504 error',
+    line: '2026-02-05T17:46:57.123Z [ERROR] HTTP 504 - Gateway timeout',
+    expectedService: 'whatsapp',
+    expectedLevel: 'ERROR'
   }
 ]
 

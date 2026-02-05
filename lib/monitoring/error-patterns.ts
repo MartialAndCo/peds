@@ -61,19 +61,19 @@ export const ERROR_PATTERNS: ErrorPattern[] = [
   
   // ========== ERROR ==========
   {
-    keywords: ['500', '502', '503', '504', 'internal server error'],
+    keywords: ['HTTP 500', 'HTTP 502', 'HTTP 503', 'HTTP 504', 'status 500', 'status 502', 'status 503', 'status 504', 'code 500', 'code 502', 'code 503', 'code 504', 'internal server error', 'statusCode":500', 'statusCode":502', 'statusCode":503', 'statusCode":504'],
     level: 'ERROR',
     category: 'api',
     messageTemplate: 'Server error (5xx)'
   },
   {
-    keywords: ['401', '403', 'unauthorized', 'forbidden', 'invalid token', 'auth failed'],
+    keywords: ['HTTP 401', 'HTTP 403', 'status 401', 'status 403', 'code 401', 'code 403', 'unauthorized', 'forbidden', 'invalid token', 'auth failed'],
     level: 'ERROR',
     category: 'auth',
     messageTemplate: 'Authentication/authorization error'
   },
   {
-    keywords: ['429', 'rate limit', 'too many requests', 'throttled'],
+    keywords: ['HTTP 429', 'status 429', 'code 429', 'rate limit', 'too many requests', 'throttled'],
     level: 'ERROR',
     category: 'api',
     messageTemplate: 'Rate limiting detected'
@@ -112,7 +112,7 @@ export const ERROR_PATTERNS: ErrorPattern[] = [
   
   // ========== WARN ==========
   {
-    keywords: ['404', 'not found', 'ENOENT', 'file not found'],
+    keywords: ['HTTP 404', 'status 404', 'code 404', 'not found', 'ENOENT', 'file not found'],
     level: 'WARN',
     category: 'system',
     messageTemplate: 'Resource not found'
