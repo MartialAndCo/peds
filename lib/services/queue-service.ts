@@ -193,6 +193,15 @@ export class QueueService {
                     timestamp: new Date()
                 }
             }).catch((e: any) => console.error("Failed to log sent message to history", e))
+            
+            // Update conversation last activity (AI message)
+            await prisma.conversation.update({
+                where: { id: queueItem.conversationId },
+                data: {
+                    lastMessageAt: new Date(),
+                    lastMessageSender: 'ai'
+                }
+            }).catch((e: any) => console.error("Failed to update conversation last activity", e))
         }
 
         return { id: queueItem.id, status: 'success' }

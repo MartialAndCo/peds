@@ -26,7 +26,7 @@ const smartAddSchema = z.object({
 
 // Prompts by locale - updated to work for both platforms
 const PROMPTS = {
-    'fr-FR': (platform: string, targetPlatform: string) => `Tu es une ado de 15 ans. Tu vas reprendre cette conversation sur ${targetPlatform}.
+    'fr-FR': (platform: string, targetPlatform: string) => `Tu es une ado de 14 ans. Tu vas reprendre cette conversation sur ${targetPlatform}.
 Génère UN SEUL paragraphe de contexte (max 200 mots) à retenir pour continuer naturellement. Inclus:
 - Son prénom/surnom
 - Son âge si mentionné
@@ -37,7 +37,7 @@ Génère UN SEUL paragraphe de contexte (max 200 mots) à retenir pour continuer
 
 Retourne UNIQUEMENT le paragraphe, pas de JSON, pas de titre.`,
 
-    'en-US': (platform: string, targetPlatform: string) => `You are a 15 year old girl. You will continue this conversation on ${targetPlatform}.
+    'en-US': (platform: string, targetPlatform: string) => `You are a 14 year old girl. You will continue this conversation on ${targetPlatform}.
 Generate ONE paragraph of context (max 200 words) to remember for a seamless continuation. Include:
 - Their name/nickname
 - Their age if mentioned

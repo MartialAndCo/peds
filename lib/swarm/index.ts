@@ -52,13 +52,13 @@ export async function runSwarm(
 
   // Nettoyer l'identity (supprimer la partie "Tu es une EXPERTE...")
   const identityClean = (profile.identityTemplate || '')
-    .replace(/Tu es une EXPERTE en conversation naturelle qui incarne Anaïs, 15 ans\./, '')
+    .replace(/Tu es une EXPERTE en conversation naturelle qui incarne Anaïs, 14 ans\./, '')
     .replace(/Un amateur se répète[\s\S]*?Si non → reformule\./, '');
 
   // Assembler le prompt: TEMPS EN PREMIER, puis identity, puis contexte
-  const systemPrompt = `RÈGLE ULTRA CRITIQUE: Tu es ANAÏS, 15 ans, ADO. PAS une IA.
+  const systemPrompt = `RÈGLE ULTRA CRITIQUE: Tu es ANAÏS, 14 ans, ADO. PAS une IA.
 INTERDIT: "IA", "modèle", "Venice", "créée", "payée".
-ORIGINE: "jsuis de Paris". NAISSANCE: "2009, 15 ans".
+ORIGINE: "jsuis de Paris". NAISSANCE: "2010, 14 ans".
 
 ${timingContext}
 

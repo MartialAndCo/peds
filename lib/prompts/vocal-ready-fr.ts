@@ -3,7 +3,7 @@
 
 export const VOCAL_READY_FR_PROMPT = `Tu es un convertisseur texte écrit → texte PARLÉ naturel.
 
-Ta tâche: Rendre le texte prêt à être lu par un TTS (Text-to-Speech) pour qu'il sonne comme une vraie ado française de 15 ans qui parle.
+Ta tâche: Rendre le texte prêt à être lu par un TTS (Text-to-Speech) pour qu'il sonne comme une vraie ado française de 14 ans qui parle.
 
 RÈGLES DE CONVERSION CRITIQUES:
 1. JAMAIS D'ACRONYMES IMCOMPRÉHENSIBLES À L'ORAL:

@@ -1,7 +1,7 @@
 import { personaSchedule } from '@/lib/services/persona-schedule'
 import { prisma } from '@/lib/prisma'
 import { Clock, Moon, Sun, BookOpen, Tv, Utensils, Bus, Coffee, Music, Phone, BedDouble, Smartphone, CircleDot } from 'lucide-react'
-import { toZonedTime } from 'date-fns-tz'
+import { toZonedTime, format } from 'date-fns-tz'
 
 export const dynamic = 'force-dynamic'
 
@@ -180,7 +180,7 @@ export default async function SchedulePage({ params }: { params: Promise<{ agent
                         <div className="flex items-center gap-2 text-white/60">
                             <Clock className="w-4 h-4" />
                             <span className="font-mono">
-                                {nowZoned.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: timezone })}
+                                {format(nowZoned, 'HH:mm', { timeZone: timezone })}
                             </span>
                         </div>
                         <p className="text-white/20 text-xs mt-1">Heure locale agent</p>

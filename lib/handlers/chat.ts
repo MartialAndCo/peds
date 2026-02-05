@@ -211,6 +211,16 @@ export async function handleChat(
                 timestamp: new Date()
             }
         })
+        
+        // Update conversation tracking for inbox system
+        await prisma.conversation.update({
+            where: { id: conversation.id },
+            data: {
+                lastMessageAt: new Date(),
+                lastMessageSender: 'contact',
+                unreadCount: { increment: 1 }
+            }
+        })
     } catch (e: any) {
         if (e.code === 'P2002') return { handled: true, result: 'duplicate' }
         throw e

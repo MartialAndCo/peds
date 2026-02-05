@@ -222,6 +222,14 @@ model Conversation {
   processingLock  DateTime? // For ensuring sequential processing
   metadata        Json?     // Flexible storage for flow states (e.g. Lead Ingestion Drafts)
   lastMemoryExtraction DateTime? // When facts were last extracted to Mem0
+  
+  // NEW: Tracking for inbox/unread system
+  lastMessageAt   DateTime? // Timestamp of last message (for sorting)
+  lastMessageSender String?  // 'contact', 'ai', 'admin' - who sent the last message
+  unreadCount     Int       @default(0) // Number of unread messages from contact
+  lastReadByAdmin DateTime? // When admin last read the conversation
+  priority        String    @default("normal") // high, normal, low
+  
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt @default(now())
   closedAt        DateTime?
@@ -237,6 +245,8 @@ model Conversation {
   @@index([contactId, status])
   @@index([agentId])
   @@index([processingLock])
+  @@index([lastMessageAt]) // NEW: For sorting by activity
+  @@index([priority])      // NEW: For filtering by priority
   @@map("conversations")
 }
 

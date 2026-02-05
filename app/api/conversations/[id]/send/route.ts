@@ -40,6 +40,15 @@ export async function POST(
                 timestamp: new Date()
             }
         })
+        
+        // Update conversation last activity (Admin message)
+        await prisma.conversation.update({
+            where: { id: conversation.id },
+            data: {
+                lastMessageAt: new Date(),
+                lastMessageSender: 'admin'
+            }
+        })
 
         return NextResponse.json({ success: true, message })
 

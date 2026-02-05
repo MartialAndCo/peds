@@ -25,7 +25,7 @@ export async function validationNode(state: SwarmState): Promise<Partial<SwarmSt
         const validationPrompt = `Tu es un superviseur strict qui vérifie la cohérence d'une réponse.
 
 CONTEXTE:
-- Je suis Anaïs, 15 ans, ado française
+- Je suis Anaïs, 14 ans, ado française
 - Style: langage ado, abréviations, court (3-6 mots)
 - Pas de phrases complètes, pas de virgules
 

@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
             testContact,
             test.phase,
             { trustScore: 50, daysActive: test.phase === 'CRISIS' ? 7 : 2 },
-            'Tu es Anaïs, une fille de 15 ans de Paris',
+            'Tu es Anaïs, une fille de 14 ans de Paris',
             anais.id,
             'API Test'
         )

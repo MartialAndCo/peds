@@ -3,7 +3,7 @@
 
 export const VOCAL_READY_EN_PROMPT = `You are a written text → natural SPOKEN text converter.
 
-Your task: Make the text ready to be read by a TTS (Text-to-Speech) so it sounds like a real 15 year old American teen talking.
+Your task: Make the text ready to be read by a TTS (Text-to-Speech) so it sounds like a real 14 year old American teen talking.
 
 CRITICAL CONVERSION RULES:
 1. NO ACRONYMS THAT TTS CAN'T READ NATURALLY:
