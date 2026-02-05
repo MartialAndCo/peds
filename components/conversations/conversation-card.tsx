@@ -90,8 +90,9 @@ export function ConversationCard({
   
   const trustScore = contact.trustScore || 0
   
-  // Determine priority color for left border
+  // Determine priority color for left border (desktop only)
   const getBorderColor = () => {
+    if (compact) return 'border-l-transparent' // No border on mobile
     if (needsReply) return 'border-l-red-500'
     if (phase === 'MONEYPOT') return 'border-l-emerald-500'
     if (phase === 'CRISIS') return 'border-l-orange-500'
@@ -100,19 +101,20 @@ export function ConversationCard({
   }
 
   if (compact) {
-    // Mobile compact view
+    // Mobile compact view - FIXED responsive
     return (
       <div
         onClick={onClick}
         className={cn(
-          "group active:bg-white/[0.08] -mx-4 px-4 py-3 transition-all flex items-center gap-3 border-b border-white/[0.03] cursor-pointer",
-          isSelected && "bg-white/[0.08]"
+          "group active:bg-white/[0.08] px-3 py-2.5 transition-all flex items-center gap-3 cursor-pointer rounded-lg mx-1",
+          isSelected ? "bg-white/[0.08]" : "hover:bg-white/[0.04]",
+          needsReply && "bg-red-500/5"
         )}
       >
         {/* Avatar with status indicator */}
-        <div className="relative">
+        <div className="relative flex-shrink-0">
           <div className={cn(
-            "h-12 w-12 rounded-full flex items-center justify-center text-white font-semibold text-lg border-2 transition-all",
+            "h-10 w-10 rounded-full flex items-center justify-center text-white font-semibold text-base border-2 transition-all",
             needsReply 
               ? "bg-red-500/10 border-red-500/50 text-red-200"
               : isNewContact
@@ -123,36 +125,39 @@ export function ConversationCard({
           </div>
           {/* Status dot */}
           {needsReply && (
-            <div className="absolute -bottom-0.5 -right-0.5 bg-red-500 rounded-full p-1 border-2 border-[#0f172a]">
+            <div className="absolute -bottom-0.5 -right-0.5 bg-red-500 rounded-full p-0.5 border-2 border-[#0f172a]">
               <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
             </div>
           )}
           {status === 'paused' && !needsReply && (
             <div className="absolute -bottom-0.5 -right-0.5 bg-amber-500 rounded-full p-0.5 border-2 border-[#0f172a]">
-              <Pause className="h-2 w-2 text-white" />
+              <Pause className="h-1.5 w-1.5 text-white" />
             </div>
           )}
         </div>
 
         {/* Content */}
-        <div className="flex-1 min-w-0">
-          <div className="flex justify-between items-baseline mb-0.5">
+        <div className="flex-1 min-w-0 overflow-hidden">
+          <div className="flex justify-between items-center mb-0.5">
             <h3 className={cn(
-              "truncate text-base",
+              "truncate text-sm",
               needsReply ? "font-bold text-white" : "font-semibold text-white/90"
             )}>
               {contact.name || 'Inconnu'}
             </h3>
+            {/* Time on mobile - smaller and constrained */}
             <span className={cn(
-              "text-xs truncate ml-2",
-              needsReply ? "text-red-400 font-medium" : "text-white/30"
+              "text-[10px] flex-shrink-0 ml-1",
+              needsReply ? "text-red-400 font-medium" : "text-white/40"
             )}>
               {lastMessageAt ? formatDistanceToNow(new Date(lastMessageAt), { addSuffix: false }) : ''}
             </span>
           </div>
+          
+          {/* Last message preview */}
           <div className="flex justify-between items-center">
             <p className={cn(
-              "truncate text-sm leading-snug pr-4",
+              "truncate text-xs leading-tight",
               needsReply ? "text-white font-medium" : "text-white/50",
               !lastMessage && "italic"
             )}>
@@ -167,31 +172,32 @@ export function ConversationCard({
               )}
             </p>
             {unreadCount > 0 && (
-              <div className="h-5 min-w-[20px] rounded-full bg-red-500 flex items-center justify-center text-[10px] font-bold text-white px-1.5">
+              <div className="h-4 min-w-[16px] rounded-full bg-red-500 flex items-center justify-center text-[9px] font-bold text-white px-1 flex-shrink-0 ml-1">
                 {unreadCount > 9 ? '9+' : unreadCount}
               </div>
             )}
           </div>
-          {/* Phase & Trust badge row */}
-          <div className="flex items-center gap-2 mt-1.5">
+          
+          {/* Phase & Trust badge row - compact on mobile */}
+          <div className="flex items-center gap-1.5 mt-1">
             <Badge 
               variant="outline" 
-              className={cn("text-[9px] px-1.5 py-0 h-4", phaseInfo.color)}
+              className={cn("text-[8px] px-1 py-0 h-3.5", phaseInfo.color)}
             >
-              <PhaseIcon className="h-2.5 w-2.5 mr-1" />
+              <PhaseIcon className="h-2 w-2 mr-0.5" />
               {phaseInfo.label}
             </Badge>
             {trustScore > 0 && (
               <span className={cn(
-                "text-[10px] font-medium",
+                "text-[9px] font-medium",
                 trustScore > 70 ? "text-emerald-400" : trustScore > 30 ? "text-amber-400" : "text-red-400"
               )}>
-                {trustScore}% trust
+                {trustScore}%
               </span>
             )}
             {aiEnabled === false && (
-              <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 border-white/10 text-white/40">
-                <Bot className="h-2.5 w-2.5 mr-1" />
+              <Badge variant="outline" className="text-[8px] px-1 py-0 h-3.5 border-white/10 text-white/40">
+                <Bot className="h-2 w-2 mr-0.5" />
                 AI Off
               </Badge>
             )}
@@ -201,25 +207,25 @@ export function ConversationCard({
     )
   }
 
-  // Desktop view
+  // Desktop view - IMPROVED layout
   return (
     <div
       onClick={onClick}
       className={cn(
-        "group cursor-pointer transition-all duration-200 rounded-xl border",
+        "group cursor-pointer transition-all duration-200 rounded-lg border",
         "hover:bg-white/[0.04] hover:border-white/[0.08]",
         "bg-white/[0.02] border-white/[0.04]",
-        isSelected && "bg-white/[0.08] border-white/20 ring-1 ring-white/10",
-        "border-l-4",
+        isSelected && "bg-white/[0.08] border-white/20",
+        "border-l-2",
         getBorderColor()
       )}
     >
-      <div className="p-4">
-        <div className="flex items-start gap-4">
+      <div className="p-3">
+        <div className="flex items-start gap-3">
           {/* Avatar */}
           <div className="relative flex-shrink-0">
             <div className={cn(
-              "h-12 w-12 rounded-full flex items-center justify-center text-white font-semibold border-2",
+              "h-10 w-10 rounded-full flex items-center justify-center text-white font-semibold text-sm border-2",
               needsReply 
                 ? "bg-red-500/10 border-red-500/50 text-red-200"
                 : isNewContact
@@ -230,7 +236,7 @@ export function ConversationCard({
             </div>
             {/* Online/Activity indicator */}
             <div className={cn(
-              "absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-[#0f172a]",
+              "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#0f172a]",
               needsReply ? "bg-red-500 animate-pulse" :
               status === 'paused' ? "bg-amber-500" :
               isDormant ? "bg-white/20" : "bg-emerald-500"
@@ -240,25 +246,20 @@ export function ConversationCard({
           {/* Main content */}
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
-              <div>
+              <div className="min-w-0 flex-1">
                 <h3 className={cn(
-                  "font-semibold text-white truncate",
+                  "font-semibold text-sm text-white truncate",
                   needsReply && "text-white"
                 )}>
                   {contact.name || 'Inconnu'}
-                  {isNewContact && (
-                    <Badge className="ml-2 bg-sky-500/10 text-sky-400 border-sky-500/20 text-[10px]">
-                      NEW
-                    </Badge>
-                  )}
                 </h3>
-                <p className="text-xs text-white/40 font-mono mt-0.5">
+                <p className="text-xs text-white/40 font-mono truncate">
                   {contact.phone_whatsapp}
                 </p>
               </div>
               
               {/* Right side: time & unread */}
-              <div className="flex flex-col items-end gap-1">
+              <div className="flex flex-col items-end gap-1 flex-shrink-0">
                 {lastMessageAt && (
                   <span className={cn(
                     "text-xs",
@@ -268,18 +269,18 @@ export function ConversationCard({
                   </span>
                 )}
                 {unreadCount > 0 && (
-                  <Badge className="bg-red-500 text-white border-0 text-xs px-2 py-0.5">
-                    {unreadCount} new
+                  <Badge className="bg-red-500 text-white border-0 text-xs px-1.5 py-0">
+                    {unreadCount}
                   </Badge>
                 )}
               </div>
             </div>
 
             {/* Last message preview */}
-            <div className="mt-2">
+            <div className="mt-1">
               {lastMessage ? (
                 <p className={cn(
-                  "text-sm truncate",
+                  "text-xs truncate",
                   needsReply ? "text-white/80" : "text-white/50"
                 )}>
                   {lastMessage.sender === 'admin' && (
@@ -294,58 +295,51 @@ export function ConversationCard({
                   {lastMessage.message_text}
                 </p>
               ) : (
-                <p className="text-sm text-white/30 italic">No messages yet</p>
+                <p className="text-xs text-white/30 italic">No messages yet</p>
               )}
             </div>
 
-            {/* Badges row */}
-            <div className="flex flex-wrap items-center gap-2 mt-3">
+            {/* Badges row - compact */}
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
               {/* Phase badge */}
               <Badge 
                 variant="outline" 
-                className={cn("text-[10px] px-2 py-0.5", phaseInfo.color)}
+                className={cn("text-[9px] px-1.5 py-0 h-5", phaseInfo.color)}
               >
-                <PhaseIcon className="h-3 w-3 mr-1" />
+                <PhaseIcon className="h-2.5 w-2.5 mr-1" />
                 {phaseInfo.label}
               </Badge>
 
-              {/* Trust score */}
+              {/* Trust score - compact */}
               {trustScore > 0 && (
-                <Badge 
-                  variant="outline" 
-                  className={cn(
-                    "text-[10px] px-2 py-0.5",
-                    trustScore > 70 ? "border-emerald-500/20 text-emerald-400 bg-emerald-500/10" :
-                    trustScore > 30 ? "border-amber-500/20 text-amber-400 bg-amber-500/10" :
-                    "border-red-500/20 text-red-400 bg-red-500/10"
-                  )}
-                >
-                  <TrendingUp className="h-3 w-3 mr-1" />
-                  {trustScore}% trust
+                <span className={cn(
+                  "text-[9px] font-medium",
+                  trustScore > 70 ? "text-emerald-400" : trustScore > 30 ? "text-amber-400" : "text-red-400"
+                )}>
+                  {trustScore}%
+                </span>
+              )}
+
+              {/* NEW badge */}
+              {isNewContact && (
+                <Badge className="bg-sky-500/10 text-sky-400 border-sky-500/20 text-[9px] px-1.5 py-0 h-5">
+                  NEW
                 </Badge>
               )}
 
               {/* AI Status */}
               {aiEnabled === false && (
-                <Badge variant="outline" className="text-[10px] px-2 py-0.5 border-white/10 text-white/40">
-                  <Bot className="h-3 w-3 mr-1" />
+                <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-5 border-white/10 text-white/40">
+                  <Bot className="h-2.5 w-2.5 mr-1" />
                   AI Off
                 </Badge>
               )}
 
               {/* Paused status */}
               {status === 'paused' && (
-                <Badge variant="outline" className="text-[10px] px-2 py-0.5 border-amber-500/20 text-amber-400 bg-amber-500/10">
-                  <Pause className="h-3 w-3 mr-1" />
+                <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-5 border-amber-500/20 text-amber-400 bg-amber-500/10">
+                  <Pause className="h-2.5 w-2.5 mr-1" />
                   Paused
-                </Badge>
-              )}
-
-              {/* Dormant indicator */}
-              {isDormant && !needsReply && (
-                <Badge variant="outline" className="text-[10px] px-2 py-0.5 border-white/10 text-white/30">
-                  <Clock className="h-3 w-3 mr-1" />
-                  Dormant
                 </Badge>
               )}
             </div>
