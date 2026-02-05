@@ -43,6 +43,18 @@ const testLogs = [
     line: '[ERROR] 2026-02-05T10:30:00.123Z amplify build failed: compilation error',
     expectedService: 'amplify',
     expectedLevel: 'CRITICAL'
+  },
+  {
+    name: 'JSON log Pino - API 402 error',
+    line: '{"level":50,"time":1770301616977,"pid":17,"hostname":"4a234783ad3a","agentId":"cmkvg0kzz00003vyv03zzt9kc","error":{"message":"API 402","stack":"Error: API 402\n    at r (/var/task/.next/server/chunks/[root-of-the-server]__55118f11._.js:71:388)"},"traceId":"1770301607751-28hn4i4a45h","timestamp":1770301616968,"source":"amplify","msg":"Processor fatal error"}',
+    expectedService: 'amplify',
+    expectedLevel: 'CRITICAL'
+  },
+  {
+    name: 'JSON log Pino - WARN level (ignored)',
+    line: '{"level":30,"time":1770301616977,"pid":17,"msg":"Info log"}',
+    expectedService: 'nextjs',
+    expectedLevel: null
   }
 ]
 
