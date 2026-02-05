@@ -2,6 +2,7 @@ import axios from 'axios'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { settingsService } from '@/lib/settings-cache'
+import { logWhatsAppError } from '@/lib/monitoring/system-logger'
 
 const cleanKey = (key?: string) => {
     if (!key) return undefined
@@ -486,6 +487,8 @@ export const whatsapp = {
             return { success: true, status: response.data }
         } catch (error: any) {
             if (error.code === 'ECONNREFUSED' || error.message?.includes('ECONNREFUSED')) {
+                // Log l'erreur en DB pour monitoring
+                await logWhatsAppError(error, `Failed to connect to ${endpoint}/status`)
                 return { success: false, error: 'Service Offline', status: null }
             }
             logger.error('Admin Status Error', error, { module: 'whatsapp' })
@@ -513,6 +516,8 @@ export const whatsapp = {
             }
         } catch (error: any) {
             if (error.code === 'ECONNREFUSED' || error.message?.includes('ECONNREFUSED')) {
+                // Log l'erreur en DB pour monitoring
+                await logWhatsAppError(error, `Failed to fetch logs from ${endpoint}/api/logs`)
                 return { success: false, error: 'Service Offline', lines: [] }
             }
             logger.error('Admin Logs Error', error, { module: 'whatsapp' })

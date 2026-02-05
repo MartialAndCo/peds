@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { aggregateLogs, persistLogs } from '@/lib/monitoring/log-aggregator'
+import { prisma } from '@/lib/prisma'
+import { whatsapp } from '@/lib/whatsapp'
 import { LogSource, LogLevel } from '@/lib/monitoring/types'
+import { parseLogLine, generateLogId } from '@/lib/monitoring/error-patterns'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,12 +19,12 @@ export async function GET(req: Request) {
     
     // Parse les paramètres
     const sourcesParam = searchParams.get('sources')
-    const sources: LogSource[] = sourcesParam 
+    const sources = sourcesParam 
       ? sourcesParam.split(',') as LogSource[]
-      : ['whatsapp', 'discord', 'nextjs']
+      : ['whatsapp', 'nextjs']
     
     const levelParam = searchParams.get('level')
-    const level: LogLevel[] | undefined = levelParam 
+    const levels = levelParam 
       ? levelParam.split(',') as LogLevel[]
       : undefined
     
@@ -31,20 +33,90 @@ export async function GET(req: Request) {
     
     const limit = parseInt(searchParams.get('limit') || '100')
     
-    // Récupère les logs
-    const { logs, stats } = await aggregateLogs({
-      sources,
-      level,
-      since,
-      limit
+    // Récupère les logs de la DB (SystemLog)
+    const dbLogs = await prisma.systemLog.findMany({
+      where: {
+        source: { in: sources },
+        ...(levels && { level: { in: levels } }),
+        createdAt: { gte: since }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit
     })
     
-    // Persiste les logs critiques en DB (fire and forget)
-    persistLogs(logs).catch(console.error)
+    // Récupère les logs WhatsApp depuis Baileys
+    let baileysLogs: any[] = []
+    if (sources.includes('whatsapp')) {
+      const result = await whatsapp.adminLogs(200)
+      if (result.success && result.lines) {
+        // Parse les logs Baileys
+        baileysLogs = result.lines
+          .map((line: string) => {
+            const parsed = parseLogLine(line, 'whatsapp')
+            if (!parsed) return null
+            return {
+              id: generateLogId('whatsapp', line, new Date()),
+              timestamp: new Date().toISOString(), // On n'a pas le timestamp exact
+              source: 'whatsapp',
+              service: parsed.service,
+              level: parsed.level,
+              category: parsed.category,
+              message: parsed.message,
+              context: line,
+              isRead: true // Logs Baileys considérés comme lus par défaut
+            }
+          })
+          .filter(Boolean)
+      }
+    }
+    
+    // Merge et déduplique
+    const allLogs = [...dbLogs.map(l => ({
+      id: l.id,
+      timestamp: l.createdAt.toISOString(),
+      source: l.source,
+      service: l.service,
+      level: l.level as LogLevel,
+      category: l.category,
+      message: l.message,
+      context: l.context,
+      isRead: l.isRead
+    })), ...baileysLogs]
+    
+    // Filtre par niveau si spécifié
+    let filteredLogs = levels 
+      ? allLogs.filter(l => levels.includes(l.level))
+      : allLogs
+    
+    // Trie par date
+    filteredLogs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    
+    // Limite
+    filteredLogs = filteredLogs.slice(0, limit)
+    
+    // Stats
+    const stats = {
+      total: filteredLogs.length,
+      bySource: {
+        whatsapp: filteredLogs.filter(l => l.source === 'whatsapp').length,
+        discord: filteredLogs.filter(l => l.source === 'discord').length,
+        nextjs: filteredLogs.filter(l => l.source === 'nextjs').length,
+        cron: filteredLogs.filter(l => l.source === 'cron').length
+      },
+      byLevel: {
+        CRITICAL: filteredLogs.filter(l => l.level === 'CRITICAL').length,
+        ERROR: filteredLogs.filter(l => l.level === 'ERROR').length,
+        WARN: filteredLogs.filter(l => l.level === 'WARN').length,
+        INFO: filteredLogs.filter(l => l.level === 'INFO').length
+      },
+      criticalCount: filteredLogs.filter(l => l.level === 'CRITICAL').length,
+      unreadCount: filteredLogs.filter(l => !l.isRead).length,
+      lastUpdated: new Date()
+    }
     
     return NextResponse.json({
       success: true,
-      logs,
+      logs: filteredLogs,
       stats,
       meta: {
         sources,
