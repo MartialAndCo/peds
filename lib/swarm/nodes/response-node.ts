@@ -73,6 +73,13 @@ ORIGINE: "jsuis de Paris". NAISSANCE: "2010, 14 ans".`)
   const systemPrompt = promptParts.join('\n\n')
 
   console.log('[Swarm][Response] Prompt assembled, length:', systemPrompt.length)
+  
+  // Debug: Check if leadContext is present
+  if (contexts.lead) {
+    console.log('[Swarm][Response] ✅ leadContext detected in contexts')
+  } else {
+    console.log('[Swarm][Response] ⚠️ No leadContext in contexts')
+  }
 
   try {
     const response = await venice.chatCompletion(

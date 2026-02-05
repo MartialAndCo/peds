@@ -147,12 +147,15 @@ Retourne UNIQUEMENT le paragraphe, pas de JSON, pas de titre.`
         const agentPrompt = await prisma.agentPrompt.findFirst({
             where: { agentId: TEST_AGENT_ID, type: 'CORE' }
         })
-        const promptId = agentPrompt?.promptId || (await prisma.prompt.findFirst({ where: { isActive: true } }))?.id
+        // Fallback: use any prompt (even inactive) if no active prompt found
+        const anyPrompt = await prisma.prompt.findFirst()
+        const promptId = agentPrompt?.promptId || anyPrompt?.id
 
         if (!promptId) {
             console.error('❌ No prompt found!')
             process.exit(1)
         }
+        console.log(`  Using prompt ID: ${promptId}`)
 
         // Delete any existing test conversation
         await prisma.conversation.deleteMany({
