@@ -680,6 +680,15 @@ Keep response SHORT and excited.)`
                     },
                     include: { prompt: true }
                 })
+
+                // UNHIDE contact when conversation becomes active (lead is now engaged)
+                if (contact.isHidden) {
+                    await prisma.contact.update({
+                        where: { id: contact.id },
+                        data: { isHidden: false, status: 'active' }
+                    })
+                    console.log(`[Processor] Contact ${contact.id} unhidden and marked active`)
+                }
             }
         }
 
