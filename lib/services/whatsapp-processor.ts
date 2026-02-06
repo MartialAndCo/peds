@@ -295,6 +295,31 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
 
             if (contact) {
                 console.log(`[Processor] Found linked contact for Discord user ${discordId}: ${contact.phone_whatsapp}`)
+                
+                // UNHIDE contact when they send first message (lead is now engaged)
+                if (contact.isHidden) {
+                    await prisma.contact.update({
+                        where: { id: contact.id },
+                        data: { isHidden: false, status: 'active' }
+                    })
+                    console.log(`[Processor] Discord contact ${contact.id} unhidden and marked active`)
+                    
+                    // Update lead status to CONVERTED if it exists and is still IMPORTED
+                    const { prisma } = require('@/lib/prisma')
+                    const lead = await prisma.lead.findFirst({
+                        where: { 
+                            contactId: contact.id,
+                            status: 'IMPORTED'
+                        }
+                    })
+                    if (lead) {
+                        await prisma.lead.update({
+                            where: { id: lead.id },
+                            data: { status: 'CONVERTED', paidAt: new Date() }
+                        })
+                        console.log(`[Processor] Lead ${lead.id} marked as CONVERTED`)
+                    }
+                }
             } else {
                 // Create a new contact with Discord as primary identifier
                 // phone_whatsapp will be the Discord ID temporarily until they provide their number
@@ -693,6 +718,21 @@ Keep response SHORT and excited.)`
                         data: { isHidden: false, status: 'active' }
                     })
                     console.log(`[Processor] Contact ${contact.id} unhidden and marked active`)
+                    
+                    // Update lead status to CONVERTED if it exists and is still IMPORTED
+                    const lead = await prisma.lead.findFirst({
+                        where: { 
+                            contactId: contact.id,
+                            status: 'IMPORTED'
+                        }
+                    })
+                    if (lead) {
+                        await prisma.lead.update({
+                            where: { id: lead.id },
+                            data: { status: 'CONVERTED', paidAt: new Date() }
+                        })
+                        console.log(`[Processor] Lead ${lead.id} marked as CONVERTED`)
+                    }
                 }
             }
         }
