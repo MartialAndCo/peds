@@ -201,7 +201,9 @@ export class MessageRecoveryService {
             role: m.sender === 'contact' ? 'user' : 'assistant',
             content: m.message_text
         }))
-        const context = historyMessages.slice(0, -1)
+        // Keep all history as context since batchedMessage is passed separately
+        // Admin messages are mapped to 'assistant' and should be preserved
+        const context = historyMessages
 
         if (provider === 'anthropic') {
             responseText = await anthropic.chatCompletion(

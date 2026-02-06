@@ -432,8 +432,29 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
             content: content
         }
     })
-    const contextMessages = messagesForAI.slice(0, -1)
-    const lastContent = messagesForAI[messagesForAI.length - 1]?.content || lastMessageText
+    
+    // Find the last user message (from contact) to use as lastContent
+    // Admin messages are mapped to 'ai' role, so they stay in context
+    let lastUserMessageIndex = -1
+    for (let i = messagesForAI.length - 1; i >= 0; i--) {
+        if (messagesForAI[i].role === 'user') {
+            lastUserMessageIndex = i
+            break
+        }
+    }
+    
+    let contextMessages: typeof messagesForAI
+    let lastContent: string
+    
+    if (lastUserMessageIndex >= 0) {
+        // Remove the last user message from context and use it as lastContent
+        contextMessages = messagesForAI.filter((_, i) => i !== lastUserMessageIndex)
+        lastContent = messagesForAI[lastUserMessageIndex].content
+    } else {
+        // Fallback: no user message found, use old logic
+        contextMessages = messagesForAI.slice(0, -1)
+        lastContent = messagesForAI[messagesForAI.length - 1]?.content || lastMessageText
+    }
 
     // 2. Memory & Director
     const { memoryService } = require('@/lib/memory')

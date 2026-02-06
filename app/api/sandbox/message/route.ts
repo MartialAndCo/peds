@@ -163,10 +163,28 @@ export async function POST(req: Request) {
                 content: m.message_text
             }))
 
-            // Allow last message to be part of history for context?
-            // Actually in webhook we slice(0, -1) and pass last separately.
-            const contextMessages = messagesForAI.slice(0, -1)
-            const lastMessage = messagesForAI[messagesForAI.length - 1].content
+            // Find the last user message (from contact) to use as lastMessage
+            // Admin messages are mapped to 'ai' role, so they stay in context
+            let lastUserMessageIndex = -1
+            for (let i = messagesForAI.length - 1; i >= 0; i--) {
+                if (messagesForAI[i].role === 'user') {
+                    lastUserMessageIndex = i
+                    break
+                }
+            }
+            
+            let contextMessages: typeof messagesForAI
+            let lastMessage: string
+            
+            if (lastUserMessageIndex >= 0) {
+                // Remove the last user message from context and use it as lastMessage
+                contextMessages = messagesForAI.filter((_, i) => i !== lastUserMessageIndex)
+                lastMessage = messagesForAI[lastUserMessageIndex].content
+            } else {
+                // Fallback: no user message found, use old logic
+                contextMessages = messagesForAI.slice(0, -1)
+                lastMessage = messagesForAI[messagesForAI.length - 1]?.content || ''
+            }
 
             // Mem0
             const { memoryService } = require('@/lib/memory')

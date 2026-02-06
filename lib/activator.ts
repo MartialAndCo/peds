@@ -34,8 +34,28 @@ export const activator = {
             return { success: true, message: 'Activated (Silent)' }
         }
 
-        const lastMessage = messagesForAI[messagesForAI.length - 1].content
-        const contextMessages = messagesForAI.slice(0, -1)
+        // Find the last user message (from contact) to use as lastMessage
+        // Admin messages are mapped to 'ai' role, so they stay in context
+        let lastUserMessageIndex = -1
+        for (let i = messagesForAI.length - 1; i >= 0; i--) {
+            if (messagesForAI[i].role === 'user') {
+                lastUserMessageIndex = i
+                break
+            }
+        }
+        
+        let contextMessages: typeof messagesForAI
+        let lastMessage: string
+        
+        if (lastUserMessageIndex >= 0) {
+            // Remove the last user message from context and use it as lastMessage
+            contextMessages = messagesForAI.filter((_, i) => i !== lastUserMessageIndex)
+            lastMessage = messagesForAI[lastUserMessageIndex].content
+        } else {
+            // Fallback: no user message found, use old logic
+            contextMessages = messagesForAI.slice(0, -1)
+            lastMessage = messagesForAI[messagesForAI.length - 1]?.content || ''
+        }
 
         // 3. Build System Prompt
         const agentId = conversation.agentId // Get agentId from conversation
