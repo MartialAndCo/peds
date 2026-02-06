@@ -56,6 +56,7 @@ export interface AnalysisContext {
     history: { role: 'user' | 'ai'; content: string }[];
     phase: string;
     previousAlerts?: SupervisorAlert[];
+    pendingQueue?: { id: string; content: string; scheduledAt: string }[];
 }
 
 export interface AgentAnalysisResult {

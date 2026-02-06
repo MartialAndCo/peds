@@ -73,6 +73,13 @@ export async function sendQueueItemNow(id: string) {
             return { success: false, error: 'Item not found or already processed' }
         }
 
+        // IMPORTANT: Set status to PROCESSING before calling processSingleItem
+        // because processSingleItem checks for PROCESSING status
+        await prisma.messageQueue.update({
+            where: { id },
+            data: { status: 'PROCESSING' }
+        })
+
         // Use the shared service logic
         await queueService.processSingleItem(item)
 

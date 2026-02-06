@@ -83,28 +83,59 @@ export class QueueService {
 
         const results = []
 
-        for (const queueItem of lockedItems) {
-            // Skip if already being processed in this instance
-            if (QueueService.processingItems.has(queueItem.id)) {
-                console.log(`[QueueService] Item ${queueItem.id} already being processed in this instance. Skipping.`)
-                continue
+        // Group items by conversation to send them in sequence
+        const itemsByConversation = new Map<number, typeof lockedItems>()
+        for (const item of lockedItems) {
+            const convId = item.conversation?.id
+            if (!convId) continue
+            if (!itemsByConversation.has(convId)) {
+                itemsByConversation.set(convId, [])
             }
+            itemsByConversation.get(convId)!.push(item)
+        }
 
-            QueueService.processingItems.add(queueItem.id)
+        console.log(`[QueueService] Processing ${lockedItems.length} messages across ${itemsByConversation.size} conversations`)
 
-            try {
-                const result = await this.processSingleItem(queueItem)
-                results.push(result)
-            } catch (error: any) {
-                console.error(`[QueueService] Failed to process item ${queueItem.id}:`, error)
-                // Mark as FAILED to prevent infinite retries
-                await prisma.messageQueue.update({
-                    where: { id: queueItem.id },
-                    data: { status: 'FAILED', attempts: { increment: 1 }, error: error.message }
-                }).catch(e => console.error(`[QueueService] Failed to mark item as FAILED:`, e))
-                results.push({ id: queueItem.id, status: 'error', error: error.message })
-            } finally {
-                QueueService.processingItems.delete(queueItem.id)
+        // Process each conversation's messages
+        for (const [conversationId, items] of itemsByConversation) {
+            // Sort by scheduled time
+            items.sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime())
+
+            console.log(`[QueueService] Conversation ${conversationId}: ${items.length} messages to send`)
+
+            for (let i = 0; i < items.length; i++) {
+                const queueItem = items[i]
+
+                // Skip if already being processed in this instance
+                if (QueueService.processingItems.has(queueItem.id)) {
+                    console.log(`[QueueService] Item ${queueItem.id} already being processed in this instance. Skipping.`)
+                    continue
+                }
+
+                QueueService.processingItems.add(queueItem.id)
+
+                try {
+                    const result = await this.processSingleItem(queueItem)
+                    results.push(result)
+
+                    // If there are more messages for this conversation, wait a bit before sending the next one
+                    // This creates a natural "burst" of messages instead of spacing them by 30 minutes
+                    if (i < items.length - 1) {
+                        const delayBetweenMessages = 3000 + Math.random() * 2000 // 3-5 seconds
+                        console.log(`[QueueService] Waiting ${Math.round(delayBetweenMessages)}ms before sending next message for conversation ${conversationId}`)
+                        await new Promise(r => setTimeout(r, delayBetweenMessages))
+                    }
+                } catch (error: any) {
+                    console.error(`[QueueService] Failed to process item ${queueItem.id}:`, error)
+                    // Mark as FAILED to prevent infinite retries
+                    await prisma.messageQueue.update({
+                        where: { id: queueItem.id },
+                        data: { status: 'FAILED', attempts: { increment: 1 }, error: error.message }
+                    }).catch(e => console.error(`[QueueService] Failed to mark item as FAILED:`, e))
+                    results.push({ id: queueItem.id, status: 'error', error: error.message })
+                } finally {
+                    QueueService.processingItems.delete(queueItem.id)
+                }
             }
         }
 

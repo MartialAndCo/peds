@@ -322,7 +322,7 @@ export async function handleChat(
     try {
         // AI GENERATION LOGIC
         // Pass options (containing previousResponse) to the generator
-        const result = await generateAndSendAI(conversation, contact, settings, messageText, payload, agentId, options)
+        const result = await generateAndSendAI(conversation, contact, settings, messageText, payload, agentId, platform, options)
 
         // 8. Payment Claim Detection: MOVED to Tag-Based in generateAndSendAI
         // We no longer scan user text. We listen for [PAYMENT_RECEIVED] from AI.
@@ -363,7 +363,7 @@ async function releaseLock(convId: number) {
     await prisma.conversation.update({ where: { id: convId }, data: { processingLock: null } })
 }
 
-async function generateAndSendAI(conversation: any, contact: any, settings: any, lastMessageText: string, payload: any, agentId?: string, options?: any) {
+async function generateAndSendAI(conversation: any, contact: any, settings: any, lastMessageText: string, payload: any, agentId?: string, platform: 'whatsapp' | 'discord' = 'whatsapp', options?: any) {
     // 1. Fetch History
     const historyDesc = await prisma.message.findMany({
         where: { conversationId: conversation.id },
@@ -473,7 +473,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     }
 
     const { phase, details, reason } = await director.determinePhase(contact.phone_whatsapp, effectiveAgentId)
-    let systemPrompt = await director.buildSystemPrompt(settings, contact, phase, details, conversation.prompt.system_prompt, effectiveAgentId, reason, undefined, conversation)
+    let systemPrompt = await director.buildSystemPrompt(settings, contact, phase, details, conversation.prompt.system_prompt, effectiveAgentId, reason, undefined, conversation, platform)
 
     // PHASE 3: Si mode SWARM, systemPrompt est null - on passe directement à callAI
     if (systemPrompt === null) {
@@ -565,9 +565,26 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     // Queue if delay > 10s (reduced from 22s to avoid CRON 504 timeouts)
     // CRON has ~30s timeout, AI call takes ~10-15s, so any delay > 10s risks timeout
     if (timing.delaySeconds > 10) {
-        // Ensure minimum 60s delay so CRON picks it up in next run (not same minute)
-        const effectiveDelay = Math.max(timing.delaySeconds, 60)
-        const scheduledAt = new Date(Date.now() + effectiveDelay * 1000)
+        // If there are already pending messages for this conversation,
+        // schedule this one right after the last one (with small delay)
+        // instead of spacing them by 30+ minutes
+        let scheduledAt: Date
+        
+        if (pendingQueueItems.length > 0) {
+            // Find the latest scheduled message
+            const lastScheduled = pendingQueueItems.reduce((latest, item) => 
+                item.scheduledAt > latest.scheduledAt ? item : latest
+            , pendingQueueItems[0])
+            
+            // Schedule 10-20 seconds after the last one (natural burst)
+            const burstDelay = 10000 + Math.random() * 10000
+            scheduledAt = new Date(lastScheduled.scheduledAt.getTime() + burstDelay)
+            console.log(`[Chat] Scheduling message after existing queue item. Last: ${lastScheduled.scheduledAt.toISOString()}, New: ${scheduledAt.toISOString()}`)
+        } else {
+            // No existing queue items, use normal delay
+            const effectiveDelay = Math.max(timing.delaySeconds, 60)
+            scheduledAt = new Date(Date.now() + effectiveDelay * 1000)
+        }
 
         // Generate NOW
         const finalSystemPrompt = systemPrompt !== null ? systemPrompt + queuePrompt : null
@@ -605,7 +622,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
         try {
             const finalSystemPrompt = currentSystemPrompt !== null ? currentSystemPrompt + queuePrompt : null
-            responseText = await callAI(settings, conversation, finalSystemPrompt, contextMessages, lastContent, contact, effectiveAgentId)
+            responseText = await callAI(settings, conversation, finalSystemPrompt, contextMessages, lastContent, contact, effectiveAgentId, platform)
         } catch (error: any) {
             console.error(`[Chat] AI Attempt ${attempts} failed:`, error.message)
 
@@ -1022,7 +1039,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     return { handled: true, result: 'sent', textBody: responseText }
 }
 
-async function callAI(settings: any, conv: any, sys: string | null, ctx: any[], last: string, contact?: any, agentId?: string) {
+async function callAI(settings: any, conv: any, sys: string | null, ctx: any[], last: string, contact?: any, agentId?: string, platform: 'whatsapp' | 'discord' = 'whatsapp') {
     // PHASE 3: SWARM MODE
     const { aiConfig } = require('@/lib/config/ai-mode')
     await aiConfig.init()
@@ -1036,7 +1053,8 @@ async function callAI(settings: any, conv: any, sys: string | null, ctx: any[], 
             contact.id,
             agentId,
             contact.name || 'friend',
-            contact.lastMessageType || 'text'
+            contact.lastMessageType || 'text',
+            platform
         )
         return response.replace(new RegExp('\\*[^*]+\\*', 'g'), '').trim()
     }

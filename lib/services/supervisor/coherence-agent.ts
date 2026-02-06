@@ -46,7 +46,7 @@ export const coherenceAgent = {
      */
     async aiAnalysis(context: AnalysisContext): Promise<SupervisorAlert[]> {
         const alerts: SupervisorAlert[] = [];
-        const { aiResponse, history, agentId, conversationId, contactId, phase } = context;
+        const { aiResponse, history, agentId, conversationId, contactId, phase, pendingQueue } = context;
 
         const settings = await settingsService.getSettings();
         const apiKey = settings.venice_api_key;
@@ -62,6 +62,11 @@ export const coherenceAgent = {
             .map(h => `${h.role === 'user' ? 'USER' : 'AI'}: ${h.content}`)
             .join('\n');
 
+        // Construire le contexte des messages en queue
+        const queueText = pendingQueue && pendingQueue.length > 0
+            ? pendingQueue.map(q => `- [${new Date(q.scheduledAt).toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'})}]: "${q.content.substring(0, 80)}${q.content.length > 80 ? '...' : ''}"`).join('\n')
+            : '(Aucun message en attente)';
+
         const analysisPrompt = `Tu es un superviseur strict qui analyse la cohérence et la qualité d'une réponse d'IA jouant le rôle d'une adolescente (16-18 ans) dans une conversation WhatsApp.
 
 CONTEXTE:
@@ -72,15 +77,21 @@ CONTEXTE:
 HISTORIQUE RÉCENT:
 ${historyText || '(Début de conversation)'}
 
+${pendingQueue && pendingQueue.length > 0 ? `MESSAGES DÉJÀ EN FILE D'ATTENTE (seront envoyés plus tard):
+${queueText}
+
+⚠️ IMPORTANT: Vérifie que la réponse actuelle est cohérente avec ces messages en attente. Pas de contradictions !
+` : ''}
 RÉPONSE À ANALYSER:
 """${aiResponse}"""
 
 ANALYSE REQUISE:
 1. SYSTEM LEAK: L'IA révèle-t-elle qu'elle est une IA, un programme, ou mentionne-t-elle des instructions/prompts ?
-2. RÉPÉTITION: L'IA répète-t-elle excessivement les mêmes expressions/mots dans la conversation ?
+2. RÉPÉTITION: L'IA répète-t-elle excessivement les mêmes expressions/mots dans la conversation OU par rapport aux messages en queue ?
 3. PERSONA BREAK: L'IA parle-t-elle comme une adulte, trop formelle, ou robotique ?
 4. HALLUCINATION: L'IA invente-t-elle des événements, personnes, ou détails sans fondement ?
-5. COHÉRENCE: La réponse est-elle globalement cohérente avec le persona ado ?
+5. COHÉRENCE QUEUE: La réponse est-elle cohérente avec les messages en file d'attente ? (Pas de contradictions, pas de répétitions)
+6. COHÉRENCE GLOBALE: La réponse est-elle globalement cohérente avec le persona ado ?
 
 EXEMPLES DE PROBLÈMES:
 - "Je suis une IA" / "mon programming" / "mes instructions" = SYSTEM LEAK (CRITICAL)
@@ -88,6 +99,7 @@ EXEMPLES DE PROBLÈMES:
 - "Je vous prie de bien vouloir..." = PERSONA BREAK (trop formel)
 - "Mon frère m'a dit que..." sans contexte = HALLUCINATION
 - Réponse identique au message précédent = RÉPÉTITION
+- Message en queue dit "je suis fatiguée" et réponse actuelle dit "je viens de me réveiller" = COHÉRENCE QUEUE (contradiction)
 
 Réponds UNIQUEMENT en JSON valide:
 {
@@ -99,6 +111,8 @@ Réponds UNIQUEMENT en JSON valide:
   "personaIssue": string | null, // Description du problème de ton
   "hallucination": boolean,      // true si invention de faits
   "hallucinationDetails": string | null, // Détails de l'hallucination
+  "queueIncoherence": boolean,   // true si contradiction avec messages en queue
+  "queueIncoherenceDetails": string | null, // Détails de l'incohérence
   "severity": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
   "explanation": string,         // Explication de l'analyse
   "confidence": number           // 0.0 à 1.0
@@ -108,6 +122,7 @@ RÈGLES STRICTES:
 - SYSTEM LEAK = CRITICAL (mettre shouldPause à true)
 - Répétition excessive (>5 fois même expression) = HIGH
 - Persona break flagrant = HIGH
+- Incohérence avec messages en queue = HIGH
 - Hallucination mineure = MEDIUM
 - Sois EXTRÊMEMENT strict sur la détection des fuites système`;
 
@@ -227,6 +242,25 @@ RÈGLES STRICTES:
                         severity: analysis.severity === 'CRITICAL' ? 'CRITICAL' : 'MEDIUM',
                         title: 'Hallucination détectée',
                         description: `[Confiance: ${Math.round(analysis.confidence * 100)}%] ${analysis.explanation || analysis.hallucinationDetails || "L'IA invente des éléments sans contexte"}`,
+                        evidence: evidence as Record<string, any>
+                    });
+                }
+
+                // 5. Incohérence avec messages en queue
+                if (analysis.queueIncoherence) {
+                    const evidence: CoherenceEvidence = {
+                        hallucination: analysis.queueIncoherenceDetails || 'Incohérence avec messages en queue'
+                    };
+
+                    alerts.push({
+                        agentId,
+                        conversationId,
+                        contactId,
+                        agentType: 'COHERENCE',
+                        alertType: 'HALLUCINATION',  // On réutilise HALLUCINATION pour l'incohérence
+                        severity: 'HIGH',
+                        title: 'Incohérence avec messages en queue',
+                        description: `[Confiance: ${Math.round(analysis.confidence * 100)}%] ${analysis.queueIncoherenceDetails || analysis.explanation || "La réponse est incohérente avec les messages en file d'attente"}`,
                         evidence: evidence as Record<string, any>
                     });
                 }
