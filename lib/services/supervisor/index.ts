@@ -11,3 +11,4 @@ export { contextAgent } from './context-agent';
 export { phaseAgent } from './phase-agent';
 export { actionAgent } from './action-agent';
 export { queueAgent } from './queue-agent';
+export { profileAgent } from './profile-agent';

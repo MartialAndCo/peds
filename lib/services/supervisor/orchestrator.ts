@@ -9,6 +9,7 @@ import { contextAgent } from './context-agent';
 import { phaseAgent } from './phase-agent';
 import { actionAgent } from './action-agent';
 import { queueAgent } from './queue-agent';
+import { profileAgent } from './profile-agent';
 import { sendSupervisorAlertPush } from '@/lib/push-notifications';
 import type {
     AnalysisContext,
@@ -32,11 +33,12 @@ export const supervisorOrchestrator = {
      */
     async analyzeResponse(context: AnalysisContext): Promise<void> {
         try {
-            // Exécuter tous les agents en parallèle
-            const [coherenceResult, contextResult, actionResult] = await Promise.all([
+            // Exécuter tous les agents en parallèle (coherence et profile sont rapides)
+            const [coherenceResult, contextResult, actionResult, profileResult] = await Promise.all([
                 coherenceAgent.analyze(context),
                 contextAgent.analyze(context),
-                actionAgent.analyze(context)
+                actionAgent.analyze(context),
+                profileAgent.analyze(context)
             ]);
 
             // PhaseAgent est plus lourd (requêtes DB), on le fait après
@@ -47,14 +49,16 @@ export const supervisorOrchestrator = {
                 ...coherenceResult.alerts,
                 ...contextResult.alerts,
                 ...actionResult.alerts,
-                ...phaseResult.alerts
+                ...phaseResult.alerts,
+                ...profileResult.alerts
             ];
 
             if (allAlerts.length === 0) return;
 
             // Déterminer si on doit pause la conversation
             const shouldPause = coherenceResult.shouldPause ||
-                actionResult.shouldPause;
+                actionResult.shouldPause ||
+                profileResult.shouldPause;
 
             // Traiter les alertes CRITICAL immédiatement
             const criticalAlerts = allAlerts.filter(a => a.severity === 'CRITICAL');

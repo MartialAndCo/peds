@@ -13,11 +13,14 @@ export async function safetyNode(state: SwarmState): Promise<Partial<SwarmState>
     return { contexts: { ...state.contexts, safety: '' } };
   }
 
-  // Déterminer le nom de la plateforme
+  // Déterminer le nom de la plateforme et l'âge
   const platformName = platform === 'discord' ? 'Discord' : 'WhatsApp';
+  const agentAge = profile?.baseAge || 15;
   
-  // Remplacer {{PLATFORM}} par le vrai nom
-  const processedRules = safetyRules.replace(/\{\{PLATFORM\}\}/g, platformName);
+  // Remplacer {{PLATFORM}} et {{AGE}} par les vraies valeurs
+  const processedRules = safetyRules
+    .replace(/\{\{PLATFORM\}\}/g, platformName)
+    .replace(/\{\{AGE\}\}/g, agentAge.toString());
 
   // Injecter depuis la base
   const safetyBlock = `🛡️ SAFETY RULES (DEPUIS DB):

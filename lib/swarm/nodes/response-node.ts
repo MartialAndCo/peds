@@ -10,10 +10,10 @@ export async function responseNode(state: SwarmState): Promise<Partial<SwarmStat
   // Assembler le prompt dynamique avec SEULEMENT les contextes disponibles
   const promptParts: string[] = []
 
-  // 1. Identité (toujours présente)
-  promptParts.push(`RÈGLE ULTRA CRITIQUE: Tu es ANAÏS, 14 ans, ADO. PAS une IA.
+  // 1. Identité (toujours présente) - utiliser {{AGE}} qui sera remplacé après
+  promptParts.push(`RÈGLE ULTRA CRITIQUE: Tu es ANAÏS, {{AGE}} ans, ADO. PAS une IA.
 INTERDIT: "IA", "modèle", "Venice", "créée", "payée".
-ORIGINE: "jsuis de Paris". NAISSANCE: "2010, 14 ans".`)
+ORIGINE: "jsuis de Paris". NAISSANCE: "2010, {{AGE}} ans".`)
 
   // 1.5 Plateforme (contexte de conversation)
   const platformName = state.platform === 'discord' ? 'Discord' : 'WhatsApp'
@@ -86,8 +86,13 @@ ORIGINE: "jsuis de Paris". NAISSANCE: "2010, 14 ans".`)
   // Assembler le prompt final
   let systemPrompt = promptParts.join('\n\n')
   
-  // Remplacer {{PLATFORM}} par le vrai nom (sécurité si pas déjà fait)
-  systemPrompt = systemPrompt.replace(/\{\{PLATFORM\}\}/g, platformName)
+  // Remplacer {{PLATFORM}} et {{AGE}} par les vraies valeurs (sécurité finale)
+  // Essayer de récupérer l'âge depuis le contexte persona ou utiliser 15 par défaut
+  const agentAgeMatch = systemPrompt.match(/\b(\d{1,2})\s*ans?/i)
+  const agentAge = agentAgeMatch ? parseInt(agentAgeMatch[1]) : 15
+  systemPrompt = systemPrompt
+    .replace(/\{\{PLATFORM\}\}/g, platformName)
+    .replace(/\{\{AGE\}\}/g, agentAge.toString())
 
   console.log('[Swarm][Response] Prompt assembled, length:', systemPrompt.length)
   

@@ -12,7 +12,8 @@ export async function paymentNode(state: SwarmState): Promise<Partial<SwarmState
       paymentRules: true, 
       locale: true,
       bankAccountNumber: true,
-      bankRoutingNumber: true
+      bankRoutingNumber: true,
+      baseAge: true
     }
   });
   
@@ -128,9 +129,12 @@ export async function paymentNode(state: SwarmState): Promise<Partial<SwarmState
   }
   // If NONE, no special instructions - let AI respond normally
   
-  // Remplacer {{PLATFORM}} si présent
+  // Remplacer {{PLATFORM}} et {{AGE}} si présents
   const platformName = state.platform === 'discord' ? 'Discord' : 'WhatsApp'
-  const paymentRules = (profile?.paymentRules || (isFrench ? 'Si on propose de payer → ACCEPTE avec enthousiasme. Attends confirmation avant [PAIEMENT_REÇU].' : 'If offered money → ACCEPT enthusiastically. Wait confirmation before [PAYMENT_RECEIVED].')).replace(/\{\{PLATFORM\}\}/g, platformName)
+  const agentAge = profile?.baseAge || 15
+  const paymentRules = (profile?.paymentRules || (isFrench ? 'Si on propose de payer → ACCEPTE avec enthousiasme. Attends confirmation avant [PAIEMENT_REÇU].' : 'If offered money → ACCEPT enthusiastically. Wait confirmation before [PAYMENT_RECEIVED].'))
+    .replace(/\{\{PLATFORM\}\}/g, platformName)
+    .replace(/\{\{AGE\}\}/g, agentAge.toString())
   
   const paymentContext = `[PAIEMENT - RÈGLES STRICTES]:
 ${paymentRules}${confirmationInstructions}

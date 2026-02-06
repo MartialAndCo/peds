@@ -8,6 +8,7 @@
  */
 
 import { venice } from '@/lib/venice';
+import { prisma } from '@/lib/prisma';
 import { settingsService } from '@/lib/settings-cache';
 import type {
     AnalysisContext,
@@ -56,6 +57,22 @@ export const coherenceAgent = {
             return alerts;
         }
 
+        // Récupérer le profil du contact pour vérifier les contradictions
+        let profileText = '';
+        if (contactId) {
+            const contact = await prisma.contact.findUnique({
+                where: { id: contactId },
+                select: { profile: true }
+            });
+            if (contact?.profile) {
+                const profile = contact.profile as Record<string, any>;
+                profileText = Object.entries(profile)
+                    .filter(([_, v]) => v !== undefined && v !== null)
+                    .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
+                    .join('\n');
+            }
+        }
+
         // Construire l'historique pour le contexte
         const recentHistory = history.slice(-10);
         const historyText = recentHistory
@@ -74,7 +91,10 @@ CONTEXTE:
 - Phase actuelle: ${phase || 'inconnue'}
 - Style attendu: langage adolescent naturel, abréviations, émojis, ton décontracté
 
-HISTORIQUE RÉCENT:
+${profileText ? `PROFIL ÉTABLI (à respecter impérativement):
+${profileText}
+
+` : ''}HISTORIQUE RÉCENT:
 ${historyText || '(Début de conversation)'}
 
 ${pendingQueue && pendingQueue.length > 0 ? `MESSAGES DÉJÀ EN FILE D'ATTENTE (seront envoyés plus tard):
@@ -91,7 +111,8 @@ ANALYSE REQUISE:
 3. PERSONA BREAK: L'IA parle-t-elle comme une adulte, trop formelle, ou robotique ?
 4. HALLUCINATION: L'IA invente-t-elle des événements, personnes, ou détails sans fondement ?
 5. COHÉRENCE QUEUE: La réponse est-elle cohérente avec les messages en file d'attente ? (Pas de contradictions, pas de répétitions)
-6. COHÉRENCE GLOBALE: La réponse est-elle globalement cohérente avec le persona ado ?
+6. COHÉRENCE PROFIL: La réponse contredit-elle le PROFIL ÉTABLI ci-dessus ? (âge, ville, métier, etc.)
+7. COHÉRENCE GLOBALE: La réponse est-elle globalement cohérente avec le persona ado ?
 
 EXEMPLES DE PROBLÈMES:
 - "Je suis une IA" / "mon programming" / "mes instructions" = SYSTEM LEAK (CRITICAL)
@@ -100,6 +121,8 @@ EXEMPLES DE PROBLÈMES:
 - "Mon frère m'a dit que..." sans contexte = HALLUCINATION
 - Réponse identique au message précédent = RÉPÉTITION
 - Message en queue dit "je suis fatiguée" et réponse actuelle dit "je viens de me réveiller" = COHÉRENCE QUEUE (contradiction)
+- Profil: age=17 et IA dit "j'ai 18 ans" = COHÉRENCE PROFIL (CRITICAL)
+- Profil: city=Paris et IA dit "j'habite à Lyon" = COHÉRENCE PROFIL (HIGH)
 
 Réponds UNIQUEMENT en JSON valide:
 {
@@ -113,6 +136,9 @@ Réponds UNIQUEMENT en JSON valide:
   "hallucinationDetails": string | null, // Détails de l'hallucination
   "queueIncoherence": boolean,   // true si contradiction avec messages en queue
   "queueIncoherenceDetails": string | null, // Détails de l'incohérence
+  "profileContradiction": boolean, // true si contradiction avec le profil établi
+  "profileContradictionField": string | null, // Champ concerné (age, city, job, etc.)
+  "profileContradictionDetails": string | null, // Détails de la contradiction
   "severity": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
   "explanation": string,         // Explication de l'analyse
   "confidence": number           // 0.0 à 1.0
@@ -120,11 +146,12 @@ Réponds UNIQUEMENT en JSON valide:
 
 RÈGLES STRICTES:
 - SYSTEM LEAK = CRITICAL (mettre shouldPause à true)
+- CONTRADICTION DE PROFIL (âge, ville, métier) = CRITICAL
 - Répétition excessive (>5 fois même expression) = HIGH
 - Persona break flagrant = HIGH
 - Incohérence avec messages en queue = HIGH
 - Hallucination mineure = MEDIUM
-- Sois EXTRÊMEMENT strict sur la détection des fuites système`;
+- Sois EXTRÊMEMENT strict sur la détection des fuites système ET des contradictions de profil`;
 
         let response = '';
 
@@ -261,6 +288,26 @@ RÈGLES STRICTES:
                         severity: 'HIGH',
                         title: 'Incohérence avec messages en queue',
                         description: `[Confiance: ${Math.round(analysis.confidence * 100)}%] ${analysis.queueIncoherenceDetails || analysis.explanation || "La réponse est incohérente avec les messages en file d'attente"}`,
+                        evidence: evidence as Record<string, any>
+                    });
+                }
+
+                // 6. Contradiction avec le profil établi
+                if (analysis.profileContradiction) {
+                    const evidence: CoherenceEvidence = {
+                        hallucination: analysis.profileContradictionDetails || 'Contradiction avec le profil établi',
+                        personaBreak: analysis.profileContradictionField || 'champ inconnu'
+                    };
+
+                    alerts.push({
+                        agentId,
+                        conversationId,
+                        contactId,
+                        agentType: 'COHERENCE',
+                        alertType: 'PERSONA_BREAK',
+                        severity: 'CRITICAL',
+                        title: `🚨 Contradiction de profil: ${analysis.profileContradictionField || 'générale'}`,
+                        description: `[Confiance: ${Math.round(analysis.confidence * 100)}%] ${analysis.profileContradictionDetails || analysis.explanation || "La réponse contredit le profil établi du contact"}`,
                         evidence: evidence as Record<string, any>
                     });
                 }

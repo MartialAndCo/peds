@@ -17,31 +17,37 @@ export async function phaseNode(state: SwarmState): Promise<Partial<SwarmState>>
             phaseVulnerabilityTemplate: true,
             phaseCrisisTemplate: true,
             phaseMoneypotTemplate: true,
-            paymentRules: true
+            paymentRules: true,
+            baseAge: true
         }
     })
 
-    // Déterminer la plateforme pour remplacement
+    // Déterminer la plateforme et l'âge pour remplacement
     const platformName = state.platform === 'discord' ? 'Discord' : 'WhatsApp'
+    const agentAge = profile?.baseAge || 15
+    
+    const replaceVars = (text: string) => text
+        .replace(/\{\{PLATFORM\}\}/g, platformName)
+        .replace(/\{\{AGE\}\}/g, agentAge.toString())
     
     let phaseContext = ''
     const phase = agentContact?.phase || 'CONNECTION'
 
     switch (phase) {
         case 'CONNECTION':
-            phaseContext = (profile?.phaseConnectionTemplate || '').replace(/\{\{PLATFORM\}\}/g, platformName)
+            phaseContext = replaceVars(profile?.phaseConnectionTemplate || '')
             break
         case 'VULNERABILITY':
-            phaseContext = (profile?.phaseVulnerabilityTemplate || '').replace(/\{\{PLATFORM\}\}/g, platformName)
+            phaseContext = replaceVars(profile?.phaseVulnerabilityTemplate || '')
             break
         case 'CRISIS':
-            phaseContext = ((profile?.phaseCrisisTemplate || '') + '\n\n' + (profile?.paymentRules || '')).replace(/\{\{PLATFORM\}\}/g, platformName)
+            phaseContext = replaceVars((profile?.phaseCrisisTemplate || '') + '\n\n' + (profile?.paymentRules || ''))
             break
         case 'MONEYPOT':
-            phaseContext = ((profile?.phaseMoneypotTemplate || '') + '\n\n' + (profile?.paymentRules || '')).replace(/\{\{PLATFORM\}\}/g, platformName)
+            phaseContext = replaceVars((profile?.phaseMoneypotTemplate || '') + '\n\n' + (profile?.paymentRules || ''))
             break
         default:
-            phaseContext = (profile?.phaseConnectionTemplate || '').replace(/\{\{PLATFORM\}\}/g, platformName)
+            phaseContext = replaceVars(profile?.phaseConnectionTemplate || '')
     }
 
     return {
