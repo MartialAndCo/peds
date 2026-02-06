@@ -619,19 +619,17 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
                     agentId: effectiveAgentId
                 })
                 
-                // Don't return fallback - let error propagate properly
-                throw new Error('VENICE_CREDITS_DEPLETED')
-
+                // Queue for retry later instead of failing completely
                 await prisma.messageQueue.create({
                     data: {
                         contactId: contact.id,
                         conversationId: conversation.id,
-                        content: `[SYSTEM: AI GENERATION FAILED]\nReason: Insufficient Credits (402)\nOriginal User Message: "${lastContent}"`,
+                        content: `[SYSTEM: AI GENERATION FAILED - Will Retry]\nReason: Insufficient Credits (402)\nOriginal User Message: "${lastContent}"`,
                         status: 'AI_FAILED_402',
-                        scheduledAt: new Date()
+                        scheduledAt: new Date(Date.now() + 5 * 60 * 1000) // Retry in 5 minutes
                     }
                 })
-                return { handled: true, result: 'ai_quota_failed' }
+                return { handled: true, result: 'ai_quota_failed_queued_for_retry' }
             }
 
             // If it's a temporary error, we let the loop retry (up to MAX_RETRIES)

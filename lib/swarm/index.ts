@@ -179,16 +179,10 @@ export async function runSwarm(
     console.error('[Swarm] Error during execution:', finalState.error);
   }
 
-  // If no response, throw clear error
+  // If Venice failed (no response), throw error to be caught by handler
   if (!finalState.response) {
-    console.error('[Swarm] CRITICAL: No response generated!')
-    throw new Error('SWARM_NO_RESPONSE')
-  }
-  
-  // Never return fallback 'jsuis là' - it's meaningless
-  if (finalState.response === 'jsuis là') {
-    console.error('[Swarm] CRITICAL: Fallback response detected!')
-    throw new Error('SWARM_FALLBACK_RESPONSE_NOT_ALLOWED')
+    console.error('[Swarm] CRITICAL: No response generated (Venice likely failed)')
+    throw new Error('VENICE_API_REJECTED: No response from AI')
   }
   
   return finalState.response;
