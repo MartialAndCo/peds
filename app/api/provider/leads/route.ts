@@ -134,6 +134,7 @@ export async function POST(req: Request) {
             source: `provider:${session.user.id}`,
             notes: body.notes || `Source: ${body.source}`,
             status: 'new',
+            isHidden: false,
             profile: {
                 age: body.age,
                 location: body.location,
