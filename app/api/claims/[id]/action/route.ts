@@ -54,8 +54,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
         if (success) {
             // Also mark notification as read if it exists
+            // Handle both PAYMENT_CLAIM and PAYMENT_VERIFICATION types
             await prisma.notification.updateMany({
-                where: { entityId: claimId, type: 'PAYMENT_CLAIM' },
+                where: { 
+                    entityId: claimId, 
+                    type: { in: ['PAYMENT_CLAIM', 'PAYMENT_VERIFICATION'] }
+                },
                 data: { isRead: true }
             })
 

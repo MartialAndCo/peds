@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { sendCriticalAlertPush } from '@/lib/push-notifications'
 
 /**
  * Log une erreur système dans la DB pour monitoring
@@ -30,7 +31,7 @@ export async function logSystemError(
       }
     })
     
-    // Si CRITICAL, créer aussi une notification pour le PWA
+    // Si CRITICAL, créer aussi une notification pour le PWA + envoyer push
     if (level === 'CRITICAL') {
       await prisma.notification.create({
         data: {
@@ -42,6 +43,13 @@ export async function logSystemError(
           isRead: false
         }
       })
+      
+      // Envoyer aussi une notification push
+      await sendCriticalAlertPush(
+        `CRITICAL: ${source}`,
+        message,
+        '/admin/system'
+      )
     }
   } catch (e) {
     // Si on arrive pas à logger en DB, logger en console au moins

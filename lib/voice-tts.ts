@@ -9,6 +9,7 @@ import { venice } from '@/lib/venice'
 import { VOCAL_READY_FR_PROMPT, VOCAL_READY_FR_SYSTEM } from '@/lib/prompts/vocal-ready-fr'
 import { VOCAL_READY_EN_PROMPT, VOCAL_READY_EN_SYSTEM } from '@/lib/prompts/vocal-ready-en'
 import { logger } from '@/lib/logger'
+import { sendTTSFailurePush } from '@/lib/push-notifications'
 
 export interface VoiceTtsOptions {
     contactPhone: string
@@ -235,6 +236,13 @@ export const voiceTtsService = {
                     isRead: false
                 }
             })
+            
+            // Send push notification
+            await sendTTSFailurePush(
+                'TTS Vocal Failed',
+                `Erreur TTS pour l'agent ${options.agentId}: ${errorMessage.substring(0, 80)}`,
+                '/admin/notifications'
+            )
 
             console.log('[VoiceTTS] Admin notification created')
         } catch (e: any) {

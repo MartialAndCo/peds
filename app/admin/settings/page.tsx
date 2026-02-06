@@ -8,6 +8,15 @@ import { Loader2, Brain, Server, Check } from 'lucide-react'
 import { SessionManager } from '@/components/settings/session-manager'
 import { clearAllQueues } from '@/app/actions/queue'
 import { useToast } from '@/components/ui/use-toast'
+import { Bell, BellRing, AlertTriangle, CreditCard, Volume2, ShieldAlert } from 'lucide-react'
+
+// Types de notifications disponibles
+const NOTIFICATION_TYPES = [
+    { key: 'notify_payment_claim', label: 'Payment Claims', description: 'New payment claims from contacts', icon: CreditCard, default: true },
+    { key: 'notify_critical_errors', label: 'Critical System Errors', description: 'WhatsApp disconnections, cron failures...', icon: AlertTriangle, default: true },
+    { key: 'notify_supervisor_alerts', label: 'Supervisor AI Alerts', description: 'AI coherence, context, phase alerts', icon: ShieldAlert, default: true },
+    { key: 'notify_tts_failures', label: 'TTS Voice Failures', description: 'When voice generation fails', icon: Volume2, default: true },
+]
 
 function DiscordBotList({ agents }: { agents: any[] }) {
     const [bots, setBots] = useState<any[]>([])
@@ -156,6 +165,7 @@ export default function SettingsPage() {
         { id: 'infrastructure', label: 'Infrastructure', icon: Server },
         { id: 'integrations', label: 'Integrations', icon: Check },
         { id: 'intelligence', label: 'Intelligence', icon: Brain },
+        { id: 'notifications', label: 'Notifications', icon: BellRing },
         { id: 'sessions', label: 'Sessions', icon: Loader2 },
     ]
 
@@ -380,6 +390,108 @@ export default function SettingsPage() {
                                 <p className="text-white/30 text-xs">
                                     Messages received by the Discord service will be processed by this agent.
                                 </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Notifications Tab */}
+                {activeTab === 'notifications' && (
+                    <div className="space-y-6">
+                        <div className="glass rounded-2xl p-6">
+                            <div className="flex items-center justify-between mb-6">
+                                <div>
+                                    <h3 className="text-white font-medium flex items-center gap-2">
+                                        <BellRing className="h-5 w-5 text-blue-400" />
+                                        Push Notifications
+                                    </h3>
+                                    <p className="text-white/40 text-sm mt-1">
+                                        Choose which events trigger push notifications on your devices
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-white/40 text-xs">All</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const allEnabled = NOTIFICATION_TYPES.every(t => settings[t.key] !== 'false')
+                                            const newSettings = { ...settings }
+                                            NOTIFICATION_TYPES.forEach(t => {
+                                                newSettings[t.key] = allEnabled ? 'false' : 'true'
+                                            })
+                                            setSettings(newSettings)
+                                        }}
+                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                            NOTIFICATION_TYPES.every(t => settings[t.key] !== 'false') ? 'bg-green-500' : 'bg-white/20'
+                                        }`}
+                                    >
+                                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                            NOTIFICATION_TYPES.every(t => settings[t.key] !== 'false') ? 'translate-x-6' : 'translate-x-1'
+                                        }`} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                {NOTIFICATION_TYPES.map((type) => {
+                                    const Icon = type.icon
+                                    const isEnabled = settings[type.key] !== 'false'
+                                    return (
+                                        <div
+                                            key={type.key}
+                                            className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
+                                                isEnabled 
+                                                    ? 'bg-white/[0.04] border-white/[0.08]' 
+                                                    : 'bg-white/[0.02] border-white/[0.04] opacity-60'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-4">
+                                                <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${
+                                                    isEnabled ? 'bg-blue-500/20 text-blue-400' : 'bg-white/5 text-white/40'
+                                                }`}>
+                                                    <Icon className="h-5 w-5" />
+                                                </div>
+                                                <div>
+                                                    <p className={`font-medium ${isEnabled ? 'text-white' : 'text-white/60'}`}>
+                                                        {type.label}
+                                                    </p>
+                                                    <p className="text-white/40 text-xs">
+                                                        {type.description}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setSettings({
+                                                    ...settings,
+                                                    [type.key]: isEnabled ? 'false' : 'true'
+                                                })}
+                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                                    isEnabled ? 'bg-green-500' : 'bg-white/20'
+                                                }`}
+                                            >
+                                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                                    isEnabled ? 'translate-x-6' : 'translate-x-1'
+                                                }`} />
+                                            </button>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Info Box */}
+                        <div className="glass rounded-2xl p-6 border border-blue-500/20 bg-blue-500/5">
+                            <div className="flex items-start gap-3">
+                                <Bell className="h-5 w-5 text-blue-400 mt-0.5" />
+                                <div>
+                                    <h4 className="text-white font-medium text-sm">About Push Notifications</h4>
+                                    <p className="text-white/40 text-xs mt-1 leading-relaxed">
+                                        Push notifications are delivered to all subscribed devices even when the PWA is closed. 
+                                        You need to enable notifications on each device in the mobile app. 
+                                        In-app notifications will always be shown regardless of these settings.
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     </div>

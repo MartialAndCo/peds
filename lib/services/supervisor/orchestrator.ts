@@ -9,6 +9,7 @@ import { contextAgent } from './context-agent';
 import { phaseAgent } from './phase-agent';
 import { actionAgent } from './action-agent';
 import { queueAgent } from './queue-agent';
+import { sendSupervisorAlertPush } from '@/lib/push-notifications';
 import type {
     AnalysisContext,
     SupervisorAlert,
@@ -358,29 +359,14 @@ export const supervisorOrchestrator = {
      */
     async sendPushNotification(alert: SupervisorAlert): Promise<void> {
         try {
-            // Récupérer les subscriptions push
-            const subscriptions = await prisma.pushSubscription.findMany();
-
-            if (subscriptions.length === 0) return;
-
-            // Préparer le payload
-            const payload = JSON.stringify({
-                title: alert.title,
-                body: alert.description.substring(0, 100),
-                icon: '/icon.png',
-                badge: '/icon.png',
-                tag: `supervisor-${alert.alertType}`,
-                requireInteraction: alert.severity === 'CRITICAL',
-                data: {
-                    url: `/admin/supervisor?alert=${alert.alertType}`,
-                    alertId: alert.id,
-                    severity: alert.severity
-                }
-            });
-
-            // Envoyer à toutes les subscriptions (simplifié - à remplacer par vraie logique web-push)
-            console.log(`[Supervisor] Push notification prepared for ${subscriptions.length} devices`);
-
+            // Envoyer la notification push via le service centralisé
+            await sendSupervisorAlertPush(
+                alert.title,
+                alert.description,
+                alert.alertType,
+                alert.severity
+            );
+            console.log(`[Supervisor] Push notification sent for alert: ${alert.alertType}`);
         } catch (error) {
             console.error('[Supervisor] Push notification failed:', error);
         }

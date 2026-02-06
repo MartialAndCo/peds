@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { aggregateLogs, persistLogs } from '@/lib/monitoring/log-aggregator'
 import { prisma } from '@/lib/prisma'
+import { sendCriticalAlertPush } from '@/lib/push-notifications'
 
 export const dynamic = 'force-dynamic'
 
@@ -59,6 +60,13 @@ export async function POST(req: Request) {
           isRead: false
         }
       })
+      
+      // Envoie une notification push
+      await sendCriticalAlertPush(
+        `CRITICAL: ${log.category}`,
+        `[${log.source.toUpperCase()}] ${log.message}`,
+        '/admin/system'
+      )
       
       // Marque le log comme notifié
       await prisma.systemLog.update({

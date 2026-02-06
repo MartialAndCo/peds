@@ -815,6 +815,30 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         }
     }
 
+    // PAYMENT VERIFICATION REQUEST: User asks if we received the payment
+    // Detect if user is asking about payment status (not confirming they sent)
+    const verificationPatterns = [
+        /did you check/i, /did you receive/i, /did you get/i, 
+        /have you received/i, /tu as reçu/i, /t'as reçu/i, 
+        /tu as vérifié/i, /t'as vérifié/i, /as-tu reçu/i,
+        /avez-vous reçu/i, /tu l'as reçu/i, /tu l'as vu/i,
+        /you checked/i, /you got it/i, /did it arrive/i,
+        /ça y est/i, /est-ce arrivé/i, /is it there/i
+    ];
+    const isPaymentVerificationRequest = verificationPatterns.some(pattern => pattern.test(messageText));
+    
+    if (isPaymentVerificationRequest) {
+        console.log('[Chat] Payment verification request detected. Notifying admin for manual validation...')
+        try {
+            const { notifyPaymentClaim } = require('@/lib/services/payment-claim-handler')
+            // Send special notification indicating it's a verification request, not a claim
+            await notifyPaymentClaim(contact, conversation, settings, null, null, agentId, 'verification_request')
+            console.log('[Chat] Payment verification notification sent to admin.')
+        } catch (e) {
+            console.error('[Chat] Failed to send verification notification', e)
+        }
+    }
+
     // Safety: Final Check (If still empty after retries/stripping, abort)
     if ((!responseText || responseText.trim().length === 0) && imageKeywords.length === 0) {
         console.warn(`[Chat] AI returned empty response after ${attempts} attempts for Conv ${conversation.id}. Aborting send.`)

@@ -4,16 +4,7 @@ import { venice } from '@/lib/venice'
 import { memoryService } from '@/lib/memory'
 import { logger } from '@/lib/logger'
 import { detectPaymentClaim, PaymentClaimResult } from './payment-detector'
-import webpush from 'web-push'
-
-// Configure Web Push
-if (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
-    webpush.setVapidDetails(
-        'mailto:admin@example.com',
-        process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
-        process.env.VAPID_PRIVATE_KEY
-    )
-}
+import { sendPaymentClaimPush } from '@/lib/push-notifications'
 
 /**
  * Process a user message for potential payment claims.
@@ -70,13 +61,17 @@ export async function notifyPaymentClaim(
     settings: any,
     amount: number | null,
     method: string | null,
-    agentId?: string
+    agentId?: string,
+    notificationType: 'claim' | 'verification_request' = 'claim'
 ): Promise<{ processed: boolean; claimId?: string }> {
-    logger.info('Payment claim detected (Triggered)', {
+    const isVerification = notificationType === 'verification_request'
+    
+    logger.info(isVerification ? 'Payment verification request detected' : 'Payment claim detected (Triggered)', {
         module: 'payment-claim',
         contactId: contact.id,
         amount,
-        method
+        method,
+        notificationType
     })
 
     // DEDUPLICATION: Check for recent pending claims (last 15 seconds) to prevent double notification
@@ -92,7 +87,7 @@ export async function notifyPaymentClaim(
     })
 
     if (recentClaim) {
-        logger.info('Duplicate payment claim prevented (Debounce)', {
+        logger.info(isVerification ? 'Duplicate verification request prevented' : 'Duplicate payment claim prevented (Debounce)', {
             module: 'payment-claim',
             contactId: contact.id,
             existingClaimId: recentClaim.id
@@ -101,9 +96,25 @@ export async function notifyPaymentClaim(
     }
 
     const contactName = contact.name || contact.phone_whatsapp
-    const amountStr = amount ? `${amount}` : '?'
-    const methodStr = method || 'unknown method'
-    const notificationMsg = `${contactName} paid ${amountStr} with ${methodStr}`
+    
+    // Different message based on notification type
+    let notificationTitle: string
+    let notificationMsg: string
+    let notificationTypeEnum: string
+    
+    if (isVerification) {
+        // User is asking if we received the payment
+        notificationTitle = 'Payment Verification Request'
+        notificationMsg = `${contactName} is asking if you received their payment. Please check and confirm.`
+        notificationTypeEnum = 'PAYMENT_VERIFICATION'
+    } else {
+        // User claims they sent payment
+        const amountStr = amount ? `${amount}` : '?'
+        const methodStr = method || 'unknown method'
+        notificationTitle = 'New Payment Claim'
+        notificationMsg = `${contactName} paid ${amountStr} with ${methodStr}`
+        notificationTypeEnum = 'PAYMENT_CLAIM'
+    }
 
     try {
         // 1. Create Pending Claim Record
@@ -114,33 +125,42 @@ export async function notifyPaymentClaim(
                 conversationId: conversation?.id,
                 claimedAmount: amount || null,
                 claimedMethod: method || null,
-                status: 'PENDING'
+                status: 'PENDING',
+                metadata: {
+                    type: notificationType,
+                    userAsked: isVerification // Track that user asked for verification
+                }
             }
         })
 
         // 2. Create Notification Record (In-App)
         const notification = await prisma.notification.create({
             data: {
-                title: 'New Payment Claim',
+                title: notificationTitle,
                 message: notificationMsg,
-                type: 'PAYMENT_CLAIM',
+                type: notificationTypeEnum,
                 agentId: agentId || null, // Multi-agent: agent-specific notification
                 entityId: claim.id,
                 metadata: {
-                    amount: amountStr,
-                    method: methodStr,
-                    contactName: contactName
+                    amount: amount || null,
+                    method: method || null,
+                    contactName: contactName,
+                    verificationType: notificationType,
+                    userAskedVerification: isVerification
                 }
             }
         })
 
-        // 3. Send Push Notification (Device)
-        await sendPushNotificationToAdmin({
-            title: 'New Payment Claim',
-            body: notificationMsg,
-            url: `/admin/notifications`,
-            tag: `claim-${claim.id}`
-        })
+        // 3. Send Push Notification (Device) - only for actual claims, not verification requests
+        if (!isVerification) {
+            const amountStr = amount ? `${amount}` : '?'
+            const methodStr = method || 'unknown method'
+            await sendPaymentClaimPush(
+                contactName,
+                amountStr,
+                methodStr
+            )
+        }
 
         // 4. (Optional) Legacy WhatsApp Notification - DISABLED
         /*
@@ -164,49 +184,7 @@ export async function notifyPaymentClaim(
     }
 }
 
-/**
- * Helper to send Web Push to all subscribed admins
- */
-async function sendPushNotificationToAdmin(payload: { title: string, body: string, url?: string, tag?: string }) {
-    try {
-        const subscriptions = await prisma.pushSubscription.findMany()
 
-        console.log(`[Push] Attempting to send push notification to ${subscriptions.length} subscription(s)`)
-        console.log(`[Push] Payload:`, payload)
-
-        if (subscriptions.length === 0) {
-            console.warn('[Push] No push subscriptions found in database')
-            return
-        }
-
-        const notifications = subscriptions.map(sub => {
-            console.log(`[Push] Sending to subscription ${sub.id} (endpoint: ${sub.endpoint.substring(0, 50)}...)`)
-            return webpush.sendNotification({
-                endpoint: sub.endpoint,
-                keys: {
-                    p256dh: sub.p256dh,
-                    auth: sub.auth
-                }
-            }, JSON.stringify(payload))
-                .then(() => {
-                    console.log(`[Push] Successfully sent to subscription ${sub.id}`)
-                })
-                .catch(err => {
-                    if (err.statusCode === 410 || err.statusCode === 404) {
-                        // Subscription expired/gone, cleanup
-                        console.log(`[Push] Cleaning up expired subscription ${sub.id}`)
-                        return prisma.pushSubscription.delete({ where: { id: sub.id } })
-                    }
-                    console.error(`[Push] Error sending to subscription ${sub.id}:`, err.message || err)
-                })
-        })
-
-        await Promise.all(notifications)
-        console.log('[Push] All push notifications processed')
-    } catch (error) {
-        console.error('[Push] Failed to send push notifications:', error)
-    }
-}
 
 /**
  * Core logic for approving/rejecting a claim.
@@ -305,16 +283,98 @@ export async function processPaymentClaimDecision(
             }
         })
 
-        // 5. Trigger AI "Thank You" / Confirmation
-        // The user explicitly requested: "If I answer YES... AI response 'Thank you'"
-        // The previous code said "No thank you message sent here - the AI already responded naturally".
-        // BUT the new requirements imply we MIGHT want to acknowledge it if the AI hasn't.
-        // However, sticking to the plan: Validation = Payment Confirmed.
-        // Usually, the previous message from AI might have been "Please pay". 
-        // If we want the AI to react to the CONFIRMATION, we should inject a system event provided as user message?
-        // Or just let the NEXT user message trigger the 'Thank you' context.
-        // Let's stick to: "AI response 'Thank you'" only if explicitly requested or if we send a message.
-        // Update: The prompt implies: "Validated -> AI knows payment is passed".
+        // 5. Generate AI "Thank You" / Confirmation Response
+        // Check if this was a verification request (user asked "did you receive?") or direct send
+        const isVerificationRequest = claim.metadata && (claim.metadata as any).userAsked === true
+        
+        // Build Prompt for Confirmation
+        const { director } = require('@/lib/director')
+        const vKey = settings.venice_api_key || process.env.VENICE_API_KEY
+        const vModel = settings.venice_model || 'venice-uncensored'
+
+        if (vKey) {
+            const history = conversation ? await prisma.message.findMany({
+                where: { conversationId: conversation.id },
+                orderBy: { timestamp: 'desc' },
+                take: 10
+            }) : []
+
+            const contextMessages = history.reverse().map((m: any) => ({
+                role: m.sender === 'contact' ? 'user' : 'assistant',
+                content: m.message_text
+            }))
+
+            const agentName = conversation?.prompt?.name || 'Lena'
+            const amount = claim.claimedAmount || 'the money'
+            const method = claim.claimedMethod || ''
+
+            // Different prompt based on scenario
+            const confirmSystemPrompt = isVerificationRequest 
+                ? `You are ${agentName}, a friendly teenage girl chatting on WhatsApp.
+You speak casually in short messages (3-10 words per message).
+CURRENT SITUATION: You just checked your account and RECEIVED ${amount} ${method ? `via ${method}` : ''}! 
+The user had asked if you received it, and you just confirmed you did.
+
+CRITICAL RULES:
+1. Express SURPRISE and JOY that the money arrived
+2. Thank them genuinely but casually (not robotic)
+3. Do NOT mention PayPal/Venmo unless they specifically used it
+4. Keep it short, natural, and enthusiastic
+5. Use emojis naturally (1-2 max)
+6. NEVER use [PAYMENT_RECEIVED] tag here - this is AFTER confirmation
+7. Vary your response - don't use the same words every time
+
+Example responses (mix them up, be creative):
+- "omg it arrived!! tysm 🥰"
+- "yay i got it!! you're the best 💕"
+- "just checked and it's there!! thanks so much 🙏"
+- "received!! thank uuu 🥺💓"
+- "omg yes i see it!! tysm babe 😘"`
+                : `You are ${agentName}, a friendly teenage girl chatting on WhatsApp.
+You speak casually in short messages (3-10 words per message).
+CURRENT SITUATION: You RECEIVED ${amount} ${method ? `via ${method}` : ''}! 
+
+CRITICAL RULES:
+1. Express SURPRISE and JOY that the money arrived
+2. Thank them genuinely but casually (not robotic)
+3. Do NOT mention PayPal/Venmo unless they specifically used it
+4. Keep it short, natural, and enthusiastic
+5. Use emojis naturally (1-2 max)
+6. NEVER use [PAYMENT_RECEIVED] tag here - this is AFTER confirmation
+7. Vary your response - don't use the same words every time
+
+Example responses (mix them up, be creative):
+- "omg tysm!! just got it 🥰"
+- "yay received!! you're amazing 💕"
+- "got it!! thanks so much 🙏"
+- "thank uuu i see it 🥺💓"
+- "omg yes received!! tysm babe 😘"`
+
+            try {
+                let thankYouMsg = await venice.chatCompletion(
+                    confirmSystemPrompt,
+                    contextMessages.slice(-3),
+                    contextMessages.length > 0 ? contextMessages[contextMessages.length - 1].content : 'I sent it',
+                    { apiKey: vKey, model: vModel, temperature: 0.8 } // Higher temp for variety
+                )
+                thankYouMsg = thankYouMsg.replace(/\*[^*]+\*/g, '').replace(/\[PAYMENT_RECEIVED\]|\[PAIEMENT_REÇU\]|\[PAIEMENT_RECU\]/g, '').trim()
+
+                await whatsapp.sendText(claim.contact.phone_whatsapp, thankYouMsg, undefined, effectiveAgentId as string)
+
+                if (conversation) {
+                    await prisma.message.create({
+                        data: {
+                            conversationId: conversation.id,
+                            sender: 'ai',
+                            message_text: thankYouMsg,
+                            timestamp: new Date()
+                        }
+                    })
+                }
+            } catch (e) {
+                logger.error('Failed to send confirmation thank you msg', e as Error)
+            }
+        }
 
     } else {
         // REJECTION
@@ -348,9 +408,13 @@ export async function processPaymentClaimDecision(
             // The full systemPrompt contains PayPal info which causes the AI to mention it
             const agentName = conversation?.prompt?.name || 'Lena'
 
+            const isVerificationRequest = claim.metadata && (claim.metadata as any).userAsked === true
+            
             const rejectSystemPrompt = `You are ${agentName}, a friendly teenage girl chatting on WhatsApp.
-You speak casually in short messages (3-8 words per message).
-CURRENT SITUATION: The user claims they sent you money, but you just checked ALL your accounts and NOTHING arrived.
+You speak casually in short messages (3-10 words per message).
+CURRENT SITUATION: ${isVerificationRequest 
+    ? "The user asked if you received money. You just checked ALL your accounts and NOTHING arrived." 
+    : "The user claims they sent you money, but you just checked ALL your accounts and NOTHING arrived."}
 
 CRITICAL RULES:
 1. You MUST tell the user you have NOT received ANY money.
@@ -360,11 +424,18 @@ CRITICAL RULES:
 5. Do NOT confirm any payment.
 6. Be confused/surprised that they claim to have sent something.
 7. Keep it short and natural.
+8. VARY your response - use different words each time.
+9. Use emojis naturally (0-1 max).
 
-Example responses:
-- "wait what? i didnt get anything"
+Example responses (be creative, mix them up):
+- "wait what? i didnt get anything 🤔"
 - "huh? nothing came through"
-- "are u sure? i checked and theres nothing"`
+- "are u sure? i checked and theres nothing"
+- "i just looked and i dont see anything"
+- "my account is empty, didnt receive anything"
+- "just checked, nothing arrived yet"
+- "i dont see any payment, are u sure?"
+- "checked everywhere, got nothing 😕"
 
             try {
                 let notReceivedMsg = await venice.chatCompletion(
