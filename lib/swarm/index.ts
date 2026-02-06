@@ -15,7 +15,7 @@ import {
 } from './nodes';
 import type { SwarmState, IntentionResult } from './types';
 
-const API_KEY = process.env.VENICE_API_KEY;
+// NOTE: API key is now fetched from DB (settings) not env var, to allow hot-swapping
 
 export async function runSwarm(
   userMessage: string,
@@ -56,6 +56,12 @@ export async function runSwarm(
 
   if (!profile) throw new Error('Profile not found');
 
+  // Récupérer la clé API Venice depuis la DB (pas l'env var)
+  const veniceKeySetting = await prisma.setting.findUnique({
+    where: { key: 'venice_api_key' }
+  });
+  const veniceApiKey = veniceKeySetting?.value || process.env.VENICE_API_KEY || '';
+
   // Récupérer la phase
   const agentContact = await prisma.agentContact.findFirst({
     where: { agentId, contactId },
@@ -89,7 +95,7 @@ export async function runSwarm(
     userName,
     lastMessageType: lastMessageType || 'text',
     settings: { 
-      venice_api_key: API_KEY || '', 
+      venice_api_key: veniceApiKey, 
       venice_model: 'venice-uncensored',
       timezone: profile.timezone || 'Europe/Paris',
       locale: profile.locale || 'fr-FR'
