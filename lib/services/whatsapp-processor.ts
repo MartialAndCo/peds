@@ -305,7 +305,6 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                     console.log(`[Processor] Discord contact ${contact.id} marked as active`)
                     
                     // Update lead status to CONVERTED if it exists and is still IMPORTED
-                    const { prisma } = require('@/lib/prisma')
                     const lead = await prisma.lead.findFirst({
                         where: { 
                             contactId: contact.id,
