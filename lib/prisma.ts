@@ -14,13 +14,16 @@ const getDatabaseUrl = () => {
         // Actually, URL object handles postgres:// fine.
         const urlObj = new URL(url)
 
-        // Force higher limits for Serverless (Amplify)
-        // Default is often 5-10, we need more for concurrent CRONs
+        // Conservative limits to prevent connection exhaustion
+        // PostgreSQL default max_connections is 100, we need to stay well below
         if (!urlObj.searchParams.has('connection_limit')) {
-            urlObj.searchParams.set('connection_limit', '20')
+            urlObj.searchParams.set('connection_limit', '5')
         }
         if (!urlObj.searchParams.has('pool_timeout')) {
-            urlObj.searchParams.set('pool_timeout', '30') // 30s wait before throwing timeout
+            urlObj.searchParams.set('pool_timeout', '10') // 10s wait before throwing timeout
+        }
+        if (!urlObj.searchParams.has('idle_timeout')) {
+            urlObj.searchParams.set('idle_timeout', '30') // Close idle connections after 30s
         }
         return urlObj.toString()
     } catch (e) {
