@@ -78,12 +78,24 @@ export async function POST(req: Request) {
 
         const agentId = providerConfig.agentId
 
+        // Normalize identifier
+        let normalizedIdentifier = body.identifier
+        if (body.type === 'WHATSAPP') {
+            normalizedIdentifier = body.identifier.replace(/\s/g, '')
+            if (/^0[67]/.test(normalizedIdentifier)) {
+                normalizedIdentifier = '+33' + normalizedIdentifier.substring(1)
+            }
+        } else {
+            // Discord: just remove spaces for consistency
+            normalizedIdentifier = body.identifier.replace(/\s/g, '')
+        }
+
         // Check for duplicate identifier
         const existingContact = await prisma.contact.findFirst({
             where: {
                 OR: [
-                    { phone_whatsapp: body.identifier },
-                    { discordId: body.identifier }
+                    { phone_whatsapp: normalizedIdentifier },
+                    { discordId: normalizedIdentifier }
                 ]
             }
         })
@@ -92,7 +104,7 @@ export async function POST(req: Request) {
         if (existingContact) {
             // Check if already a lead
             existingLead = await prisma.lead.findFirst({
-                where: { identifier: body.identifier },
+                where: { identifier: normalizedIdentifier },
                 include: { agent: { select: { name: true } } }
             })
             
@@ -131,15 +143,6 @@ export async function POST(req: Request) {
             }
         }
 
-        // Normalize phone number if WhatsApp
-        let normalizedIdentifier = body.identifier
-        if (body.type === 'WHATSAPP') {
-            normalizedIdentifier = body.identifier.replace(/\s/g, '')
-            if (/^0[67]/.test(normalizedIdentifier)) {
-                normalizedIdentifier = '+33' + normalizedIdentifier.substring(1)
-            }
-        }
-
         // Create the lead
         const lead = await prisma.lead.create({
             data: {
@@ -174,7 +177,7 @@ export async function POST(req: Request) {
         if (body.type === 'WHATSAPP') {
             contactData.phone_whatsapp = normalizedIdentifier
         } else {
-            contactData.discordId = body.identifier
+            contactData.discordId = normalizedIdentifier
         }
 
         const contact = await prisma.contact.create({
