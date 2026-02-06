@@ -25,6 +25,19 @@ export async function GET(req: Request) {
     const where: any = {
       contact: { isHidden: false }
     }
+    
+    // Filter out conversations that haven't started yet (provider leads waiting for first message)
+    // Unless explicitly requested with includePending=true
+    const includePending = searchParams.get('includePending') === 'true'
+    if (!includePending) {
+      where.NOT = {
+        status: 'paused',
+        metadata: {
+          path: ['state'],
+          equals: 'WAITING_FOR_LEAD'
+        }
+      }
+    }
 
     // Agent filter
     if (agentId) {

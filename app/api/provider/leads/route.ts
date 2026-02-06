@@ -134,7 +134,7 @@ export async function POST(req: Request) {
             source: `provider:${session.user.id}`,
             notes: body.notes || `Source: ${body.source}`,
             status: 'paused',  // Start as paused, will become active on first response
-            isHidden: true,  // Hidden until first message (prevents clutter)
+            isHidden: false,  // Contact is visible, conversation will be filtered
             profile: {
                 age: body.age,
                 location: body.location,
