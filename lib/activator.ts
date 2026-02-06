@@ -88,6 +88,12 @@ export const activator = {
         const parts = aiText.split('|||').filter(p => p.trim().length > 0)
         const chatJid = conversation.contact.phone_whatsapp // Library handles formatting and @c.us vs @s.whatsapp.net
 
+        // Skip if no phone number (e.g., Discord-only contact)
+        if (!chatJid) {
+            console.log('[Activator] No phone number for contact, skipping WhatsApp send')
+            return { success: true, message: 'Activated (No WhatsApp - Discord only)' }
+        }
+
         for (const part of parts) {
             try {
                 // Use the centralized client which handles Auth/Config correctly

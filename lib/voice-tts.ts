@@ -416,8 +416,9 @@ DO NOT MENTION "LANGUAGE MODEL" or "TTS". Just say "can't really talk rn...".`
             const contact = await prisma.contact.findUnique({ where: { id: pending.contactId } })
             if (!contact) return true
 
+            const contactPhone = contact.phone_whatsapp || ''
             await whatsapp.sendVoice(
-                contact.phone_whatsapp,
+                contactPhone,
                 pending.audioUrl, // Use URL if possible
                 undefined,
                 pending.agentId
@@ -503,7 +504,7 @@ Sentence: "${pending.originalPrompt}"`
                 // Since we are inside the object, we can use `voiceTtsService.generateAndSend` or split the functions.
                 // To be safe regarding 'this' context in this object literal structure:
                 await voiceTtsService.generateAndSend({
-                    contactPhone: contact.phone_whatsapp,
+                    contactPhone: contact.phone_whatsapp || '',
                     text: newText.replace(/"/g, ''), // Clean quotes
                     agentId: pending.agentId,
                     conversationId: conversation.id,

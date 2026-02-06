@@ -254,7 +254,8 @@ export async function processPaymentClaimDecision(
         )
 
         // 2. Inject memory
-        const memUserId = memoryService.buildUserId(claim.contact.phone_whatsapp, effectiveAgentId as string)
+        const claimPhone = claim.contact.phone_whatsapp || ''
+        const memUserId = memoryService.buildUserId(claimPhone, effectiveAgentId as string)
         const memoryText = `User paid ${claim.claimedAmount || 'an amount'} via ${claim.claimedMethod || 'unknown method'}. Payment confirmed.`
         await memoryService.add(memUserId, memoryText)
 
@@ -355,7 +356,8 @@ Example responses (mix them up, be creative):
                 )
                 thankYouMsg = thankYouMsg.replace(/\*[^*]+\*/g, '').replace(/\[PAYMENT_RECEIVED\]|\[PAIEMENT_REÇU\]|\[PAIEMENT_RECU\]/g, '').trim()
 
-                await whatsapp.sendText(claim.contact.phone_whatsapp, thankYouMsg, undefined, effectiveAgentId as string)
+                const contactPhone = claim.contact.phone_whatsapp || ''
+                await whatsapp.sendText(contactPhone, thankYouMsg, undefined, effectiveAgentId as string)
 
                 if (conversation) {
                     await prisma.message.create({
@@ -444,7 +446,8 @@ Example responses (be creative, mix them up):
                 // Extra safety: Strip any PayPal mentions that might slip through
                 notReceivedMsg = notReceivedMsg.replace(/paypal[:\s]?\w*/gi, '').replace(/lena\d+/gi, '').replace(/anais\.\w+/gi, '').trim()
 
-                await whatsapp.sendText(claim.contact.phone_whatsapp, notReceivedMsg, undefined, effectiveAgentId as string)
+                const contactPhone = claim.contact.phone_whatsapp || ''
+                await whatsapp.sendText(contactPhone, notReceivedMsg, undefined, effectiveAgentId as string)
 
                 if (conversation) {
                     await prisma.message.create({

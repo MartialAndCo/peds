@@ -356,7 +356,8 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                 }))
 
                 // Analyze with conversation context for smart paywall detection
-                const analysis = await mediaService.analyzeRequest(messageText, contact.phone_whatsapp, agentId, history)
+                const contactPhone = contact.phone_whatsapp || ''
+                const analysis = await mediaService.analyzeRequest(messageText, contactPhone, agentId, history)
 
                 if (analysis && analysis.isMediaRequest) {
                     // =============================================================
@@ -373,7 +374,8 @@ Keep response SHORT and excited.)`
 
                         // Use Director to build full prompt
                         const { director } = require('@/lib/director')
-                        const { phase, details, reason } = await director.determinePhase(contact.phone_whatsapp, agentId)
+                        const contactPhone = contact.phone_whatsapp || ''
+                        const { phase, details, reason } = await director.determinePhase(contactPhone, agentId)
                         const fullSystemPrompt = await director.buildSystemPrompt(
                             settings,
                             contact,
@@ -394,8 +396,8 @@ Keep response SHORT and excited.)`
                             aiPaywallResponse = await venice.chatCompletion(fullSystemPrompt, history, userMessageWithInstruction, { apiKey: settings.venice_api_key, model: settings.venice_model })
                         }
 
-                        await whatsapp.markAsRead(contact.phone_whatsapp).catch(() => { })
-                        await whatsapp.sendText(contact.phone_whatsapp, aiPaywallResponse, undefined, agentId)
+                        await whatsapp.markAsRead(contactPhone).catch(() => { })
+                        await whatsapp.sendText(contactPhone, aiPaywallResponse, undefined, agentId)
 
                         if (currentConversation) {
                             await prisma.message.create({
@@ -429,7 +431,8 @@ Keep response SHORT and excited.)`
 
                         // Use Director to build FULL prompt (Phases, Style, etc.)
                         const { director } = require('@/lib/director')
-                        const { phase, details, reason } = await director.determinePhase(contact.phone_whatsapp, agentId)
+                        const contactPhone = contact.phone_whatsapp || ''
+                        const { phase, details, reason } = await director.determinePhase(contactPhone, agentId)
                         const fullSystemPrompt = await director.buildSystemPrompt(
                             settings,
                             contact,
@@ -462,8 +465,8 @@ Keep response SHORT and excited.)`
                             aiRefusal = await venice.chatCompletion(fullSystemPrompt, history, userMessageWithInstruction, { apiKey: settings.venice_api_key, model: settings.venice_model })
                         }
 
-                        await whatsapp.markAsRead(contact.phone_whatsapp).catch(() => { })
-                        await whatsapp.sendText(contact.phone_whatsapp, aiRefusal, undefined, agentId)
+                        await whatsapp.markAsRead(contactPhone).catch(() => { })
+                        await whatsapp.sendText(contactPhone, aiRefusal, undefined, agentId)
                         // Save Interaction
                         if (currentConversation) {
                             await prisma.message.create({
@@ -479,11 +482,12 @@ Keep response SHORT and excited.)`
                     }
 
                     if (analysis.intentCategory) {
-                        const result = await mediaService.processRequest(contact.phone_whatsapp, analysis.intentCategory)
+                        const contactPhone = contact.phone_whatsapp || ''
+                        const result = await mediaService.processRequest(contactPhone, analysis.intentCategory)
 
                         if (result.action === 'SEND') {
                             const dataUrl = result.media.url
-                            await whatsapp.markAsRead(contact.phone_whatsapp).catch(() => { })
+                            await whatsapp.markAsRead(contactPhone).catch(() => { })
 
                             // Fix: Don't assume everything that isn't data:image is a video.
                             // Check extension or context match.
@@ -494,20 +498,20 @@ Keep response SHORT and excited.)`
                             const shouldSendAsVideo = !isDataImage && (isVideoExt || isVideoIntent)
 
                             if (shouldSendAsVideo) {
-                                await whatsapp.sendVideo(contact.phone_whatsapp, dataUrl, undefined, agentId)
+                                await whatsapp.sendVideo(contactPhone, dataUrl, undefined, agentId)
                             } else {
-                                await whatsapp.sendImage(contact.phone_whatsapp, dataUrl, undefined, agentId)
+                                await whatsapp.sendImage(contactPhone, dataUrl, undefined, agentId)
                             }
 
                             await prisma.media.update({
                                 where: { id: result.media.id },
-                                data: { sentTo: { push: contact.phone_whatsapp } }
+                                data: { sentTo: { push: contactPhone } }
                             })
 
                             // Memory & Logs
                             const { memoryService } = require('@/lib/memory')
-                            await memoryService.add(contact.phone_whatsapp, messageText)
-                            await memoryService.add(contact.phone_whatsapp, `[System]: Sent media ${analysis.intentCategory}`)
+                            await memoryService.add(contactPhone, messageText)
+                            await memoryService.add(contactPhone, `[System]: Sent media ${analysis.intentCategory}`)
 
                             const activeConv = await prisma.conversation.findFirst({
                                 where: {
@@ -594,12 +598,13 @@ Keep response SHORT and excited.)`
 
                             // Split & Send
                             const parts = responseText.split(/\|+/).filter(p => p.trim().length > 0)
+                            const contactPhone = contact.phone_whatsapp || ''
                             for (const part of parts) {
-                                await whatsapp.sendTypingState(contact.phone_whatsapp, true, agentId)
+                                await whatsapp.sendTypingState(contactPhone, true, agentId)
                                 // Simulated Delay
                                 await new Promise(r => setTimeout(r, 2000))
-                                await whatsapp.markAsRead(contact.phone_whatsapp).catch(() => { })
-                                await whatsapp.sendText(contact.phone_whatsapp, part.trim(), undefined, agentId)
+                                await whatsapp.markAsRead(contactPhone).catch(() => { })
+                                await whatsapp.sendText(contactPhone, part.trim(), undefined, agentId)
                             }
 
                             if (currentConversation) {

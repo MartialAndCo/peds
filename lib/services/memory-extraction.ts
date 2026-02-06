@@ -109,10 +109,11 @@ export const memoryExtractionService = {
 
                     if (facts.length > 0) {
                         // Store facts in Mem0 with agent-specific user_id
-                        const userId = memoryService.buildUserId(conv.contact.phone_whatsapp, agent.id as unknown as string)
+                        const phone = conv.contact.phone_whatsapp || ''
+                        const userId = memoryService.buildUserId(phone, agent.id as unknown as string)
                         await memoryService.addMany(userId, facts)
                         factsExtracted += facts.length
-                        console.log(`[MemoryExtraction] Stored ${facts.length} facts for ${conv.contact.phone_whatsapp}`)
+                        console.log(`[MemoryExtraction] Stored ${facts.length} facts for ${phone}`)
                     }
 
                     // Update last extraction timestamp
