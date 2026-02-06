@@ -244,7 +244,7 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
                 <CardHeader className="flex flex-row items-center justify-between py-3 border-b">
                     <CardTitle className="text-lg flex items-center">
                         <User className="mr-2 h-5 w-5" />
-                        {conversation.contact.name} ({conversation.contact.phone_whatsapp})
+                        {conversation.contact.name} ({conversation.contact.phone_whatsapp || 'N/A'})
                     </CardTitle>
                     <div className="flex gap-2">
                         <Badge variant={conversation.status === 'active' ? 'default' : 'secondary'}>

@@ -5,7 +5,7 @@ import autoTable from 'jspdf-autotable'
 interface ExportData {
     contact: {
         name: string | null
-        phone_whatsapp: string
+        phone_whatsapp: string | null
         status: string
         createdAt: Date
         notes?: string | null
@@ -43,7 +43,7 @@ export async function generateDossier(data: ExportData) {
     doc.text(data.contact.name || 'Unknown Contact', margin, 35)
 
     doc.setFontSize(10)
-    doc.text(`Phone: ${data.contact.phone_whatsapp}`, margin, 42)
+    doc.text(`Phone: ${data.contact.phone_whatsapp || 'N/A'}`, margin, 42)
     doc.text(`Status: ${data.contact.status}`, margin, 47)
     doc.text(`Created: ${new Date(data.contact.createdAt).toLocaleDateString()}`, margin, 52)
     if (data.contact.notes) doc.text(`Notes: ${data.contact.notes}`, margin, 57)

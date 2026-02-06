@@ -31,7 +31,11 @@ export default async function AdminPaymentsPage() {
     const serializedPayments = payments.map(p => ({
         ...p,
         amount: Number(p.amount),
-        createdAt: p.createdAt.toISOString()
+        createdAt: p.createdAt.toISOString(),
+        contact: p.contact ? {
+            name: p.contact.name,
+            phone_whatsapp: p.contact.phone_whatsapp || 'N/A'
+        } : null
     }))
 
     return (

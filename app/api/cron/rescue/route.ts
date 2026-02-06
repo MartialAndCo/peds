@@ -111,7 +111,12 @@ export async function GET(req: Request) {
                 const cleanResponse = responseText.replace(new RegExp('\\*[^*]+\\*', 'g'), '').trim()
 
                 // Send
-                await whatsapp.sendText(conv.contact.phone_whatsapp, cleanResponse)
+                const phone = conv.contact.phone_whatsapp
+                if (!phone) {
+                    console.log(`[Rescue] Skipping conversation ${conv.id} - no phone number`)
+                    continue
+                }
+                await whatsapp.sendText(phone, cleanResponse)
 
                 // Save
                 await prisma.message.create({

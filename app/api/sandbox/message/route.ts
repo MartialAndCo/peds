@@ -70,25 +70,26 @@ export async function POST(req: Request) {
         // Detect Intent
         const analysis = await mediaService.analyzeRequest(message)
         let responsePayload: any = { type: 'text', content: '' }
+        const contactPhone = contact.phone_whatsapp || SANDBOX_PHONE
 
         if (analysis && analysis.isMediaRequest) {
             if (!analysis.allowed) {
                 responsePayload = { type: 'text', content: analysis.refusalReason || "Je ne peux pas envoyer ce type de contenu." }
             } else if (analysis.intentCategory) {
-                const result = await mediaService.processRequest(contact.phone_whatsapp, analysis.intentCategory)
+                const result = await mediaService.processRequest(contactPhone, analysis.intentCategory)
 
                 if (result.action === 'SEND') {
                     // Send Media
                     // Mark sent
                     await prisma.media.update({
                         where: { id: result.media.id },
-                        data: { sentTo: { push: contact.phone_whatsapp } }
+                        data: { sentTo: { push: contactPhone } }
                     })
 
                     // Save System Message
                     const { memoryService } = require('@/lib/memory')
-                    await memoryService.add(contact.phone_whatsapp, message)
-                    await memoryService.add(contact.phone_whatsapp, `[System]: Sent media ${analysis.intentCategory}`)
+                    await memoryService.add(contactPhone, message)
+                    await memoryService.add(contactPhone, `[System]: Sent media ${analysis.intentCategory}`)
 
                     await prisma.message.create({
                         data: {
@@ -108,7 +109,7 @@ export async function POST(req: Request) {
 
                 } else if (result.action === 'REQUEST_SOURCE') {
                     // Request Pending logic (pass global settings for sandbox)
-                    const status = await mediaService.requestFromSource(contact.phone_whatsapp, analysis.intentCategory, settings)
+                    const status = await mediaService.requestFromSource(contactPhone, analysis.intentCategory, settings)
 
                     // Generate "Wait" message
                     const instruction = status === 'REQUEST_NEW'
@@ -229,8 +230,8 @@ export async function POST(req: Request) {
 
             // Store Memory
             try {
-                await memoryService.add(contact.phone_whatsapp, lastMessage)
-                await memoryService.add(contact.phone_whatsapp, aiText)
+                await memoryService.add(contactPhone, lastMessage)
+                await memoryService.add(contactPhone, aiText)
             } catch (e) { }
 
             responsePayload = { type: 'text', content: aiText }

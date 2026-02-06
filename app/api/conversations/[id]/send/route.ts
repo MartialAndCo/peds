@@ -30,7 +30,11 @@ export async function POST(
 
         // Send via WhatsApp with specific Agent Session
         // We cast to string | undefined just in case, though agentId is String? in schema
-        await whatsapp.sendText(conversation.contact.phone_whatsapp, messageText, undefined, conversation.agentId || undefined)
+        const phone = conversation.contact.phone_whatsapp
+        if (!phone) {
+            return NextResponse.json({ error: 'Contact has no WhatsApp phone number' }, { status: 400 })
+        }
+        await whatsapp.sendText(phone, messageText, undefined, conversation.agentId || undefined)
 
         // Save to DB
         const message = await prisma.message.create({

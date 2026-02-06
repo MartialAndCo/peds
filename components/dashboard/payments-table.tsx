@@ -21,7 +21,7 @@ interface Payment {
     createdAt: Date | string
     contact?: {
         name: string | null
-        phone_whatsapp: string
+        phone_whatsapp: string | null
     } | null
     payerName?: string | null
 }

@@ -56,14 +56,17 @@ export default async function AgentPaymentsPage({ params }: { params: Promise<{ 
         }
     })
 
+    // Filter out payments with null contact or phone_whatsapp for display
+    const validPayments = payments.filter(p => p.contact && p.contact.phone_whatsapp)
+
     const agent = await prisma.agent.findUnique({
         where: { id: id },
         select: { name: true }
     })
 
-    const totalRevenue = payments.reduce((sum, p) => sum + Number(p.amount), 0)
+    const totalRevenue = validPayments.reduce((sum, p) => sum + Number(p.amount), 0)
 
-    const serializedPayments = payments.map(p => ({
+    const serializedPayments = validPayments.map(p => ({
         ...p,
         amount: Number(p.amount),
         createdAt: p.createdAt.toISOString()
@@ -74,7 +77,7 @@ export default async function AgentPaymentsPage({ params }: { params: Promise<{ 
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-white">{agent?.name || 'Agent'} Payments</h1>
-                    <p className="text-white/40">Revenue attributed to this agent's contacts</p>
+                    <p className="text-white/40">Revenue attributed to this agent's contacts ({validPayments.length} of {payments.length})</p>
                 </div>
                 <ManualPaymentDialog agentId={id} />
             </div>

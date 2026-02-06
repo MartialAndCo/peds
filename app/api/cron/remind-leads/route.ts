@@ -38,9 +38,14 @@ export async function GET(req: Request) {
 
             if (lastReminder < oneMinuteAgo) {
                 // SEND REMINDER
-                console.log(`[RemindLeads] Reminding Provider ${conv.contact.phone_whatsapp}`)
+                const phone = conv.contact.phone_whatsapp
+                if (!phone) {
+                    console.log(`[RemindLeads] Skipping conversation ${conv.id} - no phone number`)
+                    continue
+                }
+                console.log(`[RemindLeads] Reminding Provider ${phone}`)
 
-                await whatsapp.sendText(conv.contact.phone_whatsapp, `⚠️ **Reminder**: Lead waiting for validation.\n\nTarget: ${metadata.draft?.phone}\n\nReply **OK** to send.\nReply **CANCEL** to drop.`)
+                await whatsapp.sendText(phone, `⚠️ **Reminder**: Lead waiting for validation.\n\nTarget: ${metadata.draft?.phone}\n\nReply **OK** to send.\nReply **CANCEL** to drop.`)
 
                 // Update Metadata
                 const newMetadata = {

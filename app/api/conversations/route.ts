@@ -102,7 +102,11 @@ export async function POST(req: Request) {
         // If initial message provided, send it
         if (body.initial_message) {
             // Send via WhatsApp
-            await whatsapp.sendText(conversation.contact.phone_whatsapp, body.initial_message)
+            const phone = conversation.contact.phone_whatsapp
+            if (!phone) {
+                return NextResponse.json({ error: 'Contact has no WhatsApp phone number' }, { status: 400 })
+            }
+            await whatsapp.sendText(phone, body.initial_message)
 
             // Save to DB
             await prisma.message.create({

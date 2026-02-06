@@ -278,7 +278,7 @@ export function ConversationUnifiedView({
               {conversation.contact.name || 'Inconnu'}
             </h3>
             <p className="text-xs text-white/40 font-mono truncate">
-              {conversation.contact.phone_whatsapp}
+              {conversation.contact.phone_whatsapp || 'N/A'}
             </p>
           </div>
         </div>
@@ -510,7 +510,7 @@ export function ConversationUnifiedView({
                   </div>
                   <div className="flex justify-between">
                     <span className="text-white/60">Phone</span>
-                    <span className="text-white font-mono text-xs">{conversation.contact.phone_whatsapp}</span>
+                    <span className="text-white font-mono text-xs">{conversation.contact.phone_whatsapp || 'N/A'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-white/60">Source</span>

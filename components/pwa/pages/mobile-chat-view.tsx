@@ -262,7 +262,7 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
                                     </span>
                                 </div>
                                 <SheetTitle className="text-2xl font-bold text-white mb-1">{conversation.contact?.name || 'Inconnu'}</SheetTitle>
-                                <p className="text-white/50 font-mono text-sm">{conversation.contact.phone_whatsapp}</p>
+                                <p className="text-white/50 font-mono text-sm">{conversation.contact.phone_whatsapp || 'N/A'}</p>
                             </div>
                         </SheetHeader>
 

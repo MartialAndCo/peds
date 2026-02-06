@@ -66,8 +66,8 @@ export async function getPipelineData() {
 
         const mapped: PipelineContact = {
             id: c.id,
-            name: profile.name || c.name || c.phone_whatsapp,
-            phone: c.phone_whatsapp,
+            name: profile.name || c.name || c.phone_whatsapp || 'N/A',
+            phone: c.phone_whatsapp || 'N/A',
             age: profile.age || '?',
             job: profile.job || '?',
             location: profile.location || '?',
