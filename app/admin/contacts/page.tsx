@@ -148,7 +148,11 @@ export default function ContactsPage() {
                                         <TableCell>
                                             <Badge className={cn(
                                                 "px-2 py-0.5 text-[10px] font-bold uppercase tracking-tighter",
-                                                contact.status === 'new' ? "bg-sky-500/10 text-sky-400 border-sky-500/20" : "bg-white/5 text-white/40 border-white/10"
+                                                contact.status === 'new' ? "bg-sky-500/10 text-sky-400 border-sky-500/20" :
+                                                contact.status === 'unknown' ? "bg-slate-500/10 text-slate-400 border-slate-500/20" :
+                                                contact.status === 'active' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
+                                                contact.status === 'paused' ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
+                                                "bg-white/5 text-white/40 border-white/10"
                                             )}>
                                                 {contact.status}
                                             </Badge>

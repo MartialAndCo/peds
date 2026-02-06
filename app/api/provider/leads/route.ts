@@ -133,7 +133,7 @@ export async function POST(req: Request) {
             name: body.type === 'DISCORD' ? body.identifier : undefined,
             source: `provider:${session.user.id}`,
             notes: body.notes || `Source: ${body.source}`,
-            status: 'new',
+            status: 'paused',  // Start as paused, will become active on first response
             isHidden: false,
             profile: {
                 age: body.age,

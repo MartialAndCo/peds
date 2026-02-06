@@ -324,7 +324,7 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                     phone_whatsapp: normalizedPhone,
                     name: payload._data?.notifyName || "Inconnu",
                     source: 'WhatsApp Incoming',
-                    status: 'new',
+                    status: 'unknown',  // Not a lead, came from spontaneous message
                     isHidden: isSystemNumber || false
                 }
             })
