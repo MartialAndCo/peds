@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -80,7 +80,8 @@ const statusLabels: Record<string, string> = {
     REJECTED: 'Rejected'
 }
 
-export default function ProviderLeadsPage() {
+// Wrapper component to handle Suspense for useSearchParams
+function ProviderLeadsContent() {
     const searchParams = useSearchParams()
     const initialProviderId = searchParams.get('providerId')
     
@@ -382,5 +383,30 @@ export default function ProviderLeadsPage() {
                 </CardContent>
             </Card>
         </div>
+    )
+}
+
+// Main export with Suspense boundary
+export default function ProviderLeadsPage() {
+    return (
+        <Suspense fallback={
+            <div className="space-y-6 max-w-7xl mx-auto p-6">
+                <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 bg-slate-800 rounded-lg animate-pulse" />
+                    <div>
+                        <div className="h-8 w-48 bg-slate-800 rounded animate-pulse" />
+                        <div className="h-4 w-32 bg-slate-800 rounded mt-2 animate-pulse" />
+                    </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    {[...Array(4)].map((_, i) => (
+                        <div key={i} className="h-24 bg-slate-800 rounded-lg animate-pulse" />
+                    ))}
+                </div>
+                <div className="h-96 bg-slate-800 rounded-lg animate-pulse" />
+            </div>
+        }>
+            <ProviderLeadsContent />
+        </Suspense>
     )
 }
