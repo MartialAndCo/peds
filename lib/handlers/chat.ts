@@ -309,10 +309,21 @@ export async function handleChat(
         })
         if (newerMessage) return { handled: true, result: 'debounced' }
 
-        // Background Profiler (30%)
-        if (Math.random() < 0.3) {
+        // Background Profiler - Always run but with deduplication via lastProfileUpdate
+        const shouldProfile = !contact.lastProfileUpdate || 
+            (new Date().getTime() - new Date(contact.lastProfileUpdate).getTime()) > 30 * 60 * 1000 // 30 min minimum
+        
+        if (shouldProfile) {
             const { profilerService } = require('@/lib/profiler')
-            profilerService.updateProfile(contact.id).catch(console.error)
+            profilerService.updateProfile(contact.id)
+                .then(() => {
+                    // Update timestamp to prevent re-running too soon
+                    prisma.contact.update({
+                        where: { id: contact.id },
+                        data: { lastProfileUpdate: new Date() }
+                    }).catch(() => {}) // Silent fail
+                })
+                .catch(console.error)
         }
     }
 

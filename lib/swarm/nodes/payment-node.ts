@@ -1,6 +1,7 @@
 import { SwarmState } from '../types';
 import { prisma } from '@/lib/prisma';
 import { settingsService } from '@/lib/settings-cache';
+import { classifyPaymentIntent } from '@/lib/services/payment-intent-classifier';
 
 export async function paymentNode(state: SwarmState): Promise<Partial<SwarmState>> {
   console.log('[Swarm] paymentNode: Analyse contexte paiement');
@@ -63,51 +64,69 @@ export async function paymentNode(state: SwarmState): Promise<Partial<SwarmState
     ? methods.join('\n')
     : (isFrench ? '(Aucune méthode configurée)' : '(No payment methods configured)');
   
-  // Détecter si l'utilisateur confirme déjà avoir envoyé de l'argent
-  const userMsg = state.userMessage.toLowerCase();
+  // Use LLM classifier for intent detection
+  let classification;
+  try {
+    // Build history from state if available
+    const history = state.messages?.slice(-3).map((m: any) => ({
+      role: m.role === 'ai' ? 'assistant' : 'user',
+      content: m.content
+    })) || [];
+    
+    classification = await classifyPaymentIntent(
+      state.userMessage,
+      history,
+      settings.venice_api_key
+    );
+    
+    console.log('[Swarm] paymentNode classification:', classification);
+  } catch (error) {
+    console.error('[Swarm] paymentNode classification error:', error);
+    // Fallback to NONE on error
+    classification = { intent: 'NONE', confidence: 0, reason: 'Error' };
+  }
   
-  // Mots-clés de DEMANDE DE VÉRIFICATION (user demande si on a reçu)
-  // Ces mots indiquent que le user veut savoir si on a reçu, pas qu'il a envoyé
-  const verificationRequestWords = [
-    'did you check', 'did you receive', 'did you get', 'tu as reçu', 
-    'tu as vérifié', 't\'as reçu', 't\'as vérifié', 'you checked',
-    'have you received', 'as-tu reçu', 'avez-vous reçu', 
-    'tu l\'as reçu', 'you got it', 'ça y est', 'is it there',
-    'did it arrive', 'est-ce arrivé', 'tu l\'as vu'
-  ];
-  
-  // Mots-clés d'action (avoir envoyé)
-  const sentActionWords = ['sent', 'envoyé', 'envoye', 'payé', 'paye', 'paid', 'done', 
-    'transfer', 'transferred', 'viré', 'vire', 'just sent', 'already sent', 
-    "c'est fait", "cest fait"];
-  
-  // Mots-clés contexte (argent/paiement)
-  const moneyContextWords = ['money', 'argent', 'payment', 'paiement', 'paypal', 
-    'cashapp', 'venmo', 'zelle', 'transfer', 'virement', 'bank', 'compte',
-    '$', '€', 'dollar', 'euro', 'bucks', '10k', '10 000', '10000', '10,000',
-    'sent you', 'sent the', 'envoyé le', 'envoyé l'];
-  
-  const isVerificationRequest = verificationRequestWords.some(word => userMsg.includes(word));
-  const hasSentAction = sentActionWords.some(word => userMsg.includes(word));
-  const hasMoneyContext = moneyContextWords.some(word => userMsg.includes(word));
-  
-  // Détection PLUS permissive: soit action explicite, soit confirmation claire
-  // EXCLUSION: si c'est une demande de vérification, ce n'est PAS une confirmation
-  const isPaymentConfirmation = !isVerificationRequest && hasSentAction && (hasMoneyContext || userMsg.includes('done'));
-  
+  // Build instructions based on LLM classification
   let confirmationInstructions = '';
   
-  if (isVerificationRequest) {
-    // User demande si on a reçu → Pas de confirmation auto, on attend la validation admin
+  if (classification.intent === 'VERIFICATION') {
+    // User demande si on a reçu → Pas de confirmation auto
     confirmationInstructions = isFrench 
-      ? `\n\n⚠️ L'UTILISATEUR DEMANDE SI TU AS REÇU LE PAIEMENT:\n→ Réponds que tu vas vérifier\n→ Utilise [VERIFY_PAYMENT] à la fin de ta réponse\n→ NE PAS confirmer avoir reçu [PAIEMENT_REÇU]\n→ Attends confirmation manuelle de l'admin\n→ EXEMPLE: "je vais regarder ça ! 🥰 [VERIFY_PAYMENT]" ou "je check de suite ! [VERIFY_PAYMENT]"`
-      : `\n\n⚠️ USER IS ASKING IF YOU RECEIVED THE PAYMENT:\n→ Say you're going to check\n→ Use [VERIFY_PAYMENT] tag at the end\n→ DO NOT confirm with [PAYMENT_RECEIVED]\n→ Wait for manual admin validation\n→ EXAMPLE: "let me check! 🥰 [VERIFY_PAYMENT]" or "i'll go look! [VERIFY_PAYMENT]"`;
-  } else if (isPaymentConfirmation) {
+      ? `
+
+⚠️ L'UTILISATEUR DEMANDE SI TU AS REÇU LE PAIEMENT:
+→ Réponds que tu vas vérifier
+→ Utilise [VERIFY_PAYMENT] à la fin de ta réponse
+→ NE PAS confirmer avoir reçu [PAIEMENT_REÇU]
+→ Attends confirmation manuelle de l'admin
+→ EXEMPLE: "je vais regarder ça ! 🥰 [VERIFY_PAYMENT]" ou "je check de suite ! [VERIFY_PAYMENT]"`
+      : `
+
+⚠️ USER IS ASKING IF YOU RECEIVED THE PAYMENT:
+→ Say you're going to check
+→ Use [VERIFY_PAYMENT] tag at the end
+→ DO NOT confirm with [PAYMENT_RECEIVED]
+→ Wait for manual admin validation
+→ EXAMPLE: "let me check! 🥰 [VERIFY_PAYMENT]" or "i'll go look! [VERIFY_PAYMENT]"`;
+  } else if (classification.intent === 'CONFIRMATION') {
     // User confirme avoir envoyé → On peut confirmer
     confirmationInstructions = isFrench 
-      ? `\n\n⚠️ UTILISATEUR CONFIRME AVOIR DÉJÀ ENVOYÉ L'ARGENT:\n→ Réagis avec SURPRISE et JOIE (pas "envoie sur mon compte")\n→ Remercie immédiatement\n→ Utilise [PAIEMENT_REÇU] à la fin\n→ EXEMPLE: "omg t'es sérieux ?? merci beaucoup 🥰 [PAIEMENT_REÇU]"`
-      : `\n\n⚠️ USER CONFIRMS THEY ALREADY SENT MONEY:\n→ React with SURPRISE and JOY (not "send to my account")\n→ Thank them immediately\n→ Use [PAYMENT_RECEIVED] at the end\n→ EXAMPLE: "omg are you serious?? thank you so much 🥰 [PAYMENT_RECEIVED]"`;
+      ? `
+
+⚠️ UTILISATEUR CONFIRME AVOIR DÉJÀ ENVOYÉ L'ARGENT:
+→ Réagis avec SURPRISE et JOIE (pas "envoie sur mon compte")
+→ Remercie immédiatement
+→ Utilise [PAIEMENT_REÇU] à la fin
+→ EXEMPLE: "omg t'es sérieux ?? merci beaucoup 🥰 [PAIEMENT_REÇU]"`
+      : `
+
+⚠️ USER CONFIRMS THEY ALREADY SENT MONEY:
+→ React with SURPRISE and JOY (not "send to my account")
+→ Thank them immediately
+→ Use [PAYMENT_RECEIVED] at the end
+→ EXAMPLE: "omg are you serious?? thank you so much 🥰 [PAYMENT_RECEIVED]"`;
   }
+  // If NONE, no special instructions - let AI respond normally
   
   const paymentContext = `[PAIEMENT - RÈGLES STRICTES]:
 ${profile?.paymentRules || (isFrench ? 'Si on propose de payer → ACCEPTE avec enthousiasme. Attends confirmation avant [PAIEMENT_REÇU].' : 'If offered money → ACCEPT enthusiastically. Wait confirmation before [PAYMENT_RECEIVED].')}${confirmationInstructions}
@@ -121,6 +140,11 @@ ${isFrench ? 'FORMAT: Donne UNIQUEMENT le username quand on demande. Pas "PayPal
     contexts: {
       ...state.contexts,
       payment: paymentContext
+    },
+    // Store classification for potential use downstream
+    metadata: {
+      ...state.metadata,
+      paymentClassification: classification
     }
   };
 }

@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import Image from 'next/image'
 import { usePWAMode } from '@/hooks/use-pwa-mode'
 import { MobileContactDetails } from '@/components/pwa/pages/mobile-contact-details'
+import { useToast } from '@/components/ui/use-toast'
 
 export default function ContactDetailsPage() {
     const { contactId, agentId } = useParams()
@@ -17,8 +18,10 @@ export default function ContactDetailsPage() {
     const [loading, setLoading] = useState(true)
     const [mediaLoading, setMediaLoading] = useState(true)
     const [media, setMedia] = useState<any[]>([])
+    const [extracting, setExtracting] = useState(false)
 
     const { isPWAStandalone } = usePWAMode()
+    const { toast } = useToast()
 
     // Data init
     useEffect(() => {
@@ -165,6 +168,39 @@ export default function ContactDetailsPage() {
                             <InfoRow icon={MapPin} label="Location" value={profile.location || 'Unknown'} />
                             <InfoRow icon={Heart} label="Intent" value={profile.intent || 'Unknown'} className="text-pink-300 italic" />
                         </div>
+
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full mt-4 border-white/10 hover:bg-white/5"
+                            onClick={async () => {
+                                setExtracting(true)
+                                try {
+                                    const res = await axios.post(`/api/contacts/${contactId}/extract-profile`)
+                                    if (res.data.success) {
+                                        toast({
+                                            title: "Profil mis à jour",
+                                            description: "Les informations ont été extraites de la conversation.",
+                                        })
+                                        // Refresh contact data
+                                        const contactRes = await axios.get(`/api/contacts/${contactId}?agentId=${agentId}`)
+                                        setContact(contactRes.data)
+                                    }
+                                } catch (e: any) {
+                                    toast({
+                                        title: "Erreur",
+                                        description: e.response?.data?.message || "Impossible d'extraire le profil",
+                                        variant: "destructive"
+                                    })
+                                } finally {
+                                    setExtracting(false)
+                                }
+                            }}
+                            disabled={extracting}
+                        >
+                            {extracting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <User className="h-4 w-4 mr-2" />}
+                            {extracting ? "Extraction..." : "Extraire le profil"}
+                        </Button>
 
                         <div className="pt-4 border-t border-white/5">
                             <span className="text-[10px] uppercase text-white/30 tracking-wider block mb-2">AI Notes</span>

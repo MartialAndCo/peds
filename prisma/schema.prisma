@@ -13,6 +13,19 @@ datasource db {
 enum Role {
   ADMIN
   COLLABORATOR
+  PROVIDER
+}
+
+enum LeadType {
+  WHATSAPP
+  DISCORD
+}
+
+enum LeadStatus {
+  PENDING    // New lead, not yet processed
+  IMPORTED   // Converted to Contact in the system
+  CONVERTED  // Became a paying customer
+  REJECTED   // Bad lead
 }
 
 model User {
@@ -24,6 +37,8 @@ model User {
   updatedAt DateTime @updatedAt
   
   agents    Agent[]
+  leads     Lead[]  // Leads added by this provider
+  providerConfig ProviderConfig?
 }
 
 model Prompt {
@@ -60,6 +75,7 @@ model Contact {
   trustScore      Int            @default(0)
   lastPhaseUpdate DateTime       @default(now())
   lastTrustAnalysis DateTime     @default(now())
+  lastProfileUpdate DateTime?    // Last time profile was extracted
   
   profile         Json?          // Stores extracted info: { age, job, location, name, ... }
 
@@ -74,6 +90,7 @@ model Contact {
   agentContacts   AgentContact[]
   pendingVoiceValidations PendingVoiceValidation[]
   supervisorAlerts SupervisorAlert[]
+  lead            Lead?          // Associated lead if created via provider
 
   @@index([status])
   @@index([source])
@@ -119,6 +136,8 @@ model Agent {
   agentContacts AgentContact[]
   pendingVoiceValidations PendingVoiceValidation[]
   discordBots   DiscordBot[]
+  leads         Lead[] // Leads assigned to this agent
+  providerConfigs ProviderConfig[] // Providers assigned to this agent
 
   @@map("agents")
 }
@@ -727,3 +746,66 @@ model SystemLog {
 }
 
 
+
+// ============================================================================
+// LEAD PROVIDER SYSTEM - Lead ingestion and tracking
+// ============================================================================
+
+model Lead {
+  id            String   @id @default(cuid())
+  providerId    String   // Who added the lead
+  agentId       String   // Target agent
+  
+  // Type & Identifier
+  type          LeadType // WHATSAPP | DISCORD
+  identifier    String   // WhatsApp number or Discord username
+  
+  // Lead Info
+  age           Int?
+  location      String?
+  notes         String?
+  context       String?
+  source        String   // Where the lead was found
+  
+  // Status tracking
+  status        LeadStatus @default(PENDING)
+  
+  // Business tracking
+  pricePaid     Float    @default(4.0) // $4 per lead
+  paidAt        DateTime?
+  paidWeek      String?  // "2026-W06" for weekly tracking
+  
+  // Relations
+  provider      User     @relation(fields: [providerId], references: [id])
+  agent         Agent    @relation(fields: [agentId], references: [id])
+  
+  // Converted contact
+  contactId     String?  @unique
+  contact       Contact? @relation(fields: [contactId], references: [id])
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([providerId])
+  @@index([agentId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([identifier])
+  @@map("leads")
+}
+
+// Provider-Agent assignment configuration
+model ProviderConfig {
+  id          String @id @default(cuid())
+  providerId  String @unique
+  agentId     String // Target agent for all leads from this provider
+  
+  provider    User   @relation(fields: [providerId], references: [id])
+  agent       Agent  @relation(fields: [agentId], references: [id])
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([agentId])
+  @@map("provider_configs")
+}

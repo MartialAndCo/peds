@@ -2,13 +2,15 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, MessageSquare, MapPin, Briefcase, Heart, Calendar, User, Shield, Info, Activity } from 'lucide-react'
+import axios from 'axios'
+import { ArrowLeft, MessageSquare, MapPin, Briefcase, Heart, Calendar, User, Shield, Info, Activity, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from '@/lib/utils'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
+import { useToast } from '@/components/ui/use-toast'
 
 interface MobileContactDetailsProps {
     contact: any
@@ -16,8 +18,12 @@ interface MobileContactDetailsProps {
     agentId: string
 }
 
-export function MobileContactDetails({ contact, media, agentId }: MobileContactDetailsProps) {
+export function MobileContactDetails({ contact: initialContact, media: initialMedia, agentId }: MobileContactDetailsProps) {
     const router = useRouter()
+    const { toast } = useToast()
+    const [contact, setContact] = useState(initialContact)
+    const [media] = useState(initialMedia)
+    const [extracting, setExtracting] = useState(false)
     const profile = contact.profile || {}
     const phases = ['CONNECTION', 'VULNERABILITY', 'CRISIS', 'MONEYPOT']
     const currentPhaseIdx = phases.indexOf(contact.agentPhase || 'CONNECTION')
@@ -144,6 +150,38 @@ export function MobileContactDetails({ contact, media, agentId }: MobileContactD
                                 </div>
                             </div>
                         </div>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full border-white/10 hover:bg-white/5"
+                            onClick={async () => {
+                                setExtracting(true)
+                                try {
+                                    const res = await axios.post(`/api/contacts/${contact.id}/extract-profile`)
+                                    if (res.data.success) {
+                                        toast({
+                                            title: "Profil mis à jour",
+                                            description: "Les informations ont été extraites de la conversation.",
+                                        })
+                                        // Refresh contact data
+                                        const contactRes = await axios.get(`/api/contacts/${contact.id}?agentId=${agentId}`)
+                                        setContact(contactRes.data)
+                                    }
+                                } catch (e: any) {
+                                    toast({
+                                        title: "Erreur",
+                                        description: e.response?.data?.message || "Impossible d'extraire le profil",
+                                        variant: "destructive"
+                                    })
+                                } finally {
+                                    setExtracting(false)
+                                }
+                            }}
+                            disabled={extracting}
+                        >
+                            {extracting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <User className="h-4 w-4 mr-2" />}
+                            {extracting ? "Extraction..." : "Extraire le profil"}
+                        </Button>
                     </div>
 
                     <div className="space-y-4">

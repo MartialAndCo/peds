@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 interface PWAShellProps {
     children: React.ReactNode;
     className?: string;
-    variant?: "workspace" | "admin";
+    variant?: "workspace" | "admin" | "provider";
 }
 
 export function PWAShell({ children, className, variant = "workspace" }: PWAShellProps) {
