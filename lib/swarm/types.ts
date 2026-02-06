@@ -11,6 +11,7 @@ export interface SwarmState {
     settings?: any
     userName?: string
     lastMessageType?: string
+    platform?: 'whatsapp' | 'discord'  // Platform context
 
     // Analyse
     intention?: IntentionResult

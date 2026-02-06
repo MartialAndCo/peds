@@ -135,6 +135,7 @@ async function simulateUserMessage(text: string, dayOffset: number, context: { c
         settings,
         text, // messageText
         AGENT_ID,
+        'whatsapp', // platform
         undefined // options
     );
 

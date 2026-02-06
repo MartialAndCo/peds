@@ -158,7 +158,8 @@ export const director = {
         agentId: string,  // REQUIRED usage
         progressionReason?: string,
         _testDate?: Date, // FOR TESTING ONLY
-        conversation?: any // OPTIONAL: for leadContext injection
+        conversation?: any, // OPTIONAL: for leadContext injection
+        platform: 'whatsapp' | 'discord' = 'whatsapp' // Platform context
     ): Promise<string | null> {
 
         // PHASE 3: Si mode SWARM actif, retourner null pour utiliser le swarm
@@ -463,9 +464,19 @@ When user says only "ok", "bye", "bisous", "kisses", "goodnight" with nothing el
 
         // PHASE 1: NOUVEL ORDRE DU PROMPT
         // Priorité: Contexte temps réel > Objectif > Identité > Règles
+        
+        // Platform context
+        const platformName = platform === 'discord' ? 'Discord' : 'WhatsApp'
+        const platformContext = isFrench
+            ? `PLATEFORME: Tu discutes actuellement sur ${platformName}.`
+            : `PLATFORM: You are currently chatting on ${platformName}.`
+        
         return `
 ### CONTEXTE IMMÉDIAT (PRIORITAIRE)
 ${lifeContext}
+
+### PLATEFORME / PLATFORM
+${platformContext}
 
 ### OBJECTIF ACTUEL
 ${pMission}

@@ -691,7 +691,7 @@ Keep response SHORT and excited.)`
         // Currently, media request Logic returns early, so we only need to worry about BURST logic which handles this inside the CRON loop.
         // The CRON loop will pass `lastResponse` in `options`.
 
-        const chatResult = await handleChat(payload, contact, conversation, settings, messageText, agentId, options)
+        const chatResult = await handleChat(payload, contact, conversation, settings, messageText, agentId, platform, options)
         console.log('[Processor] Chat Result:', chatResult)
 
         // ...

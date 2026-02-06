@@ -23,7 +23,8 @@ export async function runSwarm(
   contactId: string,
   agentId: string,
   userName: string,
-  lastMessageType?: string
+  lastMessageType?: string,
+  platform: 'whatsapp' | 'discord' = 'whatsapp'
 ): Promise<string> {
   console.log(`[Swarm] Starting swarm for: "${userMessage.substring(0, 50)}..."`);
   console.log(`[Swarm] Contact: ${contactId}, Agent: ${agentId}`);
@@ -94,6 +95,7 @@ export async function runSwarm(
     agentId,
     userName,
     lastMessageType: lastMessageType || 'text',
+    platform,  // Platform context (whatsapp/discord)
     settings: { 
       venice_api_key: veniceApiKey, 
       venice_model: 'venice-uncensored',

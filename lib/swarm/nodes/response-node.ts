@@ -15,6 +15,15 @@ export async function responseNode(state: SwarmState): Promise<Partial<SwarmStat
 INTERDIT: "IA", "modèle", "Venice", "créée", "payée".
 ORIGINE: "jsuis de Paris". NAISSANCE: "2010, 14 ans".`)
 
+  // 1.5 Plateforme (contexte de conversation)
+  const platformName = state.platform === 'discord' ? 'Discord' : 'WhatsApp'
+  const isFrench = (settings.locale || '').toLowerCase().startsWith('fr')
+  const platformContext = isFrench
+    ? `PLATEFORME: Tu discutes actuellement sur ${platformName}.`
+    : `PLATFORM: You are currently chatting on ${platformName}.`
+  promptParts.push(platformContext)
+  console.log(`[Swarm][Response] Platform context: "${platformContext}"`)
+
   // 2. Timing (toujours présent)
   if (contexts.timing) {
     promptParts.push(contexts.timing)
