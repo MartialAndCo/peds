@@ -90,6 +90,18 @@ export const mediaService = {
         Available Categories:
         ${availableCategories}
 
+        CRITICAL DISTINCTION - CHATTING vs REQUESTING:
+        - User saying "I like taking photos" or "I take nature pics" = CHATTING about hobbies, NOT requesting media
+        - User saying "send me a photo" or "show me your face" = REQUESTING media
+        - User talking about THEIR photos = CHATTING
+        - User asking for YOUR photos = REQUESTING
+        
+        Set "isMediaRequest" to FALSE when:
+        - User describes their hobbies (photography, hiking, etc.)
+        - User mentions they take photos
+        - User talks about their interests
+        - There is NO explicit request for the AI to send media
+
         PAYWALL DETECTION RULES:
         - If the request matches a blacklist item AND the user explicitly offers money/payment in the conversation context → set "paywallTriggered" to true and "allowed" to true
         - Payment offers include: mentioning €, $, dollars, euros, "je te paye", "I'll pay", numbers + "balles", etc.
@@ -101,7 +113,7 @@ export const mediaService = {
         - If the request is NOT in the blacklist → set "allowed" to true, "paywallTriggered" to false
         - If "allowed" is true, try to match the user's intent to one of the Available Categories.
         - If no category matches, set "intentCategory" to null.
-        - If the user is NOT asking for media (just chatting), set "isMediaRequest" to false.
+        - If the user is NOT asking for media (just chatting about hobbies/interests), set "isMediaRequest" to false.
 
         Output JSON format ONLY:
         {

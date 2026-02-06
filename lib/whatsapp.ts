@@ -415,6 +415,11 @@ export const whatsapp = {
     },
 
     async markAsRead(chatId: string, agentId?: string, messageKey?: any) {
+        // Skip for Discord contacts (no WhatsApp session)
+        if (chatId.startsWith('DISCORD_')) {
+            return
+        }
+        
         const { endpoint, apiKey } = await getConfig()
         const MAX_RETRIES = 3
 
