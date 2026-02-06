@@ -16,7 +16,9 @@ interface SmartAddDialogProps {
 }
 
 export function SmartAddDialog({ open, onOpenChange, agentId, onSuccess }: SmartAddDialogProps) {
+    const [contactType, setContactType] = useState<'whatsapp' | 'discord'>('whatsapp')
     const [phone, setPhone] = useState('')
+    const [discordId, setDiscordId] = useState('')
     const [platform, setPlatform] = useState('')
     const [conversation, setConversation] = useState('')
     const [loading, setLoading] = useState(false)
@@ -24,7 +26,8 @@ export function SmartAddDialog({ open, onOpenChange, agentId, onSuccess }: Smart
     const [error, setError] = useState('')
 
     const handleSubmit = async () => {
-        if (!phone || !platform || !conversation) {
+        const identifier = contactType === 'whatsapp' ? phone : discordId
+        if (!identifier || !platform || !conversation) {
             setError('All fields are required')
             return
         }
@@ -34,12 +37,11 @@ export function SmartAddDialog({ open, onOpenChange, agentId, onSuccess }: Smart
         setResult(null)
 
         try {
-            const res = await axios.post('/api/contacts/smart-add', {
-                phone,
-                platform,
-                conversation,
-                agentId
-            })
+            const payload = contactType === 'whatsapp' 
+                ? { phone, platform, conversation, agentId, contactType: 'whatsapp' }
+                : { discordId, platform, conversation, agentId, contactType: 'discord' }
+            
+            const res = await axios.post('/api/contacts/smart-add', payload)
 
             setResult({
                 success: true,
@@ -51,7 +53,9 @@ export function SmartAddDialog({ open, onOpenChange, agentId, onSuccess }: Smart
                 onOpenChange(false)
                 onSuccess?.()
                 // Reset state
+                setContactType('whatsapp')
                 setPhone('')
+                setDiscordId('')
                 setPlatform('')
                 setConversation('')
                 setResult(null)
@@ -67,7 +71,9 @@ export function SmartAddDialog({ open, onOpenChange, agentId, onSuccess }: Smart
     const handleClose = () => {
         if (!loading) {
             onOpenChange(false)
+            setContactType('whatsapp')
             setPhone('')
+            setDiscordId('')
             setPlatform('')
             setConversation('')
             setResult(null)
@@ -98,16 +104,57 @@ export function SmartAddDialog({ open, onOpenChange, agentId, onSuccess }: Smart
                 ) : (
                     <>
                         <div className="space-y-4 py-4">
-                            {/* Phone */}
+                            {/* Contact Type Selector */}
                             <div className="space-y-2">
-                                <label className="text-white/60 text-sm">Phone Number</label>
-                                <Input
-                                    value={phone}
-                                    onChange={(e) => setPhone(e.target.value)}
-                                    placeholder="+33612345678"
-                                    className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/30"
-                                    disabled={loading}
-                                />
+                                <label className="text-white/60 text-sm">Contact Type</label>
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setContactType('whatsapp')}
+                                        className={`flex-1 py-2 px-4 rounded-lg border transition-all ${
+                                            contactType === 'whatsapp'
+                                                ? 'bg-green-500/20 border-green-500 text-green-400'
+                                                : 'bg-white/[0.04] border-white/[0.08] text-white/60 hover:bg-white/[0.08]'
+                                        }`}
+                                    >
+                                        WhatsApp
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setContactType('discord')}
+                                        className={`flex-1 py-2 px-4 rounded-lg border transition-all ${
+                                            contactType === 'discord'
+                                                ? 'bg-indigo-500/20 border-indigo-500 text-indigo-400'
+                                                : 'bg-white/[0.04] border-white/[0.08] text-white/60 hover:bg-white/[0.08]'
+                                        }`}
+                                    >
+                                        Discord
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Identifier - Phone or Discord ID */}
+                            <div className="space-y-2">
+                                <label className="text-white/60 text-sm">
+                                    {contactType === 'whatsapp' ? 'Phone Number' : 'Discord Username'}
+                                </label>
+                                {contactType === 'whatsapp' ? (
+                                    <Input
+                                        value={phone}
+                                        onChange={(e) => setPhone(e.target.value)}
+                                        placeholder="+33612345678"
+                                        className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/30"
+                                        disabled={loading}
+                                    />
+                                ) : (
+                                    <Input
+                                        value={discordId}
+                                        onChange={(e) => setDiscordId(e.target.value)}
+                                        placeholder="username#1234 ou juste username"
+                                        className="bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/30"
+                                        disabled={loading}
+                                    />
+                                )}
                             </div>
 
                             {/* Platform */}
@@ -150,7 +197,7 @@ export function SmartAddDialog({ open, onOpenChange, agentId, onSuccess }: Smart
                             </Button>
                             <Button
                                 onClick={handleSubmit}
-                                disabled={loading || !phone || !platform || !conversation}
+                                disabled={loading || !(contactType === 'whatsapp' ? phone : discordId) || !platform || !conversation}
                                 className="bg-amber-500 hover:bg-amber-600 text-black"
                             >
                                 {loading ? (
