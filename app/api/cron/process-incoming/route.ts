@@ -116,7 +116,18 @@ export async function GET(req: Request) {
                         lastResponse = result.textBody
                     }
 
-                    // Check Result
+                    // Check Result - Only mark DONE for successful outcomes
+                    const SUCCESS_STATUSES = ['sent', 'queued', 'saved_skipped_ai', 'ignored_from_me', 'ignored_old_sync', 
+                        'ignored_group', 'status_updated', 'ignored_update_no_data', 'duplicate', 'duplicate_found_early',
+                        'admin_validation', 'view_once_rejected', 'voice_error', 'ai_disabled', 'empty_message',
+                        'debounced', 'media_pending_silence', 'reaction_only', 'presend_aborted_newer_messages',
+                        'voice_tts_sent', 'tts_failed_notified', 'handled_admin', 'handled_media_ingest', 
+                        'handled_lead_provider', 'ignored_admin_text', 'media_request_pending', 'media_sent',
+                        'media_request_blocked', 'paused']
+                    
+                    const RETRY_STATUSES = ['ai_quota_failed', 'ai_response_empty', 'ai_quota_failed_queued_for_retry', 
+                        'blocked_safety', 'async_error']
+
                     if (result?.status === 'async_job_started' && result?.jobId) {
                         // Switch to Async Mode
                         console.log(`[CRON] Item ${item.id} switched to Async Job: ${result.jobId}`)
@@ -127,13 +138,34 @@ export async function GET(req: Request) {
                                 runpodJobId: result.jobId
                             }
                         })
-                    } else {
-                        // Regular Completion
+                    } else if (SUCCESS_STATUSES.includes(result?.status)) {
+                        // Successful completion
                         await prisma.incomingQueue.update({
                             where: { id: item.id },
                             data: { status: 'DONE', processedAt: new Date() }
                         })
                         processed++
+                    } else if (RETRY_STATUSES.includes(result?.status)) {
+                        // AI/Processing failure - retry later
+                        console.warn(`[CRON] Item ${item.id} failed with status: ${result?.status}. Will retry.`)
+                        await prisma.incomingQueue.update({
+                            where: { id: item.id },
+                            data: {
+                                status: item.attempts >= 2 ? 'FAILED' : 'PENDING',
+                                attempts: { increment: 1 },
+                                error: `Processing failed: ${result?.status}`
+                            }
+                        })
+                    } else {
+                        // Unknown status - log and mark as FAILED to avoid infinite loop
+                        console.error(`[CRON] Item ${item.id} unknown status: ${result?.status}. Marking FAILED.`)
+                        await prisma.incomingQueue.update({
+                            where: { id: item.id },
+                            data: {
+                                status: 'FAILED',
+                                error: `Unknown status: ${result?.status}`
+                            }
+                        })
                     }
 
                 } catch (err: any) {

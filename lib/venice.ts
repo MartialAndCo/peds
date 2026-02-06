@@ -18,16 +18,25 @@ export const venice = {
         const model = config.model || process.env.VENICE_MODEL || 'venice-uncensored'
 
         // Construct message history: System -> History -> New User Message
-        // Note: Venice might expect 'user'/'assistant' roles.
+        // Note: Venice accepts 'system' role for system prompts.
         // Our DB 'sender' is 'ai'/'contact'/'admin'. Mapping needed.
 
-        const apiMessages = [
-            { role: 'system', content: systemPrompt },
-            ...messages.map(m => ({
+        // Validate and sanitize inputs to prevent API rejection
+        const sanitizedSystemPrompt = systemPrompt || 'You are a helpful assistant.'
+        const sanitizedUserMessage = userMessage || 'Hello'
+        
+        // Filter out messages with null/undefined content and map roles
+        const validHistoryMessages = messages
+            .filter(m => m.content && typeof m.content === 'string')
+            .map(m => ({
                 role: m.role === 'ai' ? 'assistant' : 'user',
                 content: m.content
-            })),
-            { role: 'user', content: userMessage }
+            }))
+
+        const apiMessages = [
+            { role: 'system', content: sanitizedSystemPrompt },
+            ...validHistoryMessages,
+            { role: 'user', content: sanitizedUserMessage }
         ]
 
         const MAX_RETRIES = 3
