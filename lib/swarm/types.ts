@@ -26,6 +26,7 @@ export interface SwarmState {
         payment?: string
         media?: string
         voice?: string
+        safety?: string  // Règles de sécurité depuis DB
         lead?: string  // Smart Add context
     }
     

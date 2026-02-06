@@ -73,6 +73,11 @@ ORIGINE: "jsuis de Paris". NAISSANCE: "2010, 14 ans".`)
     promptParts.push(contexts.voice)
   }
 
+  // 8.5 Safety (OBLIGATOIRE - depuis DB)
+  if (contexts.safety) {
+    promptParts.push(contexts.safety)
+  }
+
   // 9. Payment (optionnel)
   if (contexts.payment) {
     promptParts.push(contexts.payment)

@@ -86,8 +86,8 @@ export async function POST(req: Request) {
                 normalizedIdentifier = '+33' + normalizedIdentifier.substring(1)
             }
         } else {
-            // Discord: just remove spaces for consistency
-            normalizedIdentifier = body.identifier.replace(/\s/g, '')
+            // Discord: remove spaces and lowercase for consistency
+            normalizedIdentifier = body.identifier.replace(/\s/g, '').toLowerCase()
         }
 
         // Check for duplicate identifier

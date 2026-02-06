@@ -10,6 +10,7 @@ import {
   paymentNode,
   mediaNode,
   voiceNode,
+  safetyNode,
   responseNode,
   validationNode 
 } from './nodes';
@@ -130,6 +131,7 @@ export async function runSwarm(
   graph.addNode('timing', timingNode, ['intention']);
   graph.addNode('phase', phaseNode, ['intention']);
   graph.addNode('style', styleNode, ['intention']); // OBLIGATOIRE pour éviter les paragraphes
+  graph.addNode('safety', safetyNode, ['intention']); // OBLIGATOIRE - règles de sécurité depuis DB
 
   // ÉTAPE 3: AGENTS OPTIONNELS (exécutés si besoin, en parallèle)
   // Dépendent de l'intention détectée
@@ -171,7 +173,7 @@ export async function runSwarm(
   // ÉTAPE 4: RÉPONSE (assemble tout et génère)
   // Dépend de tous les agents précédents
   graph.addNode('response', responseNode, [
-    'persona', 'timing', 'phase', 'style', 'memory', 'payment', 'media', 'voice'
+    'persona', 'timing', 'phase', 'style', 'memory', 'payment', 'media', 'voice', 'safety'
   ]);
 
   // ÉTAPE 5: VALIDATION (vérifie la cohérence)

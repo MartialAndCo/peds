@@ -23,6 +23,9 @@ export async function GET(req: Request) {
         let normalizedIdentifier = identifier.replace(/\s/g, '')
         if (type === 'WHATSAPP' && /^0[67]/.test(normalizedIdentifier)) {
             normalizedIdentifier = '+33' + normalizedIdentifier.substring(1)
+        } else if (type === 'DISCORD') {
+            // Discord: lowercase for case-insensitive comparison
+            normalizedIdentifier = normalizedIdentifier.toLowerCase()
         }
 
         // Check for existing lead
