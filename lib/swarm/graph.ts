@@ -63,9 +63,9 @@ export class SwarmGraph {
                     console.log(`[Swarm] ✓ ${nodeName} done (${duration}ms)`)
                     results.push({ name: nodeName, result, success: true })
                     
-                    // Délai entre appels API pour respecter 150 RPM (400ms minimum entre chaque)
+                    // Délai entre appels API pour respecter 150 RPM (250ms = ~240 RPM max, safe buffer)
                     if (readyNodes.length > 1) {
-                        await new Promise(r => setTimeout(r, 400))
+                        await new Promise(r => setTimeout(r, 250))
                     }
                 } catch (error: any) {
                     console.error(`[Swarm] ✗ ${nodeName} failed:`, error.message)
