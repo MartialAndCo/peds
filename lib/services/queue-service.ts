@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { whatsapp } from '@/lib/whatsapp'
 import { logger } from '@/lib/logger'
 import { settingsService } from '@/lib/settings-cache'
-import { personaSchedule } from './persona-schedule'
+import { timeCoherenceAgent } from './time-coherence-agent'
 
 export class QueueService {
     // Track items currently being processed in-memory to prevent concurrent execution
@@ -148,14 +148,14 @@ export class QueueService {
      * Includes atomic status check to prevent double-sending
      */
     public async processSingleItem(queueItem: any) {
-        let { content, contact, conversation, mediaUrl, mediaType, duration, createdAt } = queueItem
+        const { content, contact, conversation, mediaUrl, mediaType, duration } = queueItem
         const phone = contact.phone_whatsapp
         const agentId = conversation?.agentId || undefined
 
         // CRITICAL: Double-check status before sending (prevents race conditions with cleanup)
         const currentStatus = await prisma.messageQueue.findUnique({
             where: { id: queueItem.id },
-            select: { status: true, createdAt: true }
+            select: { status: true }
         })
         
         if (currentStatus?.status !== 'PROCESSING') {
@@ -163,38 +163,13 @@ export class QueueService {
             return { id: queueItem.id, status: 'aborted', reason: `status_changed_to_${currentStatus?.status}` }
         }
 
-        // 🕐 RAFRAÎCHIR LE CONTEXTE TEMPS RÉEL si le message a été créé il y a plus de 5 minutes
-        const messageAge = Date.now() - new Date(currentStatus.createdAt || createdAt).getTime()
-        const FIVE_MINUTES = 5 * 60 * 1000
-        
-        if (messageAge > FIVE_MINUTES && content && !mediaUrl) {
-            console.log(`[QueueService] Message ${queueItem.id} is ${Math.round(messageAge / 60000)} min old. Refreshing time context...`)
-            
-            // Récupérer le timezone et locale de l'agent
-            const agentProfile = await prisma.agentProfile.findUnique({
-                where: { agentId },
-                select: { timezone: true, locale: true }
-            })
-            
-            if (agentProfile) {
-                const timezone = agentProfile.timezone || 'Europe/Paris'
-                const locale = agentProfile.locale || 'fr-FR'
-                
-                // Générer le nouveau contexte temps réel
-                const freshContext = personaSchedule.getContextPrompt(timezone, undefined, locale)
-                console.log(`[QueueService] Fresh context: ${freshContext.substring(0, 80)}...`)
-                
-                // Si l'ancien contenu mentionne une heure différente, on ajoute un préfixe contextuel
-                // Mais on ne régénère pas tout le message pour garder la cohérence
-                // On ajoute juste une mention si le délai est significatif
-                if (messageAge > 15 * 60 * 1000) { // > 15 min
-                    const isFrench = locale.startsWith('fr')
-                    const delayPrefix = isFrench 
-                        ? "(Désolée pour le retard, j'ai eu un empêchement) "
-                        : "(Sorry for the delay, got caught up) "
-                    content = delayPrefix + content
-                    console.log(`[QueueService] Added delay prefix to message`)
-                }
+        // 🕐 VÉRIFICATION TEMPRELLE: Détecter les mentions d'heure incohérentes
+        if (content && !mediaUrl) {
+            const timeCheck = await timeCoherenceAgent.checkAndLog(content, queueItem.id, new Date());
+            if (timeCheck.shouldRewrite && timeCheck.suggestedFix) {
+                console.log(`[QueueService] ⚠️ Message ${queueItem.id} contient une heure incohérente. Suggestion: "${timeCheck.suggestedFix}"`);
+                // Note: Pour l'instant on log seulement, on ne réécrit pas automatiquement
+                // pour éviter de casser le sens du message
             }
         }
 
