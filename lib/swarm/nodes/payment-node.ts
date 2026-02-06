@@ -100,8 +100,8 @@ export async function paymentNode(state: SwarmState): Promise<Partial<SwarmState
   if (isVerificationRequest) {
     // User demande si on a reçu → Pas de confirmation auto, on attend la validation admin
     confirmationInstructions = isFrench 
-      ? `\n\n⚠️ L'UTILISATEUR DEMANDE SI TU AS REÇU LE PAIEMENT:\n→ Réponds que tu vas vérifier\n→ NE PAS confirmer avoir reçu [PAIEMENT_REÇU]\n→ Attends confirmation manuelle\n→ EXEMPLE: "je vais regarder ça ! 🥰" ou "je check de suite !"`
-      : `\n\n⚠️ USER IS ASKING IF YOU RECEIVED THE PAYMENT:\n→ Say you're going to check\n→ DO NOT confirm with [PAYMENT_RECEIVED]\n→ Wait for manual admin validation\n→ EXAMPLE: "let me check! 🥰" or "i'll go look!"`;
+      ? `\n\n⚠️ L'UTILISATEUR DEMANDE SI TU AS REÇU LE PAIEMENT:\n→ Réponds que tu vas vérifier\n→ Utilise [VERIFY_PAYMENT] à la fin de ta réponse\n→ NE PAS confirmer avoir reçu [PAIEMENT_REÇU]\n→ Attends confirmation manuelle de l'admin\n→ EXEMPLE: "je vais regarder ça ! 🥰 [VERIFY_PAYMENT]" ou "je check de suite ! [VERIFY_PAYMENT]"`
+      : `\n\n⚠️ USER IS ASKING IF YOU RECEIVED THE PAYMENT:\n→ Say you're going to check\n→ Use [VERIFY_PAYMENT] tag at the end\n→ DO NOT confirm with [PAYMENT_RECEIVED]\n→ Wait for manual admin validation\n→ EXAMPLE: "let me check! 🥰 [VERIFY_PAYMENT]" or "i'll go look! [VERIFY_PAYMENT]"`;
   } else if (isPaymentConfirmation) {
     // User confirme avoir envoyé → On peut confirmer
     confirmationInstructions = isFrench 

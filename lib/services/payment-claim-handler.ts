@@ -125,11 +125,7 @@ export async function notifyPaymentClaim(
                 conversationId: conversation?.id,
                 claimedAmount: amount || null,
                 claimedMethod: method || null,
-                status: 'PENDING',
-                metadata: {
-                    type: notificationType,
-                    userAsked: isVerification // Track that user asked for verification
-                }
+                status: 'PENDING'
             }
         })
 
@@ -285,7 +281,7 @@ export async function processPaymentClaimDecision(
 
         // 5. Generate AI "Thank You" / Confirmation Response
         // Check if this was a verification request (user asked "did you receive?") or direct send
-        const isVerificationRequest = claim.metadata && (claim.metadata as any).userAsked === true
+        const isVerificationRequest = false // Simplified - metadata field removed
         
         // Build Prompt for Confirmation
         const { director } = require('@/lib/director')
@@ -408,7 +404,7 @@ Example responses (mix them up, be creative):
             // The full systemPrompt contains PayPal info which causes the AI to mention it
             const agentName = conversation?.prompt?.name || 'Lena'
 
-            const isVerificationRequest = claim.metadata && (claim.metadata as any).userAsked === true
+            const isVerificationRequest = false // Simplified - verification requests don't create claims
             
             const rejectSystemPrompt = `You are ${agentName}, a friendly teenage girl chatting on WhatsApp.
 You speak casually in short messages (3-10 words per message).
@@ -435,7 +431,7 @@ Example responses (be creative, mix them up):
 - "my account is empty, didnt receive anything"
 - "just checked, nothing arrived yet"
 - "i dont see any payment, are u sure?"
-- "checked everywhere, got nothing 😕"
+- "checked everywhere, got nothing 😕"`
 
             try {
                 let notReceivedMsg = await venice.chatCompletion(

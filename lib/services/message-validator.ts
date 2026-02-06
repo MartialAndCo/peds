@@ -441,9 +441,9 @@ Output: "jsais pas|||[IMAGE:selfie]|||t'en penses quoi ?" (GARDE !)
         cleaned = cleaned.replace(/\*\*(.+?)\*\*/g, '$1')
 
         // 2. Remove random brackets but KEEP functional tags
-        // Keep: [VOICE], [IMAGE:...], [VIDEO:...], [REACT:...], [PAYMENT_RECEIVED]
+        // Keep: [VOICE], [IMAGE:...], [VIDEO:...], [REACT:...], [PAYMENT_RECEIVED], [VERIFY_PAYMENT]
         // Remove: everything else like [smiles], [laughs], etc.
-        cleaned = cleaned.replace(/\[(?!VOICE\]|IMAGE:|VIDEO:|REACT:|PAYMENT_RECEIVED\])[^\]]+\]/g, '')
+        cleaned = cleaned.replace(/\[(?!VOICE\]|IMAGE:|VIDEO:|REACT:|PAYMENT_RECEIVED\]|VERIFY_PAYMENT\]|VERIFIER_PAIEMENT\])[^\]]+\]/g, '')
 
         // 3. Clean PayPal format
         cleaned = cleaned.replace(/paypal:\s*(\w+)/gi, '$1')

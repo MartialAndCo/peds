@@ -797,53 +797,36 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     }
     // ═══════════════════════════════════════════════════════════════════════════
 
-    // PAYMENT VERIFICATION REQUEST: Check FIRST before processing [PAYMENT_RECEIVED]
-    // Detect if user is asking about payment status (not confirming they sent)
-    const verificationPatterns = [
-        /did you check/i, /did you receive/i, /did you get/i, 
-        /have you received/i, /tu as reçu/i, /t'as reçu/i, 
-        /tu as vérifié/i, /t'as vérifié/i, /as-tu reçu/i,
-        /avez-vous reçu/i, /tu l'as reçu/i, /tu l'as vu/i,
-        /you checked/i, /you got it/i, /did it arrive/i,
-        /ça y est/i, /est-ce arrivé/i, /is it there/i
-    ];
-    const isPaymentVerificationRequest = verificationPatterns.some(pattern => pattern.test(lastMessageText));
-
     // 6. Notification Trigger (Internal Tags)
     // PAYMENT DETECTION: Now ONLY via AI tag (keyword detection removed to avoid false positives)
-    const hasPaymentTag = responseText.includes('[PAYMENT_RECEIVED]') || responseText.includes('[PAIEMENT_REÇU]') || responseText.includes('[PAIEMENT_RECU]');
     
-    if (hasPaymentTag) {
-        // CRITICAL: If user asked for verification, IGNORE the [PAYMENT_RECEIVED] tag
-        // AI sometimes ignores instructions, so we force-remove it here
-        if (isPaymentVerificationRequest) {
-            console.log('[Chat] AI used [PAYMENT_RECEIVED] but user asked for verification. FORCING removal of tag...')
-            responseText = responseText.replace(/\[PAYMENT_RECEIVED\]|\[PAIEMENT_REÇU\]|\[PAIEMENT_RECU\]/g, '').trim()
-            // DO NOT send payment notification - verification notification will be sent below
-        } else {
-            console.log('[Chat] Tag [PAYMENT_RECEIVED] detected in AI response. Triggering notification & stripping...')
-            responseText = responseText.replace(/\[PAYMENT_RECEIVED\]|\[PAIEMENT_REÇU\]|\[PAIEMENT_RECU\]/g, '').trim()
-
-            // Trigger notification for actual payment confirmation
-            try {
-                const { notifyPaymentClaim } = require('@/lib/services/payment-claim-handler')
-                await notifyPaymentClaim(contact, conversation, settings, null, null, agentId)
-                console.log('[Chat] Payment notification sent from AI tag.')
-            } catch (e) {
-                console.error('[Chat] Failed to trigger notification from tag', e)
-            }
-        }
-    }
-    
-    if (isPaymentVerificationRequest) {
-        console.log('[Chat] Payment verification request detected. Notifying admin for manual validation...')
+    // 6a. PAYMENT VERIFICATION REQUEST: User asks if we received the payment
+    // AI uses [VERIFY_PAYMENT] tag to indicate she's going to check
+    if (responseText.includes('[VERIFY_PAYMENT]') || responseText.includes('[VERIFIER_PAIEMENT]')) {
+        console.log('[Chat] Tag [VERIFY_PAYMENT] detected. Notifying admin for verification...')
+        responseText = responseText.replace(/\[VERIFY_PAYMENT\]|\[VERIFIER_PAIEMENT\]/g, '').trim()
+        
         try {
             const { notifyPaymentClaim } = require('@/lib/services/payment-claim-handler')
-            // Send special notification indicating it's a verification request, not a claim
             await notifyPaymentClaim(contact, conversation, settings, null, null, agentId, 'verification_request')
             console.log('[Chat] Payment verification notification sent to admin.')
         } catch (e) {
             console.error('[Chat] Failed to send verification notification', e)
+        }
+    }
+    
+    // 6b. PAYMENT CONFIRMATION: User confirms they sent money
+    // AI uses [PAYMENT_RECEIVED] tag
+    if (responseText.includes('[PAYMENT_RECEIVED]') || responseText.includes('[PAIEMENT_REÇU]') || responseText.includes('[PAIEMENT_RECU]')) {
+        console.log('[Chat] Tag [PAYMENT_RECEIVED] detected. Triggering notification...')
+        responseText = responseText.replace(/\[PAYMENT_RECEIVED\]|\[PAIEMENT_REÇU\]|\[PAIEMENT_RECU\]/g, '').trim()
+
+        try {
+            const { notifyPaymentClaim } = require('@/lib/services/payment-claim-handler')
+            await notifyPaymentClaim(contact, conversation, settings, null, null, agentId, 'claim')
+            console.log('[Chat] Payment claim notification sent from AI tag.')
+        } catch (e) {
+            console.error('[Chat] Failed to trigger notification from tag', e)
         }
     }
 
