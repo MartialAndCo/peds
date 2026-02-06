@@ -48,24 +48,30 @@ export class SwarmGraph {
 
             console.log(`[Swarm] [${iterations}] Ready nodes: ${readyNodes.join(', ')}`)
 
-            // Exécuter tous les nodes prêts en PARALLÈLE
-            const results = await Promise.all(
-                readyNodes.map(async (nodeName) => {
-                    const info = this.nodes.get(nodeName)!
-                    const startTime = Date.now()
+            // Exécuter les nodes SÉRIELLEMENT pour respecter les rate limits Venice (150 RPM)
+            // Le parallèle fait exploser les limites avec 6-7 appels par message
+            const results: Array<{name: string, result: any, success: boolean}> = []
+            
+            for (const nodeName of readyNodes) {
+                const info = this.nodes.get(nodeName)!
+                const startTime = Date.now()
+                
+                try {
+                    console.log(`[Swarm] → Starting ${nodeName}...`)
+                    const result = await info.fn(state)
+                    const duration = Date.now() - startTime
+                    console.log(`[Swarm] ✓ ${nodeName} done (${duration}ms)`)
+                    results.push({ name: nodeName, result, success: true })
                     
-                    try {
-                        console.log(`[Swarm] → Starting ${nodeName}...`)
-                        const result = await info.fn(state)
-                        const duration = Date.now() - startTime
-                        console.log(`[Swarm] ✓ ${nodeName} done (${duration}ms)`)
-                        return { name: nodeName, result, success: true }
-                    } catch (error: any) {
-                        console.error(`[Swarm] ✗ ${nodeName} failed:`, error.message)
-                        return { name: nodeName, result: { error: `Error in ${nodeName}: ${error.message}` }, success: false }
+                    // Délai entre appels API pour respecter 150 RPM (400ms minimum entre chaque)
+                    if (readyNodes.length > 1) {
+                        await new Promise(r => setTimeout(r, 400))
                     }
-                })
-            )
+                } catch (error: any) {
+                    console.error(`[Swarm] ✗ ${nodeName} failed:`, error.message)
+                    results.push({ name: nodeName, result: { error: `Error in ${nodeName}: ${error.message}` }, success: false })
+                }
+            }
 
             // Mettre à jour l'état et marquer comme exécuté
             // Accumuler tous les contexts des nodes exécutés dans cette itération
@@ -87,7 +93,6 @@ export class SwarmGraph {
                 state = { ...state, ...rest }
             }
             // Mettre à jour les contexts accumulés
-
             state = { ...state, contexts: allContexts }
 
             // Vérifier si on a une réponse ET que tous les nodes sont exécutés
