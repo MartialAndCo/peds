@@ -8,7 +8,7 @@ export async function personaNode(state: SwarmState): Promise<Partial<SwarmState
 
     const profile = await prisma.agentProfile.findUnique({
         where: { agentId },
-        select: { contextTemplate: true, identityTemplate: true }
+        select: { contextTemplate: true, identityTemplate: true, baseAge: true }
     })
 
     console.log('[Swarm][Persona] Found:', profile ? 'YES' : 'NO')

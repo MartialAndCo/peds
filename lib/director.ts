@@ -242,10 +242,10 @@ export const director = {
 
         const pMission = replaceAge(tMission).replace('{{DYNAMIC_GOAL_BLOCK}}', phaseGoal)
         
-        // Remplacer {{AGE}} dans toutes les autres règles
+        // Remplacer {{AGE}} dans les règles de sécurité et style
         const pSafety = replaceAge(sRules)
         const pStyle = replaceAge(styleRules)
-        const pPayment = replaceAge(simplifiedPaymentBlock)
+        // Note: pPayment sera défini plus bas après la création de simplifiedPaymentBlock
 
         // RESTORED: Get current life context from persona schedule (timezone-aware)
         const agentTimezone = profile?.timezone || 'Europe/Paris'
@@ -469,6 +469,9 @@ When user says only "ok", "bye", "bisous", "kisses", "goodnight" with nothing el
                 !line.includes('Robotic format') &&
                 !line.includes('ONE REQUEST');
         }).join('\n');
+
+        // NOW we can define pPayment (after simplifiedPaymentBlock is created)
+        const pPayment = replaceAge(simplifiedPaymentBlock)
 
         // PHASE 1: ANTI-RÉPÉTITION - Récupération des phrases récentes
         const antiRepeatBlock = await this.buildAntiRepeatBlock(contact.id, isFrench)
