@@ -335,6 +335,20 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                     if (contact) {
                         console.log(`[Processor] Found unlinked lead for Discord user ${discordUsername}: ${contact.id}`)
                         
+                        // Get the lead to check its agentId
+                        const lead = await prisma.lead.findFirst({
+                            where: { 
+                                contactId: contact.id,
+                                status: 'IMPORTED'
+                            }
+                        })
+                        
+                        // If lead has different agent, update agentId for this message processing
+                        if (lead && lead.agentId !== agentId) {
+                            console.log(`[Processor] Lead agent (${lead.agentId}) differs from resolved agent (${agentId}). Using lead agent.`)
+                            agentId = lead.agentId
+                        }
+                        
                         // Link the contact with the real Discord ID
                         contact = await prisma.contact.update({
                             where: { id: contact.id },
@@ -347,13 +361,6 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                         })
                         console.log(`[Processor] Linked lead ${contact.id} with Discord ID ${discordId}`)
                         
-                        // Update lead status to CONVERTED
-                        const lead = await prisma.lead.findFirst({
-                            where: { 
-                                contactId: contact.id,
-                                status: 'IMPORTED'
-                            }
-                        })
                         if (lead) {
                             await prisma.lead.update({
                                 where: { id: lead.id },
