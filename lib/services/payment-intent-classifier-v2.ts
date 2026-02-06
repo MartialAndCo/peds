@@ -88,11 +88,12 @@ function preClassify(
   }
   
   // VERIFICATION patterns - very strong signals
+  // Must include payment-related words to avoid false positives like "did you receive my message?"
   const strongVerificationPatterns = [
-    /^(did you|have you).*(receiv|get|got|check)/i,
-    /^(tu as|t'as|avez-vous).*(reçu|vu)/i,
-    /^check.*(paypal|venmo|account|payment)/i,
-    /^(is it|did it).*(there|arriv)/i,
+    /^(did you|have you).*(receiv|get|got|check).*(money|payment|paypal|venmo|cash|argent|paiement)/i,
+    /^(tu as|t'as|avez-vous).*(reçu|vu).*(argent|paiement|paypal)/i,
+    /^check.*(paypal|venmo|account|payment|money)/i,
+    /^(is it|did it).*(there|arriv|come through).*(money|payment|paypal)/i,
   ];
   
   for (const pattern of strongVerificationPatterns) {

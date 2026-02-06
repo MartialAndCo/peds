@@ -1,7 +1,6 @@
 /**
  * Payment Intent Classifier
- * Uses LLM (Venice) to intelligently classify payment-related messages
- * Much more robust than regex/keyword matching
+ * Pure LLM approach - uses conversation context only
  */
 
 import { venice } from '@/lib/venice';
@@ -15,8 +14,8 @@ interface ClassificationResult {
 }
 
 /**
- * Classify user message to determine payment intent
- * Uses Venice LLM for contextual understanding
+ * Classify payment intent using conversation context
+ * No regex, just LLM understanding
  */
 export async function classifyPaymentIntent(
   userMessage: string,
@@ -24,112 +23,97 @@ export async function classifyPaymentIntent(
   apiKey?: string
 ): Promise<ClassificationResult> {
   
-  const systemPrompt = `You are a payment intent classifier. Your task is to analyze the user's CURRENT message in the context of the conversation history.
+  const systemPrompt = `You are a payment intent classifier. Your ONLY job is to analyze the LAST message in the context of the conversation history.
 
-CATEGORIES:
-1. VERIFICATION - User is ASKING if a payment was received (checking status)
-   Examples: "did you get it?", "tu as reçu?", "did you check paypal?", "is the money there?"
-   Key: Question about receiving/checking + payment context
+CONVERSATION HISTORY:
+${conversationHistory.length === 0 ? '[NO PREVIOUS MESSAGES - THIS IS THE START OF CONVERSATION]' : conversationHistory.slice(-5).map((m, i) => `${i + 1}. ${m.role}: "${m.content}"`).join('\n')}
 
-2. CONFIRMATION - User is CONFIRMING they already sent money (action completed)
-   Examples: "I sent $50", "just transferred", "payment done", "je viens d'envoyer"
-   Key: Past tense action + money sent + NOT a question
+TASK:
+Read the conversation above, then classify the LAST user message into one of three categories:
 
-3. NONE - No payment context at all
-   Examples: "how are you?", "check this video", "did you see my message?"
+1. CONFIRMATION - User confirms they ALREADY sent money
+   - Past tense action completed
+   - Examples: "sent!", "just sent $50", "payment done", "je viens d'envoyer"
+   - NOT a question
 
-HOW TO USE CONTEXT:
-- The conversation history is CRUCIAL for understanding short/ambiguous messages
-- If previous messages discussed payment, pronouns like "it" refer to that payment
-- "did you check?" with NO payment context = NONE
-- "did you check?" with payment context = VERIFICATION
-- Always infer the user's intent from the FULL conversation
+2. VERIFICATION - User asks if payment was received  
+   - Asking about status/checking
+   - Examples: "did you get it?", "tu as reçu?", "check your paypal"
+   - Question about receiving
 
-EXAMPLES WITH CONTEXT:
-Context: Assistant gave PayPal account → User: "did you check?" → VERIFICATION (asking about payment)
-Context: General chat → User: "did you check?" → NONE (could mean anything)
-Context: User said "I sent money" → User: "did you get it?" → VERIFICATION (checking if received)
-Context: None → User: "sent!" → NONE (no payment context)
-Context: PayPal shared → User: "sent!" → CONFIRMATION (referring to PayPal payment)
+3. NONE - No payment intent
+   - Future promises ("I will send tomorrow")
+   - Non-payment items ("check this video")
+   - Generic questions without payment context
 
-Respond ONLY with JSON format:
+CRITICAL RULES:
+- NO CONVERSATION HISTORY = NO PAYMENT CONTEXT
+- If the conversation history is EMPTY or doesn't mention payment, the answer is ALWAYS NONE
+- "did you check?" with NO history = NONE (cannot assume it's about payment)
+- "sent!" with NO history = NONE (could be "I sent a message", "I sent a photo", etc.)
+- ONLY classify as VERIFICATION/CONFIRMATION if payment was actually discussed in history
+- When uncertain, ALWAYS choose NONE
+
+Respond with JSON:
 {
   "intent": "VERIFICATION" | "CONFIRMATION" | "NONE",
   "confidence": 0.0-1.0,
-  "reason": "brief explanation referencing context"
+  "reason": "explain using conversation context"
 }`;
-
-  // Build context from recent history (last 5 messages for better context)
-  const recentHistory = conversationHistory.slice(-5);
-  
-  let userPrompt: string;
-  
-  if (recentHistory.length > 0) {
-    const historyText = recentHistory.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
-    userPrompt = `CONVERSATION HISTORY (use this to understand the context):\n${historyText}\n\nCURRENT MESSAGE TO CLASSIFY:\n"${userMessage}"\n\nBased on the full conversation, what is the intent of the CURRENT message?`;
-  } else {
-    userPrompt = `CURRENT MESSAGE TO CLASSIFY:\n"${userMessage}"\n\nWhat is the intent of this message?`;
-  }
 
   try {
     const response = await venice.chatCompletion(
       systemPrompt,
       [],
-      userPrompt,
+      `LAST MESSAGE TO CLASSIFY: "${userMessage}"`,
       { 
         apiKey: apiKey || process.env.VENICE_API_KEY, 
         model: process.env.VENICE_MODEL || 'venice-uncensored',
-        temperature: 0.1 // Low temp for consistent classification
+        temperature: 0.1
       }
     );
 
-    // Extract JSON from response
     const jsonMatch = response.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.warn('[PaymentClassifier] No JSON found in response:', response);
       return { intent: 'NONE', confidence: 0, reason: 'Parse error' };
     }
 
     const result = JSON.parse(jsonMatch[0]) as ClassificationResult;
     
-    // Validate result
     if (!['VERIFICATION', 'CONFIRMATION', 'NONE'].includes(result.intent)) {
-      console.warn('[PaymentClassifier] Invalid intent:', result.intent);
-      return { intent: 'NONE', confidence: 0, reason: 'Invalid intent' };
+      return { intent: 'NONE', confidence: 0, reason: 'Invalid' };
     }
-
-    console.log('[PaymentClassifier]', {
-      message: userMessage.substring(0, 50),
-      intent: result.intent,
-      confidence: result.confidence,
-      reason: result.reason
-    });
 
     return result;
 
   } catch (error) {
-    console.error('[PaymentClassifier] Error:', error);
-    // Fallback to NONE on error (safe default)
-    return { intent: 'NONE', confidence: 0, reason: 'Classification error' };
+    console.error('[Classifier] Error:', error);
+    return { intent: 'NONE', confidence: 0, reason: 'Error' };
   }
 }
 
-/**
- * Batch classify multiple messages (for testing)
- */
 export async function batchClassify(
-  messages: string[],
+  tests: { msg: string; ctx: any[]; expected: PaymentIntent }[],
   apiKey?: string
-): Promise<{ message: string; result: ClassificationResult }[]> {
+): Promise<any> {
   const results = [];
+  let passed = 0;
   
-  for (const message of messages) {
-    const result = await classifyPaymentIntent(message, [], apiKey);
-    results.push({ message, result });
+  for (const test of tests) {
+    const result = await classifyPaymentIntent(test.msg, test.ctx, apiKey);
+    const match = result.intent === test.expected;
+    if (match) passed++;
     
-    // Small delay to avoid rate limiting
+    results.push({
+      msg: test.msg,
+      expected: test.expected,
+      got: result.intent,
+      match,
+      reason: result.reason
+    });
+    
     await new Promise(r => setTimeout(r, 100));
   }
   
-  return results;
+  return { passed, total: tests.length, results };
 }
