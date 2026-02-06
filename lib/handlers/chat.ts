@@ -18,6 +18,7 @@ export async function handleChat(
     settings: any,
     messageTextInput: string, // The initial text (or transcribed voice from caller)
     agentId?: string, // Added: Agent Context
+    platform: 'whatsapp' | 'discord' = 'whatsapp', // Added: Platform Context
     options?: { skipAI?: boolean } // Added: Burst Mode Support
 ) {
     let messageText = messageTextInput
@@ -507,7 +508,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
     // Check for High Priority Keywords (for timing adjustment only)
     // Payment detection is now handled earlier (after message save)
-    const moneyKeywords = ['money', 'pay', 'paypal', 'cashapp', 'venmo', 'zelle', 'transfer', 'cash', 'dollars', 'usd', '$', 'price', 'cost', 'bank', 'card', 'crypto', 'bitcoin']
+    const moneyKeywords = ['money', 'pay', 'paypal', 'cashapp', 'venmo', 'zelle', 'transfer', 'cash', 'dollars', 'usd', '$', 'price', 'cost', 'bank', 'card', 'crypto', 'bitcoin', 'sent', 'paid', 'done', 'envoyé', 'payé', 'viré', 'transfered', 'just sent', 'sending']
     const isHighPriority = moneyKeywords.some(kw => lastContent.toLowerCase().includes(kw))
 
     let timing = TimingManager.analyzeContext(lastUserDate, phase, isHighPriority, agentTimezone)
@@ -762,7 +763,12 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
                 role: m.role === 'user' ? 'user' as const : 'ai' as const,
                 content: m.content
             })),
-            phase: phase
+            phase: phase,
+            pendingQueue: pendingQueueItems.map((item: any) => ({
+                id: item.id,
+                content: item.content,
+                scheduledAt: item.scheduledAt.toISOString()
+            }))
         }
 
         // Analyse asynchrone (non-bloquante)

@@ -38,6 +38,7 @@ EXEMPLES:
 - "Tu fais quoi ?" → intention: "general", besoinTiming: true
 - "Tu peux m'envoyer une photo ?" → intention: "photo", besoinMedia: true
 - "Je peux t'envoyer 50€" → intention: "paiement", sousIntention: "offre", besoinPayment: true
+- "J'ai envoyé 10K" / "I just sent money" → intention: "paiement", sousIntention: "confirmation", besoinPayment: true, urgence: "high"
 - "Appelle-moi" → intention: "vocal", besoinVoice: true
 - "Ton chat s'appelle comment ?" → intention: "personnel", besoinMemoire: true`
 
