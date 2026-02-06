@@ -84,7 +84,11 @@ ORIGINE: "jsuis de Paris". NAISSANCE: "2010, 14 ans".`)
   }
 
   // Assembler le prompt final
-  const systemPrompt = promptParts.join('\n\n')
+  let systemPrompt = promptParts.join('\n\n')
+  
+  // Remplacer {{PLATFORM}} par le vrai nom (sécurité si pas déjà fait)
+  const platformName = state.platform === 'discord' ? 'Discord' : 'WhatsApp'
+  systemPrompt = systemPrompt.replace(/\{\{PLATFORM\}\}/g, platformName)
 
   console.log('[Swarm][Response] Prompt assembled, length:', systemPrompt.length)
   

@@ -13,6 +13,9 @@ export async function personaNode(state: SwarmState): Promise<Partial<SwarmState
 
     console.log('[Swarm][Persona] Found:', profile ? 'YES' : 'NO')
 
+    // Déterminer la plateforme pour remplacement
+    const platformName = state.platform === 'discord' ? 'Discord' : 'WhatsApp'
+    
     // Combiner identity et context pour avoir une persona complète
     let persona = ''
     if (profile?.identityTemplate) {
@@ -20,11 +23,12 @@ export async function personaNode(state: SwarmState): Promise<Partial<SwarmState
         const identityClean = profile.identityTemplate
             .replace(/Tu es une EXPERTE en conversation naturelle qui incarne Anaïs, 14 ans\./, '')
             .replace(/Un amateur se répète[\s\S]*?Si non → reformule\./, '')
+            .replace(/\{\{PLATFORM\}\}/g, platformName)
         persona += identityClean
     }
     if (profile?.contextTemplate) {
         if (persona) persona += '\n\n'
-        persona += profile.contextTemplate
+        persona += profile.contextTemplate.replace(/\{\{PLATFORM\}\}/g, platformName)
     }
 
     return {

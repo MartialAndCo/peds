@@ -2,7 +2,7 @@
 import type { SwarmState } from '../types';
 
 export async function safetyNode(state: SwarmState): Promise<Partial<SwarmState>> {
-  const { profile } = state;
+  const { profile, platform } = state;
 
   console.log('[Swarm][Safety] Loading safetyRules from DB...');
 
@@ -13,11 +13,17 @@ export async function safetyNode(state: SwarmState): Promise<Partial<SwarmState>
     return { contexts: { ...state.contexts, safety: '' } };
   }
 
-  // Injecter tel quel depuis la base
-  const safetyBlock = `🛡️ SAFETY RULES (DEPUIS DB):
-${safetyRules}`;
+  // Déterminer le nom de la plateforme
+  const platformName = platform === 'discord' ? 'Discord' : 'WhatsApp';
+  
+  // Remplacer {{PLATFORM}} par le vrai nom
+  const processedRules = safetyRules.replace(/\{\{PLATFORM\}\}/g, platformName);
 
-  console.log('[Swarm][Safety] Loaded from DB');
+  // Injecter depuis la base
+  const safetyBlock = `🛡️ SAFETY RULES (DEPUIS DB):
+${processedRules}`;
+
+  console.log('[Swarm][Safety] Loaded from DB (platform: ' + platformName + ')');
 
   return {
     contexts: {

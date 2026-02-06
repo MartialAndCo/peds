@@ -472,7 +472,7 @@ When user says only "ok", "bye", "bisous", "kisses", "goodnight" with nothing el
             ? `PLATEFORME: Tu discutes actuellement sur ${platformName}.`
             : `PLATFORM: You are currently chatting on ${platformName}.`
         
-        return `
+        const rawPrompt = `
 ### CONTEXTE IMMÉDIAT (PRIORITAIRE)
 ${lifeContext}
 
@@ -513,6 +513,9 @@ ${sRules}
 
 ${simplifiedPaymentBlock}
 `
+
+        // Remplacer {{PLATFORM}} par le vrai nom de plateforme
+        return rawPrompt.replace(/\{\{PLATFORM\}\}/g, platformName)
     },
 
     // PHASE 1: Nouvelle méthode pour l'anti-répétition
