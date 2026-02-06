@@ -24,7 +24,7 @@ export async function classifyPaymentIntent(
   apiKey?: string
 ): Promise<ClassificationResult> {
   
-  const systemPrompt = `You are a payment intent classifier. Analyze the user's message and classify it into one of three categories:
+  const systemPrompt = `You are a payment intent classifier. Your task is to analyze the user's CURRENT message in the context of the conversation history.
 
 CATEGORIES:
 1. VERIFICATION - User is ASKING if a payment was received (checking status)
@@ -38,27 +38,38 @@ CATEGORIES:
 3. NONE - No payment context at all
    Examples: "how are you?", "check this video", "did you see my message?"
 
-CRITICAL RULES:
-- "did you check?" alone = NONE (no payment context)
-- "did you check paypal?" = VERIFICATION (payment context)
-- "I sent it" + "did you get it?" = VERIFICATION (question takes priority)
-- "just sent $100" = CONFIRMATION (past action, no question)
-- "I will send tomorrow" = NONE (future, not confirmed)
+HOW TO USE CONTEXT:
+- The conversation history is CRUCIAL for understanding short/ambiguous messages
+- If previous messages discussed payment, pronouns like "it" refer to that payment
+- "did you check?" with NO payment context = NONE
+- "did you check?" with payment context = VERIFICATION
+- Always infer the user's intent from the FULL conversation
+
+EXAMPLES WITH CONTEXT:
+Context: Assistant gave PayPal account → User: "did you check?" → VERIFICATION (asking about payment)
+Context: General chat → User: "did you check?" → NONE (could mean anything)
+Context: User said "I sent money" → User: "did you get it?" → VERIFICATION (checking if received)
+Context: None → User: "sent!" → NONE (no payment context)
+Context: PayPal shared → User: "sent!" → CONFIRMATION (referring to PayPal payment)
 
 Respond ONLY with JSON format:
 {
   "intent": "VERIFICATION" | "CONFIRMATION" | "NONE",
   "confidence": 0.0-1.0,
-  "reason": "brief explanation"
+  "reason": "brief explanation referencing context"
 }`;
 
-  // Build context from recent history (last 3 messages)
-  const recentHistory = conversationHistory.slice(-3);
-  const historyContext = recentHistory.length > 0 
-    ? `Recent conversation:\n${recentHistory.map(m => `${m.role}: ${m.content}`).join('\n')}\n\n`
-    : '';
-
-  const userPrompt = `${historyContext}Classify this message: "${userMessage}"`;
+  // Build context from recent history (last 5 messages for better context)
+  const recentHistory = conversationHistory.slice(-5);
+  
+  let userPrompt: string;
+  
+  if (recentHistory.length > 0) {
+    const historyText = recentHistory.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
+    userPrompt = `CONVERSATION HISTORY (use this to understand the context):\n${historyText}\n\nCURRENT MESSAGE TO CLASSIFY:\n"${userMessage}"\n\nBased on the full conversation, what is the intent of the CURRENT message?`;
+  } else {
+    userPrompt = `CURRENT MESSAGE TO CLASSIFY:\n"${userMessage}"\n\nWhat is the intent of this message?`;
+  }
 
   try {
     const response = await venice.chatCompletion(

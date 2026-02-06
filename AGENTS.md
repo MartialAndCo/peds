@@ -19,6 +19,7 @@ PedsAI is a sophisticated multi-agent AI platform designed to manage conversatio
 - **AI Health Monitoring**: Supervisor AI system that monitors AI coherence and behavior
 - **Discord Integration**: Cross-platform bot support
 - **PWA Dashboard**: Progressive Web App for mobile management
+- **Lead Provider System**: Dedicated interface for external lead providers ($4/lead)
 
 ---
 
@@ -38,7 +39,7 @@ PedsAI is a sophisticated multi-agent AI platform designed to manage conversatio
 ### Authentication
 - **NextAuth.js**: 4.24.13 with JWT strategy
 - **Credentials Provider**: Email/password with bcrypt
-- **Role-Based Access**: ADMIN and COLLABORATOR roles
+- **Role-Based Access**: ADMIN, COLLABORATOR, and PROVIDER roles
 
 ### UI/Styling
 - **Tailwind CSS**: v4 with PostCSS
@@ -271,6 +272,42 @@ Dynamic payment request amounts based on tier system:
 - De-escalates on 2 consecutive refusals (-1 tier)
 - Template variables: `{{SUGGESTED_AMOUNT}}`, `{{CURRENT_TIER}}`, etc.
 
+### Lead Provider System (NEW)
+
+External lead providers can add leads through a dedicated PWA interface:
+
+**Flow:**
+1. Provider logs in → sees dedicated provider interface
+2. Adds lead (WhatsApp or Discord) with context and source
+3. System checks for duplicates
+4. Creates Contact + Conversation automatically
+5. Lead assigned to provider's configured agent
+6. Admin pays $4 per lead
+
+**Models:**
+```typescript
+model Lead {
+  id            String
+  providerId    String
+  agentId       String
+  type          LeadType  // WHATSAPP | DISCORD
+  identifier    String    // Phone or Discord username
+  source        String    // Where found
+  context       String?   // Conversation context
+  status        LeadStatus // PENDING | IMPORTED | CONVERTED | REJECTED
+  pricePaid     Float     @default(4.0)
+}
+
+model ProviderConfig {
+  providerId    String    @unique
+  agentId       String    // All leads go to this agent
+}
+```
+
+**Routes:**
+- Provider: `/provider` (Add, History, Dashboard)
+- Admin: `/admin/team` (Providers tab), `/admin/provider-leads` (Lead tracking)
+
 ---
 
 ## Testing
@@ -432,6 +469,9 @@ Three services defined in `docker-compose.yml`:
 | `app/api/admin/monitor/logs/route.ts` | **Log monitoring API (NEW)** |
 | `app/admin/system/page.tsx` | **System monitoring dashboard (NEW)** |
 | `app/api/webhooks/whatsapp/route.ts` | WhatsApp webhook handler |
+| `app/api/provider/leads/route.ts` | **Provider lead creation API (NEW)** |
+| `app/api/admin/providers/route.ts` | **Provider management API (NEW)** |
+| `app/provider/page.tsx` | **Provider dashboard (NEW)** |
 | `middleware.ts` | Auth middleware |
 | `prisma/schema.prisma` | Database schema |
 

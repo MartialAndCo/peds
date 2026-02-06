@@ -47,6 +47,12 @@ export interface SwarmState {
     
     // Profile complet de l'agent (pour accès rapide aux templates)
     profile?: any
+    
+    // Messages bruts pour analyse
+    messages?: Array<{ role: string; content: string; timestamp?: Date }>
+    
+    // Métadonnées pour stockage temporaire entre nœuds
+    metadata?: Record<string, any>
 }
 
 export interface IntentionResult {

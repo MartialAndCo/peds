@@ -69,8 +69,8 @@ export async function paymentNode(state: SwarmState): Promise<Partial<SwarmState
   try {
     // Build history from state if available
     const history = state.messages?.slice(-3).map((m: any) => ({
-      role: m.role === 'ai' ? 'assistant' : 'user',
-      content: m.content
+      role: (m.role === 'ai' ? 'assistant' : 'user') as 'assistant' | 'user',
+      content: m.content as string
     })) || [];
     
     classification = await classifyPaymentIntent(
