@@ -37,9 +37,9 @@ Read the conversation above, then classify the LAST user message into one of thr
    - NOT a question
 
 2. VERIFICATION - User asks if payment was received  
-   - Asking about status/checking
-   - Examples: "did you get it?", "tu as reçu?", "check your paypal"
-   - Question about receiving
+   - Asking about status/checking (any payment method: PayPal, Venmo, CashApp, bank, crypto, etc.)
+   - Examples: "did you get it?", "tu as reçu?", "check your account", "did it arrive?"
+   - Question about receiving money
 
 3. NONE - No payment intent
    - Future promises ("I will send tomorrow")
