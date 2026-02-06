@@ -320,18 +320,63 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                     }
                 }
             } else {
-                // Create a new contact with Discord as primary identifier
-                // phone_whatsapp will be the Discord ID temporarily until they provide their number
-                contact = await prisma.contact.create({
-                    data: {
-                        phone_whatsapp: normalizedPhone, // DISCORD_123456
-                        discordId: discordId,
-                        name: payload._data?.notifyName || "Discord User",
-                        source: 'Discord Incoming',
-                        status: 'new'
+                // Second: Try to find by username (name) where discordId is null
+                // This links provider-created leads when Discord user first messages
+                const discordUsername = payload._data?.notifyName
+                if (discordUsername) {
+                    const normalizedUsername = discordUsername.replace(/\s/g, '').toLowerCase()
+                    contact = await prisma.contact.findFirst({
+                        where: { 
+                            name: normalizedUsername,
+                            discordId: null
+                        }
+                    })
+                    
+                    if (contact) {
+                        console.log(`[Processor] Found unlinked lead for Discord user ${discordUsername}: ${contact.id}`)
+                        
+                        // Link the contact with the real Discord ID
+                        contact = await prisma.contact.update({
+                            where: { id: contact.id },
+                            data: {
+                                discordId: discordId,
+                                phone_whatsapp: normalizedPhone, // DISCORD_123456
+                                status: 'active',
+                                source: contact.source || 'Discord Lead (Linked)'
+                            }
+                        })
+                        console.log(`[Processor] Linked lead ${contact.id} with Discord ID ${discordId}`)
+                        
+                        // Update lead status to CONVERTED
+                        const lead = await prisma.lead.findFirst({
+                            where: { 
+                                contactId: contact.id,
+                                status: 'IMPORTED'
+                            }
+                        })
+                        if (lead) {
+                            await prisma.lead.update({
+                                where: { id: lead.id },
+                                data: { status: 'CONVERTED', paidAt: new Date() }
+                            })
+                            console.log(`[Processor] Lead ${lead.id} marked as CONVERTED`)
+                        }
                     }
-                })
-                console.log(`[Processor] Created Discord contact: ${contact.id}`)
+                }
+                
+                // If still no contact, create new one
+                if (!contact) {
+                    contact = await prisma.contact.create({
+                        data: {
+                            phone_whatsapp: normalizedPhone, // DISCORD_123456
+                            discordId: discordId,
+                            name: payload._data?.notifyName || "Discord User",
+                            source: 'Discord Incoming',
+                            status: 'new'
+                        }
+                    })
+                    console.log(`[Processor] Created Discord contact: ${contact.id}`)
+                }
             }
         } else {
             // Standard WhatsApp flow

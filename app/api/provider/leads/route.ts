@@ -161,7 +161,6 @@ export async function POST(req: Request) {
 
         // Create contact automatically
         const contactData: any = {
-            name: body.type === 'DISCORD' ? body.identifier : undefined,
             source: `provider:${session.user.id}`,
             notes: body.notes || `Source: ${body.source}`,
             status: 'paused',  // Start as paused, will become active on first response
@@ -177,7 +176,9 @@ export async function POST(req: Request) {
         if (body.type === 'WHATSAPP') {
             contactData.phone_whatsapp = normalizedIdentifier
         } else {
-            contactData.discordId = normalizedIdentifier
+            // For Discord: store username in name (normalized), discordId will be filled when user messages
+            contactData.name = normalizedIdentifier
+            // discordId stays null until the bot receives a message from this user
         }
 
         const contact = await prisma.contact.create({
