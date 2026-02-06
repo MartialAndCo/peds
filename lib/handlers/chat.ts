@@ -327,6 +327,15 @@ export async function handleChat(
         // We no longer scan user text. We listen for [PAYMENT_RECEIVED] from AI.
 
         return result
+    } catch (error: any) {
+        // CRITICAL: Handle Venice API errors gracefully
+        if (error.message?.includes('VENICE_API_REJECTED') || error.message?.includes('402') || error.message?.includes('Insufficient balance')) {
+            console.error('[Chat] 🚨 Venice API error in handleChat:', error.message)
+            // Return handled to prevent processor crash
+            return { handled: true, result: 'ai_quota_failed', error: error.message }
+        }
+        // Re-throw other errors
+        throw error
     } finally {
         await releaseLock(conversation.id)
     }
