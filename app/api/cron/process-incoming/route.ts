@@ -26,7 +26,7 @@ export async function GET(req: Request) {
             // IMPORTANT: We must order by createdAt ASC to process in order
             const items = await tx.incomingQueue.findMany({
                 where: { status: 'PENDING' },
-                take: 10, // Reduced from 50 to prevent timeouts and resource exhaustion
+                take: 5, // Reduced: 5 messages max to respect Venice 150 RPM with SWARM sequential delays
                 orderBy: { createdAt: 'asc' }
             })
 

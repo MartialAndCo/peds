@@ -74,7 +74,7 @@ export async function sendQueueItemNow(id: string) {
         }
 
         // Use the shared service logic
-        await queueService.processedSingleItem(item)
+        await queueService.processSingleItem(item)
 
         revalidatePath('/queue')
         return { success: true }
