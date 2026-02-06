@@ -219,23 +219,33 @@ export const director = {
             console.log(`[Director] Phase 4 Dynamic Amount: $${escalationState.suggestedAmount} (Tier ${escalationState.currentTier})`)
         }
 
-        // Dynamic Birthday
+        // Dynamic Birthday / Age
         const baseAge = profile?.baseAge || 18
         const locale = profile?.locale || 'en-US'
         const currentAge = baseAge; // (simplified logic for now)
 
+        // Remplacer {{AGE}} et {{CURRENT_AGE}} dans tous les templates
+        const replaceAge = (text: string) => text
+            .replace(/\{\{AGE\}\}/g, currentAge.toString())
+            .replace(/\{\{CURRENT_AGE\}\}/g, currentAge.toString())
+
         const processedBaseRole = baseRole
             .replace(/\{\{CURRENT_AGE\}\}/g, currentAge.toString())
 
-        const pIdentity = tIdentity.replace('{{ROLE}}', processedBaseRole)
-        const pContext = tContext
+        const pIdentity = replaceAge(tIdentity).replace('{{ROLE}}', processedBaseRole)
+        const pContext = replaceAge(tContext)
             .replace('{{USER_NAME}}', contact.name || "friend")
             .replace('{{PHASE}}', phase)
             .replace('{{SIGNALS}}', (details.signals || []).join(', ') || "None yet")
             .replace('{{SIGNAL_COUNT}}', (details.signalCount || 0).toString())
             .replace('{{TRUST_SCORE}}', details.signalCount?.toString() || details.trustScore?.toString() || "0") // Backward compat
 
-        const pMission = tMission.replace('{{DYNAMIC_GOAL_BLOCK}}', phaseGoal)
+        const pMission = replaceAge(tMission).replace('{{DYNAMIC_GOAL_BLOCK}}', phaseGoal)
+        
+        // Remplacer {{AGE}} dans toutes les autres règles
+        const pSafety = replaceAge(sRules)
+        const pStyle = replaceAge(styleRules)
+        const pPayment = replaceAge(simplifiedPaymentBlock)
 
         // RESTORED: Get current life context from persona schedule (timezone-aware)
         const agentTimezone = profile?.timezone || 'Europe/Paris'
@@ -509,9 +519,9 @@ ${antiRepeatBlock}
 
 ${voiceRule}
 
-${sRules}
+${pSafety}
 
-${simplifiedPaymentBlock}
+${pPayment}
 `
 
         // Remplacer {{PLATFORM}} par le vrai nom de plateforme

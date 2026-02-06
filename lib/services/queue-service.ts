@@ -3,6 +3,7 @@ import { whatsapp } from '@/lib/whatsapp'
 import { logger } from '@/lib/logger'
 import { settingsService } from '@/lib/settings-cache'
 import { timeCoherenceAgent } from './time-coherence-agent'
+import { ageCoherenceAgent } from './age-coherence-agent'
 
 export class QueueService {
     // Track items currently being processed in-memory to prevent concurrent execution
@@ -163,13 +164,26 @@ export class QueueService {
             return { id: queueItem.id, status: 'aborted', reason: `status_changed_to_${currentStatus?.status}` }
         }
 
-        // 🕐 VÉRIFICATION TEMPRELLE: Détecter les mentions d'heure incohérentes
+        // Récupérer l'âge du profil pour la vérification
+        const agentProfile = await prisma.agentProfile.findUnique({
+            where: { agentId },
+            select: { baseAge: true }
+        });
+        const profileAge = agentProfile?.baseAge || 15;
+
+        // 🕐 VÉRIFICATION TEMPORELLE: Détecter les mentions d'heure incohérentes
         if (content && !mediaUrl) {
             const timeCheck = await timeCoherenceAgent.checkAndLog(content, queueItem.id, new Date());
             if (timeCheck.shouldRewrite && timeCheck.suggestedFix) {
                 console.log(`[QueueService] ⚠️ Message ${queueItem.id} contient une heure incohérente. Suggestion: "${timeCheck.suggestedFix}"`);
-                // Note: Pour l'instant on log seulement, on ne réécrit pas automatiquement
-                // pour éviter de casser le sens du message
+            }
+        }
+
+        // 🎂 VÉRIFICATION D'ÂGE: Détecter les mentions d'âge incohérentes
+        if (content && !mediaUrl) {
+            const ageCheck = await ageCoherenceAgent.checkAndLog(content, queueItem.id, profileAge);
+            if (ageCheck.shouldFlag) {
+                console.warn(`[QueueService] 🚨 ALERTE ÂGE: Message ${queueItem.id} mentionne ${ageCheck.mentionedAge} ans au lieu de ${profileAge} ans!`);
             }
         }
 
