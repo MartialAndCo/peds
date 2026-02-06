@@ -81,46 +81,9 @@ export async function handleAdminCommand(text: string, sourcePhone: string, sett
         await whatsapp.sendText(sourcePhone, `⏳ Deleting EVERYTING for ${targetPhone}...`, undefined, agentId)
 
         try {
-            // 1. Delete Memories (Mem0)
-            const { memoryService } = require('@/lib/memory')
-            // Delete global memories
-            await memoryService.deleteAll(targetPhone)
-            // Delete agent-specific memories (Try all agents? Or just the one?)
-            // We can't easily know which agents they talked to without checking conversations first.
-            // But we can check conversations.
-            const convs = await prisma.conversation.findMany({ where: { contactId: contact.id } })
-            const agentIds = [...new Set(convs.map(c => c.agentId).filter(id => id !== null))]
-
-            for (const aid of agentIds) {
-                const uid = memoryService.buildUserId(targetPhone, aid)
-                await memoryService.deleteAll(uid)
-            }
-
-            // 2. Delete Database Records (Manual Cascade for safety)
-            // Payment Claims
-            await prisma.pendingPaymentClaim.deleteMany({ where: { contactId: contact.id } })
-
-            // Payments (Optional: User might want to keep financial records? But "tout tout tout" implies wipe)
-            // safer to nullify contactId than delete payment record if we want to keep accounting?
-            // "Supprime bien tout" -> Delete.
-            await prisma.payment.deleteMany({ where: { contactId: contact.id } })
-
-            // Trust Logs
-            await prisma.trustLog.deleteMany({ where: { contactId: contact.id } })
-
-            // Message Queue
-            await prisma.messageQueue.deleteMany({ where: { contactId: contact.id } })
-
-            // Messages & Conversations handling
-            // We delete messages first to be sure
-            const convIds = convs.map(c => c.id)
-            if (convIds.length > 0) {
-                await prisma.message.deleteMany({ where: { conversationId: { in: convIds } } })
-                await prisma.conversation.deleteMany({ where: { contactId: contact.id } })
-            }
-
-            // Finally: Delete Contact
-            await prisma.contact.delete({ where: { id: contact.id } })
+            // Use centralized deletion function
+            const { deleteContactCompletely } = await import('@/lib/contact-utils')
+            await deleteContactCompletely(contact.id)
 
             await whatsapp.sendText(sourcePhone, `✅ WIPED: ${targetPhone}\n- Memories: Deleted\n- Conversations: Deleted\n- Payments/Logs: Deleted\n- Contact: Deleted\n\nIt is as if they never existed.`, undefined, agentId)
 

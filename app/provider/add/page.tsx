@@ -45,6 +45,7 @@ export default function AddLeadPage() {
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [success, setSuccess] = useState(false)
     const [error, setError] = useState('')
+    const [overwrite, setOverwrite] = useState(false)
 
     const debouncedIdentifier = useDebounce(form.identifier, 500)
 
@@ -85,7 +86,8 @@ export default function AddLeadPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     ...form,
-                    age: form.age ? parseInt(form.age) : undefined
+                    age: form.age ? parseInt(form.age) : undefined,
+                    overwrite
                 })
             })
 
@@ -101,6 +103,7 @@ export default function AddLeadPage() {
                     context: ''
                 })
                 setDuplicate(null)
+                setOverwrite(false)
             } else {
                 const data = await res.json()
                 if (data.error === 'DUPLICATE') {
@@ -109,7 +112,8 @@ export default function AddLeadPage() {
                         exists: true,
                         type: 'LEAD',
                         status: data.status,
-                        leadId: data.leadId
+                        leadId: data.leadId,
+                        agent: data.agent
                     })
                 } else {
                     setError(data.error || data.message || 'Failed to add lead')
@@ -135,6 +139,7 @@ export default function AddLeadPage() {
         setDuplicate(null)
         setSuccess(false)
         setError('')
+        setOverwrite(false)
     }
 
     return (
@@ -203,16 +208,29 @@ export default function AddLeadPage() {
                         <Alert className="bg-yellow-500/10 border-yellow-500/50">
                             <AlertCircle className="w-4 h-4 text-yellow-500" />
                             <AlertDescription className="text-yellow-200">
-                                This {duplicate.type?.toLowerCase()} already exists in the system
-                                {duplicate.addedBy && ` (added by ${duplicate.addedBy})`}
-                                {duplicate.agent && ` for agent ${duplicate.agent}`}.
-                                <button 
-                                    type="button"
-                                    onClick={() => window.location.href = '/provider/history'}
-                                    className="underline ml-1 hover:text-yellow-300"
-                                >
-                                    View in history
-                                </button>
+                                <div className="flex flex-col gap-2">
+                                    <p>
+                                        This {duplicate.type?.toLowerCase()} already exists in the system
+                                        {duplicate.addedBy && ` (added by ${duplicate.addedBy})`}
+                                        {duplicate.agent && ` for agent ${duplicate.agent}`}.
+                                        <button 
+                                            type="button"
+                                            onClick={() => window.location.href = '/provider/history'}
+                                            className="underline ml-1 hover:text-yellow-300"
+                                        >
+                                            View in history
+                                        </button>
+                                    </p>
+                                    <label className="flex items-center gap-2 cursor-pointer mt-1">
+                                        <input
+                                            type="checkbox"
+                                            checked={overwrite}
+                                            onChange={(e) => setOverwrite(e.target.checked)}
+                                            className="rounded border-yellow-500/50 bg-yellow-500/10 text-yellow-500 focus:ring-yellow-500"
+                                        />
+                                        <span className="text-sm">Overwrite existing lead and all associated data</span>
+                                    </label>
+                                </div>
                             </AlertDescription>
                         </Alert>
                     )}
@@ -320,13 +338,18 @@ export default function AddLeadPage() {
                     {/* Submit */}
                     <Button 
                         type="submit" 
-                        className="w-full bg-blue-600 hover:bg-blue-700 h-12 text-lg"
-                        disabled={isSubmitting || duplicate?.exists}
+                        className={`w-full h-12 text-lg ${overwrite && duplicate?.exists ? 'bg-orange-600 hover:bg-orange-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                        disabled={isSubmitting || (duplicate?.exists && !overwrite)}
                     >
                         {isSubmitting ? (
                             <>
                                 <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                                Adding Lead...
+                                {overwrite ? 'Overwriting...' : 'Adding Lead...'}
+                            </>
+                        ) : overwrite && duplicate?.exists ? (
+                            <>
+                                <RefreshCcw className="w-5 h-5 mr-2" />
+                                Overwrite Existing Lead
                             </>
                         ) : (
                             <>
@@ -336,16 +359,9 @@ export default function AddLeadPage() {
                         )}
                     </Button>
 
-                    {duplicate?.exists && (
+                    {duplicate?.exists && !overwrite && (
                         <p className="text-center text-sm text-slate-500">
-                            Cannot add duplicate lead. 
-                            <button 
-                                type="button"
-                                onClick={() => window.location.href = 'mailto:admin@example.com'}
-                                className="text-blue-400 hover:text-blue-300 ml-1"
-                            >
-                                Contact admin
-                            </button>
+                            Check "Overwrite" above to replace the existing lead and all associated data.
                         </p>
                     )}
                 </form>

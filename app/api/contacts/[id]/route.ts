@@ -132,70 +132,11 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const { id } = await params
 
     try {
-        // Manual cascade delete fallback (Deep Clean)
-        // 1. Find conversations
-        const conversations = await prisma.conversation.findMany({
-            where: { contactId: id },
-            select: { id: true }
-        })
-        const conversationIds = conversations.map(c => c.id)
-
-        // 2. Delete messages in those conversations
-        if (conversationIds.length > 0) {
-            await prisma.message.deleteMany({
-                where: { conversationId: { in: conversationIds } }
-            })
-            // Queue
-            await prisma.messageQueue.deleteMany({
-                where: { conversationId: { in: conversationIds } }
-            })
-        }
-
-        // 3. Delete conversations
-        await prisma.conversation.deleteMany({
-            where: { contactId: id }
-        })
-
-        // Queue direct link
-        await prisma.messageQueue.deleteMany({ where: { contactId: id } })
-
-        // 4. Delete Mem0 memories (Using phone_whatsapp as userId)
-        const contact = await prisma.contact.findUnique({ where: { id } });
-        if (contact && contact.phone_whatsapp) {
-            const { memoryService } = require('@/lib/memory');
-            // Global
-            await memoryService.deleteAll(contact.phone_whatsapp);
-
-            // Agent-Specific Memories
-            // We need to find which agents were involved from the deleted conversations
-            // We already fetched conversations above, but only IDs. Let's fetch agentIds.
-            const convsWithAgents = await prisma.conversation.findMany({
-                where: { contactId: id },
-                select: { agentId: true }
-            })
-            const agentIds = [...new Set(convsWithAgents.map(c => c.agentId).filter(aid => aid !== null))]
-
-            for (const aid of agentIds) {
-                const uid = memoryService.buildUserId(contact.phone_whatsapp, aid!)
-                await memoryService.deleteAll(uid)
-            }
-
-            // Delete Other Related Records
-            try {
-                await prisma.pendingRequest.deleteMany({ where: { requesterPhone: contact.phone_whatsapp } })
-                await prisma.trustLog.deleteMany({ where: { contactId: id } })
-                await prisma.payment.deleteMany({ where: { contactId: id } })
-                await prisma.pendingPaymentClaim.deleteMany({ where: { contactId: id } })
-            } catch (e) { console.error('Cleanup warning', e) }
-        }
-
-        // 5. Delete contact
-        await prisma.contact.delete({
-            where: { id }
-        })
+        const { deleteContactCompletely } = await import('@/lib/contact-utils')
+        await deleteContactCompletely(id)
         return NextResponse.json({ success: true })
     } catch (error: any) {
-        if (error.code === 'P2025') {
+        if (error.message === 'Contact not found' || error.code === 'P2025') {
             return NextResponse.json({ error: 'Not found' }, { status: 404 })
         }
         console.error("Delete Error", error)

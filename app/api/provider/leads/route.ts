@@ -12,6 +12,7 @@ const leadSchema = z.object({
     notes: z.string().optional(),
     context: z.string().optional(),
     source: z.string().min(1),
+    overwrite: z.boolean().optional().default(false),
 })
 
 // GET /api/provider/leads - Get provider's lead history
@@ -87,19 +88,46 @@ export async function POST(req: Request) {
             }
         })
 
+        let existingLead = null
         if (existingContact) {
             // Check if already a lead
-            const existingLead = await prisma.lead.findFirst({
-                where: { identifier: body.identifier }
+            existingLead = await prisma.lead.findFirst({
+                where: { identifier: body.identifier },
+                include: { agent: { select: { name: true } } }
             })
             
             if (existingLead) {
-                return NextResponse.json({ 
-                    error: 'DUPLICATE',
-                    message: 'This lead already exists in the system',
-                    leadId: existingLead.id,
-                    status: existingLead.status
-                }, { status: 409 })
+                if (!body.overwrite) {
+                    return NextResponse.json({ 
+                        error: 'DUPLICATE',
+                        message: 'This lead already exists in the system',
+                        leadId: existingLead.id,
+                        status: existingLead.status,
+                        agent: existingLead.agent?.name
+                    }, { status: 409 })
+                }
+                
+                // Overwrite: delete existing lead and contact using centralized function
+                console.log(`[Lead Overwrite] Deleting lead ${existingLead.id} and contact ${existingContact.id}`)
+                
+                const { deleteContactCompletely } = await import('@/lib/contact-utils')
+                
+                // 1. Détacher le contact du lead (mettre contactId à null)
+                // Sinon on ne peut pas supprimer le lead à cause de la contrainte FK
+                await prisma.lead.update({
+                    where: { id: existingLead.id },
+                    data: { contactId: null }
+                })
+                
+                // 2. Supprimer le lead (plus de référence vers contact)
+                await prisma.lead.delete({
+                    where: { id: existingLead.id }
+                })
+                
+                // 3. Supprimer le contact et toutes ses données
+                await deleteContactCompletely(existingContact.id)
+                
+                console.log(`[Lead Overwrite] Successfully deleted old lead and contact`)
             }
         }
 
