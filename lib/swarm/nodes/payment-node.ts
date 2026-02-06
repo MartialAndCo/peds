@@ -133,7 +133,7 @@ export async function paymentNode(state: SwarmState): Promise<Partial<SwarmState
   const paymentRules = (profile?.paymentRules || (isFrench ? 'Si on propose de payer → ACCEPTE avec enthousiasme. Attends confirmation avant [PAIEMENT_REÇU].' : 'If offered money → ACCEPT enthusiastically. Wait confirmation before [PAYMENT_RECEIVED].')).replace(/\{\{PLATFORM\}\}/g, platformName)
   
   const paymentContext = `[PAIEMENT - RÈGLES STRICTES]:
-${paymentRules}${confirmationInstructions}`
+${paymentRules}${confirmationInstructions}
 
 MÉTHODES DISPONIBLES:
 ${methodsText}
