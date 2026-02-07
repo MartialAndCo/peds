@@ -71,58 +71,45 @@ export const mediaService = {
             ? contextMessages.map(m => `[${m.role}]: ${m.content}`).join('\n')
             : '(no conversation history)';
 
-        const defaultAnalysisPrompt = `You are a Content Safety and Intent Analyzer for a personal media banking system.
-        
-        Your Goal:
-        1. Check if the user's request violates any BLACKLIST rules.
-        2. Check if the user has OFFERED PAYMENT in the recent conversation context.
-        3. If blacklisted BUT user offered payment → This is a PAYWALL situation (allowed with payment required).
-        4. If allowed, identify the intent category from the available list.
-        
-        CURRENT PHASE: ${contactPhase}
-        
-        RECENT CONVERSATION CONTEXT (last 5 messages):
-        ${contextText}
-        
-        Blacklist Rules (STRICTLY FORBIDDEN unless user offers payment):
-        ${blacklistText || '(No restrictions for this phase)'}
+        const defaultAnalysisPrompt = `Analyze if user is REQUESTING a photo/video from AI or just CHATTING.
 
-        Available Categories:
-        ${availableCategories}
+RULE 1 - isMediaRequest = FALSE (just chatting):
+- User describes their OWN hobbies: "I like photography", "I take nature pics", "I love hiking"
+- User talks about THEIR photos: "Look at my photo", "I took a picture yesterday"
+- User mentions interests: "I like reading", "camping is fun", "eating good food"
+- User says "pics/photos" as part of their hobby description
 
-        CRITICAL DISTINCTION - CHATTING vs REQUESTING:
-        - User saying "I like taking photos" or "I take nature pics" = CHATTING about hobbies, NOT requesting media
-        - User saying "send me a photo" or "show me your face" = REQUESTING media
-        - User talking about THEIR photos = CHATTING
-        - User asking for YOUR photos = REQUESTING
-        
-        Set "isMediaRequest" to FALSE when:
-        - User describes their hobbies (photography, hiking, etc.)
-        - User mentions they take photos
-        - User talks about their interests
-        - There is NO explicit request for the AI to send media
+RULE 2 - isMediaRequest = TRUE (requesting from AI):
+- User explicitly asks AI to SEND: "send me a photo", "show me your face", "photo of you"
+- User asks to SEE AI: "let me see you", "show yourself", "can I see you"
+- User requests selfie: "send a selfie", "selfie please"
 
-        PAYWALL DETECTION RULES:
-        - If the request matches a blacklist item AND the user explicitly offers money/payment in the conversation context → set "paywallTriggered" to true and "allowed" to true
-        - Payment offers include: mentioning €, $, dollars, euros, "je te paye", "I'll pay", numbers + "balles", etc.
-        - If no payment offer was made → handle as normal (refuse if blacklisted)
+DECISION TREE:
+1. Does user ask AI to SEND/SHOW something? → isMediaRequest: true
+2. Is user describing their own life/hobbies? → isMediaRequest: false
 
-        Instructions:
-        - If the request violates the blacklist AND user has NOT offered payment → set "allowed" to false
-        - If the request violates the blacklist AND user HAS offered payment → set "allowed" to true AND "paywallTriggered" to true
-        - If the request is NOT in the blacklist → set "allowed" to true, "paywallTriggered" to false
-        - If "allowed" is true, try to match the user's intent to one of the Available Categories.
-        - If no category matches, set "intentCategory" to null.
-        - If the user is NOT asking for media (just chatting about hobbies/interests), set "isMediaRequest" to false.
+EXAMPLES:
+- "I like hiking reading camping take nature pics" → FALSE (hobbies)
+- "Send me a photo of you" → TRUE (request)
+- "I love taking photos" → FALSE (hobby)
+- "Show me your face" → TRUE (request)
+- "Regarde la photo que j'ai prise" → FALSE (showing their photo)
+- "Can you send a selfie?" → TRUE (request)
+- "I went to the beach and took pics" → FALSE (describing their day)
 
-        Output JSON format ONLY:
-        {
-            "isMediaRequest": boolean,
-            "allowed": boolean,
-            "paywallTriggered": boolean, // true if blacklisted BUT user offered payment
-            "refusalReason": string | null,
-            "intentCategory": string | null // must match an id from Available Categories
-        }`;
+PHASE: ${contactPhase}
+BLACKLIST: ${blacklistText || '(none)'}
+CATEGORIES: ${availableCategories}
+CONTEXT: ${contextText}
+
+Respond ONLY with JSON:
+{
+    "isMediaRequest": boolean,
+    "allowed": boolean,
+    "paywallTriggered": boolean,
+    "refusalReason": string | null,
+    "intentCategory": string | null
+}`;
 
         const systemPromptTemplate = settings.prompt_media_analysis || defaultAnalysisPrompt;
         const systemPrompt = systemPromptTemplate
