@@ -8,7 +8,7 @@ export async function styleNode(state: SwarmState): Promise<Partial<SwarmState>>
 
     const profile = await prisma.agentProfile.findUnique({
         where: { agentId },
-        select: { styleRules: true }
+        select: { styleRules: true, baseAge: true }
     })
 
     console.log('[Swarm][Style] Found:', profile ? 'YES' : 'NO', 'Length:', profile?.styleRules?.length || 0)

@@ -37,6 +37,161 @@ export const mediaService = {
         console.log(`[MediaService] Analyzing request: "${text}" (Contact: ${contactPhone || 'unknown'}, Agent: ${agentId}, HistoryLength: ${conversationHistory?.length || 0})`)
         logger.info(`Analyzing request: "${text}"`, { module: 'media_service', contactPhone, agentId, historyLength: conversationHistory?.length });
 
+        // === QUICK FILTER: Hobby statements (not requests) ===
+        // ATTENTION: Doit être très spécifique pour éviter les faux négatifs
+        const lowerText = text.toLowerCase();
+        const hobbyPatterns = [
+            /\bi like (taking|making|shooting)/i,
+            /\bi love (taking|making|shooting)/i,
+            /\bi enjoy (taking|making|shooting)/i,
+            /j'adore la photo/i,
+            /j'adore prendre des photos/i,
+            /j'aime la photo/i,
+            /j'aime prendre des photos/i,
+            /my hobby is/i,
+            /mon hobby c'est/i,
+            /my passion is/i,
+            /ma passion c'est/i,
+            /je suis photographe/i,
+            /i am a photographer/i,
+            /i take photos/i,
+            /je prends des photos/i,
+            /my instagram/i,
+            /mon instagram/i,
+            /i shoot in/i,
+            /je shoot en/i,
+        ];
+        const isHobbyStatement = hobbyPatterns.some(pattern => pattern.test(text));
+        
+        if (isHobbyStatement) {
+            console.log(`[MediaService] Detected hobby statement, skipping media request analysis`);
+            return {
+                isMediaRequest: false,
+                allowed: false,
+                intentCategory: null,
+                categoryConfidence: 0,
+                paywallTriggered: false,
+                paywallReason: null,
+                type: 'hobby_statement',
+                confidence: 0.95,
+                explanation: 'User is talking about their hobbies, not requesting media',
+                detectedTerms: [],
+                filteredTerms: [],
+                triggeredPaywallTerms: [],
+                action: 'IGNORE'
+            };
+        }
+
+        // === QUICK FILTER: User sharing their own photos (not requesting) ===
+        const sharingPatterns = [
+            /look at my (photo|pic)/i,
+            /regarde (ma|la) photo/i,
+            /voici ma photo/i,
+            /here is my (photo|pic)/i,
+            /i took (this|that|a) photo/i,
+            /j'ai pris (cette|cette|une) photo/i,
+            /i made (this|that) photo/i,
+            /j'ai fait (cette|une) photo/i,
+            /je t'envoie une photo/i,
+            /i('m| am)? (sending|send) you a photo/i,
+            /my photo of/i,
+            /ma photo de/i,
+            /i captured/i,
+            /j'ai capturé/i,
+            /regarde ce que j'ai photographié/i,
+            /look what i photographed/i,
+            /voilà la photo/i,
+            /here('s| is) the photo/i,
+            /c'est moi sur (la|cette) photo/i,
+            /that's me (in|on) the photo/i,
+            /j'ai (enfin)? développé mes photos/i,
+            /i (finally)? developed my photos/i,
+        ];
+        const isSharingOwnPhoto = sharingPatterns.some(pattern => pattern.test(text));
+        
+        if (isSharingOwnPhoto) {
+            console.log(`[MediaService] Detected user sharing their own photo, skipping media request analysis`);
+            return {
+                isMediaRequest: false,
+                allowed: false,
+                intentCategory: null,
+                categoryConfidence: 0,
+                paywallTriggered: false,
+                paywallReason: null,
+                type: 'user_sharing_photo',
+                confidence: 0.95,
+                explanation: 'User is sharing their own photo, not requesting media',
+                detectedTerms: [],
+                filteredTerms: [],
+                triggeredPaywallTerms: [],
+                action: 'IGNORE'
+            };
+        }
+
+        // === QUICK DETECT: Demande d'apparence/description physique ===
+        const appearanceRequestPatterns = [
+            /tu ressembles à quoi/i,
+            /t('es|u es) comment physiquement/i,
+            /tu as une tête\s*\?/i,
+            /t'as une tête\s*\?/i,
+            /balance ton (instagram|insta|ig)/i,
+            /donne ton (instagram|insta|ig)/i,
+            /tu m'envoies (ça|ca) quand/i,
+        ];
+        const isAppearanceRequest = appearanceRequestPatterns.some(pattern => pattern.test(text));
+        
+        if (isAppearanceRequest) {
+            console.log(`[MediaService] Detected appearance request pattern - forcing isMediaRequest=true`);
+            return {
+                isMediaRequest: true,
+                allowed: false, // Will be determined by paywall logic later
+                intentCategory: 'photo_visage',
+                categoryConfidence: 0.9,
+                paywallTriggered: false, // Determined later
+                paywallReason: null,
+                type: 'appearance_request',
+                confidence: 0.9,
+                explanation: 'User asking what AI looks like (appearance request)',
+                detectedTerms: [],
+                filteredTerms: [],
+                triggeredPaywallTerms: [],
+                action: 'ANALYZE'
+            };
+        }
+
+        // === QUICK FILTER: NOT requests (Venice gets these wrong) ===
+        const notRequestPatterns = [
+            /prends-moi en photo/i,
+            /tu devrais faire de la photo/i,
+            /c'est toi qui (as|a) photographié/i,
+            /photographie-moi/i,
+            /t'as des photos sur ton profil/i,
+            /tu as des photos sur ton profil/i,
+            /tu (as|a) pris la photo/i,
+            /j'aime les photos/i,
+            /j'aime la photo$/i,
+        ];
+        const isNotRequest = notRequestPatterns.some(pattern => pattern.test(text));
+        
+        if (isNotRequest) {
+            console.log(`[MediaService] Detected non-request pattern, skipping media request analysis`);
+            return {
+                isMediaRequest: false,
+                allowed: false,
+                intentCategory: null,
+                categoryConfidence: 0,
+                paywallTriggered: false,
+                paywallReason: null,
+                type: 'not_media_request',
+                confidence: 0.9,
+                explanation: 'User not requesting AI to send media',
+                detectedTerms: [],
+                filteredTerms: [],
+                triggeredPaywallTerms: [],
+                action: 'IGNORE'
+            };
+        }
+
         // Fetch contact's current phase (default to CONNECTION if unknown)
         let contactPhase = 'CONNECTION';
         if (contactPhone && agentId) {
@@ -73,31 +228,41 @@ export const mediaService = {
 
         const defaultAnalysisPrompt = `Analyze if user is REQUESTING a photo/video from AI or just CHATTING.
 
-RULE 1 - isMediaRequest = FALSE (just chatting):
-- User describes their OWN hobbies: "I like photography", "I take nature pics", "I love hiking"
+=== CRITICAL DISTINCTION ===
+REQUESTING = User wants AI to SEND them a photo
+CHATTING = User is talking about photos in general, their hobbies, or sharing their own photos
+
+=== RULES - isMediaRequest = FALSE (just chatting) ===
+- User describes THEIR hobbies: "I like photography", "I take nature pics", "I shoot in RAW"
 - User talks about THEIR photos: "Look at my photo", "I took a picture yesterday"
-- User mentions interests: "I like reading", "camping is fun", "eating good food"
-- User says "pics/photos" as part of their hobby description
+- User asks if AI does photography: "You do photography?" 
+- User mentions Instagram: "My Instagram is full of landscapes"
+- User says they're a photographer: "I'm an amateur photographer"
+- User talking ABOUT photos (not asking FOR photos)
 
-RULE 2 - isMediaRequest = TRUE (requesting from AI):
-- User explicitly asks AI to SEND: "send me a photo", "show me your face", "photo of you"
-- User asks to SEE AI: "let me see you", "show yourself", "can I see you"
-- User requests selfie: "send a selfie", "selfie please"
+=== RULES - isMediaRequest = TRUE (requesting) ===
+- User asks AI to SEND: "send me a photo", "envoie une photo", "send pic"
+- User asks to SEE AI: "show me your face", "montre-moi ta tête", "fais voir"
+- User asks what AI looks like: "what do you look like?", "tu ressembles à quoi?"
+- User asks for selfie: "send a selfie", "selfie?"
+- User asks for Instagram: "what's your Instagram?", "balance ton insta"
+- User says "show me" in context of seeing AI: "show me", "montre-moi"
 
-DECISION TREE:
-1. Does user ask AI to SEND/SHOW something? → isMediaRequest: true
-2. Is user describing their own life/hobbies? → isMediaRequest: false
+=== TRICKY CASES - DECISIONS ===
+"Toi aussi tu fais de la photo?" → FALSE (asking if AI does photography)
+"Tu fais de la photo?" → FALSE (asking about hobby)
+"Montre-moi à quoi tu ressembles" → TRUE (asking to see AI)
+"J'aimerais te voir" → TRUE (wants to see AI)
+"Tu ressembles à quoi?" → TRUE (asking appearance)
+"T'es comment physiquement?" → TRUE (asking physical description/photo)
+"Prends-moi en photo" → FALSE (wants AI to take their photo, not send one)
+"T'as des photos sur ton profil?" → FALSE (asking about existence, not requesting)
+"Tu as une tête?" → TRUE (slang for "show your face")
+"Balance ton instagram" → TRUE (asking for photos/social)
+"À ton tour" → FALSE (context needed, but could be request - ambiguous)
+"Tu m'envoies ça quand?" → TRUE (following up on promised photo)
 
-EXAMPLES:
-- "I like hiking reading camping take nature pics" → FALSE (hobbies)
-- "Send me a photo of you" → TRUE (request)
-- "I love taking photos" → FALSE (hobby)
-- "Show me your face" → TRUE (request)
-- "Regarde la photo que j'ai prise" → FALSE (showing their photo)
-- "Can you send a selfie?" → TRUE (request)
-- "I went to the beach and took pics" → FALSE (describing their day)
-
-PHASE: ${contactPhase}
+=== PHASE: ${contactPhase} ===
 BLACKLIST: ${blacklistText || '(none)'}
 CATEGORIES: ${availableCategories}
 CONTEXT: ${contextText}
