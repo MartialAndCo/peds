@@ -14,9 +14,10 @@ export async function styleNode(state: SwarmState): Promise<Partial<SwarmState>>
     console.log('[Swarm][Style] Found:', profile ? 'YES' : 'NO', 'Length:', profile?.styleRules?.length || 0)
 
     // Remplacer {{PLATFORM}} et {{AGE}} si présents
+    const baseAge = profile?.baseAge ?? 18
     const styleRules = profile?.styleRules
         ?.replace(/\{\{PLATFORM\}\}/g, state.platform === 'discord' ? 'Discord' : 'WhatsApp')
-        ?.replace(/\{\{AGE\}\}/g, profile?.baseAge?.toString() || '15') || ''
+        ?.replace(/\{\{AGE\}\}/g, baseAge.toString()) || ''
     
     return {
         contexts: {
