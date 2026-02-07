@@ -12,9 +12,11 @@ export async function voiceNode(state: SwarmState): Promise<Partial<SwarmState>>
   
   const isFrench = (profile?.locale || '').toLowerCase().startsWith('fr');
   
-  // Vérifier si vocaux activés
-  const settings = await settingsService.getSettings();
+  // Vérifier si vocaux activés - UTILISER LES SETTINGS PAR AGENT (pas global)
+  const settings = await settingsService.getAgentSettings(state.agentId);
   const voiceEnabled = settings['voice_response_enabled'] === 'true' || settings['voice_response_enabled'] === true;
+  
+  console.log(`[Swarm][Voice] Agent ${state.agentId}: voiceEnabled=${voiceEnabled}`)
   
   // Détecter si message reçu est un vocal
   const isVoiceReceived = state.lastMessageType === 'voice' || state.lastMessageType === 'ptt' || state.lastMessageType === 'audio';

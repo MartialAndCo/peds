@@ -40,6 +40,14 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
     const [exporting, setExporting] = useState(false)
     const scrollRef = useRef<HTMLDivElement>(null)
     const prevScrollHeight = useRef<number>(0)
+    const oldestIdRef = useRef<number | null>(null)
+    const hasMoreRef = useRef<boolean>(true)
+    const loadingMoreRef = useRef<boolean>(false)
+
+    // Keep refs in sync with state
+    useEffect(() => { oldestIdRef.current = oldestId }, [oldestId])
+    useEffect(() => { hasMoreRef.current = hasMore }, [hasMore])
+    useEffect(() => { loadingMoreRef.current = loadingMore }, [loadingMore])
 
     // Helper to fix base64 URLs that were stored without proper data URI prefix
     const fixMediaUrl = (url: string | null | undefined): string | null => {
@@ -129,15 +137,25 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
         }
     }
 
-    const loadOlderMessages = async () => {
-        if (!hasMore || loadingMore || !oldestId) return
+    const loadOlderMessages = useCallback(async () => {
+        const currentHasMore = hasMoreRef.current
+        const currentLoadingMore = loadingMoreRef.current
+        const currentOldestId = oldestIdRef.current
+        
+        console.log('[LoadOlder] Called with hasMore:', currentHasMore, 'loadingMore:', currentLoadingMore, 'oldestId:', currentOldestId)
+        if (!currentHasMore || currentLoadingMore || !currentOldestId) {
+            console.log('[LoadOlder] Blocked - conditions not met')
+            return
+        }
 
         setLoadingMore(true)
         prevScrollHeight.current = scrollRef.current?.scrollHeight || 0
+        console.log('[LoadOlder] Fetching messages before id:', currentOldestId)
 
         try {
-            const res = await axios.get(`/api/conversations/${conversationId}/messages?limit=30&before=${oldestId}`)
+            const res = await axios.get(`/api/conversations/${conversationId}/messages?limit=30&before=${currentOldestId}`)
             const olderMessages = res.data.messages || []
+            console.log('[LoadOlder] Received', olderMessages.length, 'messages, hasMore:', res.data.hasMore)
 
             if (olderMessages.length > 0) {
                 setMessages(prev => [...olderMessages, ...prev])
@@ -149,26 +167,32 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
                     if (scrollRef.current) {
                         const newScrollHeight = scrollRef.current.scrollHeight
                         scrollRef.current.scrollTop = newScrollHeight - prevScrollHeight.current
+                        console.log('[LoadOlder] Scroll position maintained')
                     }
                 }, 10)
             } else {
+                console.log('[LoadOlder] No more messages')
                 setHasMore(false)
             }
         } catch (error) {
-            console.error('Load more error', error)
+            console.error('[LoadOlder] Error:', error)
         } finally {
             setLoadingMore(false)
         }
-    }
+    }, [conversationId])
 
     // Handle scroll to detect when user scrolls near top
     const handleScroll = useCallback(() => {
-        if (!scrollRef.current || loadingMore || !hasMore) return
+        if (!scrollRef.current || loadingMoreRef.current || !hasMoreRef.current) return
 
-        if (scrollRef.current.scrollTop < 100) {
+        const scrollTop = scrollRef.current.scrollTop
+        console.log('[Scroll Debug] scrollTop:', scrollTop, 'hasMore:', hasMoreRef.current, 'loadingMore:', loadingMoreRef.current, 'oldestId:', oldestIdRef.current)
+
+        if (scrollTop < 50) {
+            console.log('[Scroll Debug] Triggering loadOlderMessages')
             loadOlderMessages()
         }
-    }, [loadingMore, hasMore, oldestId])
+    }, [loadOlderMessages])
 
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -265,11 +289,14 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
                             </div>
                         )}
 
-                        {/* "Load more" hint */}
+                        {/* "Load more" button */}
                         {hasMore && !loadingMore && messages.length > 0 && (
-                            <div className="text-center text-xs text-gray-400 py-2">
-                                ↑ Scroll up for older messages
-                            </div>
+                            <button 
+                                onClick={loadOlderMessages}
+                                className="w-full text-center text-xs text-blue-500 hover:text-blue-600 py-2 cursor-pointer hover:bg-blue-50 rounded transition-colors"
+                            >
+                                ↑ Click to load older messages
+                            </button>
                         )}
 
                         {!hasMore && messages.length > 0 && (

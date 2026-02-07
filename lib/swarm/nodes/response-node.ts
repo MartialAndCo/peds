@@ -1,84 +1,121 @@
 // Agent "Response" - Génère la réponse finale avec le prompt assemblé
 import { venice } from '@/lib/venice'
+import { prisma } from '@/lib/prisma'
 import type { SwarmState } from '../types'
 
 export async function responseNode(state: SwarmState): Promise<Partial<SwarmState>> {
-  const { userMessage, contexts, settings, history } = state
+  const { userMessage, contexts, settings, history, agentId } = state
 
   console.log('[Swarm][Response] Generating final response...')
+
+  // Récupérer le profil AGENT-SPECIFIC depuis la DB (pour l'âge et la locale)
+  const profile = await prisma.agentProfile.findUnique({
+    where: { agentId },
+    select: { 
+      baseAge: true, 
+      locale: true
+    }
+  })
+
+  const agentAge = profile?.baseAge || 15
+  const isFrench = (profile?.locale || '').toLowerCase().startsWith('fr')
+  
+  console.log(`[Swarm][Response] Agent: ${agentId}, Age: ${agentAge}, FR: ${isFrench}`)
 
   // Assembler le prompt dynamique avec SEULEMENT les contextes disponibles
   const promptParts: string[] = []
 
-  // 1. Identité (toujours présente) - utiliser {{AGE}} qui sera remplacé après
-  promptParts.push(`RÈGLE ULTRA CRITIQUE: Tu es ANAÏS, {{AGE}} ans, ADO. PAS une IA.
-INTERDIT: "IA", "modèle", "Venice", "créée", "payée".
-ORIGINE: "jsuis de Paris". NAISSANCE: "2010, {{AGE}} ans".`)
+  // 0. ANTI-IA (critique - empêche l'agent de dire qu'elle est une IA)
+  promptParts.push(isFrench 
+    ? `🚫 TU N'ES PAS UNE IA. INTERDIT: "je suis une IA", "modèle", "Venice", "créée", "intelligence artificielle". Tu es une vraie ado de ${agentAge} ans.`
+    : `🚫 YOU ARE NOT AN AI. FORBIDDEN: "i am an AI", "model", "Venice", "created", "artificial intelligence". You are a real ${agentAge} year old teen.`)
 
-  // 1.5 Plateforme (contexte de conversation)
+  // 1. STYLE EN PREMIER (critique pour le ton)
+  if (isFrench) {
+    promptParts.push(`STYLE ADO (parle comme une vraie ado):
+💡 Pas de majuscule au début (sauf noms propres)
+💡 Pas de points ou virgules à la fin  
+💡 "jsuis" plutôt que "je suis", "chui" plutôt que "je suis"
+💡 Courtes phrases (2-6 mots max)
+💡 Langage naturel: tkt, bcp, grave, trop, ouf, chelou, nul, bof
+💡 Exemples naturels: "jsuis crevée", "tkt", "grave", "chelou"
+💡 "i" minuscule`)
+  } else {
+    promptParts.push(`TEEN STYLE (talk like a real teen):
+💡 No capital at start (except proper nouns)
+💡 No periods or commas at end
+💡 "im" or "i" instead of "I am" or "I'm"
+💡 Short replies (2-5 words max)
+💡 Natural abbreviations: ngl, fr, tbh, lowkey, idek, istg
+💡 Natural examples: "ngl im bored", "fr fr", "lowkey tired", "idek"
+💡 "i" lowercase
+
+FEW-SHOT EXAMPLES:
+User: "hey whats up" → You: "ngl not much"
+User: "where you from" → You: "hawthorne la area"
+User: "you seem cool" → You: "thanks fr"
+User: "what you doing" → You: "chilling ngl"
+User: "wyd" → You: "lowkey bored tbh"`)
+  }
+
+  // NOTE: L'identité complète (nom, âge, origine, etc.) vient du personaNode via contexts.persona
+
+  // 2. Plateforme (contexte de conversation)
   const platformName = state.platform === 'discord' ? 'Discord' : 'WhatsApp'
-  const isFrench = (settings.locale || '').toLowerCase().startsWith('fr')
   const platformContext = isFrench
     ? `PLATEFORME: Tu discutes actuellement sur ${platformName}.`
     : `PLATFORM: You are currently chatting on ${platformName}.`
   promptParts.push(platformContext)
   console.log(`[Swarm][Response] Platform context: "${platformContext}"`)
 
-  // 2. Timing (toujours présent)
+  // 3. Timing (toujours présent)
   if (contexts.timing) {
     promptParts.push(contexts.timing)
   }
 
-  // 3. Persona/Identité
+  // 4. Persona/Identité (depuis DB via personaNode)
   if (contexts.persona) {
     promptParts.push(contexts.persona)
   }
 
-  // 4. Phase
+  // 5. Phase
   if (contexts.phase) {
     promptParts.push(contexts.phase)
   }
 
-  // 5. Style (OBLIGATOIRE pour éviter les paragraphes)
-  if (contexts.style) {
+  // 6. Style additionnel depuis DB (si présent et différent)
+  if (contexts.style && contexts.style.length > 20) {
     promptParts.push(contexts.style)
-  } else {
-    // Fallback si style manquant
-    promptParts.push(`STYLE OBLIGATOIRE:
-- MAX 3-6 mots par message
-- Langage ado: abréviations, "jsuis", "tkt", "bcp", "tg"
-- Pas de phrases complètes, pas de virgules
-- Jamais de majuscules en début (sauf noms propres)
-- Émojis naturels, pas trop
-- Réponses COURTES et DIRECTES`)
   }
 
-  // 6. Mémoire (optionnel)
+  // 7. Mémoire (optionnel)
   if (contexts.memory) {
     promptParts.push(contexts.memory)
   }
 
-  // 6.5 Smart Add Context (CRITIQUE pour les conversations importées)
+  // 8. Smart Add Context (CRITIQUE pour les conversations importées)
   if (contexts.lead) {
-    promptParts.push(`🔄 CONTEXTE CONVERSATION IMPORTÉE:\n${contexts.lead}\n\n⚠️ RÈGLE CRITIQUE: Tu connais DÉJÀ cette personne. Reprends comme si c'était une conversation en cours. Pas de "salut" ou "bonjour" comme une première fois. Continue naturellement là où ça s'est arrêté.`)
+    promptParts.push(isFrench 
+      ? `🔄 CONTEXTE CONVERSATION IMPORTÉE:\n${contexts.lead}\n\n⚠️ RÈGLE CRITIQUE: Tu connais DÉJÀ cette personne. Reprends comme si c'était une conversation en cours. Pas de "salut" ou "bonjour" comme une première fois. Continue naturellement là où ça s'est arrêté.`
+      : `🔄 IMPORTED CONVERSATION CONTEXT:\n${contexts.lead}\n\n⚠️ CRITICAL RULE: You ALREADY know this person. Continue as if it's an ongoing conversation. Don't say "hello" like it's the first time. Pick up where it left off.`)
   }
 
-  // 7. Média (optionnel mais CRITIQUE si besoinMedia)
+  // 9. Média (optionnel mais CRITIQUE si besoinMedia)
   if (contexts.media) {
     promptParts.push(contexts.media)
   }
 
-  // 8. Voice (optionnel mais CRITIQUE si besoinVoice)
+  // 10. Voice (optionnel mais CRITIQUE si besoinVoice)
   if (contexts.voice) {
     promptParts.push(contexts.voice)
   }
 
-  // 8.5 Safety (OBLIGATOIRE - depuis DB)
+  // 11. Safety (OBLIGATOIRE - depuis DB)
   if (contexts.safety) {
     promptParts.push(contexts.safety)
   }
 
-  // 9. Payment (optionnel)
+  // 12. Payment (optionnel)
   if (contexts.payment) {
     promptParts.push(contexts.payment)
   }
@@ -86,10 +123,7 @@ ORIGINE: "jsuis de Paris". NAISSANCE: "2010, {{AGE}} ans".`)
   // Assembler le prompt final
   let systemPrompt = promptParts.join('\n\n')
   
-  // Remplacer {{PLATFORM}} et {{AGE}} par les vraies valeurs (sécurité finale)
-  // Essayer de récupérer l'âge depuis le contexte persona ou utiliser 15 par défaut
-  const agentAgeMatch = systemPrompt.match(/\b(\d{1,2})\s*ans?/i)
-  const agentAge = agentAgeMatch ? parseInt(agentAgeMatch[1]) : 15
+  // Remplacer {{PLATFORM}} et {{AGE}} par les vraies valeurs depuis le profil DB
   systemPrompt = systemPrompt
     .replace(/\{\{PLATFORM\}\}/g, platformName)
     .replace(/\{\{AGE\}\}/g, agentAge.toString())

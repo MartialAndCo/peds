@@ -19,8 +19,9 @@ export async function paymentNode(state: SwarmState): Promise<Partial<SwarmState
   
   const isFrench = (profile?.locale || '').toLowerCase().startsWith('fr');
   
-  // Récupérer les settings de paiement
-  const settings = await settingsService.getSettings();
+  // Récupérer les settings de paiement - AGENT SPECIFIC (pas global)
+  const settings = await settingsService.getAgentSettings(state.agentId);
+  console.log(`[Swarm][Payment] Agent ${state.agentId}: ${settings['payment_paypal_enabled'] === 'true' ? 'PayPal ON' : 'PayPal OFF'}`)
   
   // Construire la liste des méthodes de paiement disponibles
   const methods: string[] = [];

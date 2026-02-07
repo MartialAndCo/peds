@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect, useTransition } from 'react'
+import { useState, useRef, useEffect, useTransition, useCallback } from 'react'
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Send, Info, Paperclip, Mic, MoreVertical, LogOut, ShieldAlert, Award, FileText, Activity, Zap } from 'lucide-react'
+import { ArrowLeft, Send, Info, Paperclip, Mic, MoreVertical, LogOut, ShieldAlert, Award, FileText, Activity, Zap, Loader2 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { updateContactStatus, updateConversationAi, updateContactTestMode, getExportData, updateConversationStatus } from '@/app/actions/conversation'
 import { generateDossier } from '@/lib/pdf-generator'
+import axios from 'axios'
 
 interface MobileChatViewProps {
     conversation: any
@@ -17,28 +18,138 @@ interface MobileChatViewProps {
     onSendMessage: (text: string) => Promise<void>
 }
 
+interface Message {
+    id: number
+    sender: string
+    message_text: string
+    mediaUrl?: string | null
+    timestamp: string
+}
+
 export function MobileChatView({ conversation, agentId, onSendMessage }: MobileChatViewProps) {
     const router = useRouter()
     const [message, setMessage] = useState('')
     const messagesEndRef = useRef<HTMLDivElement>(null)
+    const scrollContainerRef = useRef<HTMLDivElement>(null)
     const [sending, setSending] = useState(false)
     const [infoOpen, setInfoOpen] = useState(false)
     const [isPending, startTransition] = useTransition()
+    
+    // Pagination states
+    const [messages, setMessages] = useState<Message[]>([])
+    const [loadingMore, setLoadingMore] = useState(false)
+    const [hasMore, setHasMore] = useState(true)
+    const [oldestId, setOldestId] = useState<number | null>(null)
+    const [initialLoad, setInitialLoad] = useState(true)
+    const prevScrollHeight = useRef<number>(0)
+    const oldestIdRef = useRef<number | null>(null)
+    const hasMoreRef = useRef<boolean>(true)
+    const loadingMoreRef = useRef<boolean>(false)
+
+    // Keep refs in sync with state
+    useEffect(() => { oldestIdRef.current = oldestId }, [oldestId])
+    useEffect(() => { hasMoreRef.current = hasMore }, [hasMore])
+    useEffect(() => { loadingMoreRef.current = loadingMore }, [loadingMore])
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
     }
 
+    // Initial load - get latest messages
     useEffect(() => {
-        scrollToBottom()
-    }, [conversation.messages])
+        loadInitialMessages()
+        // Poll for new messages
+        const interval = setInterval(pollNewMessages, 3000)
+        return () => clearInterval(interval)
+    }, [conversation.id])
+
+    // Scroll to bottom on initial load
+    useEffect(() => {
+        if (initialLoad && messages.length > 0) {
+            scrollToBottom()
+            setInitialLoad(false)
+        }
+    }, [messages, initialLoad])
+
+    const loadInitialMessages = async () => {
+        try {
+            const res = await axios.get(`/api/conversations/${conversation.id}/messages?limit=50`)
+            setMessages(res.data.messages || [])
+            setHasMore(res.data.hasMore)
+            setOldestId(res.data.oldestId)
+        } catch (error) {
+            console.error('Initial load error', error)
+        }
+    }
+
+    const pollNewMessages = async () => {
+        if (messages.length === 0) return
+        try {
+            const res = await axios.get(`/api/conversations/${conversation.id}/messages?limit=20`)
+            const newMessages = res.data.messages || []
+            const newestId = messages.length > 0 ? Math.max(...messages.map(m => m.id)) : 0
+            const trulyNew = newMessages.filter((m: Message) => m.id > newestId)
+            if (trulyNew.length > 0) {
+                setMessages(prev => [...prev, ...trulyNew])
+            }
+        } catch (error) {
+            console.error('Polling error', error)
+        }
+    }
+
+    const loadOlderMessages = useCallback(async () => {
+        const currentHasMore = hasMoreRef.current
+        const currentLoadingMore = loadingMoreRef.current
+        const currentOldestId = oldestIdRef.current
+        
+        if (!currentHasMore || currentLoadingMore || !currentOldestId) return
+        setLoadingMore(true)
+        prevScrollHeight.current = scrollContainerRef.current?.scrollHeight || 0
+        try {
+            const res = await axios.get(`/api/conversations/${conversation.id}/messages?limit=30&before=${currentOldestId}`)
+            const olderMessages = res.data.messages || []
+            if (olderMessages.length > 0) {
+                setMessages(prev => [...olderMessages, ...prev])
+                setHasMore(res.data.hasMore)
+                setOldestId(res.data.oldestId)
+                // Maintain scroll position after prepending
+                setTimeout(() => {
+                    if (scrollContainerRef.current) {
+                        const newScrollHeight = scrollContainerRef.current.scrollHeight
+                        scrollContainerRef.current.scrollTop = newScrollHeight - prevScrollHeight.current
+                    }
+                }, 10)
+            } else {
+                setHasMore(false)
+            }
+        } catch (error) {
+            console.error('Load more error', error)
+        } finally {
+            setLoadingMore(false)
+        }
+    }, [conversation.id])
+
+    // Handle scroll to detect when user scrolls near top
+    const handleScroll = useCallback(() => {
+        if (!scrollContainerRef.current || loadingMoreRef.current || !hasMoreRef.current) return
+        if (scrollContainerRef.current.scrollTop < 100) {
+            loadOlderMessages()
+        }
+    }, [loadOlderMessages])
 
     const handleSend = async () => {
         if (!message.trim() || sending) return
         setSending(true)
         try {
-            await onSendMessage(message)
+            await axios.post(`/api/conversations/${conversation.id}/send`, {
+                message_text: message,
+                sender: 'admin'
+            })
             setMessage('')
+            // Refresh messages
+            pollNewMessages()
+        } catch (error) {
+            console.error('Send error', error)
         } finally {
             setSending(false)
         }
@@ -156,18 +267,40 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
 
             {/* Chat Area */}
             <div
+                ref={scrollContainerRef}
                 className="flex-1 overflow-y-auto p-4 space-y-2 bg-[#0f172a] overflow-x-hidden"
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
+                onScroll={handleScroll}
                 onTouchEnd={handleTouchEnd}
             >
+                {/* Loading indicator at top */}
+                {loadingMore && (
+                    <div className="flex justify-center py-4">
+                        <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                    </div>
+                )}
+                
+                {/* "Load more" hint */}
+                {hasMore && !loadingMore && messages.length > 0 && (
+                    <div className="text-center text-xs text-gray-400 py-2">
+                        ↑ Scroll up for older messages
+                    </div>
+                )}
+                
+                {!hasMore && messages.length > 0 && (
+                    <div className="text-center text-xs text-gray-400 py-2">
+                        — Beginning of conversation —
+                    </div>
+                )}
+                
                 <div
                     className="transition-transform duration-200 ease-out will-change-transform"
                     style={{ transform: `translateX(-${dragOffset}px)` }}
                 >
-                    {conversation.messages?.map((msg: any, index: number) => {
+                    {messages.map((msg: any, index: number) => {
                         const isMe = msg.sender !== 'contact'
-                        const prevMsg = conversation.messages[index - 1]
+                        const prevMsg = messages[index - 1]
                         const showTimeHeader = !prevMsg || (new Date(msg.timestamp).getTime() - new Date(prevMsg.timestamp).getTime() > 1000 * 60 * 60) // 1 hour gap
 
                         return (

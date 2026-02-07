@@ -15,12 +15,8 @@ export default async function ConversationPage({ params }: { params: Promise<{ a
         where: { id },
         include: {
             contact: true,
-            prompt: true,
-            messages: {
-                orderBy: {
-                    timestamp: 'asc'
-                }
-            }
+            prompt: true
+            // messages are loaded client-side with pagination
         }
     })
 
