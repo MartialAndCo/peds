@@ -39,11 +39,31 @@ async function runRealTest() {
     console.log(`   Locale: ${agent.profile.locale}`);
     console.log(`   Timezone: ${agent.profile.timezone}`);
     
-    // Extraire la localisation du contextTemplate
-    const contextTemplate = agent.profile.contextTemplate || '';
-    const locationMatch = contextTemplate.match(/habite[s]?(?: à| en| au)? ([^.,\n]+)/i);
-    const location = locationMatch ? locationMatch[1].trim() : 'Non trouvée';
-    console.log(`   Localisation extraite: ${location}`);
+    // Extraire la localisation (comme profile-agent.ts)
+    let location = 'Non trouvée';
+    if (agent.profile.contextTemplate) {
+        const patterns = [
+            /habite[s]?(?: à| en| au)?\s+([^.,\n]{3,40})/i,
+            /banlieue\s+([^.,\n]{3,30})/i,
+            /région\s+([^.,\n]{3,30})/i
+        ];
+        for (const pattern of patterns) {
+            const match = agent.profile.contextTemplate.match(pattern);
+            if (match) {
+                location = (match[1] || match[0]).trim().substring(0, 40);
+                break;
+            }
+        }
+    }
+    console.log(`   Localisation: ${location}`);
+    
+    // Extraire le rôle
+    let role = 'Non trouvé';
+    if (agent.profile.contextTemplate) {
+        const roleMatch = agent.profile.contextTemplate.match(/(lycée|collège|étudiante|Seconde|Première|lycéenne)/i);
+        if (roleMatch) role = roleMatch[1];
+    }
+    console.log(`   Rôle: ${role}`);
 
     // Créer un contact de test
     const testContact = await prisma.contact.upsert({
@@ -56,18 +76,32 @@ async function runRealTest() {
         }
     });
 
-    // Créer une conversation de test
-    const testConversation = await prisma.conversation.upsert({
-        where: { id: -999 },
-        update: {},
-        create: {
-            id: -999,
+    // Récupérer un prompt existant (obligatoire pour Conversation)
+    const prompt = await prisma.prompt.findFirst();
+    if (!prompt) {
+        console.log('❌ Aucun prompt trouvé');
+        process.exit(1);
+    }
+    
+    // Créer une conversation de test (ou récupérer si existe)
+    let testConversation = await prisma.conversation.findFirst({
+        where: { 
             contactId: testContact.id,
-            agentId: agent.id,
-            status: 'active',
-            aiEnabled: true
+            agentId: agent.id
         }
     });
+    
+    if (!testConversation) {
+        testConversation = await prisma.conversation.create({
+            data: {
+                contact: { connect: { id: testContact.id } },
+                agent: { connect: { id: agent.id } },
+                prompt: { connect: { id: prompt.id } },
+                status: 'active',
+                ai_enabled: true
+            }
+        });
+    }
 
     // Tests de scénarios RÉELS basés sur le profil
     const testCases = [

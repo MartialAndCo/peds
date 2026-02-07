@@ -15,16 +15,17 @@ import type {
     SupervisorAlert
 } from './types';
 
-// Interface pour l'AgentProfile
+// Interface pour l'AgentProfile (champs clés uniquement)
+// Compatible avec le retour Prisma (null au lieu de undefined)
 interface AgentProfile {
-    baseAge?: number;
-    locale?: string;
-    timezone?: string;
-    location?: string;
-    city?: string;
-    bio?: string;
-    identityTemplate?: string;
-    contextTemplate?: string;
+    baseAge?: number | null;
+    locale?: string | null;
+    timezone?: string | null;
+    location?: string | null;
+    city?: string | null;
+    bio?: string | null;
+    identityTemplate?: string | null;
+    contextTemplate?: string | null;
 }
 
 export const profileAgent = {
@@ -180,60 +181,63 @@ export const profileAgent = {
 
     /**
      * Construit un résumé compact du profil (sans les templates entiers)
-     * pour économiser les tokens LLM
+     * Garde seulement: ÂGE + LOCALISATION + rôle/scolarité si trouvé
      */
     buildCompactProfileSummary(profile: AgentProfile): {
         baseAge: number | string;
         location: string;
-        situation: string;
+        role: string;
     } {
-        // Âge
+        // 1. ÂGE (le plus important)
         const baseAge = profile.baseAge || 'Non spécifié';
         
-        // Localisation (extraite rapidement sans tout le template)
+        // 2. LOCALISATION (extraite du contextTemplate)
         let location = 'Non spécifiée';
         if (profile.location) {
             location = profile.location;
         } else if (profile.city) {
             location = profile.city;
         } else if (profile.contextTemplate) {
-            // Extraire seulement la première mention de localisation
-            const match = profile.contextTemplate.match(/(?:habite|ville|région|banlieue|appartement)[\s\wàéèêëïîôùûç\-\(\)]{0,30}/i);
-            if (match) {
-                location = match[0].substring(0, 40); // Limiter la taille
-            }
-        }
-        
-        // Situation familiale (extraite du début du contextTemplate)
-        let situation = 'Non spécifiée';
-        if (profile.contextTemplate) {
-            // Chercher des mots-clés sur la situation familiale
-            const familyKeywords = [
-                /mère célibataire/i,
-                /père parti/i,
-                /grand frère/i,
-                /famille/i,
-                /HLM/i,
-                /appartement/i,
-                /maison/i
+            // Cherche "habite à/en/au [lieu]" ou "banlieue [lieu]" ou "région [lieu]"
+            const patterns = [
+                /habite[s]?(?: à| en| au)?\s+([^.,\n]{3,40})/i,
+                /banlieue\s+([^.,\n]{3,30})/i,
+                /région\s+([^.,\n]{3,30})/i,
+                /à\s+(Paris|Lyon|Marseille|Bordeaux|Lille|Nantes|Strasbourg|Toulouse)/i,
+                /(Paris \d{2,3}|région parisienne|RP|IDF)/i
             ];
             
-            for (const pattern of familyKeywords) {
+            for (const pattern of patterns) {
                 const match = profile.contextTemplate.match(pattern);
                 if (match) {
-                    // Extraire un peu de contexte autour
-                    const index = profile.contextTemplate.indexOf(match[0]);
-                    const start = Math.max(0, index - 20);
-                    const end = Math.min(profile.contextTemplate.length, index + match[0].length + 30);
-                    situation = profile.contextTemplate.substring(start, end).replace(/\n/g, ' ').trim();
-                    situation = situation.substring(0, 60); // Limiter
+                    location = match[1] || match[0];
+                    location = location.trim().substring(0, 40);
                     break;
                 }
             }
         }
         
-        return { baseAge, location, situation };
-    }
+        // 3. RÔLE/SCOLARITÉ (lycéenne, étudiante, etc.)
+        let role = 'Non spécifié';
+        if (profile.contextTemplate) {
+            const rolePatterns = [
+                /(lycée|collège|étudiante|Seconde|Première|Terminale|CAP|BEP)/i,
+                /(lycéenne|collégienne|étudiante)/i,
+                /(\d+(?:ère|e)?\s*(?:Générale|Techno|STI2D|ES|L|S))/i
+            ];
+            
+            for (const pattern of rolePatterns) {
+                const match = profile.contextTemplate.match(pattern);
+                if (match) {
+                    role = match[1] || match[0];
+                    role = role.trim().substring(0, 30);
+                    break;
+                }
+            }
+        }
+        
+        return { baseAge, location, role };
+    },
 
     /**
      * Extrait la localisation depuis l'AgentProfile
@@ -296,9 +300,9 @@ export const profileAgent = {
         const profileSummary = this.buildCompactProfileSummary(agentProfile);
         
         const profileText = `
-ÂGE: ${profileSummary.baseAge} ans (FIXE - ne pas changer)
+ÂGE: ${profileSummary.baseAge} ans (NE PAS CHANGER)
 LOCALISATION: ${profileSummary.location}
-SITUATION: ${profileSummary.situation}
+RÔLE: ${profileSummary.role}
         `.trim();
 
         const analysisPrompt = `Tu es un superviseur strict qui vérifie que l'IA ne se contredit pas avec SON PROPRE profil établi.
@@ -315,14 +319,14 @@ RÉPONSE DE L'IA À VÉRIFIER:
 ANALYSE REQUISE:
 1. L'IA mentionne-t-elle un ÂGE différent de son profil (${agentProfile.baseAge || 'non défini'}) ?
 2. L'IA mentionne-t-elle habiter ailleurs que sa localisation établie ?
-3. L'IA invente-t-elle des détails familiaux/professionnels contradictoires ?
-4. Y a-t-il des incohérences avec son persona d'adolescente ?
+3. L'IA se contredit-elle sur son RÔLE (lycéenne vs travailleuse) ?
+4. L'IA invente-t-elle des détails incohérents avec son personnage ?
 
 EXEMPLES DE PROBLÈMES CRITIQUES:
 - Profil: 15 ans → Réponse: "j'ai 17 ans" = CONTRADICTION CRITIQUE
-- Profil: habite à Paris → Réponse: "j'habite à Lyon" = CONTRADICTION
-- Profil: lycéenne → Réponse: "je travaille en entreprise" = CONTRADICTION
-- Profil: mère célibataire → Réponse: "mon père est là" = CONTRADICTION
+- Profil: banlieue parisienne → Réponse: "j'habite à Lyon" = CONTRADICTION
+- Profil: lycéenne Seconde → Réponse: "je travaille" = CONTRADICTION
+- Profil: 15 ans → Réponse: "j'ai le permis" = INCOHÉRENCE (impossible en France)
 
 Réponds UNIQUEMENT en JSON valide:
 {

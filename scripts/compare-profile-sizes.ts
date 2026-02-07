@@ -45,11 +45,24 @@ async function compare() {
     
     const avantString = JSON.stringify(avant, null, 2);
     
-    // APRÈS: On envoie seulement le résumé
+    // APRÈS: On envoie seulement le résumé (Âge + Localisation + Rôle)
+    // Extraction simplifiée comme dans profile-agent.ts
+    let location = profile.location || profile.city || 'Non spécifiée';
+    if (profile.contextTemplate && location === 'Non spécifiée') {
+        const match = profile.contextTemplate.match(/habite[s]?(?: à| en| au)?\s+([^.,\n]{3,40})/i);
+        if (match) location = match[1].substring(0, 40);
+    }
+    
+    let role = 'Non spécifié';
+    if (profile.contextTemplate) {
+        const roleMatch = profile.contextTemplate.match(/(lycée|collège|étudiante|Seconde|Première|lycéenne)/i);
+        if (roleMatch) role = roleMatch[1];
+    }
+    
     const profileSummary = {
         baseAge: profile.baseAge,
-        location: profile.location || profile.city || 'Non spécifiée',
-        situation: 'Résumé compact'
+        location,
+        role
     };
     
     const apresString = JSON.stringify(profileSummary, null, 2);
@@ -75,8 +88,15 @@ Exemple de ce qu'on envoyait:
     console.log(`Caractères: ${apresString.length}`);
     console.log(`Tokens estimés: ~${estimateTokens(apresString)}`);
     console.log(`
-Ce qu'on envoie maintenant:
-${apresString}`);
+Ce qu'on envoie maintenant (APRÈS optimisation):
+${apresString}
+
+Exemple pour Anaïs:
+{
+  "baseAge": 15,
+  "location": "banlieue parisienne (94)",
+  "role": "lycéenne Seconde"
+}`);
     
     console.log('\n' + '='.repeat(60));
     console.log('📈 RÉSULTAT:');
