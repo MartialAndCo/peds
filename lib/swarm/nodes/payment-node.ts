@@ -1,40 +1,37 @@
 import { SwarmState } from '../types';
-import { settingsService } from '@/lib/settings-cache';
 import { classifyPaymentIntent } from '@/lib/services/payment-intent-classifier';
 
 export async function paymentNode(state: SwarmState): Promise<Partial<SwarmState>> {
   console.log('[Swarm] paymentNode: Analyse contexte paiement');
   
-  // Utiliser le profile déjà récupéré dans index.ts
-  const profile = state.profile;
+  // 🔥 OPTIMISATION: Utiliser les settings déjà récupérés dans index.ts
+  const { settings, profile } = state;
   const isFrench = (profile?.locale || '').toLowerCase().startsWith('fr');
   
-  // Récupérer les settings de paiement - AGENT SPECIFIC (pas global)
-  const settings = await settingsService.getAgentSettings(state.agentId);
-  console.log(`[Swarm][Payment] Agent ${state.agentId}: ${settings['payment_paypal_enabled'] === 'true' ? 'PayPal ON' : 'PayPal OFF'}`)
+  console.log(`[Swarm][Payment] Agent ${state.agentId}: ${settings.payment_paypal_enabled ? 'PayPal ON' : 'PayPal OFF'}`);
   
-  // Construire la liste des méthodes de paiement disponibles
+  // Construire la liste des méthodes de paiement disponibles depuis state.settings
   const methods: string[] = [];
   
-  if (settings['payment_paypal_enabled'] === 'true' && settings['payment_paypal_username']) {
+  if (settings.payment_paypal_enabled && settings.payment_paypal_username) {
     methods.push(isFrench 
-      ? `PayPal: ${settings['payment_paypal_username']}`
-      : `PayPal: ${settings['payment_paypal_username']}`);
+      ? `PayPal: ${settings.payment_paypal_username}`
+      : `PayPal: ${settings.payment_paypal_username}`);
   }
   
-  if (settings['payment_venmo_enabled'] === 'true' && settings['payment_venmo_username']) {
-    methods.push(`Venmo: ${settings['payment_venmo_username']}`);
+  if (settings.payment_venmo_enabled && settings.payment_venmo_username) {
+    methods.push(`Venmo: ${settings.payment_venmo_username}`);
   }
   
-  if (settings['payment_cashapp_enabled'] === 'true' && settings['payment_cashapp_username']) {
-    methods.push(`CashApp: ${settings['payment_cashapp_username']}`);
+  if (settings.payment_cashapp_enabled && settings.payment_cashapp_username) {
+    methods.push(`CashApp: ${settings.payment_cashapp_username}`);
   }
   
-  if (settings['payment_zelle_enabled'] === 'true' && settings['payment_zelle_username']) {
-    methods.push(`Zelle: ${settings['payment_zelle_username']}`);
+  if (settings.payment_zelle_enabled && settings.payment_zelle_username) {
+    methods.push(`Zelle: ${settings.payment_zelle_username}`);
   }
   
-  if (settings['payment_bank_enabled'] === 'true' && profile?.bankAccountNumber) {
+  if (settings.payment_bank_enabled && profile?.bankAccountNumber) {
     methods.push(isFrench
       ? `Virement: Account ${profile.bankAccountNumber}, Routing ${profile.bankRoutingNumber}`
       : `Bank: Account ${profile.bankAccountNumber}, Routing ${profile.bankRoutingNumber}`);
@@ -42,8 +39,8 @@ export async function paymentNode(state: SwarmState): Promise<Partial<SwarmState
   
   // Customs
   try {
-    if (settings['payment_custom_methods']) {
-      const customs = JSON.parse(settings['payment_custom_methods']);
+    if (settings.payment_custom_methods) {
+      const customs = JSON.parse(settings.payment_custom_methods);
       customs.forEach((c: any) => {
         if (c.name && c.value) methods.push(`${c.name}: ${c.value}`);
       });

@@ -1,5 +1,46 @@
 // Types pour le système multi-agent
 
+export interface SwarmSettings {
+    venice_api_key: string
+    venice_model: string
+    timezone: string
+    locale: string
+    // Payment settings (pour éviter requêtes dans payment-node)
+    payment_paypal_enabled?: boolean
+    payment_paypal_username?: string
+    payment_venmo_enabled?: boolean
+    payment_venmo_username?: string
+    payment_cashapp_enabled?: boolean
+    payment_cashapp_username?: string
+    payment_zelle_enabled?: boolean
+    payment_zelle_username?: string
+    payment_bank_enabled?: boolean
+    payment_custom_methods?: string
+}
+
+export interface AgentProfile {
+    contextTemplate?: string | null
+    styleRules?: string | null
+    identityTemplate?: string | null
+    phaseConnectionTemplate?: string | null
+    phaseVulnerabilityTemplate?: string | null
+    phaseCrisisTemplate?: string | null
+    phaseMoneypotTemplate?: string | null
+    paymentRules?: string | null
+    safetyRules?: string | null
+    timezone?: string | null
+    locale?: string | null
+    baseAge?: number | null
+    bankAccountNumber?: string | null
+    bankRoutingNumber?: string | null
+}
+
+export interface AgentContactData {
+    phase?: string | null
+    signals?: string[] | null
+    paymentEscalationTier?: number | null
+}
+
 export interface SwarmState {
     // Input
     userMessage: string
@@ -8,7 +49,7 @@ export interface SwarmState {
     contactPhone?: string  // Pour les mémoires (différent de contactId)
     agentId: string
     conversationId?: number
-    settings?: any
+    settings: SwarmSettings  // Typé strictement au lieu de 'any'
     userName?: string
     lastMessageType?: string
     platform?: 'whatsapp' | 'discord'  // Platform context
@@ -47,7 +88,10 @@ export interface SwarmState {
     isBlacklisted?: boolean  // Si la demande média est blacklistée
     
     // Profile complet de l'agent (pour accès rapide aux templates)
-    profile?: any
+    profile?: AgentProfile
+    
+    // Données AgentContact (pour éviter requêtes)
+    agentContact?: AgentContactData
     
     // Messages bruts pour analyse
     messages?: Array<{ role: string; content: string; timestamp?: Date }>

@@ -1,18 +1,12 @@
-import { prisma } from '@/lib/prisma'
 import { storyManager } from '@/lib/engine'
 import type { SwarmState } from '../types'
 
 export async function phaseNode(state: SwarmState): Promise<Partial<SwarmState>> {
-    const { agentId, contactId } = state
+    const { agentId, contactId, currentPhase, profile } = state
 
-    // Récupère la phase actuelle (nécessaire - change entre les messages)
-    const agentContact = await prisma.agentContact.findFirst({
-        where: { agentId, contactId },
-        select: { phase: true, signals: true }
-    })
-
-    // Utiliser le profile déjà récupéré dans index.ts
-    const profile = state.profile
+    // 🔥 OPTIMISATION: Utiliser la phase déjà récupérée dans index.ts
+    // Plus besoin de requêter AgentContact ici!
+    const phase = currentPhase || 'CONNECTION'
 
     // Déterminer la plateforme et l'âge pour remplacement
     const platformName = state.platform === 'discord' ? 'Discord' : 'WhatsApp'
@@ -23,7 +17,6 @@ export async function phaseNode(state: SwarmState): Promise<Partial<SwarmState>>
         .replace(/\{\{AGE\}\}/g, agentAge.toString())
     
     let phaseContext = ''
-    const phase = agentContact?.phase || 'CONNECTION'
 
     // 🔥 NOUVEAU : Gestion des Stories pour phases avancées
     if (phase === 'VULNERABILITY' || phase === 'CRISIS' || phase === 'MONEYPOT') {
