@@ -23,7 +23,12 @@ export async function GET(req: Request) {
 
     // Build base where clause
     const where: any = {
-      contact: { isHidden: false }
+      contact: { 
+        OR: [
+          { isHidden: false },
+          { isHidden: null }
+        ]
+      }
     }
     
     // Filter out conversations that haven't started yet (provider leads waiting for first message)
@@ -236,7 +241,7 @@ export async function GET(req: Request) {
 
     // Calculate counts for each filter
     const counts = {
-      all: await prisma.conversation.count({ where: { ...where, contact: { isHidden: false } } }),
+      all: await prisma.conversation.count({ where: { ...where } }),
       unread: await prisma.conversation.count({ where: { ...where, unreadCount: { gt: 0 } } }),
       needs_reply: await prisma.conversation.count({ where: { ...where, unreadCount: { gt: 0 }, lastMessageSender: 'contact' } }),
       moneypot: await prisma.conversation.count({ where: { ...where, contact: { agentPhase: 'MONEYPOT' } } }),

@@ -1,6 +1,7 @@
 // lib/handlers/chat.ts
 import { prisma } from '@/lib/prisma'
 import { whatsapp } from '@/lib/whatsapp'
+import { discord } from '@/lib/discord'
 import { venice } from '@/lib/venice'
 import { anthropic } from '@/lib/anthropic'
 import { openrouter } from '@/lib/openrouter'
@@ -8,6 +9,26 @@ import { TimingManager } from '@/lib/timing'
 import { logger } from '@/lib/logger'
 // import { messageQueue } from '@/lib/queue' // Deprecated
 import { NextResponse } from 'next/server'
+
+// Platform-agnostic helper functions
+function getSendText(platform: 'whatsapp' | 'discord') {
+    return async (userId: string, text: string, replyTo?: string, agentId?: string) => {
+        if (platform === 'discord') {
+            return discord.sendText(userId, text, agentId)
+        }
+        return whatsapp.sendText(userId, text, replyTo, agentId)
+    }
+}
+
+function getMarkAsRead(platform: 'whatsapp' | 'discord') {
+    return async (userId: string, agentId?: string, messageKey?: any) => {
+        if (platform === 'discord') {
+            // Discord doesn't have a "mark as read" equivalent
+            return Promise.resolve()
+        }
+        return whatsapp.markAsRead(userId, agentId, messageKey).catch(() => {})
+    }
+}
 
 
 
@@ -22,6 +43,13 @@ export async function handleChat(
     options?: { skipAI?: boolean } // Added: Burst Mode Support
 ) {
     let messageText = messageTextInput
+    
+    // Platform-specific helpers - defined as functions to avoid scope issues
+    const sendTextPlatform = (platform === 'discord') 
+        ? (userId: string, text: string, _replyTo?: string, agentId?: string) => discord.sendText(userId, text, agentId)
+        : (userId: string, text: string, replyTo?: string, agentId?: string) => whatsapp.sendText(userId, text, replyTo, agentId)
+    
+
 
     // ⛔ SELF-MESSAGE FILTER (Anti-Mirror)
     // When WhatsApp syncs history, it sends "upsert" events for messages WE sent.
@@ -64,8 +92,8 @@ export async function handleChat(
         logger.info('ViewOnce message rejected', { module: 'chat', contactId: contact.id })
         await new Promise(r => setTimeout(r, 2000))
         const refusalMsg = settings.msg_view_once_refusal || "Mince ça bug mon tel, j'arrive pas à ouvrir les photos éphémères (View Once) 😕\n\nTu peux me la renvoyer en normal stp ?"
-        await whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => { })
-        await whatsapp.sendText(contact.phone_whatsapp, refusalMsg, undefined, agentId)
+        if (platform !== 'discord') await whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => {})
+        await sendTextPlatform(contact.phone_whatsapp, refusalMsg, undefined, agentId)
         return { handled: true, result: 'view_once_rejected' }
     }
 
@@ -267,19 +295,28 @@ export async function handleChat(
         return { handled: true, result: 'saved_skipped_ai' }
     }
 
-    // 5. Checks (Paused/VoiceFail)
+    // 5. Checks (Paused/VoiceFail/ContactStatus)
     if (conversation.status === 'paused') {
         console.log('[Chat] Conversation is PAUSED. Ignoring message.')
         logger.info('Conversation paused', { module: 'chat', conversationId: conversation.id })
         return { handled: true, result: 'paused' }
+    }
+    
+    // CRITICAL: Only respond if contact status is 'active'
+    // Contact statuses: 'new', 'active', 'paused', 'unknown', 'archive', 'blacklisted', 'merged'
+    // AI should only respond to 'active' contacts
+    if (contact.status !== 'active') {
+        console.log(`[Chat] Contact status is '${contact.status}', not 'active'. Ignoring message.`)
+        logger.info('Contact not active', { module: 'chat', contactId: contact.id, status: contact.status })
+        return { handled: true, result: 'contact_not_active' }
     }
     if (messageText.startsWith('[Voice Message -')) {
         // If transcription FAILED, we send refusal.
         // If it succeeded, messageText will be the actual text, so we skip this block.
         if (messageText.includes('Failed') || messageText.includes('Error') || messageText.includes('Disabled')) {
             const voiceRefusalMsg = settings.msg_voice_refusal || "Désolé, je ne peux pas écouter les messages vocaux pour le moment (Problème technique)."
-            await whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => { })
-            await whatsapp.sendText(contact.phone_whatsapp, voiceRefusalMsg, undefined, agentId)
+            if (platform !== 'discord') await whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => {})
+            await sendTextPlatform(contact.phone_whatsapp, voiceRefusalMsg, undefined, agentId)
             return { handled: true, result: 'voice_error' }
         }
     }
@@ -504,19 +541,9 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         director.performSignalAnalysis(contact.phone_whatsapp, effectiveAgentId).catch(console.error);
     }
 
-    const { phase, details, reason } = await director.determinePhase(contact.phone_whatsapp, effectiveAgentId)
-    let systemPrompt = await director.buildSystemPrompt(settings, contact, phase, details, conversation.prompt.system_prompt, effectiveAgentId, reason, undefined, conversation, platform)
-
-    // PHASE 3: Si mode SWARM, systemPrompt est null - on passe directement à callAI
-    if (systemPrompt === null) {
-        console.log('[Chat] SWARM mode detected - skipping classic prompt assembly')
-    } else {
-        // Mode CLASSIC: Inject memories with clearer phrasing
-        if (memories.length > 0) {
-            const memoryBlock = memories.map((m: any) => `- ${m.memory}`).join('\n')
-            systemPrompt += `\n\n[WHAT YOU KNOW ABOUT THE PERSON YOU'RE TALKING TO]:\n${memoryBlock}`
-        }
-    }
+    // 🔥 SWARM-ONLY: Director.buildSystemPrompt archived, using SWARM orchestration
+    const { phase } = await director.determinePhase(contact.phone_whatsapp, effectiveAgentId)
+    console.log(`[Chat] SWARM-ONLY mode - Phase: ${phase} (Director legacy archived)`)
 
     // 3. Timing
     logger.info('Generating AI response', { module: 'chat', conversationId: conversation.id, phase })
@@ -562,12 +589,8 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
     console.log(`[Timing] Final - Mode: ${timing.mode}, Delay: ${timing.delaySeconds}s`)
 
-    // INJECT LIFE CONTEXT INTO SYSTEM PROMPT (Self-Awareness) - Uniquement en mode CLASSIC
-    if (systemPrompt !== null && (timing as any).activityContext) {
-        systemPrompt += `\n\n${(timing as any).activityContext}`
-        console.log(`[Chat] Injected Life Context: ${(timing as any).activityContext.substring(0, 80)}...`)
-    }
-
+    // 🔥 SWARM-ONLY: Life context is handled by timingNode in swarm
+    
     // QUEUE AWARENESS: Let AI see pending messages and decide to cancel if needed
     const pendingQueueItems = await prisma.messageQueue.findMany({
         where: {
@@ -618,9 +641,8 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
             scheduledAt = new Date(Date.now() + effectiveDelay * 1000)
         }
 
-        // Generate NOW
-        const finalSystemPrompt = systemPrompt !== null ? systemPrompt + queuePrompt : null
-        const responseText = await callAI(settings, conversation, finalSystemPrompt, contextMessages, lastContent, contact, agentId)
+        // Generate NOW (SWARM mode - system prompt handled by swarm)
+        const responseText = await callAI(settings, conversation, queuePrompt || '', contextMessages, lastContent, contact, agentId, platform)
 
         await prisma.messageQueue.create({
             data: {
@@ -631,7 +653,10 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
                 status: 'PENDING'
             }
         })
-        if (timing.shouldGhost) whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => { })
+        if (timing.shouldGhost) {
+            // @ts-ignore - Platform helper scope issue
+            if (platform !== 'discord') await whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => {})
+        }
         return { handled: true, result: 'queued', scheduledAt }
     }
 
@@ -646,15 +671,18 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
     while (attempts < MAX_RETRIES) {
         attempts++
-        let currentSystemPrompt = systemPrompt
+        
+        // SWARM mode: retry logic handled within runSwarm, no manual system prompt needed
         if (attempts > 1) {
             logger.info('AI retry due to empty response', { module: 'chat', attempt: attempts, conversationId: conversation.id })
-            currentSystemPrompt += settings.prompt_ai_retry_logic || "\n\n[SYSTEM CRITICAL]: Your previous response was valid actions like *nods* but contained NO spoken text. You MUST write spoken text now. Do not just act. Say something."
         }
 
         try {
-            const finalSystemPrompt = currentSystemPrompt !== null ? currentSystemPrompt + queuePrompt : null
-            responseText = await callAI(settings, conversation, finalSystemPrompt, contextMessages, lastContent, contact, effectiveAgentId, platform)
+            // SWARM mode: system prompt constructed by swarm, we just pass queue context
+            const swarmContext = (queuePrompt || '') + (attempts > 1 ? 
+                (settings.prompt_ai_retry_logic || "\n\n[SYSTEM CRITICAL]: Your previous response was valid actions like *nods* but contained NO spoken text. You MUST write spoken text now. Do not just act. Say something.") 
+                : '')
+            responseText = await callAI(settings, conversation, swarmContext || null, contextMessages, lastContent, contact, effectiveAgentId, platform)
         } catch (error: any) {
             console.error(`[Chat] AI Attempt ${attempts} failed:`, error.message)
 
@@ -857,8 +885,16 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
             const { notifyPaymentClaim } = require('@/lib/services/payment-claim-handler')
             await notifyPaymentClaim(contact, conversation, settings, null, null, agentId, 'claim')
             console.log('[Chat] Payment claim notification sent from AI tag.')
+            
+            // 🔥 NOUVEAU: Résoudre la story active
+            const { storyManager } = require('@/lib/engine')
+            const activeStory = await storyManager.getActiveStory(contact.id, agentId)
+            if (activeStory && activeStory.amount) {
+                await storyManager.resolveStory(activeStory.id)
+                console.log(`[Chat] Story ${activeStory.description} marked as RESOLVED`)
+            }
         } catch (e) {
-            console.error('[Chat] Failed to trigger notification from tag', e)
+            console.error('[Chat] Failed to trigger notification or resolve story', e)
         }
     }
 
@@ -876,7 +912,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         responseText = responseText.replace(reactionMatch[0], '').trim()
 
         // Send reaction immediately
-        await whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => { })
+        if (platform !== 'discord') await whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => {})
         whatsapp.sendReaction(contact.phone_whatsapp, payload.id, emoji, agentId)
             .catch(err => console.error('[Chat] Failed to send reaction:', err))
 
@@ -916,7 +952,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
                             dataUrl = `data:${result.media.mimeType || 'image/jpeg'};base64,${dataUrl}`
                         }
 
-                        await whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => { })
+                        if (platform !== 'discord') await whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => {})
 
                         // Smart Send: Check if it's actually a video
                         const isVideo = (result.media.mimeType && result.media.mimeType.startsWith('video')) ||
@@ -1043,11 +1079,11 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         const existing = await voiceService.findReusableVoice(voiceText)
 
         if (existing) {
-            whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => { })
+            if (platform !== 'discord') whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => {})
             await whatsapp.sendVoice(contact.phone_whatsapp, existing.url, payload.id, agentId)
         } else {
             // Use TTS service (no longer requests from human)
-            whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => { })
+            if (platform !== 'discord') whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => {})
 
             const ttsResult = await voiceTtsService.generateAndSend({
                 contactPhone: contact.phone_whatsapp,
@@ -1067,7 +1103,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         }
     } else {
         // Text Send -> Via DB Queue (Reliable)
-        whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => { })
+        if (platform !== 'discord') whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => {})
 
         // We push the raw responseText (with |||) to DB. The Cron/Worker handles splitting.
         const queuedMsg = await prisma.messageQueue.create({
@@ -1087,58 +1123,23 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 }
 
 async function callAI(settings: any, conv: any, sys: string | null, ctx: any[], last: string, contact?: any, agentId?: string, platform: 'whatsapp' | 'discord' = 'whatsapp') {
-    // PHASE 3: SWARM MODE
-    const { aiConfig } = require('@/lib/config/ai-mode')
-    await aiConfig.init()
+    // 🔥 MIGRATION: SWARM-ONLY (Director legacy archived)
+    // Le mode SWARM est maintenant le seul mode actif
     
-    if (aiConfig.isSwarm() && contact && agentId) {
-        console.log('[Chat] SWARM mode active - using multi-agent orchestration')
-        const { runSwarm } = require('@/lib/swarm')
-        const response = await runSwarm(
-            last,
-            ctx,
-            contact.id,
-            agentId,
-            contact.name || 'friend',
-            contact.lastMessageType || 'text',
-            platform
-        )
-        return response.replace(new RegExp('\\*[^*]+\\*', 'g'), '').trim()
+    if (!contact || !agentId) {
+        throw new Error('[callAI] SWARM mode requires contact and agentId. Director legacy is archived.')
     }
     
-    // Si sys est null (mode swarm demandé mais pas de contact/agentId), on fallback
-    if (!sys) {
-        throw new Error('System prompt is null and swarm mode cannot be used without contact/agentId')
-    }
-
-    // PRIMARY PROVIDER: VENICE
-    const provider = settings.ai_provider === 'runpod' ? 'runpod' : 'venice'
-
-    // SANITIZATION: Fix invalid model names from database
-    let veniceModel = settings.venice_model || 'venice-uncensored'
-    if (veniceModel === 'test-model') {
-        console.warn('[Chat] Sanitizing invalid model "test-model" -> "venice-uncensored"')
-        veniceModel = 'venice-uncensored'
-    }
-
-    const params = {
-        apiKey: provider === 'runpod' ? settings.runpod_api_key : settings.venice_api_key,
-        model: provider === 'runpod' ? (conv.prompt?.model || 'runpod/model') : veniceModel,
-        temperature: settings.ai_temperature ? Number(settings.ai_temperature) : Number(conv.prompt?.temperature || 0.7),
-        max_tokens: conv.prompt?.max_tokens || 500
-    }
-
-    console.log(`[Chat] Provider Selection: ${provider.toUpperCase()}`)
-    console.log(`[Chat] API Key Present: ${params.apiKey ? 'YES' : 'NO'}`)
-
-    let txt = ""
-    if (provider === 'venice') {
-        const { venice } = require('@/lib/venice')
-        txt = await venice.chatCompletion(sys, ctx, last, params)
-    } else {
-        const { runpod } = require('@/lib/runpod')
-        txt = await runpod.chatCompletion(sys, ctx, last, params)
-    }
-
-    return txt.replace(new RegExp('\\*[^*]+\\*', 'g'), '').trim()
+    console.log('[Chat] 🔥 SWARM-ONLY mode - using multi-agent orchestration (Director legacy archived)')
+    const { runSwarm } = require('@/lib/swarm')
+    const response = await runSwarm(
+        last,
+        ctx,
+        contact.id,
+        agentId,
+        contact.name || 'friend',
+        contact.lastMessageType || 'text',
+        platform
+    )
+    return response.replace(new RegExp('\\*[^*]+\\*', 'g'), '').trim()
 }

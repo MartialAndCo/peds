@@ -42,7 +42,12 @@ export async function GET(req: Request) {
         const conversations = await prisma.conversation.findMany({
             where: {
                 ...where,
-                contact: { isHidden: false }
+                contact: { 
+                    OR: [
+                        { isHidden: false },
+                        { isHidden: null }
+                    ]
+                }
             },
             include: {
                 contact: true,

@@ -297,10 +297,10 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                 console.log(`[Processor] Found linked contact for Discord user ${discordId}: ${contact.phone_whatsapp}`)
                 
                 // Activate contact when they send first message (lead is now engaged)
-                if (contact.status === 'paused' || contact.status === 'new') {
+                if (contact.status === 'paused' || contact.status === 'new' || contact.status === 'unknown') {
                     await prisma.contact.update({
                         where: { id: contact.id },
-                        data: { status: 'active' }
+                        data: { status: 'active', isHidden: false }
                     })
                     console.log(`[Processor] Discord contact ${contact.id} marked as active`)
                     
@@ -379,7 +379,8 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                             discordId: discordId,
                             name: payload._data?.notifyName || "Discord User",
                             source: 'Discord Incoming',
-                            status: 'new'
+                            status: 'new',
+                            isHidden: false
                         }
                     })
                     console.log(`[Processor] Created Discord contact: ${contact.id}`)
@@ -763,10 +764,10 @@ Keep response SHORT and excited.)`
                 })
 
                 // Activate contact when conversation becomes active (lead is now engaged)
-                if (contact.status === 'paused' || contact.status === 'new') {
+                if (contact.status === 'paused' || contact.status === 'new' || contact.status === 'unknown') {
                     await prisma.contact.update({
                         where: { id: contact.id },
-                        data: { status: 'active' }
+                        data: { status: 'active', isHidden: false }
                     })
                     console.log(`[Processor] Contact ${contact.id} marked as active`)
                     
