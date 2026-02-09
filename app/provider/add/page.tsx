@@ -131,7 +131,6 @@ export default function AddLeadPage() {
             age: '',
             location: '',
             source: '',
-            notes: '',
             context: ''
         })
         setDuplicate(null)
