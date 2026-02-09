@@ -10,6 +10,7 @@ frontend:
         - cat .env.production > .env
         - rm -rf node_modules/.prisma
         - npx prisma generate
+        - npx prisma db execute --url "$DATABASE_URL" --file ./prisma/migrations/20260209183000_add_is_hidden/migration.sql || true
         - npx prisma db push --accept-data-loss
         - npm run build
   artifacts:
