@@ -24,12 +24,13 @@ export async function GET(req: Request) {
     // Build the where clause components
     const conditions: any[] = []
 
-    // Base filter: contact is not hidden
-    conditions.push({
-      contact: {
-        OR: [{ isHidden: false }, { isHidden: null }]
-      }
-    })
+    // Base filter: contact is not hidden (temporarily disabled due to schema issue)
+    // TODO: Re-enable once Prisma schema is synced
+    // conditions.push({
+    //   contact: {
+    //     OR: [{ isHidden: false }, { isHidden: null }]
+    //   }
+    // })
 
     // Agent filter
     if (agentId) {
