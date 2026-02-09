@@ -22,7 +22,14 @@ export async function GET(req: Request) {
     console.log(`[API GET /conversations/enriched] AgentId: ${agentId}, Filter: ${filter}, Sort: ${sort}`)
 
     // Build base where clause
-    const where: any = {}
+    const where: any = {
+      contact: { 
+        OR: [
+          { isHidden: false },
+          { isHidden: null }
+        ]
+      }
+    }
     
     // Filter out conversations that haven't started yet (provider leads waiting for first message)
     // Unless explicitly requested with includePending=true
