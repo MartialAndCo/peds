@@ -608,6 +608,7 @@ model AgentContact {
 
   agent           Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
   contact         Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  stories         Story[]  // Stories narratives
 
   @@unique([agentId, contactId])
   @@index([agentId])
@@ -808,4 +809,55 @@ model ProviderConfig {
   
   @@index([agentId])
   @@map("provider_configs")
+}
+
+// ==== SYSTEME DE STORIES NARRATIVES ====
+
+enum StoryType {
+  FACTURE
+  SANTE
+  FAMILLE
+  ECOLE
+  TRANSPORT
+  URGENCE
+  FILLER
+}
+
+enum StoryStatus {
+  ACTIVE
+  RESOLVED
+  ESCAPED
+  PENDING
+}
+
+model Story {
+  id                String    @id @default(cuid())
+  agentId           String
+  contactId         String
+  
+  storyType         StoryType
+  description       String
+  angle             String
+  promptTemplate    String    @db.Text
+  
+  amount            Int?
+  status            StoryStatus @default(ACTIVE)
+  
+  // Liens narratifs
+  previousStoryId   String?
+  previousStory     Story?    @relation("StoryChain", fields: [previousStoryId], references: [id])
+  nextStories       Story[]   @relation("StoryChain")
+  
+  // Timing
+  createdAt         DateTime  @default(now())
+  resolvedAt        DateTime?
+  lastMentionedAt   DateTime  @default(now())
+  
+  // Relations
+  agentContact      AgentContact @relation(fields: [agentId, contactId], references: [agentId, contactId])
+  
+  @@unique([agentId, contactId, description])
+  @@index([agentId, contactId, status])
+  @@index([agentId, contactId, createdAt])
+  @@map("stories")
 }

@@ -1,15 +1,11 @@
 import { SwarmState } from '../types';
-import { prisma } from '@/lib/prisma';
 import { settingsService } from '@/lib/settings-cache';
 
 export async function voiceNode(state: SwarmState): Promise<Partial<SwarmState>> {
   console.log('[Swarm] voiceNode: Analyse contexte vocal');
   
-  const profile = await prisma.agentProfile.findUnique({
-    where: { agentId: state.agentId },
-    select: { locale: true }
-  });
-  
+  // Utiliser le profile déjà récupéré dans index.ts
+  const profile = state.profile;
   const isFrench = (profile?.locale || '').toLowerCase().startsWith('fr');
   
   // Vérifier si vocaux activés - UTILISER LES SETTINGS PAR AGENT (pas global)

@@ -1,67 +1,36 @@
-// Configuration AI Mode - Stocké en DB
-import { prisma } from '@/lib/prisma'
-import { settingsService } from '@/lib/settings-cache'
+// Configuration AI Mode - SWARM-ONLY (Legacy Director Archived)
+// MIGRATION: 2026-02-07 - Director completement desactive
 
-export type AIMode = 'CLASSIC' | 'SWARM'
+export type AIMode = 'SWARM'
 
 class AIConfig {
-    private _mode: AIMode = 'CLASSIC'
-    private _initialized = false
+    private _mode: AIMode = 'SWARM'
 
     get mode(): AIMode {
-        return this._mode
+        // 🔒 SWARM-ONLY: Director archive
+        return 'SWARM'
     }
 
-    async init() {
-        if (this._initialized) return
-        
-        // Lire depuis la DB
-        const settings = await settingsService.getSettings()
-        const dbMode = settings['ai_mode'] as AIMode
-        
-        if (dbMode && ['CLASSIC', 'SWARM'].includes(dbMode)) {
-            this._mode = dbMode
-            console.log(`[AI Mode] Loaded from DB: ${dbMode}`)
-        } else {
-            // Fallback sur env
-            const envMode = process.env.AI_MODE as AIMode
-            if (envMode && ['CLASSIC', 'SWARM'].includes(envMode)) {
-                this._mode = envMode
-                console.log(`[AI Mode] Loaded from ENV: ${envMode}`)
-            }
-        }
-        
-        this._initialized = true
+    async init(): Promise<void> {
+        // Already initialized - SWARM mode is always active
+        return Promise.resolve()
     }
 
-    async setMode(mode: AIMode) {
-        this._mode = mode
-        
-        // Sauvegarder en DB
-        await prisma.setting.upsert({
-            where: { key: 'ai_mode' },
-            update: { value: mode },
-            create: { key: 'ai_mode', value: mode }
-        })
-        
-        // Invalider le cache
-        settingsService.invalidate()
-        
-        console.log(`[AI Mode] Saved to DB: ${mode}`)
+    async setMode(mode: AIMode): Promise<void> {
+        // No-op: SWARM mode is locked
+        console.log('[AIConfig] Attempted to set mode to', mode, '- SWARM is locked')
+        return Promise.resolve()
     }
 
     isClassic(): boolean {
-        return this._mode === 'CLASSIC'
+        // 🔒 Director desactive
+        return false
     }
 
     isSwarm(): boolean {
-        return this._mode === 'SWARM'
+        // ✅ Seul mode actif
+        return true
     }
 }
 
 export const aiConfig = new AIConfig()
-
-// Auto-init au chargement
-if (typeof process !== 'undefined') {
-    aiConfig.init().catch(console.error)
-}

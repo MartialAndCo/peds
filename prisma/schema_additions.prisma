@@ -1,0 +1,51 @@
+
+// ==== AJOUTS POUR SYSTEME DE STORIES ====
+
+enum StoryType {
+  FACTURE
+  SANTE
+  FAMILLE
+  ECOLE
+  TRANSPORT
+  URGENCE
+  FILLER
+}
+
+enum StoryStatus {
+  ACTIVE
+  RESOLVED
+  ESCAPED
+  PENDING
+}
+
+model Story {
+  id                String    @id @default(cuid())
+  agentId           String
+  contactId         String
+  
+  storyType         StoryType
+  description       String    // "Facture électricité"
+  angle             String    // "Maman panique"
+  promptTemplate    String    @db.Text
+  
+  amount            Int?      // Null pour filler
+  status            StoryStatus @default(ACTIVE)
+  
+  // Liens narratifs
+  previousStoryId   String?
+  previousStory     Story?    @relation("StoryChain", fields: [previousStoryId], references: [id])
+  nextStories       Story[]   @relation("StoryChain")
+  
+  // Timing
+  createdAt         DateTime  @default(now())
+  resolvedAt        DateTime?
+  lastMentionedAt   DateTime  @default(now())
+  
+  // Relations
+  agentContact      AgentContact @relation(fields: [agentId, contactId], references: [agentId, contactId])
+  
+  @@unique([agentId, contactId, description])
+  @@index([agentId, contactId, status])
+  @@index([agentId, contactId, createdAt])
+  @@map("stories")
+}

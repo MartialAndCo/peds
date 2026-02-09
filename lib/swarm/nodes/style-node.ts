@@ -1,4 +1,3 @@
-import { prisma } from '@/lib/prisma'
 import type { SwarmState } from '../types'
 
 // Style AUTHENTIQUE ado américain - naturel, pas forcé
@@ -21,17 +20,12 @@ const FR_TEEN_STYLE = `[STYLE ADO NATUREL]:
 💡 Sonne décontracté, pas forcé`;
 
 export async function styleNode(state: SwarmState): Promise<Partial<SwarmState>> {
-    const { agentId } = state
+    console.log('[Swarm][Style] Building style from state.profile')
 
-    console.log('[Swarm][Style] Fetching style for agent:', agentId)
-
-    const profile = await prisma.agentProfile.findUnique({
-        where: { agentId },
-        select: { styleRules: true, baseAge: true, locale: true }
-    })
-
+    // Utiliser le profile déjà récupéré dans index.ts
+    const profile = state.profile
     const isFrench = (profile?.locale || '').toLowerCase().startsWith('fr')
-    console.log('[Swarm][Style] Found:', profile ? 'YES' : 'NO', 'Length:', profile?.styleRules?.length || 0, 'FR:', isFrench)
+    console.log('[Swarm][Style] Profile from state:', profile ? 'YES' : 'NO', 'Length:', profile?.styleRules?.length || 0, 'FR:', isFrench)
 
     // Si styleRules existe en DB, l'utiliser avec remplacement des variables
     // Sinon utiliser le style par défaut selon la locale

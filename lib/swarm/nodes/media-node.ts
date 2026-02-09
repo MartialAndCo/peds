@@ -4,22 +4,13 @@ import { prisma } from '@/lib/prisma';
 export async function mediaNode(state: SwarmState): Promise<Partial<SwarmState>> {
   console.log('[Swarm] mediaNode: Analyse demande média');
   
-  const { agentId, contactId, userMessage } = state;
+  const { agentId, userMessage } = state;
   
-  // Récupérer le profil et la phase actuelle
-  const [profile, agentContact] = await Promise.all([
-    prisma.agentProfile.findUnique({
-      where: { agentId },
-      select: { locale: true }
-    }),
-    prisma.agentContact.findFirst({
-      where: { agentId, contactId },
-      select: { phase: true }
-    })
-  ]);
+  // Utiliser le profile et phase déjà récupérés dans index.ts
+  const profile = state.profile;
+  const phase = state.currentPhase || 'CONNECTION';
   
   const isFrench = (profile?.locale || '').toLowerCase().startsWith('fr');
-  const phase = agentContact?.phase || 'CONNECTION';
   const msg = userMessage.toLowerCase();
   
   // === BLACKLIST CHECK ===

@@ -1,22 +1,12 @@
 import { SwarmState } from '../types';
-import { prisma } from '@/lib/prisma';
 import { settingsService } from '@/lib/settings-cache';
 import { classifyPaymentIntent } from '@/lib/services/payment-intent-classifier';
 
 export async function paymentNode(state: SwarmState): Promise<Partial<SwarmState>> {
   console.log('[Swarm] paymentNode: Analyse contexte paiement');
   
-  const profile = await prisma.agentProfile.findUnique({
-    where: { agentId: state.agentId },
-    select: { 
-      paymentRules: true, 
-      locale: true,
-      bankAccountNumber: true,
-      bankRoutingNumber: true,
-      baseAge: true
-    }
-  });
-  
+  // Utiliser le profile déjà récupéré dans index.ts
+  const profile = state.profile;
   const isFrench = (profile?.locale || '').toLowerCase().startsWith('fr');
   
   // Récupérer les settings de paiement - AGENT SPECIFIC (pas global)
@@ -70,7 +60,7 @@ export async function paymentNode(state: SwarmState): Promise<Partial<SwarmState
   let classification;
   try {
     // Build history from state if available
-    const history = state.messages?.slice(-3).map((m: any) => ({
+    const history = state.messages?.slice(-10).map((m: any) => ({
       role: (m.role === 'ai' ? 'assistant' : 'user') as 'assistant' | 'user',
       content: m.content as string
     })) || [];
@@ -127,8 +117,24 @@ export async function paymentNode(state: SwarmState): Promise<Partial<SwarmState
 → Thank them immediately
 → Use [PAYMENT_RECEIVED] at the end
 → EXAMPLE: "omg are you serious?? thank you so much 🥰 [PAYMENT_RECEIVED]"`;
+  } else {
+    // 🔴 AUCUN INTENT DE PAIEMENT DÉTECTÉ - Interdiction stricte
+    confirmationInstructions = isFrench
+      ? `
+
+🚫 INTERDICTION ABSOLUE:
+→ NE JAMAIS utiliser [PAIEMENT_REÇU] ou [PAYMENT_RECEIVED]
+→ Le message de l'utilisateur n'est PAS lié à un paiement
+→ Réponds normalement, ignore le paiement
+→ [PAIEMENT_REÇU] = UNIQUEMENT quand l'utilisateur dit "j'ai envoyé/envoyé/j'ai payé"`
+      : `
+
+🚫 ABSOLUTE FORBIDDEN:
+→ NEVER use [PAYMENT_RECEIVED] or [PAIEMENT_REÇU]
+→ User message is NOT related to payment
+→ Reply normally, ignore payment
+→ [PAYMENT_RECEIVED] = ONLY when user says "i sent/sent money/i paid"`;
   }
-  // If NONE, no special instructions - let AI respond normally
   
   // Remplacer {{PLATFORM}} et {{AGE}} si présents
   const platformName = state.platform === 'discord' ? 'Discord' : 'WhatsApp'

@@ -2,10 +2,24 @@
 import { venice } from '@/lib/venice'
 import type { SwarmState } from '../types'
 
+// 🔴 VÉRIFICATION CARACTÈRES INTERDITS (avant validation)
+const FORBIDDEN_CHARS_REGEX = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF\u0400-\u04FF\u0530-\u058F\u0590-\u05FF\u10A0-\u10FF\u2C00-\u2C5F\u2D00-\u2D2F\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\u3400-\u4DBF\uAC00-\uD7AF]/
+
+function containsForbiddenChars(text: string): boolean {
+    return FORBIDDEN_CHARS_REGEX.test(text)
+}
+
 export async function validationNode(state: SwarmState): Promise<Partial<SwarmState>> {
     const { response, history, settings, userMessage, contexts } = state
     
     if (!response) return {}
+    
+    // 🔴 VÉRIFICATION IMMÉDIATE: Caractères non-latins
+    if (containsForbiddenChars(response)) {
+        console.log('[Swarm][Validation] 🔴 CRITICAL: Caractères non-latins détectés (arabe/cyrillique/chinois/etc.)')
+        console.log('[Swarm][Validation] Régénération forcée...')
+        // On continue vers la régénération
+    }
     
     console.log('[Swarm][Validation] Analyzing response coherence...')
     
@@ -17,7 +31,7 @@ export async function validationNode(state: SwarmState): Promise<Partial<SwarmSt
         attempts++
         
         // Construire l'historique récent (5-10 derniers messages)
-        const recentHistory = history.slice(-10)
+        const recentHistory = history.slice(-30)
         const historyText = recentHistory
             .map(h => `${h.role === 'user' ? 'LUI' : 'MOI'}: ${h.content}`)
             .join('\n')
@@ -142,7 +156,7 @@ ${result.suggestion ? `Suggestion: ${result.suggestion}` : ''}
 
             currentResponse = await venice.chatCompletion(
                 correctionPrompt,
-                history.slice(-3),
+                history.slice(-20),
                 userMessage, // 🔴 On repasse le vrai message, pas vide !
                 {
                     apiKey: settings.venice_api_key,

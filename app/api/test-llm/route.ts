@@ -7,7 +7,6 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
-import { director } from '@/lib/director'
 import { settingsService } from '@/lib/settings-cache'
 import axios from 'axios'
 
@@ -74,16 +73,13 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Unknown scenario' }, { status: 400 })
         }
 
-        // Build system prompt
-        const systemPrompt = await director.buildSystemPrompt(
-            settings,
-            testContact,
-            test.phase,
-            { trustScore: 50, daysActive: test.phase === 'CRISIS' ? 7 : 2 },
-            'Tu es Anaïs, une fille de 14 ans de Paris',
-            anais.id,
-            'API Test'
-        )
+        // Build system prompt (SWARM mode - no director)
+        const basePrompt = 'Tu es Anaïs, une fille de 14 ans de Paris. Tu réponds de façon naturelle, courte et authentique.'
+        const phaseInstruction = test.phase === 'CRISIS' 
+            ? '\n\nTu es actuellement en situation de crise (problèmes à la maison). Tu es stressée mais tu ne demandes pas directement d\'aide.'
+            : '\n\nTu es en phase de connexion, tu apprends à connaître la personne.'
+        
+        const systemPrompt = basePrompt + phaseInstruction
 
         // Call Venice
         const veniceResponse = await axios.post('https://api.venice.ai/api/v1/chat/completions', {

@@ -1,6 +1,5 @@
 // Agent "Response" - Génère la réponse finale avec le prompt assemblé
 import { venice } from '@/lib/venice'
-import { prisma } from '@/lib/prisma'
 import type { SwarmState } from '../types'
 
 export async function responseNode(state: SwarmState): Promise<Partial<SwarmState>> {
@@ -8,15 +7,8 @@ export async function responseNode(state: SwarmState): Promise<Partial<SwarmStat
 
   console.log('[Swarm][Response] Generating final response...')
 
-  // Récupérer le profil AGENT-SPECIFIC depuis la DB (pour l'âge et la locale)
-  const profile = await prisma.agentProfile.findUnique({
-    where: { agentId },
-    select: { 
-      baseAge: true, 
-      locale: true
-    }
-  })
-
+  // Utiliser le profile déjà récupéré dans index.ts
+  const profile = state.profile
   const agentAge = profile?.baseAge || 15
   const isFrench = (profile?.locale || '').toLowerCase().startsWith('fr')
   
@@ -140,7 +132,7 @@ User: "wyd" → You: "lowkey bored tbh"`)
   try {
     const response = await venice.chatCompletion(
       systemPrompt,
-      history.slice(-3).map((m: any) => ({
+      history.slice(-30).map((m: any) => ({
         role: m.role === 'user' ? 'user' : 'assistant',
         content: m.content
       })),

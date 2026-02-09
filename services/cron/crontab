@@ -1,3 +1,7 @@
+# Every 1 minute: Process Incoming Messages (Discord/WhatsApp queue) - CRITICAL for message processing
+* * * * * curl -sSf "https://main.d2in5shy58lp10.amplifyapp.com/api/cron/process-incoming" 2>&1 || echo "[CRON] process-incoming failed at $(date)"
+* * * * * (sleep 30; curl -sSf "https://main.d2in5shy58lp10.amplifyapp.com/api/cron/process-incoming" 2>&1 || echo "[CRON] process-incoming (delayed) failed at $(date)")
+
 # Every 1 minute: Process Message Queue
 * * * * * curl -s "https://main.d2in5shy58lp10.amplifyapp.com/api/cron/process-queue" > /dev/null
 

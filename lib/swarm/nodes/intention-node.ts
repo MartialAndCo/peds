@@ -50,7 +50,7 @@ EXEMPLES:
         
         const response = await venice.chatCompletion(
             prompt,
-            history.slice(-3),
+            history.slice(-10),
             'Analyse',
             {
                 apiKey: settings.venice_api_key,

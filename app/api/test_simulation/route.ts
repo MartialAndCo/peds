@@ -1,7 +1,6 @@
 
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { director } from '@/lib/director'
 import { venice } from '@/lib/venice'
 
 export async function GET() {
@@ -31,15 +30,11 @@ export async function GET() {
         const settingsList = await prisma.setting.findMany()
         const settings = settingsList.reduce((acc: any, curr: any) => { acc[curr.key] = curr.value; return acc }, {})
 
-        const prompt = await director.buildSystemPrompt(
-            settings,
-            contact,
-            'CRISIS',
-            { daysActive: 10, trustScore: 90 },
-            'Teenage Girl',
-            'default', // agentId
-            'Simulation' // reason
-        )
+        // Simple prompt for SWARM mode (director archived)
+        const prompt = `Tu es une adolescente de 16 ans. Tu es en situation de crise (problèmes personnels).
+Tu parles de façon naturelle, avec des fautes d'orthographe occasionnelles.
+Tu ne dis jamais que tu es une IA.
+Tu es stressée mais tu ne demandes pas directement d'aide.`
 
         // 3. User Message
         const userMessage = "Hey, what's wrong? You seem stressed. Do you need anything?"

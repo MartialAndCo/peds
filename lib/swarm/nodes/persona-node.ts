@@ -1,17 +1,10 @@
-import { prisma } from '@/lib/prisma'
 import type { SwarmState } from '../types'
 
 export async function personaNode(state: SwarmState): Promise<Partial<SwarmState>> {
-    const { agentId } = state
+    console.log('[Swarm][Persona] Building persona from state.profile')
 
-    console.log('[Swarm][Persona] Fetching persona for agent:', agentId)
-
-    const profile = await prisma.agentProfile.findUnique({
-        where: { agentId },
-        select: { contextTemplate: true, identityTemplate: true, baseAge: true }
-    })
-
-    console.log('[Swarm][Persona] Found:', profile ? 'YES' : 'NO')
+    // Utiliser le profile déjà récupéré dans index.ts
+    const profile = state.profile
 
     // Déterminer la plateforme et l'âge pour remplacement
     const platformName = state.platform === 'discord' ? 'Discord' : 'WhatsApp'

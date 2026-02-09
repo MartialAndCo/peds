@@ -14,9 +14,18 @@ export const maxDuration = 300
  */
 export async function GET(req: Request) {
     try {
+        console.log('[CRON] ==========================================')
         console.log('[CRON] Processing incoming message queue...')
+        console.log('[CRON] Timestamp:', new Date().toISOString())
         let processed = 0
         let stillProcessing = 0
+        
+        // Count items in each status for debugging
+        const counts = await prisma.incomingQueue.groupBy({
+            by: ['status'],
+            _count: { id: true }
+        })
+        console.log('[CRON] Queue status counts:', JSON.stringify(counts))
 
         // --- PART 1: Process NEW Messages (PENDING) ---
         // ATOMIC CLAIM: Use transaction with row-level locking

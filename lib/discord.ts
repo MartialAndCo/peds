@@ -1,7 +1,8 @@
 import axios from 'axios'
 import { settingsService } from './settings-cache'
 
-const DISCORD_SERVICE_URL = process.env.DISCORD_SERVICE_URL || 'http://localhost:3002'
+// Same logic as whatsapp.ts - hardcoded EC2 IP for production
+const DISCORD_SERVICE_URL = process.env.DISCORD_SERVICE_URL || 'http://13.60.16.81:3002'
 
 /**
  * Discord API Client
