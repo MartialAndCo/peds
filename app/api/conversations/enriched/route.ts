@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+﻿import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
@@ -36,21 +36,20 @@ export async function GET(req: Request) {
     const includePending = searchParams.get('includePending') === 'true'
     if (!includePending) {
       where.NOT = {
-        AND: [
-          { status: 'paused' },
-          {
-            metadata: {
-              path: ['state'],
-              equals: 'WAITING_FOR_LEAD'
-            }
-          }
-        ]
+        status: 'paused',
+        metadata: {
+          path: ['state'],
+          equals: 'WAITING_FOR_LEAD'
+        }
       }
     }
 
     // Agent filter
     if (agentId) {
-      where.agentId = { in: [agentId, null] }
+      where.OR = [
+        { agentId: agentId },
+        { agentId: null }
+      ]
     }
 
     // Search filter
