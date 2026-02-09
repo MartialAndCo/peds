@@ -21,109 +21,77 @@ export async function GET(req: Request) {
 
     console.log(`[API GET /conversations/enriched] AgentId: ${agentId}, Filter: ${filter}, Sort: ${sort}`)
 
-    // Build base where clause
-    const baseWhere: any = {
-      contact: { 
-        OR: [
-          { isHidden: false },
-          { isHidden: null }
-        ]
-      }
-    }
-    
-    // Filter out conversations that haven't started yet (provider leads waiting for first message)
-    // Unless explicitly requested with includePending=true
-    // Note: JSON path filtering removed for compatibility - filtering done in-memory if needed
-    const includePending = searchParams.get('includePending') === 'true'
-    // TODO: Re-enable JSON filtering when Prisma version supports it
-    // For now, we'll fetch all and filter in the response if needed
+    // Build the where clause components
+    const conditions: any[] = []
 
-    // Agent filter - will be combined with other conditions properly
-    const agentConditions: any[] = []
+    // Base filter: contact is not hidden
+    conditions.push({
+      contact: {
+        OR: [{ isHidden: false }, { isHidden: null }]
+      }
+    })
+
+    // Agent filter
     if (agentId) {
-      agentConditions.push(
-        { agentId: agentId },
-        { agentId: null }
-      )
+      conditions.push({
+        OR: [{ agentId: agentId }, { agentId: null }]
+      })
     }
 
     // Search filter
     if (search) {
-      baseWhere.contact = {
-        AND: [
-          { OR: [{ isHidden: false }, { isHidden: null }] },
-          {
-            OR: [
-              { name: { contains: search, mode: 'insensitive' } },
-              { phone_whatsapp: { contains: search, mode: 'insensitive' } }
-            ]
-          }
-        ]
-      }
+      conditions.push({
+        contact: {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { phone_whatsapp: { contains: search, mode: 'insensitive' } }
+          ]
+        }
+      })
     }
 
-    // Apply specific filters and build the final where clause
-    let where: any = { ...baseWhere }
-
+    // Apply specific filters
     switch (filter) {
       case 'unread':
-        where.unreadCount = { gt: 0 }
+        conditions.push({ unreadCount: { gt: 0 } })
         break
       case 'needs_reply':
-        where.unreadCount = { gt: 0 }
-        where.lastMessageSender = 'contact'
+        conditions.push({ unreadCount: { gt: 0 } })
+        conditions.push({ lastMessageSender: 'contact' })
         break
       case 'moneypot':
-        where.contact = {
-          AND: [
-            { OR: [{ isHidden: false }, { isHidden: null }] },
-            { agentPhase: 'MONEYPOT' }
-          ]
-        }
+        conditions.push({
+          contact: { agentPhase: 'MONEYPOT' }
+        })
         break
       case 'crisis':
-        where.contact = {
-          AND: [
-            { OR: [{ isHidden: false }, { isHidden: null }] },
-            { agentPhase: 'CRISIS' }
-          ]
-        }
+        conditions.push({
+          contact: { agentPhase: 'CRISIS' }
+        })
         break
       case 'new':
-        where.contact = {
-          AND: [
-            { OR: [{ isHidden: false }, { isHidden: null }] },
-            { status: 'new' }
-          ]
-        }
+        conditions.push({
+          contact: { status: 'new' }
+        })
         break
       case 'paused':
-        where.status = 'paused'
+        conditions.push({ status: 'paused' })
         break
       case 'priority':
         // High priority = CRISIS phase OR trustScore > 70 OR unread > 0
-        // Combine with agent conditions if present
-        const priorityConditions = [
-          { contact: { agentPhase: 'CRISIS' } },
-          { contact: { trustScore: { gte: 70 } } },
-          { unreadCount: { gt: 0 } }
-        ]
-        
-        if (agentConditions.length > 0) {
-          // Need to satisfy both: (agent conditions) AND (priority conditions)
-          where.AND = [
-            { OR: agentConditions },
-            { OR: priorityConditions }
+        conditions.push({
+          OR: [
+            { contact: { agentPhase: 'CRISIS' } },
+            { contact: { trustScore: { gte: 70 } } },
+            { unreadCount: { gt: 0 } }
           ]
-        } else {
-          where.OR = priorityConditions
-        }
+        })
         break
       case 'dormant':
         // No activity in last 24 hours
         const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
-        where.lastMessageAt = { lt: oneDayAgo }
-        where.status = 'active'
+        conditions.push({ lastMessageAt: { lt: oneDayAgo } })
+        conditions.push({ status: 'active' })
         break
       case 'all':
       default:
@@ -131,10 +99,10 @@ export async function GET(req: Request) {
         break
     }
 
-    // If not priority filter (which handles agent conditions specially), apply agent filter
-    if (filter !== 'priority' && agentConditions.length > 0) {
-      where.OR = agentConditions
-    }
+    // Build final where clause with AND
+    const where: any = conditions.length > 1 
+      ? { AND: conditions }
+      : conditions[0] || {}
 
     // Fetch conversations
     let conversations = await prisma.conversation.findMany({
@@ -231,7 +199,6 @@ export async function GET(req: Request) {
           if (a.unreadCount !== b.unreadCount) {
             return b.unreadCount - a.unreadCount
           }
-          // Fall through to lastActivity if equal
           break
         case 'trust':
           const trustA = (a as any).agentContext?.trustScore || a.contact.trustScore || 0
@@ -252,7 +219,6 @@ export async function GET(req: Request) {
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         case 'lastActivity':
         default:
-          // Default sort by last activity
           break
       }
       
@@ -265,27 +231,33 @@ export async function GET(req: Request) {
     // Calculate counts for each filter
     const counts = {
       all: await prisma.conversation.count({ where }),
-      unread: await prisma.conversation.count({ where: { ...where, unreadCount: { gt: 0 } } }),
-      needs_reply: await prisma.conversation.count({ where: { ...where, unreadCount: { gt: 0 }, lastMessageSender: 'contact' } }),
-      moneypot: await prisma.conversation.count({ where: { ...where, contact: { agentPhase: 'MONEYPOT' } } }),
-      crisis: await prisma.conversation.count({ where: { ...where, contact: { agentPhase: 'CRISIS' } } }),
-      new: await prisma.conversation.count({ where: { ...where, contact: { status: 'new' } } }),
-      paused: await prisma.conversation.count({ where: { ...where, status: 'paused' } }),
+      unread: await prisma.conversation.count({ where: { AND: [...conditions, { unreadCount: { gt: 0 } }] } }),
+      needs_reply: await prisma.conversation.count({ where: { AND: [...conditions, { unreadCount: { gt: 0 } }, { lastMessageSender: 'contact' }] } }),
+      moneypot: await prisma.conversation.count({ where: { AND: [...conditions, { contact: { agentPhase: 'MONEYPOT' } }] } }),
+      crisis: await prisma.conversation.count({ where: { AND: [...conditions, { contact: { agentPhase: 'CRISIS' } }] } }),
+      new: await prisma.conversation.count({ where: { AND: [...conditions, { contact: { status: 'new' } }] } }),
+      paused: await prisma.conversation.count({ where: { AND: [...conditions, { status: 'paused' }] } }),
       priority: await prisma.conversation.count({ 
         where: { 
-          ...where, 
-          OR: [
-            { contact: { agentPhase: 'CRISIS' } },
-            { contact: { trustScore: { gte: 70 } } },
-            { unreadCount: { gt: 0 } }
+          AND: [
+            ...conditions,
+            { 
+              OR: [
+                { contact: { agentPhase: 'CRISIS' } },
+                { contact: { trustScore: { gte: 70 } } },
+                { unreadCount: { gt: 0 } }
+              ]
+            }
           ]
         } 
       }),
       dormant: await prisma.conversation.count({ 
         where: { 
-          ...where, 
-          lastMessageAt: { lt: new Date(Date.now() - 24 * 60 * 60 * 1000) },
-          status: 'active'
+          AND: [
+            ...conditions,
+            { lastMessageAt: { lt: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+            { status: 'active' }
+          ]
         } 
       }),
     }
