@@ -21,91 +21,103 @@ export async function GET(req: Request) {
 
     console.log(`[API GET /conversations/enriched] AgentId: ${agentId}, Filter: ${filter}, Sort: ${sort}`)
 
-    // Build base where clause
+    // Build base where clause - using AND array for proper composition
     const where: any = {
-      contact: { 
-        OR: [
-          { isHidden: false },
-          { isHidden: null }
-        ]
-      }
+      AND: [
+        {
+          contact: { 
+            OR: [
+              { isHidden: false },
+              { isHidden: null }
+            ]
+          }
+        }
+      ]
     }
     
     // Filter out conversations that haven't started yet (provider leads waiting for first message)
     // Unless explicitly requested with includePending=true
     const includePending = searchParams.get('includePending') === 'true'
     if (!includePending) {
-      where.NOT = {
-        status: 'paused',
-        metadata: {
-          path: ['state'],
-          equals: 'WAITING_FOR_LEAD'
+      where.AND.push({
+        NOT: {
+          AND: [
+            { status: 'paused' },
+            { 
+              metadata: {
+                path: ['state'],
+                equals: 'WAITING_FOR_LEAD'
+              }
+            }
+          ]
         }
-      }
+      })
     }
 
     // Agent filter
     if (agentId) {
-      where.OR = [
-        { agentId: agentId },
-        { agentId: null }
-      ]
+      where.AND.push({
+        OR: [
+          { agentId: agentId },
+          { agentId: null }
+        ]
+      })
     }
 
     // Search filter
     if (search) {
-      where.contact = {
-        ...where.contact,
-        OR: [
-          { name: { contains: search, mode: 'insensitive' } },
-          { phone_whatsapp: { contains: search, mode: 'insensitive' } }
-        ]
-      }
+      where.AND.push({
+        contact: {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { phone_whatsapp: { contains: search, mode: 'insensitive' } }
+          ]
+        }
+      })
     }
 
     // Apply specific filters
     switch (filter) {
       case 'unread':
-        where.unreadCount = { gt: 0 }
+        where.AND.push({ unreadCount: { gt: 0 } })
         break
       case 'needs_reply':
-        where.unreadCount = { gt: 0 }
-        where.lastMessageSender = 'contact'
+        where.AND.push({ unreadCount: { gt: 0 } })
+        where.AND.push({ lastMessageSender: 'contact' })
         break
       case 'moneypot':
-        where.contact = { 
-          ...where.contact,
-          agentPhase: 'MONEYPOT' 
-        }
+        where.AND.push({
+          contact: { agentPhase: 'MONEYPOT' }
+        })
         break
       case 'crisis':
-        where.contact = { 
-          ...where.contact,
-          agentPhase: 'CRISIS' 
-        }
+        where.AND.push({
+          contact: { agentPhase: 'CRISIS' }
+        })
         break
       case 'new':
-        where.contact = { 
-          ...where.contact,
-          status: 'new' 
-        }
+        where.AND.push({
+          contact: { status: 'new' }
+        })
         break
       case 'paused':
-        where.status = 'paused'
+        where.AND.push({ status: 'paused' })
         break
       case 'priority':
         // High priority = CRISIS phase OR trustScore > 70 OR unread > 0
-        where.OR = [
-          { contact: { agentPhase: 'CRISIS' } },
-          { contact: { trustScore: { gte: 70 } } },
-          { unreadCount: { gt: 0 } }
-        ]
+        where.AND.push({
+          OR: [
+            { contact: { agentPhase: 'CRISIS' } },
+            { contact: { trustScore: { gte: 70 } } },
+            { unreadCount: { gt: 0 } }
+          ]
+        })
         break
       case 'dormant':
         // No activity in last 24 hours
         const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
-        where.lastMessageAt = { lt: oneDayAgo }
-        where.status = 'active'
+        where.AND.push({ lastMessageAt: { lt: oneDayAgo } })
+        where.AND.push({ status: 'active' })
         break
       case 'all':
       default:
@@ -239,31 +251,36 @@ export async function GET(req: Request) {
       return new Date(dateB).getTime() - new Date(dateA).getTime()
     })
 
-    // Calculate counts for each filter
+    // Calculate counts for each filter - helper to build count where clause
+    const buildCountWhere = (extraConditions: any = {}) => ({
+      AND: [
+        ...where.AND,
+        ...(Object.keys(extraConditions).length > 0 ? [extraConditions] : [])
+      ]
+    })
+
     const counts = {
-      all: await prisma.conversation.count({ where: { ...where } }),
-      unread: await prisma.conversation.count({ where: { ...where, unreadCount: { gt: 0 } } }),
-      needs_reply: await prisma.conversation.count({ where: { ...where, unreadCount: { gt: 0 }, lastMessageSender: 'contact' } }),
-      moneypot: await prisma.conversation.count({ where: { ...where, contact: { agentPhase: 'MONEYPOT' } } }),
-      crisis: await prisma.conversation.count({ where: { ...where, contact: { agentPhase: 'CRISIS' } } }),
-      new: await prisma.conversation.count({ where: { ...where, contact: { status: 'new' } } }),
-      paused: await prisma.conversation.count({ where: { ...where, status: 'paused' } }),
+      all: await prisma.conversation.count({ where }),
+      unread: await prisma.conversation.count({ where: buildCountWhere({ unreadCount: { gt: 0 } }) }),
+      needs_reply: await prisma.conversation.count({ where: buildCountWhere({ unreadCount: { gt: 0 }, lastMessageSender: 'contact' }) }),
+      moneypot: await prisma.conversation.count({ where: buildCountWhere({ contact: { agentPhase: 'MONEYPOT' } }) }),
+      crisis: await prisma.conversation.count({ where: buildCountWhere({ contact: { agentPhase: 'CRISIS' } }) }),
+      new: await prisma.conversation.count({ where: buildCountWhere({ contact: { status: 'new' } }) }),
+      paused: await prisma.conversation.count({ where: buildCountWhere({ status: 'paused' }) }),
       priority: await prisma.conversation.count({ 
-        where: { 
-          ...where, 
+        where: buildCountWhere({
           OR: [
             { contact: { agentPhase: 'CRISIS' } },
             { contact: { trustScore: { gte: 70 } } },
             { unreadCount: { gt: 0 } }
           ]
-        } 
+        }) 
       }),
       dormant: await prisma.conversation.count({ 
-        where: { 
-          ...where, 
+        where: buildCountWhere({
           lastMessageAt: { lt: new Date(Date.now() - 24 * 60 * 60 * 1000) },
           status: 'active'
-        } 
+        }) 
       }),
     }
 
