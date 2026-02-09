@@ -4,11 +4,12 @@ frontend:
     preBuild:
       commands:
         - npm ci --legacy-peer-deps
+        - npx prisma generate
     build:
       commands:
         - env | grep -e DB_ -e NEXT_ -e WAHA_ -e AI_ -e ANTHROPIC_ -e VENICE_ -e ELEVENLABS_ -e AUTH_ -e WEBHOOK_ -e DATABASE_ -e DIRECT_ >> .env.production
         - cat .env.production > .env
-        - npx prisma generate
+        - rm -rf .next
         - npx prisma migrate deploy || echo "Migration may have already been applied"
         - npm run build
   artifacts:
@@ -18,3 +19,5 @@ frontend:
   cache:
     paths:
       - node_modules/**/*
+      - '!node_modules/.prisma/**/*'
+      - '!node_modules/@prisma/client/**/*'
