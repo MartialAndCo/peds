@@ -10,7 +10,7 @@ frontend:
         - cat .env.production > .env
         - rm -rf node_modules/.prisma
         - npx prisma generate
-        - npx prisma db push --accept-data-loss
+        - npx prisma migrate deploy
         - npm run build
   artifacts:
     baseDirectory: .next
