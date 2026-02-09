@@ -794,47 +794,62 @@ Keep response SHORT and excited.)`
                 const isWaitingForLead = meta?.state === 'WAITING_FOR_LEAD'
 
                 console.log(`[Processor] Waking up conversation ${conversation.id} (Lead initiated contact, wasWaiting: ${isWaitingForLead})`)
-                conversation = await prisma.conversation.update({
-                    where: { id: conversation.id },
-                    data: {
-                        status: 'active',
-                        metadata: {
-                            ...meta,
-                            state: 'active', // clear waiting state
-                            becameActiveAt: new Date(),
-                            wokenBy: 'incoming_message'
-                        }
-                    },
-                    include: { prompt: true }
-                })
+                
+                try {
+                    conversation = await prisma.conversation.update({
+                        where: { id: conversation.id },
+                        data: {
+                            status: 'active',
+                            metadata: {
+                                ...meta,
+                                state: 'active', // clear waiting state
+                                becameActiveAt: new Date(),
+                                wokenBy: 'incoming_message'
+                            }
+                        },
+                        include: { prompt: true }
+                    })
+                    console.log(`[Processor] ✅ Conversation ${conversation.id} successfully woken up. New status: ${conversation.status}`)
+                } catch (wakeUpError) {
+                    console.error(`[Processor] ❌ FAILED to wake up conversation ${conversation.id}:`, wakeUpError)
+                    // Continue with old conversation object - handleChat will see 'paused' and return early
+                }
 
                 // Activate contact when conversation becomes active (lead is now engaged)
                 if (contact.status === 'paused' || contact.status === 'new' || contact.status === 'unknown') {
-                    await prisma.contact.update({
-                        where: { id: contact.id },
-                        data: { status: 'active', isHidden: false }
-                    })
-                    console.log(`[Processor] Contact ${contact.id} marked as active`)
+                    try {
+                        await prisma.contact.update({
+                            where: { id: contact.id },
+                            data: { status: 'active', isHidden: false }
+                        })
+                        console.log(`[Processor] Contact ${contact.id} marked as active`)
+                    } catch (contactError) {
+                        console.error(`[Processor] Failed to activate contact ${contact.id}:`, contactError)
+                    }
                     
                     // Update lead status to CONVERTED if it exists and is still IMPORTED
-                    const lead = await prisma.lead.findFirst({
-                        where: { 
-                            contactId: contact.id,
-                            status: 'IMPORTED'
-                        }
-                    })
-                    if (lead) {
-                        await prisma.lead.update({
-                            where: { id: lead.id },
-                            data: { status: 'CONVERTED', paidAt: new Date() }
+                    try {
+                        const lead = await prisma.lead.findFirst({
+                            where: { 
+                                contactId: contact.id,
+                                status: 'IMPORTED'
+                            }
                         })
-                        console.log(`[Processor] Lead ${lead.id} marked as CONVERTED`)
+                        if (lead) {
+                            await prisma.lead.update({
+                                where: { id: lead.id },
+                                data: { status: 'CONVERTED', paidAt: new Date() }
+                            })
+                            console.log(`[Processor] Lead ${lead.id} marked as CONVERTED`)
+                        }
+                    } catch (leadError) {
+                        console.error(`[Processor] Failed to update lead status for contact ${contact.id}:`, leadError)
                     }
                 }
             }
         }
 
-        console.log('[Processor] Handing off to Chat Handler...')
+        console.log(`[Processor] Handing off to Chat Handler... Conversation status: ${conversation.status}`)
         const { handleChat } = require('@/lib/handlers/chat')
 
         // CONTEXT INJECTION: If this processor instance just generated a response (e.g. from Media Request or previous burst part),
