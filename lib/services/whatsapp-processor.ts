@@ -319,6 +319,21 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                         console.log(`[Processor] Lead ${lead.id} marked as CONVERTED`)
                     }
                 }
+                
+                // Ensure AgentContact exists for proper workspace filtering
+                const existingAgentContact = await prisma.agentContact.findUnique({
+                    where: { agentId_contactId: { agentId, contactId: contact.id } }
+                })
+                if (!existingAgentContact) {
+                    await prisma.agentContact.create({
+                        data: {
+                            agentId,
+                            contactId: contact.id,
+                            phase: 'CONNECTION'
+                        }
+                    })
+                    console.log(`[Processor] Created AgentContact for existing ${contact.id} -> ${agentId}`)
+                }
             } else {
                 // Second: Try to find by username (name) where discordId is null
                 // This links provider-created leads when Discord user first messages
@@ -335,15 +350,13 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                     if (contact) {
                         console.log(`[Processor] Found unlinked lead for Discord user ${discordUsername}: ${contact.id}`)
                         
-                        // Get the lead to check its agentId
+                        // Get the lead to check its agentId (any status, not just IMPORTED)
                         const lead = await prisma.lead.findFirst({
-                            where: { 
-                                contactId: contact.id,
-                                status: 'IMPORTED'
-                            }
+                            where: { contactId: contact.id }
                         })
                         
                         // If lead has different agent, update agentId for this message processing
+                        // CRITICAL: This ensures we use the correct agentId to find the conversation
                         if (lead && lead.agentId !== agentId) {
                             console.log(`[Processor] Lead agent (${lead.agentId}) differs from resolved agent (${agentId}). Using lead agent.`)
                             agentId = lead.agentId
@@ -361,7 +374,24 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                         })
                         console.log(`[Processor] Linked lead ${contact.id} with Discord ID ${discordId}`)
                         
-                        if (lead) {
+                        // Create AgentContact binding if it doesn't exist for this agent
+                        // This is critical for proper workspace filtering
+                        const existingAgentContact = await prisma.agentContact.findUnique({
+                            where: { agentId_contactId: { agentId, contactId: contact.id } }
+                        })
+                        if (!existingAgentContact) {
+                            await prisma.agentContact.create({
+                                data: {
+                                    agentId,
+                                    contactId: contact.id,
+                                    phase: 'CONNECTION'
+                                }
+                            })
+                            console.log(`[Processor] Created AgentContact for ${contact.id} -> ${agentId}`)
+                        }
+                        
+                        // Update lead status to CONVERTED if still IMPORTED
+                        if (lead && lead.status === 'IMPORTED') {
                             await prisma.lead.update({
                                 where: { id: lead.id },
                                 data: { status: 'CONVERTED', paidAt: new Date() }
@@ -379,11 +409,26 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                             discordId: discordId,
                             name: payload._data?.notifyName || "Discord User",
                             source: 'Discord Incoming',
-                            status: 'new',
+                            status: 'active', // ACTIVE immediately since user just sent a message
                             isHidden: false
                         }
                     })
                     console.log(`[Processor] Created Discord contact: ${contact.id}`)
+                    
+                    // Create AgentContact binding to ensure proper filtering in workspace
+                    try {
+                        await prisma.agentContact.create({
+                            data: {
+                                agentId: agentId,
+                                contactId: contact.id,
+                                phase: 'CONNECTION'
+                            }
+                        })
+                        console.log(`[Processor] Created AgentContact for ${contact.id} -> ${agentId}`)
+                    } catch (e) {
+                        // Ignore if already exists
+                        console.log(`[Processor] AgentContact may already exist or error:`, e)
+                    }
                 }
             }
         } else {

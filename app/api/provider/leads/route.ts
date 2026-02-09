@@ -152,8 +152,7 @@ export async function POST(req: Request) {
                 identifier: normalizedIdentifier,
                 age: body.age,
                 location: body.location,
-                notes: body.notes,
-                context: body.context,
+                    context: body.context,
                 source: body.source,
                 status: 'PENDING'
             }
@@ -162,8 +161,8 @@ export async function POST(req: Request) {
         // Create contact automatically
         const contactData: any = {
             source: `provider:${session.user.id}`,
-            notes: body.notes || `Source: ${body.source}`,
-            status: 'paused',  // Start as paused, will become active on first response
+            notes: `Source: ${body.source}`,
+            status: 'new',  // Start as new, will become active on first response (coherent with WhatsApp leads)
             isHidden: false,  // Contact is visible, conversation will be filtered
             profile: {
                 age: body.age,
@@ -221,6 +220,7 @@ export async function POST(req: Request) {
                     status: 'paused',
                     ai_enabled: true,
                     metadata: {
+                        state: 'WAITING_FOR_LEAD',  // ✅ CRITICAL: Flag to wake up conversation on first message
                         leadId: lead.id,
                         providerId: session.user.id,
                         leadContext: body.context,

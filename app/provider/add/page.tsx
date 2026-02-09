@@ -36,7 +36,6 @@ export default function AddLeadPage() {
         age: '',
         location: '',
         source: '',
-        notes: '',
         context: ''
     })
     
@@ -99,7 +98,6 @@ export default function AddLeadPage() {
                     age: '',
                     location: '',
                     source: '',
-                    notes: '',
                     context: ''
                 })
                 setDuplicate(null)
@@ -312,18 +310,7 @@ export default function AddLeadPage() {
                                 />
                             </div>
 
-                            {/* Notes */}
-                            <div>
-                                <Label htmlFor="notes" className="text-slate-300">Notes</Label>
-                                <Textarea
-                                    id="notes"
-                                    value={form.notes}
-                                    onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))}
-                                    placeholder="Additional notes..."
-                                    rows={2}
-                                    className="bg-slate-800 border-slate-700 text-white mt-1.5 resize-none"
-                                />
-                            </div>
+
                         </CardContent>
                     </Card>
 
