@@ -216,7 +216,7 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                                 agentPhase: existingRealContact.agentPhase !== 'CONNECTION' ? existingRealContact.agentPhase : ghostContact.agentPhase,
                                 trustScore: existingRealContact.trustScore > 0 ? existingRealContact.trustScore : ghostContact.trustScore,
                                 testMode: existingRealContact.testMode || ghostContact.testMode,
-                                isHidden: existingRealContact.isHidden || ghostContact.isHidden,
+
                             }
                         })
                         logger.info('Healing: Merged ghost metadata into existing contact', { ghostId: ghostContact.id, realId: realContact.id })
@@ -229,13 +229,14 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                                 notes: ghostContact.notes,
                                 profile: ghostContact.profile as any,
                                 source: ghostContact.source || 'WhatsApp Incoming (Healed)',
+                        ...(ghostContact.source === 'system' ? { source: 'system' } : {})
                                 status: ghostContact.status,
                                 agentPhase: ghostContact.agentPhase,
                                 trustScore: ghostContact.trustScore,
                                 lastPhaseUpdate: ghostContact.lastPhaseUpdate,
                                 lastTrustAnalysis: ghostContact.lastTrustAnalysis,
                                 testMode: ghostContact.testMode,
-                                isHidden: ghostContact.isHidden,
+
                             }
                         })
                         logger.info('Healing: Created real contact with all ghost metadata', { ghostId: ghostContact.id, realId: realContact.id })
@@ -265,7 +266,8 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                         data: {
                             status: 'merged',
                             mergedIntoId: realContact.id,
-                            isHidden: true // Hide from listings
+                            source: 'system', // Hide merged ghosts from listings
+
                         }
                     })
                     logger.info('Healing: Ghost contact marked as merged', { ghostId: ghostContact.id, realId: realContact.id })
@@ -300,7 +302,7 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                 if (contact.status === 'paused' || contact.status === 'new' || contact.status === 'unknown') {
                     await prisma.contact.update({
                         where: { id: contact.id },
-                        data: { status: 'active', isHidden: false }
+                        data: { status: 'active' }
                     })
                     console.log(`[Processor] Discord contact ${contact.id} marked as active`)
                     
@@ -408,9 +410,9 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                             phone_whatsapp: normalizedPhone, // DISCORD_123456
                             discordId: discordId,
                             name: payload._data?.notifyName || "Discord User",
-                            source: 'Discord Incoming',
+                            source: isSystemNumber ? 'system' : 'Discord Incoming',
                             status: 'active', // ACTIVE immediately since user just sent a message
-                            isHidden: false
+
                         }
                     })
                     console.log(`[Processor] Created Discord contact: ${contact.id}`)
@@ -440,14 +442,14 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                     ...(wasLidResolved ? { phone_whatsapp: normalizedPhone } : {}),
                     // Ensure system numbers stay hidden if they were somehow unhidden? Or just set it?
                     // Better to just set it on create, but maybe update too if it became a system number?
-                    ...(isSystemNumber ? { isHidden: true } : {})
+
                 },
                 create: {
                     phone_whatsapp: normalizedPhone,
                     name: payload._data?.notifyName || "Inconnu",
-                    source: 'WhatsApp Incoming',
+                    source: isSystemNumber ? 'system' : 'WhatsApp Incoming',
                     status: 'unknown',  // Not a lead, came from spontaneous message
-                    isHidden: isSystemNumber || false
+
                 }
             })
         }
@@ -820,7 +822,7 @@ Keep response SHORT and excited.)`
                     try {
                         await prisma.contact.update({
                             where: { id: contact.id },
-                            data: { status: 'active', isHidden: false }
+                            data: { status: 'active' }
                         })
                         console.log(`[Processor] Contact ${contact.id} marked as active`)
                     } catch (contactError) {

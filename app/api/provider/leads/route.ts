@@ -163,7 +163,6 @@ export async function POST(req: Request) {
             source: `provider:${session.user.id}`,
             notes: `Source: ${body.source}`,
             status: 'new',  // Start as new, will become active on first response (coherent with WhatsApp leads)
-            isHidden: false,  // Contact is visible, conversation will be filtered
             profile: {
                 age: body.age,
                 location: body.location,

@@ -11,7 +11,7 @@ const contactSchema = z.object({
     notes: z.string().optional(),
     status: z.string().optional(),
     testMode: z.boolean().optional(),
-    isHidden: z.boolean().optional()
+    isHidden: z.boolean().optional() // Maps to source: 'hidden'
 })
 
 export const dynamic = 'force-dynamic'; // Ensure we always fetch fresh DB state
@@ -74,16 +74,23 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         const json = await req.json()
         const body = contactSchema.parse(json)
 
+        // Handle isHidden -> source mapping
+        const updateData: any = { ...body }
+        if (body.isHidden !== undefined) {
+            updateData.source = body.isHidden ? 'hidden' : 'manual'
+            delete updateData.isHidden
+        }
+
         // AUTO-UNPAUSE LOGIC
         // If notes are updated (added/changed) and status isn't explicitly set, 
         // automatically set status to 'active' so the agent handles the context immediately.
         if (body.notes && body.notes.trim().length > 0 && !body.status) {
-            body.status = 'active';
+            updateData.status = 'active';
         }
 
         const contact = await prisma.contact.update({
             where: { id },
-            data: body
+            data: updateData
         })
 
         // SYNC CONVERSATION STATUS & TRIGGER AI

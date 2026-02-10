@@ -13,8 +13,9 @@ import {
     PlayCircle,
     AlertTriangle,
     Trash2,
-    EyeOff,
+
     Zap,
+    EyeOff,
     ArrowLeft,
     Save,
     Loader2,
@@ -260,10 +261,10 @@ export default function EditContactPage() {
                                     <EyeOff className="h-3 w-3 text-blue-500" />
                                     Hide Contact
                                 </Label>
-                                <p className="text-[10px] text-white/40">Hide from dashboard</p>
+                                <p className="text-[10px] text-white/40">Hide from dashboard (sets source=hidden)</p>
                             </div>
                             <Switch
-                                checked={contact?.isHidden || false}
+                                checked={contact?.source === 'hidden'}
                                 onCheckedChange={(checked) => handleUpdateSettings({ isHidden: checked })}
                                 className="data-[state=checked]:bg-blue-500"
                             />

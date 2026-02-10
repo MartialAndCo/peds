@@ -27,7 +27,9 @@ export async function GET(req: Request) {
         const page = parseInt(searchParams.get('page') || '1')
         const skip = (page - 1) * limit
 
-        const where: any = { isHidden: false }  // Hide unengaged leads by default
+        const where: any = {
+            source: { notIn: ['system', 'hidden'] }  // Hide system/hidden contacts by default
+        }
         if (status) where.status = status
 
         // NEW: Filter by Agent Binding (AgentContact OR Conversation)
@@ -38,10 +40,10 @@ export async function GET(req: Request) {
             ]
         }
         
-        // Allow admins to see hidden contacts if needed
+        // Allow admins to see system/hidden contacts if needed
         const showHidden = searchParams.get('showHidden') === 'true'
         if (showHidden && session.user.role === 'ADMIN') {
-            delete where.isHidden
+            delete where.source
         }
 
         const contacts = await prisma.contact.findMany({

@@ -24,29 +24,12 @@ export async function GET(req: Request) {
     // Build the where clause components
     const conditions: any[] = []
 
-    // Check if isHidden field exists in schema (handles cache issues)
-    let hasIsHiddenField = true
-    try {
-      // Test query to verify schema is up to date
-      await prisma.conversation.count({
-        where: { contact: { isHidden: false } },
-        take: 1
-      })
-    } catch (schemaError: any) {
-      if (schemaError.message?.includes('isHidden') || schemaError.message?.includes('Argument')) {
-        console.warn('[API] isHidden field not found in schema - skipping filter')
-        hasIsHiddenField = false
-      }
-    }
-
-    // Base filter: contact is not hidden (only if field exists)
-    if (hasIsHiddenField) {
-      conditions.push({
+    // Base filter: exclude system/hidden contacts from dashboard
+    conditions.push({
         contact: {
-          OR: [{ isHidden: false }, { isHidden: null }]
+            source: { notIn: ['system', 'hidden'] }
         }
-      })
-    }
+    })
 
     // Agent filter
     if (agentId) {

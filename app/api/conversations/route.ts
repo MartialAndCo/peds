@@ -42,11 +42,8 @@ export async function GET(req: Request) {
         const conversations = await prisma.conversation.findMany({
             where: {
                 ...where,
-                contact: { 
-                    OR: [
-                        { isHidden: false },
-                        { isHidden: null }
-                    ]
+                contact: {
+                    source: { notIn: ['system', 'hidden'] }
                 }
             },
             include: {

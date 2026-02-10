@@ -43,6 +43,7 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: '100mb',
     },
+    serverComponentsExternalPackages: ['@prisma/client', '.prisma/client'],
   },
   // Increase Limits for API Routes (App Router uses native Request limits mostly, but this might help if migrating)
 };

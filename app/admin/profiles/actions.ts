@@ -23,7 +23,7 @@ export async function getPipelineData() {
     const contacts = await prisma.contact.findMany({
         where: {
             status: { notIn: ['blacklisted', 'merged'] },
-            isHidden: false
+            source: { notIn: ['system', 'hidden'] }
         },
         include: {
             conversations: {
