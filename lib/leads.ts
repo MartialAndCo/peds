@@ -126,6 +126,20 @@ export const leadService = {
                     }
                 }
             })
+            
+            // Create AgentContact binding for proper workspace filtering
+            const existingAgentContact = await prisma.agentContact.findUnique({
+                where: { agentId_contactId: { agentId, contactId: targetContact.id } }
+            })
+            if (!existingAgentContact) {
+                await prisma.agentContact.create({
+                    data: {
+                        agentId,
+                        contactId: targetContact.id,
+                        phase: 'CONNECTION'
+                    }
+                })
+            }
         } else {
             // FIX: If conversation exists but is PAUSED (e.g. user messaged before lead provider),
             // we MUST enable the 'WAITING_FOR_LEAD' state so the next message wakes it up.
@@ -142,6 +156,20 @@ export const leadService = {
                             state: 'WAITING_FOR_LEAD',
                             leadContext: context
                         }
+                    }
+                })
+            }
+            
+            // Ensure AgentContact exists (in case it was missing)
+            const existingAgentContact = await prisma.agentContact.findUnique({
+                where: { agentId_contactId: { agentId, contactId: targetContact.id } }
+            })
+            if (!existingAgentContact) {
+                await prisma.agentContact.create({
+                    data: {
+                        agentId,
+                        contactId: targetContact.id,
+                        phase: 'CONNECTION'
                     }
                 })
             }

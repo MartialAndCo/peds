@@ -289,9 +289,15 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
         if (isDiscord) {
             const discordId = normalizedPhone.replace('DISCORD_', '')
 
-            // First: Check if this Discord user already has a linked contact
+            // First: Check if this Discord user already has a linked contact FOR THIS AGENT
+            // Critical: Must filter by agent to prevent cross-agent contact leakage
             contact = await prisma.contact.findFirst({
-                where: { discordId }
+                where: { 
+                    discordId,
+                    agentContacts: {
+                        some: { agentId }
+                    }
+                }
             })
 
             if (contact) {
@@ -338,13 +344,17 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
             } else {
                 // Second: Try to find by username (name) where discordId is null
                 // This links provider-created leads when Discord user first messages
+                // CRITICAL: Must only find leads assigned to THIS agent
                 const discordUsername = payload._data?.notifyName
                 if (discordUsername) {
                     const normalizedUsername = discordUsername.replace(/\s/g, '').toLowerCase()
                     contact = await prisma.contact.findFirst({
                         where: { 
                             name: normalizedUsername,
-                            discordId: null
+                            discordId: null,
+                            agentContacts: {
+                                some: { agentId }
+                            }
                         }
                     })
                     
@@ -353,7 +363,10 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                         
                         // Get the lead to check its agentId (any status, not just IMPORTED)
                         const lead = await prisma.lead.findFirst({
-                            where: { contactId: contact.id }
+                            where: { 
+                                contactId: contact.id,
+                                agentId: agentId  // Ensure lead belongs to this agent
+                            }
                         })
                         
                         // If lead has different agent, update agentId for this message processing
