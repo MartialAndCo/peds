@@ -228,8 +228,7 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                                 name: ghostContact.name || payload._data?.notifyName || "Inconnu",
                                 notes: ghostContact.notes,
                                 profile: ghostContact.profile as any,
-                                source: ghostContact.source || 'WhatsApp Incoming (Healed)',
-                        ...(ghostContact.source === 'system' ? { source: 'system' } : {})
+                                source: ghostContact.source === 'system' ? 'system' : (ghostContact.source || 'WhatsApp Incoming (Healed)'),
                                 status: ghostContact.status,
                                 agentPhase: ghostContact.agentPhase,
                                 trustScore: ghostContact.trustScore,
