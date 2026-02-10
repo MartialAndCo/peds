@@ -439,16 +439,12 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                 update: {
                     // Update the phone number if we resolved it from LID
                     ...(wasLidResolved ? { phone_whatsapp: normalizedPhone } : {}),
-                    // Ensure system numbers stay hidden if they were somehow unhidden? Or just set it?
-                    // Better to just set it on create, but maybe update too if it became a system number?
-
                 },
                 create: {
                     phone_whatsapp: normalizedPhone,
                     name: payload._data?.notifyName || "Inconnu",
                     source: isSystemNumber ? 'system' : 'WhatsApp Incoming',
                     status: 'unknown',  // Not a lead, came from spontaneous message
-
                 }
             })
         }
