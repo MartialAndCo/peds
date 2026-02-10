@@ -128,17 +128,19 @@ export const leadService = {
             })
             
             // Create AgentContact binding for proper workspace filtering
-            const existingAgentContact = await prisma.agentContact.findUnique({
-                where: { agentId_contactId: { agentId, contactId: targetContact.id } }
-            })
-            if (!existingAgentContact) {
-                await prisma.agentContact.create({
-                    data: {
-                        agentId,
-                        contactId: targetContact.id,
-                        phase: 'CONNECTION'
-                    }
+            if (agentId) {
+                const existingAgentContact = await prisma.agentContact.findUnique({
+                    where: { agentId_contactId: { agentId, contactId: targetContact.id } }
                 })
+                if (!existingAgentContact) {
+                    await prisma.agentContact.create({
+                        data: {
+                            agentId,
+                            contactId: targetContact.id,
+                            phase: 'CONNECTION'
+                        }
+                    })
+                }
             }
         } else {
             // FIX: If conversation exists but is PAUSED (e.g. user messaged before lead provider),
@@ -161,17 +163,19 @@ export const leadService = {
             }
             
             // Ensure AgentContact exists (in case it was missing)
-            const existingAgentContact = await prisma.agentContact.findUnique({
-                where: { agentId_contactId: { agentId, contactId: targetContact.id } }
-            })
-            if (!existingAgentContact) {
-                await prisma.agentContact.create({
-                    data: {
-                        agentId,
-                        contactId: targetContact.id,
-                        phase: 'CONNECTION'
-                    }
+            if (agentId) {
+                const existingAgentContact = await prisma.agentContact.findUnique({
+                    where: { agentId_contactId: { agentId, contactId: targetContact.id } }
                 })
+                if (!existingAgentContact) {
+                    await prisma.agentContact.create({
+                        data: {
+                            agentId,
+                            contactId: targetContact.id,
+                            phase: 'CONNECTION'
+                        }
+                    })
+                }
             }
         }
 
