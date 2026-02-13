@@ -14,6 +14,8 @@ export type AlertType =
     | 'SYSTEM_LEAK'
     | 'HALLUCINATION'
     | 'PERSONA_BREAK'
+    | 'TRUNCATION'
+    | 'ARTIFACT'
     // Context Agent
     | 'CONTEXT_LOSS'
     | 'TOPIC_JUMP'

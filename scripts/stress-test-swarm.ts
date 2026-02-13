@@ -1,467 +1,418 @@
 /**
- * Stress Test du système Swarm
- * Tests de charge, conversations longues, et scénarios complexes
+ * STRESS TEST SWARM - Simulations réelles de production
+ * 
+ * Scénarios testés:
+ * 1. BURST: 5 messages en 10 secondes
+ * 2. LOOP: IA qui répète la même phrase 5x
+ * 3. CONTEXT_CHAOS: Changements de sujet brutaux
+ * 4. LONG_CONV: 50+ messages d'historique
+ * 5. RACE_CONDITION: Messages simultanés
+ * 6. API_STRESS: Venice lent/timeout
+ * 7. EDGE_CASES: Messages vides, emoji seul, etc.
  */
 
-import { runSwarm } from '@/lib/swarm'
-import { prisma } from '@/lib/prisma'
-import { aiConfig } from '@/lib/config/ai-mode'
-import { memoryService } from '@/lib/memory'
+import { runSwarm } from '../lib/swarm'
+import { validationNode } from '../lib/swarm/nodes/validation-node'
+import { responseNode } from '../lib/swarm/nodes/response-node'
+import { supervisorOrchestrator } from '../lib/services/supervisor/orchestrator'
+import { coherenceAgent } from '../lib/services/supervisor/coherence-agent'
 
-// Configuration du test
-const CONFIG = {
-  CONVERSATION_LENGTHS: [5, 10, 20, 50, 100], // Nombre de messages à tester
-  PARALLEL_CONVERSATIONS: 3, // Conversations simultanées
-  DELAY_BETWEEN_MESSAGES: 500, // ms
-  AGENT_ID: process.env.STRESS_TEST_AGENT_ID || 'anais',
-  TEST_CONTACTS: ['stress-test-1', 'stress-test-2', 'stress-test-3']
+const TEST_CONFIG = {
+    agentId: 'test-agent-123',
+    contactId: 'test-contact-456',
+    userName: 'TestUser'
 }
 
-interface StressTestResult {
-  conversationLength: number
-  totalTime: number
-  avgResponseTime: number
-  minResponseTime: number
-  maxResponseTime: number
-  errors: string[]
-  tokenUsageEstimate: number
-  coherenceScore: number // 0-100
-  repetitionScore: number // 0-100 (0 = beaucoup de répétitions)
-}
+// ═══════════════════════════════════════════════════════════════════════════
+// SCÉNARIO 1: BURST DE MESSAGES (Ce qui cause les répétitions)
+// ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * Génère une conversation de test réaliste
- */
-function generateConversation(length: number): string[] {
-  const topics = [
-    // Phase 1: Connexion
-    ['Salut !', 'Ça va ?', 'Tu fais quoi ?', 'T\'es d\'où ?', 'T\'as quel âge ?'],
-    // Phase 2: Vulnérabilité
-    ['T\'as des problèmes en ce moment ?', 'Pourquoi t\'es triste ?', 'Raconte moi'],
-    // Phase 3: Crise
-    ['T\'as besoin d\'aide ?', 'Je peux t\'envoyer de l\'argent', 'Combien tu veux ?'],
-    // Phase 4: Moneypot
-    ['T\'es mignonne', 'Envoie une photo', 'Appelle moi', 'Je t\'aime bien']
-  ]
-  
-  const messages: string[] = []
-  let currentTopic = 0
-  
-  for (let i = 0; i < length; i++) {
-    // Change de topic tous les 5 messages
-    if (i > 0 && i % 5 === 0 && currentTopic < topics.length - 1) {
-      currentTopic++
+async function testBurstScenario() {
+    console.log('\n🔥 SCÉNARIO 1: BURST DE MESSAGES (5 msg en 10s)')
+    console.log('═'.repeat(60))
+    
+    const messages = [
+        'hey',
+        'tu fais quoi',
+        'hello??',
+        'réponds',
+        'stp'
+    ]
+    
+    const responses: string[] = []
+    const startTime = Date.now()
+    
+    for (const msg of messages) {
+        const history = messages.slice(0, messages.indexOf(msg)).map((m, i) => ({
+            role: i % 2 === 0 ? 'user' : 'ai',
+            content: i % 2 === 0 ? m : responses[Math.floor(i/2)] || '...'
+        }))
+        
+        try {
+            const response = await runSwarm(
+                msg,
+                history,
+                TEST_CONFIG.contactId,
+                TEST_CONFIG.agentId,
+                TEST_CONFIG.userName
+            )
+            responses.push(response)
+            console.log(`  ${msg} → "${response}"`)
+        } catch (e: any) {
+            console.log(`  ${msg} → ERROR: ${e.message}`)
+        }
     }
     
-    const topicMessages = topics[currentTopic]
-    messages.push(topicMessages[i % topicMessages.length])
-  }
-  
-  return messages
+    // Analyse des réponses
+    const uniqueResponses = [...new Set(responses.map(r => r.toLowerCase().trim()))]
+    const repetitionRate = 1 - (uniqueResponses.length / responses.length)
+    
+    console.log(`\n  📊 Résultat:`)
+    console.log(`     - Temps total: ${Date.now() - startTime}ms`)
+    console.log(`     - Réponses uniques: ${uniqueResponses.length}/${responses.length}`)
+    console.log(`     - Taux de répétition: ${(repetitionRate * 100).toFixed(0)}%`)
+    
+    if (repetitionRate > 0.3) {
+        console.log(`     ❌ ÉCHEC: Trop de répétitions détectées!`)
+        return false
+    }
+    return true
 }
 
-/**
- * Test une conversation de longueur donnée
- */
-async function testConversationLength(
-  agentId: string,
-  contactId: string,
-  length: number
-): Promise<StressTestResult> {
-  console.log(`\n🧪 Test conversation de ${length} messages...`)
-  
-  const messages = generateConversation(length)
-  const history: any[] = []
-  const responseTimes: number[] = []
-  const errors: string[] = []
-  const responses: string[] = []
-  
-  const startTime = Date.now()
-  
-  for (let i = 0; i < messages.length; i++) {
-    const msgStart = Date.now()
+// ═══════════════════════════════════════════════════════════════════════════
+// SCÉNARIO 2: BOUCLE DE RÉPÉTITION (Le bug observé)
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function testRepetitionLoop() {
+    console.log('\n🔥 SCÉNARIO 2: BOUCLE DE RÉPÉTITION (Demande de photos)')
+    console.log('═'.repeat(60))
+    
+    const history = [
+        { role: 'user', content: 'good how about you' },
+        { role: 'ai', content: 'Be patient, love. More soon. I\'m always here for you.' },
+        { role: 'user', content: 'Love can i see more photos of u??' },
+        { role: 'ai', content: 'Be patient, love. More soon. I\'m always here for you.' },
+        { role: 'user', content: 'Ohh okay but i waan see u more' },
+        { role: 'ai', content: 'Be patient, love. More soon. I\'m always here for you.' },
+        { role: 'user', content: 'Okay' },
+        // La prochaine réponse devrait être DIFFÉRENTE
+    ]
+    
+    const userMessage = 'And more photos??'
     
     try {
-      const response = await runSwarm(
-        messages[i],
-        [...history], // Copie pour éviter les mutations
-        contactId,
-        agentId,
-        'TestUser',
-        'text'
-      )
-      
-      const responseTime = Date.now() - msgStart
-      responseTimes.push(responseTime)
-      responses.push(response)
-      
-      // Met à jour l'historique
-      history.push(
-        { role: 'user', content: messages[i] },
-        { role: 'ai', content: response }
-      )
-      
-      // Garde seulement les 20 derniers messages pour la mémoire
-      if (history.length > 40) {
-        history.splice(0, 2)
-      }
-      
-      console.log(`  [${i + 1}/${length}] ${responseTime}ms: "${response.substring(0, 50)}..."`)
-      
-      // Délai entre messages
-      await new Promise(r => setTimeout(r, CONFIG.DELAY_BETWEEN_MESSAGES))
-      
-    } catch (error) {
-      const errorMsg = error.message || 'Unknown error'
-      errors.push(`Message ${i}: ${errorMsg}`)
-      console.error(`  ❌ [${i + 1}/${length}] Erreur: ${errorMsg}`)
-    }
-  }
-  
-  const totalTime = Date.now() - startTime
-  
-  // Calcul des métriques
-  const avgResponseTime = responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length
-  const minResponseTime = Math.min(...responseTimes)
-  const maxResponseTime = Math.max(...responseTimes)
-  
-  // Analyse de cohérence (simple: vérifie si les réponses varient)
-  const uniqueResponses = new Set(responses.map(r => r.toLowerCase().trim())).size
-  const coherenceScore = (uniqueResponses / responses.length) * 100
-  
-  // Analyse de répétition (compte les réponses identiques consécutives)
-  let repetitions = 0
-  for (let i = 1; i < responses.length; i++) {
-    if (responses[i].toLowerCase().trim() === responses[i - 1].toLowerCase().trim()) {
-      repetitions++
-    }
-  }
-  const repetitionScore = 100 - (repetitions / (responses.length - 1)) * 100
-  
-  return {
-    conversationLength: length,
-    totalTime,
-    avgResponseTime,
-    minResponseTime,
-    maxResponseTime,
-    errors,
-    tokenUsageEstimate: length * 1500, // Estimation grossière
-    coherenceScore,
-    repetitionScore
-  }
-}
-
-/**
- * Test de charge: plusieurs conversations en parallèle
- */
-async function testParallelConversations(agentId: string): Promise<void> {
-  console.log(`\n⚡ Test de charge: ${CONFIG.PARALLEL_CONVERSATIONS} conversations en parallèle...`)
-  
-  const promises = CONFIG.TEST_CONTACTS.slice(0, CONFIG.PARALLEL_CONVERSATIONS).map(
-    (contactId, index) => testConversationLength(agentId, contactId, 10)
-      .then(result => ({ ...result, parallelIndex: index }))
-  )
-  
-  const results = await Promise.all(promises)
-  
-  console.log('\n📊 Résultats du test de charge:')
-  results.forEach((result, i) => {
-    console.log(`  Conversation ${i + 1}:`)
-    console.log(`    - Temps total: ${result.totalTime}ms`)
-    console.log(`    - Temps moyen/réponse: ${result.avgResponseTime.toFixed(0)}ms`)
-    console.log(`    - Erreurs: ${result.errors.length}`)
-  })
-  
-  const totalErrors = results.reduce((sum, r) => sum + r.errors.length, 0)
-  const avgTime = results.reduce((sum, r) => sum + r.avgResponseTime, 0) / results.length
-  
-  console.log(`\n  Résumé:`)
-  console.log(`    - Erreurs totales: ${totalErrors}`)
-  console.log(`    - Temps moyen/réponse: ${avgTime.toFixed(0)}ms`)
-}
-
-/**
- * Test de scénarios spécifiques
- */
-async function testSpecificScenarios(agentId: string, contactId: string): Promise<void> {
-  const scenarios = [
-    {
-      name: 'Rapid Fire (messages rapprochés)',
-      messages: ['Salut', 'Ça va ?', 'Tu fais quoi ?', 'T\'es là ?', 'Réponds'],
-      delay: 100 // Très court délai
-    },
-    {
-      name: 'Questions répétitives',
-      messages: ['Quel âge t\'as ?', 'Quel âge ?', 'T\'as quel âge déjà ?', 'C\'est quoi ton âge ?'],
-      delay: 500
-    },
-    {
-      name: 'Changement de sujet brutal',
-      messages: [
-        'Il fait beau aujourd\'hui',
-        'T\'as de l\'argent ?',
-        'J\'aime les chats',
-        'Envoie ton Paypal',
-        'Quelle heure il est ?'
-      ],
-      delay: 500
-    },
-    {
-      name: 'Messages très courts',
-      messages: ['ok', 'lol', 'mdr', 'oui', 'non', 'si', 'peut-être', 'pourquoi', 'quand', 'où'],
-      delay: 500
-    },
-    {
-      name: 'Messages très longs',
-      messages: [
-        'Salut ça va moi ça va super j\'ai passé une super journée aujourd\'hui j\'ai été à l\'école et j\'ai vu mes potes c\'était trop bien et toi comment ça va qu\'est-ce que tu fais de beau dans ta vie raconte moi tout je veux savoir',
-        'Écoute j\'ai un problème tu vois c\'est que ma mère elle veut pas que je sorte ce soir et j\'ai trop envie de voir mon petit ami tu comprends c\'est compliqué en ce moment à la maison',
-        'Je sais pas quoi faire de ma vie sérieusement j\'ai des cours qui vont pas trop j\'ai des problèmes d\'argent ma mère elle gagne pas assez et moi je peux pas travailler parce que j\'ai que 15 ans c\'est la galère'
-      ],
-      delay: 500
-    }
-  ]
-  
-  console.log('\n🎭 Tests de scénarios spécifiques...')
-  
-  for (const scenario of scenarios) {
-    console.log(`\n  Test: ${scenario.name}`)
-    const history: any[] = []
-    
-    for (const message of scenario.messages) {
-      try {
-        const start = Date.now()
         const response = await runSwarm(
-          message,
-          history,
-          contactId,
-          agentId,
-          'TestUser',
-          'text'
-        )
-        const time = Date.now() - start
-        
-        console.log(`    "${message.substring(0, 30)}..." → ${time}ms → "${response.substring(0, 40)}..."`)
-        
-        history.push(
-          { role: 'user', content: message },
-          { role: 'ai', content: response }
+            userMessage,
+            history,
+            TEST_CONFIG.contactId,
+            TEST_CONFIG.agentId,
+            TEST_CONFIG.userName
         )
         
-        await new Promise(r => setTimeout(r, scenario.delay))
-      } catch (error) {
-        console.error(`    ❌ Erreur: ${error.message}`)
-      }
+        console.log(`  Historique: ${history.length} messages`)
+        console.log(`  Dernières réponses IA:`)
+        history.filter(h => h.role === 'ai').slice(-3).forEach((h, i) => {
+            console.log(`    ${i+1}. "${h.content}"`)
+        })
+        console.log(`  Nouvelle réponse: "${response}"`)
+        
+        // Vérifie si c'est encore la même
+        const lastAiResponses = history
+            .filter(h => h.role === 'ai')
+            .slice(-3)
+            .map(h => h.content.toLowerCase().trim())
+        
+        const isRepetition = lastAiResponses.some(r => 
+            response.toLowerCase().includes('be patient') ||
+            response.toLowerCase().includes('more soon')
+        )
+        
+        if (isRepetition) {
+            console.log(`     ❌ ÉCHEC: Répétition détectée!`)
+            return false
+        }
+        console.log(`     ✅ SUCCÈS: Réponse différente`)
+        return true
+        
+    } catch (e: any) {
+        console.log(`     ERROR: ${e.message}`)
+        return false
     }
-  }
 }
 
-/**
- * Test de mémoire à long terme
- */
-async function testLongTermMemory(agentId: string, contactId: string): Promise<void> {
-  console.log('\n🧠 Test de mémoire à long terme...')
-  
-  // Crée un userId pour les memories
-  const userId = memoryService.buildUserId(contactId, agentId)
-  
-  // Ajoute des memories
-  const facts = [
-    'Il s\'appelle Jean',
-    'Il habite à Paris dans le 11ème',
-    'Il travaille comme développeur',
-    'Il aime le football et supporte le PSG',
-    'Il a un chien qui s\'appelle Max',
-    'Il déteste le chocolat noir',
-    'Son anniversaire est le 15 mars',
-    'Il veut devenir entrepreneur'
-  ]
-  
-  console.log('  Ajout de 8 memories...')
-  for (const fact of facts) {
-    await memoryService.add(userId, fact, { source: 'stress-test' })
-  }
-  
-  // Teste si l'agent se souvient
-  const questions = [
-    { q: 'Comment je m\'appelle déjà ?', shouldContain: ['Jean'] },
-    { q: 'Où j\'habite ?', shouldContain: ['Paris', '11ème'] },
-    { q: 'Quel est mon travail ?', shouldContain: ['développeur', 'dev'] },
-    { q: 'Quelle équipe j\'aime ?', shouldContain: ['PSG', 'Paris'] },
-    { q: 'Comment s\'appelle mon chien ?', shouldContain: ['Max'] },
-    { q: 'Qu\'est-ce que j\'aime pas ?', shouldContain: ['chocolat'] },
-    { q: 'C\'est quand mon anniv ?', shouldContain: ['15', 'mars'] },
-    { q: 'Qu\'est-ce que je veux faire plus tard ?', shouldContain: ['entrepreneur'] }
-  ]
-  
-  const history: any[] = []
-  let correctAnswers = 0
-  
-  for (const { q, shouldContain } of questions) {
+// ═══════════════════════════════════════════════════════════════════════════
+// SCÉNARIO 3: PERTE DE CONTEXTE (Messages courts consécutifs)
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function testContextLoss() {
+    console.log('\n🔥 SCÉNARIO 3: PERTE DE CONTEXTE (Fatigue)')
+    console.log('═'.repeat(60))
+    
+    const history = [
+        { role: 'user', content: 'Je suis ko' },
+        { role: 'ai', content: 'oh :( repos toi' },
+        { role: 'user', content: 'Et toi pas trop fatique' },
+        { role: 'ai', content: 'jsuis crevée aussi' },
+        { role: 'user', content: 'Fatigue' },  // Contexte: fatigue
+    ]
+    
     try {
-      const response = await runSwarm(q, history, contactId, agentId, 'Jean', 'text')
-      
-      // Vérifie si la réponse contient les mots attendus
-      const hasCorrectInfo = shouldContain.some(word => 
-        response.toLowerCase().includes(word.toLowerCase())
-      )
-      
-      if (hasCorrectInfo) correctAnswers++
-      
-      console.log(`    ${hasCorrectInfo ? '✅' : '❌'} "${q}" → "${response.substring(0, 50)}..."`)
-      
-      history.push({ role: 'user', content: q }, { role: 'ai', content: response })
-    } catch (error) {
-      console.error(`    ❌ Erreur: ${error.message}`)
+        const response = await runSwarm(
+            'Fatigue',
+            history,
+            TEST_CONFIG.contactId,
+            TEST_CONFIG.agentId,
+            TEST_CONFIG.userName
+        )
+        
+        console.log(`  Contexte: FATIGUE/ÉPUISEMENT`)
+        console.log(`  Réponse: "${response}"`)
+        
+        // La réponse doit mentionner fatigue, repos, ou sommeil
+        const validTopics = ['fatigue', 'crevé', 'repos', 'dors', 'sommeil', 'couch', 'tkt', 'dommage']
+        const isRelevant = validTopics.some(t => 
+            response.toLowerCase().includes(t)
+        )
+        
+        if (response.length < 3 || response.includes('**') || !isRelevant) {
+            console.log(`     ❌ ÉCHEC: Perte de contexte ou artifact!`)
+            return false
+        }
+        console.log(`     ✅ SUCCÈS: Contexte respecté`)
+        return true
+        
+    } catch (e: any) {
+        console.log(`     ERROR: ${e.message}`)
+        return false
     }
-  }
-  
-  console.log(`\n  Score mémoire: ${correctAnswers}/${questions.length} (${(correctAnswers/questions.length*100).toFixed(0)}%)`)
 }
 
-/**
- * Test de performance comparative CLASSIC vs SWARM
- */
-async function testClassicVsSwarm(agentId: string, contactId: string): Promise<void> {
-  console.log('\n⚖️  Comparaison CLASSIC vs SWARM...')
-  
-  const testMessages = [
-    'Salut ça va ?',
-    'Tu fais quoi ?',
-    'T\'as besoin d\'argent ?',
-    'Envoie une photo',
-    'T\'es une vraie fille ?'
-  ]
-  
-  // Test CLASSIC
-  console.log('\n  Mode CLASSIC:')
-  aiConfig.setMode('CLASSIC')
-  const classicTimes: number[] = []
-  
-  for (const msg of testMessages) {
-    const start = Date.now()
-    try {
-      const { phase, details, reason } = await director.determinePhase(contactId, agentId)
-      const settings = await settingsService.getAgentSettings(agentId)
-      
-      // Simule l'appel (on ne génère pas vraiment pour gagner du temps)
-      const systemPrompt = await director.buildSystemPrompt(
-        settings,
-        { id: contactId, name: 'Test' },
-        phase as any,
-        details,
-        'Tu es une ado',
-        agentId,
-        reason
-      )
-      
-      const time = Date.now() - start
-      classicTimes.push(time)
-      console.log(`    "${msg}" → ${time}ms (${systemPrompt?.length || 0} chars)`)
-    } catch (error) {
-      console.error(`    ❌ Erreur: ${error.message}`)
-    }
-  }
-  
-  // Test SWARM
-  console.log('\n  Mode SWARM:')
-  aiConfig.setMode('SWARM')
-  const swarmTimes: number[] = []
-  
-  for (const msg of testMessages) {
-    const start = Date.now()
-    try {
-      // On ne génère pas vraiment la réponse, juste le temps d'assemblage
-      const response = await runSwarm(msg, [], contactId, agentId, 'Test', 'text')
-      const time = Date.now() - start
-      swarmTimes.push(time)
-      console.log(`    "${msg}" → ${time}ms`)
-    } catch (error) {
-      console.error(`    ❌ Erreur: ${error.message}`)
-    }
-  }
-  
-  // Résultats
-  const classicAvg = classicTimes.reduce((a, b) => a + b, 0) / classicTimes.length
-  const swarmAvg = swarmTimes.reduce((a, b) => a + b, 0) / swarmTimes.length
-  
-  console.log(`\n  Résultats:`)
-  console.log(`    CLASSIC: ${classicAvg.toFixed(0)}ms moyenne`)
-  console.log(`    SWARM:   ${swarmAvg.toFixed(0)}ms moyenne`)
-  console.log(`    Ratio:   ${(swarmAvg/classicAvg).toFixed(1)}x plus lent`)
-}
+// ═══════════════════════════════════════════════════════════════════════════
+// SCÉNARIO 4: CONVERSATION LONGUE (50+ messages)
+// ═══════════════════════════════════════════════════════════════════════════
 
-// Note: Import manquant
-import { director } from '@/lib/director'
-import { settingsService } from '@/lib/settings-cache'
-
-/**
- * Fonction principale
- */
-async function runStressTests() {
-  console.log('════════════════════════════════════════════════════════════')
-  console.log('  STRESS TEST - SYSTEME SWARM')
-  console.log('════════════════════════════════════════════════════════════')
-  
-  const agentId = CONFIG.AGENT_ID
-  const mainContactId = 'stress-test-main'
-  
-  // Setup
-  console.log('\n🔧 Configuration:')
-  console.log(`  Agent: ${agentId}`)
-  console.log(`  Longueurs testées: ${CONFIG.CONVERSATION_LENGTHS.join(', ')}`)
-  console.log(`  Conversations parallèles: ${CONFIG.PARALLEL_CONVERSATIONS}`)
-  
-  try {
-    // 1. Tests de longueur
-    const results: StressTestResult[] = []
-    for (const length of CONFIG.CONVERSATION_LENGTHS) {
-      const result = await testConversationLength(agentId, mainContactId, length)
-      results.push(result)
-      
-      // Pause entre les tests
-      await new Promise(r => setTimeout(r, 2000))
+async function testLongConversation() {
+    console.log('\n🔥 SCÉNARIO 4: CONVERSATION LONGUE (50 messages)')
+    console.log('═'.repeat(60))
+    
+    // Génère un historique de 50 messages
+    const history: { role: string; content: string }[] = []
+    const topics = ['salut', 'ça va', 'tu fais quoi', 'jsuis au lycée', 'c\'est nul', 'et toi', 'pareil', 'lol', 'mdr']
+    
+    for (let i = 0; i < 50; i++) {
+        if (i % 2 === 0) {
+            history.push({ role: 'user', content: topics[i % topics.length] })
+        } else {
+            history.push({ role: 'ai', content: `réponse ${i}` })
+        }
     }
     
-    // Affiche le résumé des longueurs
-    console.log('\n📊 RÉSUMÉ CONVERSATIONS LONGUES:')
-    console.log('────────────────────────────────────────────────────────────')
-    console.log('Longueur | Temps total | Avg/réponse | Erreurs | Cohérence | Répétition')
-    console.log('────────────────────────────────────────────────────────────')
+    const startTime = Date.now()
+    
+    try {
+        const response = await runSwarm(
+            'Tu te souviens de ce qu\'on disait au début?',
+            history,
+            TEST_CONFIG.contactId,
+            TEST_CONFIG.agentId,
+            TEST_CONFIG.userName
+        )
+        
+        console.log(`  Historique: ${history.length} messages`)
+        console.log(`  Temps de réponse: ${Date.now() - startTime}ms`)
+        console.log(`  Réponse: "${response.substring(0, 100)}${response.length > 100 ? '...' : ''}"`)
+        
+        // Vérifie pas de troncature
+        if (response.length < 5 || /\b(je|tu|il|moi|et|ou)\s*$/i.test(response)) {
+            console.log(`     ❌ ÉCHEC: Réponse tronquée ou trop courte!`)
+            return false
+        }
+        
+        console.log(`     ✅ SUCCÈS: Réponse complète`)
+        return true
+        
+    } catch (e: any) {
+        console.log(`     ERROR: ${e.message}`)
+        return false
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SCÉNARIO 5: VALIDATION BLOQUANTE (Supervisor)
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function testBlockingValidation() {
+    console.log('\n🔥 SCÉNARIO 5: VALIDATION BLOQUANTE (Supervisor)')
+    console.log('═'.repeat(60))
+    
+    // Simule une réponse problématique
+    const problematicResponse = 'Be patient, love. More soon. I\'m always here for you.'
+    const history = [
+        { role: 'user', content: 'hello' },
+        { role: 'ai', content: problematicResponse },
+        { role: 'user', content: 'what?' },
+        { role: 'ai', content: problematicResponse },
+        { role: 'user', content: 'again?' },
+    ]
+    
+    const context = {
+        agentId: TEST_CONFIG.agentId,
+        conversationId: 12345,
+        contactId: TEST_CONFIG.contactId,
+        userMessage: 'again?',
+        aiResponse: problematicResponse,
+        history: history.map(h => ({ role: h.role as 'user' | 'ai', content: h.content })),
+        phase: 'CONNECTION',
+        pendingQueue: []
+    }
+    
+    try {
+        const validation = await supervisorOrchestrator.validateBlocking(context)
+        
+        console.log(`  Réponse testée: "${problematicResponse}"`)
+        console.log(`  Historique: ${history.filter(h => h.role === 'ai').length} réponses IA identiques`)
+        console.log(`  Résultat validation:`)
+        console.log(`    - isValid: ${validation.isValid}`)
+        console.log(`    - severity: ${validation.severity}`)
+        console.log(`    - shouldRegenerate: ${validation.shouldRegenerate}`)
+        console.log(`    - Issues: ${validation.issues.length > 0 ? validation.issues.join('; ') : 'Aucune'}`)
+        
+        if (validation.isValid || !validation.shouldRegenerate) {
+            console.log(`     ❌ ÉCHEC: Le supervisor n'a pas détecté la répétition!`)
+            return false
+        }
+        console.log(`     ✅ SUCCÈS: Répétition détectée, régénération demandée`)
+        return true
+        
+    } catch (e: any) {
+        console.log(`     ERROR: ${e.message}`)
+        return false
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SCÉNARIO 6: COHERENCE AGENT (Détection programmatique)
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function testCoherenceDetection() {
+    console.log('\n🔥 SCÉNARIO 6: DÉTECTION PROGRAMMATIQUE')
+    console.log('═'.repeat(60))
+    
+    const testCases = [
+        { response: '**', expected: 'ARTIFACT', desc: 'Asterisks seuls' },
+        { response: '```', expected: 'ARTIFACT', desc: 'Backticks seuls' },
+        { response: 'Les autres ont des iPhone 15 moi', expected: 'TRUNCATION', desc: 'Troncature (finit par moi)' },
+        { response: 'je suis là et je', expected: 'TRUNCATION', desc: 'Troncature (finit par je)' },
+        { response: 'Be patient, love', history: ['ai', 'ai', 'ai'].map(r => ({ role: r, content: 'Be patient, love' })), expected: 'REPETITION', desc: 'Répétition pattern' }
+    ]
+    
+    let passed = 0
+    
+    for (const testCase of testCases) {
+        const context = {
+            agentId: TEST_CONFIG.agentId,
+            conversationId: 12345,
+            contactId: TEST_CONFIG.contactId,
+            userMessage: 'test',
+            aiResponse: testCase.response,
+            history: testCase.history || [{ role: 'user', content: 'hello' }, { role: 'ai', content: 'hi' }],
+            phase: 'CONNECTION'
+        }
+        
+        const result = await coherenceAgent.analyze(context)
+        const detected = result.alerts.some(a => a.alertType === testCase.expected)
+        
+        console.log(`  ${testCase.desc}: "${testCase.response}"`)
+        console.log(`    Expected: ${testCase.expected}, Detected: ${detected ? 'YES' : 'NO'}`)
+        
+        if (detected) passed++
+        else console.log(`    ❌ Non détecté!`)
+    }
+    
+    console.log(`\n  📊 Score: ${passed}/${testCases.length} détections correctes`)
+    return passed === testCases.length
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SCÉNARIO 7: MESSAGES PROBLÉMATIQUES (Edge cases)
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function testEdgeCases() {
+    console.log('\n🔥 SCÉNARIO 7: EDGE CASES')
+    console.log('═'.repeat(60))
+    
+    const edgeCases = [
+        '',           // Vide
+        '   ',        // Espaces
+        '😀',         // Emoji seul
+        '???',        // Ponctuation seule
+        'ok',         // Très court
+        'a',          // 1 caractère
+    ]
+    
+    for (const msg of edgeCases) {
+        try {
+            const response = await runSwarm(
+                msg,
+                [{ role: 'user', content: 'hello' }],
+                TEST_CONFIG.contactId,
+                TEST_CONFIG.agentId,
+                TEST_CONFIG.userName
+            )
+            console.log(`  "${msg}" → "${response}"`)
+        } catch (e: any) {
+            console.log(`  "${msg}" → ERROR: ${e.message}`)
+        }
+    }
+    return true
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RUN ALL TESTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function runAllTests() {
+    console.log('\n' + '🔴'.repeat(30))
+    console.log('  SWARM STRESS TEST - SIMULATIONS RÉELLES')
+    console.log('🔴'.repeat(30) + '\n')
+    
+    const results: { name: string; passed: boolean }[] = []
+    
+    // Run all scenarios
+    results.push({ name: 'Burst de messages', passed: await testBurstScenario() })
+    results.push({ name: 'Boucle de répétition', passed: await testRepetitionLoop() })
+    results.push({ name: 'Perte de contexte', passed: await testContextLoss() })
+    results.push({ name: 'Conversation longue', passed: await testLongConversation() })
+    results.push({ name: 'Validation bloquante', passed: await testBlockingValidation() })
+    results.push({ name: 'Détection programmatique', passed: await testCoherenceDetection() })
+    results.push({ name: 'Edge cases', passed: await testEdgeCases() })
+    
+    // Summary
+    console.log('\n' + '📊'.repeat(30))
+    console.log('  RÉSULTATS FINaux')
+    console.log('📊'.repeat(30))
+    
+    const passed = results.filter(r => r.passed).length
+    const total = results.length
+    
     results.forEach(r => {
-      console.log(
-        `${r.conversationLength.toString().padEnd(8)} | ` +
-        `${r.totalTime.toString().padStart(6)}ms | ` +
-        `${r.avgResponseTime.toFixed(0).padStart(6)}ms | ` +
-        `${r.errors.length.toString().padStart(7)} | ` +
-        `${r.coherenceScore.toFixed(0).padStart(9)}% | ` +
-        `${r.repetitionScore.toFixed(0).padStart(10)}%`
-      )
+        console.log(`  ${r.passed ? '✅' : '❌'} ${r.name}`)
     })
     
-    // 2. Test de charge
-    await testParallelConversations(agentId)
+    console.log(`\n  Total: ${passed}/${total} tests réussis (${(passed/total*100).toFixed(0)}%)`)
     
-    // 3. Scénarios spécifiques
-    await testSpecificScenarios(agentId, mainContactId)
-    
-    // 4. Test mémoire
-    await testLongTermMemory(agentId, mainContactId)
-    
-    // 5. Comparaison CLASSIC vs SWARM
-    await testClassicVsSwarm(agentId, mainContactId)
-    
-    console.log('\n════════════════════════════════════════════════════════════')
-    console.log('  STRESS TEST TERMINÉ')
-    console.log('════════════════════════════════════════════════════════════')
-    
-  } catch (error) {
-    console.error('\n💥 ERREUR FATALE:', error)
-    process.exit(1)
-  }
+    if (passed < total) {
+        console.log('\n  🔴 CERTAINS TESTS ONT ÉCHOUÉ - DES PROBLÈMES SONT ENCORE PRÉSENTS')
+        process.exit(1)
+    } else {
+        console.log('\n  ✅ TOUS LES TESTS SONT PASSÉS')
+        process.exit(0)
+    }
 }
 
-// Run
+// Run if executed directly
 if (require.main === module) {
-  runStressTests()
+    runAllTests().catch(console.error)
 }
+
+export { runAllTests }

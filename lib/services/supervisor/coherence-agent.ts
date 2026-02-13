@@ -22,10 +22,130 @@ export const coherenceAgent = {
 
     async analyze(context: AnalysisContext): Promise<AgentAnalysisResult> {
         const alerts: SupervisorAlert[] = [];
+        const { aiResponse, history, agentId, conversationId, contactId } = context;
 
-        // Analyse LLM complète - détection intelligente
+        // ═══════════════════════════════════════════════════════════════════════════
+        // DÉTECTION PROGRAMMATIQUE RAPIDE (avant LLM)
+        // ═══════════════════════════════════════════════════════════════════════════
+        
+        // 1. Détection de répétition EXACTE
+        const lastAiMessages = history
+            .filter(h => h.role === 'ai')
+            .slice(-3)
+            .map(h => h.content.trim().toLowerCase());
+        
+        if (lastAiMessages.length > 0) {
+            const currentNormalized = aiResponse.trim().toLowerCase();
+            
+            // Répétition exacte
+            if (lastAiMessages.some(msg => msg === currentNormalized)) {
+                alerts.push({
+                    agentId,
+                    conversationId,
+                    contactId,
+                    agentType: 'COHERENCE',
+                    alertType: 'REPETITION',
+                    severity: 'HIGH',
+                    title: '🚨 RÉPÉTITION EXACTE DÉTECTÉE',
+                    description: `L'IA a répété exactement la même réponse que précédemment: "${aiResponse.substring(0, 50)}..."`,
+                    evidence: { repeatedPhrases: [aiResponse], type: 'EXACT_DUPLICATE' } as Record<string, any>
+                });
+            }
+            
+            // Similarité élevée (>85%)
+            for (const prevMsg of lastAiMessages) {
+                const similarity = this.calculateSimilarity(currentNormalized, prevMsg);
+                if (similarity > 0.85) {
+                    alerts.push({
+                        agentId,
+                        conversationId,
+                        contactId,
+                        agentType: 'COHERENCE',
+                        alertType: 'REPETITION',
+                        severity: 'HIGH',
+                        title: 'Répétition quasi-identique détectée',
+                        description: `Similarité de ${Math.round(similarity * 100)}% avec un message précédent`,
+                        evidence: { similarity, previous: prevMsg, current: aiResponse } as Record<string, any>
+                    });
+                    break;
+                }
+            }
+        }
+        
+        // 2. Détection de troncature
+        const truncationPatterns = /\b(moi|je|tu|il|elle|nous|vous|ils|elles|et|ou|mais|donc|car|que|qui|où|the|i|you|he|she|we|they|and|but|or|so|because|that|who|where)\s*$/i;
+        if (truncationPatterns.test(aiResponse.trim())) {
+            alerts.push({
+                agentId,
+                conversationId,
+                contactId,
+                agentType: 'COHERENCE',
+                alertType: 'TRUNCATION',
+                severity: 'HIGH',
+                title: 'Message tronqué détecté',
+                description: `La réponse semble incomplète (se termine par un pronom/conjonction): "${aiResponse}"`,
+                evidence: { type: 'TRUNCATED_ENDING' } as Record<string, any>
+            });
+        }
+        
+        // 3. Détection d'artifacts
+        if (/^\*+$/.test(aiResponse.trim()) || 
+            /^`+$/.test(aiResponse.trim()) ||
+            aiResponse.trim().length < 2) {
+            alerts.push({
+                agentId,
+                conversationId,
+                contactId,
+                agentType: 'COHERENCE',
+                alertType: 'ARTIFACT',
+                severity: 'CRITICAL',
+                title: '🚨 Artifacts de formatting détectés',
+                description: `Réponse invalide: "${aiResponse}"`,
+                evidence: { type: 'FORMATTING_ARTIFACT' } as Record<string, any>
+            });
+        }
+        
+        // 4. Détection de patterns répétitifs fréquents
+        const repetitivePhrases = ['be patient', 'love', 'bb', 'bébé', 'tkt', 'jsuis là'];
+        const phraseCount: Record<string, number> = {};
+        
+        for (const phrase of repetitivePhrases) {
+            const regex = new RegExp(phrase, 'gi');
+            const matches = (aiResponse.match(regex) || []).length;
+            
+            // Compter aussi dans l'historique récent
+            const historyMatches = history
+                .filter(h => h.role === 'ai')
+                .slice(-5)
+                .reduce((count, h) => count + ((h.content.match(regex) || []).length), 0);
+            
+            if (matches > 0 && historyMatches > 2) {
+                alerts.push({
+                    agentId,
+                    conversationId,
+                    contactId,
+                    agentType: 'COHERENCE',
+                    alertType: 'REPETITION',
+                    severity: 'HIGH',
+                    title: `Pattern répétitif détecté: "${phrase}"`,
+                    description: `Expression "${phrase}" utilisée ${historyMatches + matches} fois dans les derniers messages`,
+                    evidence: { phrase, count: historyMatches + matches } as Record<string, any>
+                });
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // Analyse LLM complète - détection intelligente (backup)
+        // ═══════════════════════════════════════════════════════════════════════════
         const aiAlerts = await this.aiAnalysis(context);
-        alerts.push(...aiAlerts);
+        
+        // Fusionner sans doublons (basé sur alertType)
+        const existingTypes = new Set(alerts.map(a => a.alertType));
+        for (const alert of aiAlerts) {
+            if (!existingTypes.has(alert.alertType)) {
+                alerts.push(alert);
+            }
+        }
 
         // CRITICAL = pause auto
         const shouldPause = alerts.some(a => a.severity === 'CRITICAL');
@@ -39,6 +159,19 @@ export const coherenceAgent = {
                         a.severity === 'MEDIUM' ? 0.75 : 0.65
             )) : 0
         };
+    },
+
+    /**
+     * Calcule la similarité entre deux strings (coefficient de Jaccard simplifié)
+     */
+    calculateSimilarity(str1: string, str2: string): number {
+        const words1 = new Set(str1.toLowerCase().split(/\s+/));
+        const words2 = new Set(str2.toLowerCase().split(/\s+/));
+        
+        const intersection = new Set([...words1].filter(x => words2.has(x)));
+        const union = new Set([...words1, ...words2]);
+        
+        return intersection.size / union.size;
     },
 
     /**

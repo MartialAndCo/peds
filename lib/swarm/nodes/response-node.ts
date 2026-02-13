@@ -154,8 +154,8 @@ User: "wyd" → You: "lowkey bored tbh"`)
       {
         apiKey: settings.venice_api_key,
         model: settings.venice_model || 'venice-uncensored',
-        temperature: 0.7,
-        max_tokens: 50
+        temperature: 0.3,
+        max_tokens: 120
       }
     )
 

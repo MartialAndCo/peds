@@ -51,7 +51,7 @@ export const venice = {
                     messages: apiMessages,
                     temperature: config.temperature ?? 0.7,
                     max_tokens: config.max_tokens ?? 500,
-                    frequency_penalty: config.frequency_penalty ?? 0.3,
+                    frequency_penalty: config.frequency_penalty ?? 0.7,
                 }, {
                     headers: {
                         'Authorization': `Bearer ${apiKey}`,

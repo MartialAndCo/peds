@@ -26,7 +26,102 @@ let alertBatch: SupervisorAlert[] = [];
 let batchTimeout: NodeJS.Timeout | null = null;
 const BATCH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
+export interface ValidationResult {
+    isValid: boolean;
+    severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+    issues: string[];
+    shouldRegenerate: boolean;
+    shouldPause: boolean;
+    alerts: SupervisorAlert[];
+}
+
 export const supervisorOrchestrator = {
+    /**
+     * Validation BLOQUANTE - Retourne un résultat utilisable pour bloquer/régénérer
+     */
+    async validateBlocking(context: AnalysisContext): Promise<ValidationResult> {
+        const result: ValidationResult = {
+            isValid: true,
+            severity: 'LOW',
+            issues: [],
+            shouldRegenerate: false,
+            shouldPause: false,
+            alerts: []
+        };
+
+        try {
+            // Exécuter tous les agents en parallèle
+            const [coherenceResult, contextResult, actionResult, profileResult, phaseResult] = await Promise.all([
+                coherenceAgent.analyze(context),
+                contextAgent.analyze(context),
+                actionAgent.analyze(context),
+                profileAgent.analyze(context),
+                phaseAgent.analyze(context)
+            ]);
+
+            // Collecter toutes les alertes
+            result.alerts = [
+                ...coherenceResult.alerts,
+                ...contextResult.alerts,
+                ...actionResult.alerts,
+                ...phaseResult.alerts,
+                ...profileResult.alerts
+            ];
+
+            if (result.alerts.length === 0) {
+                return result; // Tout va bien
+            }
+
+            // Déterminer la sévérité maximale
+            const severities = result.alerts.map(a => a.severity);
+            if (severities.includes('CRITICAL')) result.severity = 'CRITICAL';
+            else if (severities.includes('HIGH')) result.severity = 'HIGH';
+            else if (severities.includes('MEDIUM')) result.severity = 'MEDIUM';
+
+            // Collecter les issues
+            result.issues = result.alerts.map(a => `${a.alertType}: ${a.description}`);
+
+            // Déterminer si on doit régénérer
+            result.shouldRegenerate = result.alerts.some(a => 
+                a.severity === 'CRITICAL' || 
+                a.severity === 'HIGH' ||
+                a.alertType === 'REPETITION' ||
+                a.alertType === 'PERSONA_BREAK'
+            );
+
+            // Déterminer si on doit pause
+            result.shouldPause = coherenceResult.shouldPause ||
+                actionResult.shouldPause ||
+                profileResult.shouldPause;
+
+            result.isValid = !result.shouldRegenerate;
+
+            // Traiter les alertes CRITICAL (notifications)
+            const criticalAlerts = result.alerts.filter(a => a.severity === 'CRITICAL');
+            for (const alert of criticalAlerts) {
+                await this.processCriticalAlert(alert, context);
+            }
+
+            // Batch les autres
+            const otherAlerts = result.alerts.filter(a => a.severity !== 'CRITICAL');
+            if (otherAlerts.length > 0) {
+                this.batchAlerts(otherAlerts);
+            }
+
+            // Pause auto si nécessaire
+            if (result.shouldPause && criticalAlerts.length > 0) {
+                await this.pauseConversation(context.conversationId, criticalAlerts);
+            }
+
+        } catch (error) {
+            console.error('[SupervisorOrchestrator] Validation failed:', error);
+            // En cas d'erreur, on considère que c'est valide (fail open)
+            result.isValid = true;
+        }
+
+        return result;
+    },
+
     /**
      * Analyse une réponse IA en temps réel
      * Appelé après chaque génération de réponse IA

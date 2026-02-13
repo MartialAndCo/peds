@@ -371,7 +371,7 @@ export async function handleChat(
     try {
         // AI GENERATION LOGIC
         // Pass options (containing previousResponse) to the generator
-        const result = await generateAndSendAI(conversation, contact, settings, messageText, payload, agentId, platform, options)
+        const result = await generateAndSendAI(conversation, contact, settings, messageText, payload, agentId, platform, options, undefined)
 
         // 8. Payment Claim Detection: MOVED to Tag-Based in generateAndSendAI
         // We no longer scan user text. We listen for [PAYMENT_RECEIVED] from AI.
@@ -412,7 +412,11 @@ async function releaseLock(convId: number) {
     await prisma.conversation.update({ where: { id: convId }, data: { processingLock: null } })
 }
 
-async function generateAndSendAI(conversation: any, contact: any, settings: any, lastMessageText: string, payload: any, agentId?: string, platform: 'whatsapp' | 'discord' = 'whatsapp', options?: any) {
+/**
+ * Validation bloquante avec régénération si nécessaire
+ * Factorisée pour être utilisée aussi bien pour les messages instantanés que les messages en queue
+ */
+async function generateAndSendAI(conversation: any, contact: any, settings: any, lastMessageText: string, payload: any, agentId?: string, platform: 'whatsapp' | 'discord' = 'whatsapp', options?: any, preloadedProfile?: any) {
     // 1. Fetch History
     const historyDesc = await prisma.message.findMany({
         where: { conversationId: conversation.id },
@@ -646,7 +650,88 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         }
 
         // Generate NOW (SWARM mode - system prompt handled by swarm)
-        const responseText = await callAI(settings, conversation, queuePrompt || '', contextMessages, lastContent, contact, agentId, platform, agentProfilePreloaded)
+        let responseText = await callAI(settings, conversation, queuePrompt || '', contextMessages, lastContent, contact, agentId, platform, agentProfilePreloaded)
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // SUPERVISOR BLOQUANT pour messages en QUEUE aussi
+        // ═══════════════════════════════════════════════════════════════════════════
+        let queueValidationAttempts = 0;
+        const MAX_QUEUE_VALIDATION_RETRIES = 2;
+        
+        while (queueValidationAttempts < MAX_QUEUE_VALIDATION_RETRIES) {
+            try {
+                const { supervisorOrchestrator } = require('@/lib/services/supervisor')
+
+                const supervisorContext = {
+                    agentId: effectiveAgentId,
+                    conversationId: conversation.id,
+                    contactId: contact.id,
+                    userMessage: lastContent,
+                    aiResponse: responseText,
+                    history: contextMessages.map((m: any) => ({
+                        role: m.role === 'user' ? 'user' as const : 'ai' as const,
+                        content: m.content
+                    })),
+                    phase: phase,
+                    pendingQueue: pendingQueueItems.map((item: any) => ({
+                        id: item.id,
+                        content: item.content,
+                        scheduledAt: item.scheduledAt.toISOString()
+                    }))
+                }
+
+                const validation = await supervisorOrchestrator.validateBlocking(supervisorContext);
+                
+                if (!validation.isValid && validation.shouldRegenerate) {
+                    queueValidationAttempts++;
+                    console.warn(`[Chat][Queue] Supervisor rejected response (${validation.severity}):`, validation.issues);
+                    
+                    if (queueValidationAttempts < MAX_QUEUE_VALIDATION_RETRIES) {
+                        console.log(`[Chat][Queue] Regenerating response... (attempt ${queueValidationAttempts + 1})`);
+                        
+                        const errorContext = `\n\n⚠️ CORRECTION NÉCESSAIRE: Évite absolument ces erreurs: ${validation.issues.join('; ')}`;
+                        
+                        responseText = await callAI(
+                            settings, 
+                            conversation, 
+                            (queuePrompt || '') + errorContext, 
+                            contextMessages, 
+                            lastContent, 
+                            contact, 
+                            agentId, 
+                            platform, 
+                            agentProfilePreloaded
+                        );
+                        
+                        responseText = responseText
+                            .replace(/\*\*[^*]*\*\*/g, '')
+                            .replace(/\*[^*]*\*/g, '')
+                            .replace(/```/g, '')
+                            .replace(/^\*+/g, '')
+                            .replace(/\*+$/g, '')
+                            .replace(/\s+/g, ' ')
+                            .trim();
+                        
+                        continue;
+                    } else {
+                        console.error('[Chat][Queue] Max validation retries reached, using fallback response');
+                        responseText = "jsuis là, tkt";
+                        break;
+                    }
+                } else if (!validation.isValid) {
+                    console.warn('[Chat][Queue] Supervisor found issues but no regeneration needed:', validation.issues);
+                } else {
+                    console.log('[Chat][Queue] Supervisor validation passed');
+                }
+                
+                break;
+                
+            } catch (supervisorError) {
+                console.error('[Chat][Queue] Supervisor validation failed:', supervisorError);
+                break;
+            }
+        }
+        // ═══════════════════════════════════════════════════════════════════════════
 
         await prisma.messageQueue.create({
             data: {
@@ -866,36 +951,83 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     console.log(`[Chat] AI Response (final cleaned): "${responseText.substring(0, 100)}${responseText.length > 100 ? '...' : ''}"`)
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // SUPERVISOR AI - Real-time monitoring
+    // SUPERVISOR AI - BLOQUANT: Valide avant envoi, régénère si nécessaire
     // ═══════════════════════════════════════════════════════════════════════════
-    try {
-        const { supervisorOrchestrator } = require('@/lib/services/supervisor')
+    let inlineValidationAttempts = 0;
+    const MAX_INLINE_VALIDATION_RETRIES = 2;
+    
+    while (inlineValidationAttempts < MAX_INLINE_VALIDATION_RETRIES) {
+        try {
+            const { supervisorOrchestrator } = require('@/lib/services/supervisor')
 
-        // Préparer le contexte pour le supervisor
-        const supervisorContext = {
-            agentId: effectiveAgentId,
-            conversationId: conversation.id,
-            contactId: contact.id,
-            userMessage: lastContent,
-            aiResponse: responseText, // Now CLEAN
-            history: contextMessages.map((m: any) => ({
-                role: m.role === 'user' ? 'user' as const : 'ai' as const,
-                content: m.content
-            })),
-            phase: phase,
-            pendingQueue: pendingQueueItems.map((item: any) => ({
-                id: item.id,
-                content: item.content,
-                scheduledAt: item.scheduledAt.toISOString()
-            }))
+            const supervisorContext = {
+                agentId: effectiveAgentId,
+                conversationId: conversation.id,
+                contactId: contact.id,
+                userMessage: lastContent,
+                aiResponse: responseText,
+                history: contextMessages.map((m: any) => ({
+                    role: m.role === 'user' ? 'user' as const : 'ai' as const,
+                    content: m.content
+                })),
+                phase: phase,
+                pendingQueue: pendingQueueItems.map((item: any) => ({
+                    id: item.id,
+                    content: item.content,
+                    scheduledAt: item.scheduledAt.toISOString()
+                }))
+            }
+
+            const validation = await supervisorOrchestrator.validateBlocking(supervisorContext);
+            
+            if (!validation.isValid && validation.shouldRegenerate) {
+                inlineValidationAttempts++;
+                console.warn(`[Chat] Supervisor rejected response (${validation.severity}):`, validation.issues);
+                
+                if (inlineValidationAttempts < MAX_INLINE_VALIDATION_RETRIES) {
+                    console.log(`[Chat] Regenerating response... (attempt ${inlineValidationAttempts + 1})`);
+                    
+                    const errorContext = `\n\n⚠️ CORRECTION NÉCESSAIRE: Évite absolument ces erreurs: ${validation.issues.join('; ')}`;
+                    
+                    responseText = await callAI(
+                        settings, 
+                        conversation, 
+                        (queuePrompt || '') + errorContext, 
+                        contextMessages, 
+                        lastContent, 
+                        contact, 
+                        effectiveAgentId, 
+                        platform, 
+                        preloadedProfile
+                    );
+                    
+                    responseText = responseText
+                        .replace(/\*\*[^*]*\*\*/g, '')
+                        .replace(/\*[^*]*\*/g, '')
+                        .replace(/```/g, '')
+                        .replace(/^\*+/g, '')
+                        .replace(/\*+$/g, '')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+                    
+                    continue;
+                } else {
+                    console.error('[Chat] Max validation retries reached, using fallback response');
+                    responseText = "jsuis là, tkt";
+                    break;
+                }
+            } else if (!validation.isValid) {
+                console.warn('[Chat] Supervisor found issues but no regeneration needed:', validation.issues);
+            } else {
+                console.log('[Chat] Supervisor validation passed');
+            }
+            
+            break;
+            
+        } catch (supervisorError) {
+            console.error('[Chat] Supervisor validation failed:', supervisorError);
+            break;
         }
-
-        // Analyse asynchrone (non-bloquante)
-        supervisorOrchestrator.analyzeResponse(supervisorContext).catch((err: any) => {
-            console.error('[Chat] Supervisor analysis failed:', err)
-        })
-    } catch (supervisorError) {
-        console.error('[Chat] Failed to initialize supervisor:', supervisorError)
     }
     // ═══════════════════════════════════════════════════════════════════════════
 
