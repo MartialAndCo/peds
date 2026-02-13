@@ -154,7 +154,7 @@ export class QueueService {
         const phone = contact.phone_whatsapp
         const agentId = conversation?.agentId || undefined
         
-        // Text content with aggressive cleanup (for text messages)
+        // Text content with aggressive cleanup (for text messages) - FORCED UPDATE
         let textContent = content ? messageValidator.aggressiveArtifactCleanup(content) : ''
 
         // CRITICAL: Double-check status before sending (prevents race conditions with cleanup)

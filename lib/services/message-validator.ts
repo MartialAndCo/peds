@@ -425,6 +425,7 @@ Output: "jsais pas|||[IMAGE:selfie]|||t'en penses quoi ?" (GARDE !)
     /**
      * Check if message is empty or contains only formatting artifacts
      * Blocks messages like "**", "**********", "```", "` ` `", etc.
+     * FORCED UPDATE
      */
     isEmptyOrOnlyFormatting(message: string): boolean {
         if (!message || message.trim().length === 0) return true

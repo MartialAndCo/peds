@@ -1161,7 +1161,7 @@ async function callAI(settings: any, conv: any, sys: string | null, ctx: any[], 
         contact.lastMessageType || 'text',
         platform
     )
-    // 🚨 REMOVE ALL FORMATTING ARTIFACTS
+    // 🚨 REMOVE ALL FORMATTING ARTIFACTS - FORCED UPDATE
     // Remove everything between ** ** (actions like *nods*, *smiles*)
     // Remove leading/trailing asterisks clusters
     // Remove backticks used as quotes
