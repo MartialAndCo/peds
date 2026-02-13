@@ -28,6 +28,13 @@ export interface ConversationCardData {
     trustScore: number | null
     signals?: string[]
     source?: string | null
+    lead?: {
+      id: string
+      status: 'PENDING' | 'IMPORTED' | 'CONVERTED' | 'REJECTED'
+      type: 'WHATSAPP' | 'DISCORD'
+      source: string
+      createdAt: string
+    } | null
   }
   lastMessage?: {
     message_text: string
@@ -201,6 +208,17 @@ export function ConversationCard({
                 AI Off
               </Badge>
             )}
+            {contact.lead && (
+              <Badge className={cn(
+                "text-[8px] px-1 py-0 h-3.5",
+                contact.lead.status === 'PENDING' && "bg-amber-500/10 text-amber-400 border-amber-500/20",
+                contact.lead.status === 'IMPORTED' && "bg-blue-500/10 text-blue-400 border-blue-500/20",
+                contact.lead.status === 'CONVERTED' && "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+                contact.lead.status === 'REJECTED' && "bg-red-500/10 text-red-400 border-red-500/20"
+              )}>
+                {contact.lead.status}
+              </Badge>
+            )}
           </div>
         </div>
       </div>
@@ -324,6 +342,19 @@ export function ConversationCard({
               {isNewContact && (
                 <Badge className="bg-sky-500/10 text-sky-400 border-sky-500/20 text-[9px] px-1.5 py-0 h-5">
                   NEW
+                </Badge>
+              )}
+
+              {/* Lead Status */}
+              {contact.lead && (
+                <Badge className={cn(
+                  "text-[9px] px-1.5 py-0 h-5",
+                  contact.lead.status === 'PENDING' && "bg-amber-500/10 text-amber-400 border-amber-500/20",
+                  contact.lead.status === 'IMPORTED' && "bg-blue-500/10 text-blue-400 border-blue-500/20",
+                  contact.lead.status === 'CONVERTED' && "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+                  contact.lead.status === 'REJECTED' && "bg-red-500/10 text-red-400 border-red-500/20"
+                )}>
+                  Lead: {contact.lead.status}
                 </Badge>
               )}
 

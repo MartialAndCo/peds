@@ -526,6 +526,19 @@ export function ConversationUnifiedView({
                       {conversation.contact.status}
                     </Badge>
                   </div>
+                  {conversation.contact.lead && (
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Lead Status</span>
+                      <Badge variant="outline" className={cn(
+                        conversation.contact.lead.status === 'PENDING' && "border-amber-500/20 text-amber-400 bg-amber-500/10",
+                        conversation.contact.lead.status === 'IMPORTED' && "border-blue-500/20 text-blue-400 bg-blue-500/10",
+                        conversation.contact.lead.status === 'CONVERTED' && "border-emerald-500/20 text-emerald-400 bg-emerald-500/10",
+                        conversation.contact.lead.status === 'REJECTED' && "border-red-500/20 text-red-400 bg-red-500/10"
+                      )}>
+                        {conversation.contact.lead.status}
+                      </Badge>
+                    </div>
+                  )}
                 </div>
               </div>
 

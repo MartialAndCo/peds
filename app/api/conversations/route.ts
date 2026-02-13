@@ -47,7 +47,11 @@ export async function GET(req: Request) {
                 }
             },
             include: {
-                contact: true,
+                contact: {
+                    include: {
+                        lead: true
+                    }
+                },
                 prompt: true,
                 messages: {
                     orderBy: { timestamp: 'desc' },

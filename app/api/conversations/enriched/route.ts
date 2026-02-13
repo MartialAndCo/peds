@@ -109,14 +109,8 @@ export async function GET(req: Request) {
       where,
       include: {
         contact: {
-          select: {
-            id: true,
-            name: true,
-            phone_whatsapp: true,
-            status: true,
-            agentPhase: true,
-            trustScore: true,
-            source: true,
+          include: {
+            lead: true
           }
         },
         prompt: {
@@ -174,6 +168,7 @@ export async function GET(req: Request) {
           agentPhase: conv.contact.agentPhase,
           trustScore: conv.contact.trustScore,
           source: conv.contact.source,
+          lead: conv.contact.lead,
         },
         lastMessage: lastMsg ? {
           message_text: lastMsg.message_text,
