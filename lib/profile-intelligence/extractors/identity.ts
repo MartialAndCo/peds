@@ -99,32 +99,32 @@ function parseIdentityResponse(response: string): IdentityExtraction {
 
 function getEmptyIdentity(): IdentityExtraction {
     return {
-        displayName: null,
-        realName: null,
+        displayName: undefined,
+        realName: undefined,
         aliases: [],
         age: undefined,
         ageConfirmed: false,
-        gender: null,
+        gender: undefined,
         birthDate: undefined,
-        city: null,
-        country: null,
-        timezone: null,
-        maritalStatus: null,
-        livingWith: null,
-        occupation: null,
-        workplace: null,
+        city: undefined,
+        country: undefined,
+        timezone: undefined,
+        maritalStatus: undefined,
+        livingWith: undefined,
+        occupation: undefined,
+        workplace: undefined,
         incomeLevel: undefined,
-        schedule: null,
+        schedule: undefined,
         platforms: [],
         usernames: {}
     }
 }
 
 // Fonctions de normalisation
-function normalizeString(value: unknown): string | null {
-    if (value === null || value === undefined) return null
+function normalizeString(value: unknown): string | undefined {
+    if (value === null || value === undefined) return undefined
     const str = String(value).trim()
-    if (str === '' || str.toLowerCase() === 'null') return null
+    if (str === '' || str.toLowerCase() === 'null') return undefined
     return str
 }
 

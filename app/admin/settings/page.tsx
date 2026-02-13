@@ -1,16 +1,107 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useToast } from '@/components/ui/use-toast'
 import axios from 'axios'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Loader2, Brain, Server, Check } from 'lucide-react'
 import { SessionManager } from '@/components/settings/session-manager'
 import { clearAllQueues } from '@/app/actions/queue'
-import { useToast } from '@/components/ui/use-toast'
 import { Bell, BellRing, AlertTriangle, CreditCard, Volume2, ShieldAlert } from 'lucide-react'
 
 // Types de notifications disponibles
+// Component to migrate Discord leads to the configured agent
+function DiscordLeadsMigration() {
+    const [status, setStatus] = useState<any>(null)
+    const [loading, setLoading] = useState(false)
+    const [migrating, setMigrating] = useState(false)
+    const { toast } = useToast()
+
+    const checkStatus = async () => {
+        setLoading(true)
+        try {
+            const res = await axios.get('/api/admin/migrate-discord-leads')
+            setStatus(res.data)
+        } catch (e: any) {
+            toast({ title: "Error", description: e.response?.data?.error || 'Failed to check status', variant: "destructive" })
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const migrate = async () => {
+        setMigrating(true)
+        try {
+            const res = await axios.post('/api/admin/migrate-discord-leads')
+            toast({ 
+                title: "Migration Complete ✅", 
+                description: res.data.message,
+                className: "bg-green-600 border-none text-white"
+            })
+            checkStatus()
+        } catch (e: any) {
+            toast({ title: "Migration Failed", description: e.response?.data?.error, variant: "destructive" })
+        } finally {
+            setMigrating(false)
+        }
+    }
+
+    return (
+        <div className="mt-6 pt-6 border-t border-[#5865F2]/20">
+            <div className="flex items-center justify-between mb-4">
+                <div>
+                    <h4 className="text-white font-medium">Discord Leads Migration</h4>
+                    <p className="text-white/40 text-xs">
+                        Move existing Discord leads to the configured agent
+                    </p>
+                </div>
+                <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={checkStatus}
+                    disabled={loading}
+                    className="border-[#5865F2]/30 text-[#5865F2] hover:bg-[#5865F2]/10"
+                >
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Check Status'}
+                </Button>
+            </div>
+
+            {status && (
+                <div className="space-y-3">
+                    <div className="flex items-center gap-4 text-sm">
+                        <span className="text-white/60">Total Discord leads: <span className="text-white font-medium">{status.totalDiscordLeads}</span></span>
+                        <span className="text-green-400">✓ Correct: {status.alreadyCorrect}</span>
+                        {status.needsMigration > 0 && (
+                            <span className="text-orange-400">⚠ Needs migration: {status.needsMigration}</span>
+                        )}
+                    </div>
+
+                    {status.needsMigration > 0 && (
+                        <Button
+                            onClick={migrate}
+                            disabled={migrating}
+                            className="w-full bg-[#5865F2] hover:bg-[#5865F2]/80 text-white"
+                        >
+                            {migrating ? (
+                                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Migrating...</>
+                            ) : (
+                                `Migrate ${status.needsMigration} lead${status.needsMigration > 1 ? 's' : ''} to ${status.discordAgentConfigured ? 'configured agent' : 'Discord agent'}`
+                            )}
+                        </Button>
+                    )}
+
+                    {status.needsMigration === 0 && status.totalDiscordLeads > 0 && (
+                        <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-sm">
+                            ✓ All Discord leads are correctly assigned
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    )
+}
+
 const NOTIFICATION_TYPES = [
     { key: 'notify_payment_claim', label: 'Payment Claims', description: 'New payment claims from contacts', icon: CreditCard, default: true },
     { key: 'notify_critical_errors', label: 'Critical System Errors', description: 'WhatsApp disconnections, cron failures...', icon: AlertTriangle, default: true },
@@ -391,6 +482,9 @@ export default function SettingsPage() {
                                     Messages received by the Discord service will be processed by this agent.
                                 </p>
                             </div>
+
+                            {/* Discord Leads Migration */}
+                            <DiscordLeadsMigration />
                         </div>
                     </div>
                 )}
