@@ -14,7 +14,7 @@ export default async function ProfilesPage() {
             </div>
 
             <div className="flex-1 overflow-x-auto overflow-y-hidden">
-                <PipelineBoard initialData={data} />
+                <PipelineBoard initialData={data as any} agentId="admin" />
             </div>
         </div>
     )

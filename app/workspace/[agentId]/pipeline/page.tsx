@@ -48,20 +48,20 @@ export default function PipelinePage() {
                 />
                 <PhaseColumn
                     title="Phase 2: Vulnerability"
-                    subtitle="Emotional Hook"
-                    color="purple"
+                    subtitle="Building Trust"
+                    color="yellow"
                     contacts={phases['VULNERABILITY']}
                 />
                 <PhaseColumn
                     title="Phase 3: Crisis"
-                    subtitle="The Trap (Ask)"
+                    subtitle="Story Activation"
                     color="orange"
                     contacts={phases['CRISIS']}
                 />
                 <PhaseColumn
                     title="Phase 4: Moneypot"
-                    subtitle="Extraction Mode"
-                    color="green"
+                    subtitle="Monetization"
+                    color="emerald"
                     contacts={phases['MONEYPOT']}
                 />
             </div>
@@ -69,34 +69,24 @@ export default function PipelinePage() {
     )
 }
 
-function PhaseColumn({ title, subtitle, color, contacts }: any) {
-    const colorStyles: any = {
-        blue: "bg-blue-500/10 border-blue-500/20 text-blue-400",
-        purple: "bg-purple-500/10 border-purple-500/20 text-purple-400",
-        orange: "bg-orange-500/10 border-orange-500/20 text-orange-400",
-        green: "bg-emerald-500/10 border-emerald-500/20 text-emerald-400",
+function PhaseColumn({ title, subtitle, color, contacts }: { title: string, subtitle: string, color: string, contacts: any[] }) {
+    const colors: Record<string, string> = {
+        blue: 'border-blue-500/30 bg-blue-500/5',
+        yellow: 'border-yellow-500/30 bg-yellow-500/5',
+        orange: 'border-orange-500/30 bg-orange-500/5',
+        emerald: 'border-emerald-500/30 bg-emerald-500/5',
     }
 
-    const totalPotential = contacts.reduce((acc: number, c: any) => acc + (c.payments?.reduce((p: any, x: any) => p + (x.amount || 0), 0) || 0), 0)
-
     return (
-        <div className="w-[320px] flex flex-col h-full bg-black/20 rounded-2xl border border-white/5 backdrop-blur-sm">
-            {/* Header */}
-            <div className={cn("p-4 border-b border-white/5 rounded-t-2xl", colorStyles[color].replace("text-", "border-"))}>
-                <div className="flex justify-between items-start mb-1">
-                    <h3 className={cn("font-bold text-sm uppercase tracking-wide", colorStyles[color].split(" ")[2])}>{title}</h3>
-                    <span className="text-xs bg-white/5 px-2 py-0.5 rounded-full text-white/50">{contacts.length}</span>
+        <div className={cn("w-80 flex-shrink-0 border rounded-xl flex flex-col h-full", colors[color])}>
+            <div className="p-4 border-b border-white/5">
+                <h3 className="font-bold text-white">{title}</h3>
+                <p className="text-xs text-white/40">{subtitle}</p>
+                <div className="mt-2 text-xs text-white/60">
+                    {contacts.length} contacts
                 </div>
-                <p className="text-[11px] text-white/40">{subtitle}</p>
-                {totalPotential > 0 && (
-                    <div className="mt-2 text-xs font-mono text-emerald-400 flex items-center">
-                        <DollarSign className="w-3 h-3 mr-1" />
-                        {totalPotential.toLocaleString()} generated
-                    </div>
-                )}
             </div>
 
-            {/* List */}
             <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-hide">
                 {contacts.map((contact: any) => (
                     <ContactCard key={contact.id} contact={contact} color={color} />
@@ -111,7 +101,6 @@ function ContactCard({ contact, color }: any) {
     const router = useRouter()
 
     // Safety checks for logic verification
-    const trustScore = contact.trustScore || 0
     const profile = contact.profile || {}
     const paid = contact.payments?.reduce((acc: number, p: any) => acc + (p.amount || 0), 0) || 0
 
@@ -141,23 +130,28 @@ function ContactCard({ contact, color }: any) {
                 )}
             </div>
 
-            {/* Progress / Trust */}
+            {/* 🔥 SIGNALS - Remplace Trust Score obsolète */}
             <div className="space-y-1">
                 <div className="flex justify-between text-[10px] text-white/30 uppercase tracking-wider">
-                    <span>Trust Score</span>
-                    <span className={cn(
-                        trustScore > 70 ? "text-green-400" : trustScore < 30 ? "text-red-400" : "text-yellow-400"
-                    )}>{trustScore}%</span>
+                    <span>Signals</span>
+                    <span className="text-white/60">{contact.signals?.length || 0} active</span>
                 </div>
-                <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-                    <div
-                        className={cn("h-full rounded-full transition-all duration-500",
-                            trustScore > 70 ? "bg-gradient-to-r from-emerald-500 to-green-400" :
-                                trustScore < 30 ? "bg-gradient-to-r from-red-500 to-orange-400" :
-                                    "bg-gradient-to-r from-yellow-500 to-amber-400"
-                        )}
-                        style={{ width: `${trustScore}%` }}
-                    />
+                <div className="flex flex-wrap gap-1 mt-1">
+                    {contact.signals && contact.signals.length > 0 ? (
+                        contact.signals.slice(0, 4).map((signal: string) => {
+                            const emoji = SIGNAL_EMOJIS[signal] || '●'
+                            return (
+                                <span key={signal} className="text-[9px] bg-white/5 px-1.5 py-0.5 rounded text-white/70">
+                                    {emoji}
+                                </span>
+                            )
+                        })
+                    ) : (
+                        <span className="text-[9px] text-white/20 italic">No signals yet</span>
+                    )}
+                    {contact.signals?.length > 4 && (
+                        <span className="text-[9px] text-white/40">+{contact.signals.length - 4}</span>
+                    )}
                 </div>
             </div>
 
@@ -172,4 +166,16 @@ function ContactCard({ contact, color }: any) {
             )}
         </div>
     )
+}
+
+// 🔥 Emojis pour les signaux
+const SIGNAL_EMOJIS: Record<string, string> = {
+    RESPONSIVE: '🔵',
+    EMOTIONALLY_OPEN: '💛',
+    PROACTIVE: '🟣',
+    COMPLIANT: '✅',
+    DEFENSIVE: '🔴',
+    INTERESTED: '🟢',
+    ATTACHED: '🩷',
+    FINANCIAL_TRUST: '💰'
 }

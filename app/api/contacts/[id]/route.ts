@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { z } from 'zod'
+import { signalAnalyzerV2 } from '@/lib/services/signal-analyzer-v2'
 
 const contactSchema = z.object({
     name: z.string().min(1).optional(),
@@ -51,10 +52,20 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
             console.log(`[API] Contact Context Override for Agent ${agentId}: Phase ${contact.agentPhase} -> ${ac.phase}`)
 
             contact.agentPhase = ac.phase
-            contact.trustScore = ac.trustScore // or use signals if UI supports it
+            // 🔥 NE PLUS utiliser trustScore (deprecated) - utiliser signal health à la place
+            contact.trustScore = 0 // Masqué car deprecated
 
             // Inject agentContact info for robust UIs
             contact._agentContext = ac
+            
+            // 🔥 NOUVEAU: Injecter les weighted signals avec TTL
+            try {
+                const weightedSignals = await signalAnalyzerV2.getWeightedSignals(agentId, id)
+                contact._weightedSignals = weightedSignals
+            } catch (e) {
+                console.error('[API] Failed to get weighted signals:', e)
+                contact._weightedSignals = []
+            }
         }
 
         return NextResponse.json(contact)

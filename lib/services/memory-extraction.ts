@@ -14,6 +14,7 @@ import { prisma } from '@/lib/prisma'
 import { memoryService } from '@/lib/memory'
 import { venice } from '@/lib/venice'
 import { settingsService } from '@/lib/settings-cache'
+import { memorySignalBridge } from './memory-signal-bridge'
 
 const EXTRACTION_PROMPT = `You are a memory extraction system. Analyze this conversation and extract IMPORTANT FACTS about the user.
 
@@ -114,6 +115,17 @@ export const memoryExtractionService = {
                         await memoryService.addMany(userId, facts)
                         factsExtracted += facts.length
                         console.log(`[MemoryExtraction] Stored ${facts.length} facts for ${phone}`)
+                        
+                        // 🔥 NOUVEAU: Détecter signaux implicites dans les mémoires
+                        try {
+                            await memorySignalBridge.onMemoryExtraction(
+                                agent.id as unknown as string,
+                                conv.contact.id,
+                                facts
+                            )
+                        } catch (e) {
+                            console.error('[MemoryExtraction] Signal bridge failed:', e)
+                        }
                     }
 
                     // Update last extraction timestamp

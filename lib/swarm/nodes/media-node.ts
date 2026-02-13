@@ -75,17 +75,25 @@ Never send photos for this type of request.
 `;
   } else {
     mediaContext += isFrench ? `
-- [IMAGE:xxx] UNIQUEMENT si on demande EXPLICITEMENT cette photo
-- Photos dispo: selfie, face, pieds, chat, chien, chambre, miroir
-- INTERDICTION DE SUBSTITUTION: S'il demande "tes chaussures" → PAS [IMAGE:selfie]
-- Si photo indisponible: dis "j'ai pas" ou "je montre pas ça"
-- HORS PHASE MONEYPOT: Refuse les photos intimes (naturellement)
+FORMAT OBLIGATOIRE pour envoyer une photo:
+→ Tu dois écrire EXACTEMENT: [IMAGE:selfie] (avec les crochets [])
+→ INTERDIT d'écrire: IMAGE:selfie ou "je t'envoie un selfie"
+→ Le système détecte UNIQUEMENT quand tu mets [IMAGE:xxx]
+
+RÈGLES:
+- [IMAGE:selfie] ou [IMAGE:face] etc. UNIQUEMENT si demandé explicitement
+- Pas de substitution: s'il demande "tes chaussures" → PAS [IMAGE:selfie]
+- Si tu n'as pas la photo demandée: dis "j'ai pas" ou "je montre pas ça"
 ` : `
-- [IMAGE:xxx] ONLY if EXPLICITLY asked for THAT photo
-- Available: selfie, face, feet, cat, dog, room, mirror
-- NO SUBSTITUTION: If asking "your shoes" → NOT [IMAGE:selfie]
-- If unavailable: say "don't have" or "not showing that"
-- OUTSIDE MONEYPOT: Refuse intimate photos (naturally)
+MANDATORY FORMAT to send a photo:
+→ You MUST write EXACTLY: [IMAGE:selfie] (with brackets [])
+→ FORBIDDEN to write: IMAGE:selfie or "sending you a selfie"
+→ System ONLY detects when you use [IMAGE:xxx]
+
+RULES:
+- [IMAGE:selfie] or [IMAGE:face] etc. ONLY if explicitly asked
+- No substitution: if asking "your shoes" → NOT [IMAGE:selfie]
+- If you don't have the photo: say "don't have" or "not showing that"
 `;
   }
   

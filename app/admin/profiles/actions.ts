@@ -12,14 +12,16 @@ export interface PipelineContact {
     job: string | null
     location: string | null
     avatarUrl: string | null
-    trustScore: number
+    trustScore: number  // DEPRECATED - gardé pour compatibilité
+    signals: string[]   // 🔥 NOUVEAU
     daysActive: number
     lastMessage: string
     stage: PipelineStage
     profile: any
+    phase: string       // 🔥 NOUVEAU
 }
 
-export async function getPipelineData() {
+export async function getPipelineData(agentId?: string) {
     const contacts = await prisma.contact.findMany({
         where: {
             status: { notIn: ['blacklisted', 'merged'] },
@@ -36,7 +38,11 @@ export async function getPipelineData() {
                     }
                 }
             },
-            payments: { take: 1 } // Check for money
+            payments: { take: 1 },
+            agentContacts: agentId ? {
+                where: { agentId },
+                take: 1
+            } : false
         },
         orderBy: { updatedAt: 'desc' }
     })
@@ -54,10 +60,12 @@ export async function getPipelineData() {
         const profile = c.profile as any || {}
         const daysActive = Math.ceil(Math.abs(now.getTime() - new Date(c.createdAt).getTime()) / (1000 * 60 * 60 * 24))
 
-        // Find latest image (naive check, ideally should query Messages with mediaUrl)
-        // Since we can't easily include specific messages in the main query efficiently without complex filters,
-        // we'll fetch the latest image separately OR just use the text placeholder for now.
-        // For optimization, lets fetch latest media message for this contact.
+        // 🔥 Récupérer les données agent-spécifiques si disponibles
+        const agentContact = c.agentContacts?.[0]
+        const phase = agentContact?.phase || c.agentPhase || 'CONNECTION'
+        const signals = agentContact?.signals || []
+
+        // Find latest image
         const lastMediaMsg = await prisma.message.findFirst({
             where: { conversation: { contactId: c.id }, mediaUrl: { not: null } },
             orderBy: { timestamp: 'desc' },
@@ -72,19 +80,21 @@ export async function getPipelineData() {
             job: profile.job || '?',
             location: profile.location || '?',
             avatarUrl: lastMediaMsg?.mediaUrl || null,
-            trustScore: c.trustScore,
+            trustScore: 0, // DEPRECATED - masqué dans l'UI
+            signals,
             daysActive,
             lastMessage: c.conversations[0]?.messages[0]?.message_text || '',
-            stage: 'Nouveau', // Default
-            profile
+            stage: 'Nouveau',
+            profile,
+            phase
         }
 
-        // Logic
+        // 🔥 NOUVELLE LOGIQUE: Basée sur phase et signaux (pas trustScore)
         if (c.payments.length > 0) {
             mapped.stage = 'Clients'
-        } else if (c.agentPhase === 'CRISIS' || c.trustScore >= 80) {
+        } else if (phase === 'CRISIS' || phase === 'MONEYPOT') {
             mapped.stage = 'Closing'
-        } else if (c.agentPhase === 'VULNERABILITY' || (c.trustScore >= 20 && daysActive >= 1)) {
+        } else if (phase === 'VULNERABILITY' || signals.length >= 2) {
             mapped.stage = 'Discussion'
         } else {
             mapped.stage = 'Nouveau'

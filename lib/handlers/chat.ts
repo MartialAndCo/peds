@@ -498,9 +498,10 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     const { director } = require('@/lib/director')
 
     // Check for Trust Analysis Trigger
-    // Trigger every 10 messages OR if > 12 hours since last analysis
-    const MSG_INTERVAL = 10;
-    const TIME_INTERVAL = 12 * 60 * 60 * 1000;
+    // Trigger every 5 messages OR if > 6 hours since last analysis
+    // 🔥 OPTIMISATION: Fréquence augmentée pour meilleure réactivité
+    const MSG_INTERVAL = 5;
+    const TIME_INTERVAL = 6 * 60 * 60 * 1000;
 
     let shouldAnalyze = false;
     if (!contact.lastTrustAnalysis) shouldAnalyze = true;
@@ -759,6 +760,13 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     }
     // 5.5. AI-POWERED MESSAGE VALIDATION & CLEANING
     // Use dedicated AI agent to clean formatting, validate timing, split long messages
+    
+    // 🚨 CRITICAL: Extract and preserve functional tags before validation
+    // The validator sometimes strips [IMAGE:...] tags incorrectly
+    const imageTagRegexPreserver = /\[IMAGE:[^\]]+\]/gi
+    const preservedImageTags = responseText.match(imageTagRegexPreserver) || []
+    console.log(`[Chat] Preserving ${preservedImageTags.length} image tag(s):`, preservedImageTags)
+    
     try {
         const { messageValidator } = require('@/lib/services/message-validator')
 
@@ -794,6 +802,17 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         // Fallback to mechanical cleaning
         const { messageValidator } = require('@/lib/services/message-validator')
         responseText = messageValidator.mechanicalClean(responseText, lastContent)
+    }
+    
+    // 🚨 RESTORE preserved tags if they were stripped
+    if (preservedImageTags.length > 0) {
+        const hasImageTag = imageTagRegexPreserver.test(responseText)
+        if (!hasImageTag) {
+            // Tags were stripped - restore them
+            console.log(`[Chat] 🚨 Validator stripped image tags! Restoring:`, preservedImageTags)
+            // Insert at beginning of message (or end, depending on preference)
+            responseText = preservedImageTags.join(' ') + ' ' + responseText
+        }
     }
 
     // 🚨 LAST-RESORT SAFETY: Strip ANY SYSTEM blocks that might have leaked through 🚨

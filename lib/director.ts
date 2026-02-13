@@ -2,7 +2,7 @@
 // 🔥 MIGRATION: Director legacy archivé - Utiliser SWARM uniquement
 // Date: 2026-02-07
 
-import { signalAnalyzer } from './services/signal-analyzer'
+import { signalAnalyzer, signalAnalyzerV2 } from './services/signal-analyzer-v2'
 
 export type AgentPhase = 'CONNECTION' | 'VULNERABILITY' | 'CRISIS' | 'MONEYPOT'
 
@@ -52,7 +52,7 @@ export const director = {
     },
 
     /**
-     * Analyse des signaux (encore utilisée)
+     * 🔥 Analyse des signaux V2 avec TTL et régression
      */
     async performSignalAnalysis(contactPhone: string, agentId: string) {
         const { prisma } = await import('./prisma')
@@ -63,6 +63,21 @@ export const director = {
         
         if (!contact) return null
 
-        return signalAnalyzer.updateSignals(agentId, contact.id)
+        return signalAnalyzerV2.updateSignals(agentId, contact.id)
+    },
+
+    /**
+     * 🔥 NOUVEAU: Récupère les signaux avec métadonnées TTL
+     */
+    async getSignalAnalysis(contactPhone: string, agentId: string) {
+        const { prisma } = await import('./prisma')
+        
+        const contact = await prisma.contact.findUnique({
+            where: { phone_whatsapp: contactPhone }
+        })
+        
+        if (!contact) return null
+
+        return signalAnalyzerV2.analyzeWithTTL(agentId, contact.id)
     }
 }

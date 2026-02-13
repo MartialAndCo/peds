@@ -14,7 +14,7 @@ export default async function DashboardPage() {
         arpu: 0,
         totalContacts: 0,
         activeContacts: 0,
-        trustScoreAvg: 0,
+        trustScoreAvg: 0,  // DEPRECATED - kept for compatibility
         messageVolume: 0,
         avgMessagesPerContact: 0,
         phaseDistribution: [] as any[],
@@ -70,7 +70,7 @@ export default async function DashboardPage() {
             arpu: payingUsers > 0 ? revenue / payingUsers : 0,
             totalContacts: contactsCount,
             activeContacts: activeConversationsCount,
-            trustScoreAvg: 0,
+            trustScoreAvg: 0,  // DEPRECATED  // DEPRECATED - kept for compatibility
             messageVolume: messageCount24h,
             avgMessagesPerContact: contactsCount > 0 ? totalMessages / contactsCount : 0,
             phaseDistribution: [],

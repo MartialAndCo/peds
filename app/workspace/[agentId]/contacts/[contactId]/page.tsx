@@ -90,21 +90,18 @@ export default function ContactDetailsPage() {
                         </div>
 
                         <div className="relative z-10 space-y-6">
-                            {/* Trust Score */}
+                            {/* 🔥 SIGNAL HEALTH - Remplace Trust Score obsolète */}
                             <div>
                                 <div className="flex justify-between items-end mb-2">
-                                    <span className="text-xs uppercase tracking-widest text-white/50 font-bold">Trust Score</span>
-                                    <span className="text-2xl font-bold text-white">{contact.trustScore}%</span>
+                                    <span className="text-xs uppercase tracking-widest text-white/50 font-bold">Signal Health</span>
+                                    <span className="text-sm font-medium text-white/60">
+                                        {contact._agentContext?.signals?.length || 0} active
+                                    </span>
                                 </div>
-                                <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                                    <div
-                                        className={cn("h-full transition-all duration-1000",
-                                            contact.trustScore > 75 ? "bg-emerald-500" :
-                                                contact.trustScore < 30 ? "bg-red-500" : "bg-amber-500"
-                                        )}
-                                        style={{ width: `${contact.trustScore}%` }}
-                                    />
-                                </div>
+                                <SignalHealthBar signals={contact._weightedSignals || []} />
+                                <p className="text-[10px] text-white/30 mt-1">
+                                    Based on behavioral signals with TTL
+                                </p>
                             </div>
 
                             {/* Phase */}
@@ -130,11 +127,38 @@ export default function ContactDetailsPage() {
                                 </div>
                             </div>
 
-                            {/* NEW: Behavioral Signals */}
+                            {/* 🔥 ACTIVE SIGNALS avec indicateurs de fraîcheur */}
                             <div className="pt-4 border-t border-white/5">
-                                <span className="text-xs uppercase tracking-widest text-white/50 font-bold block mb-3">Active Signals</span>
+                                <div className="flex justify-between items-center mb-3">
+                                    <span className="text-xs uppercase tracking-widest text-white/50 font-bold">Active Signals</span>
+                                    <SignalLegend />
+                                </div>
                                 <div className="flex flex-wrap gap-2">
-                                    {contact._agentContext?.signals && contact._agentContext.signals.length > 0 ? (
+                                    {contact._weightedSignals && contact._weightedSignals.length > 0 ? (
+                                        contact._weightedSignals.map((weightedSignal: any) => {
+                                            const signal = weightedSignal.signal || weightedSignal
+                                            const info = SIGNAL_INFO[signal] || { emoji: '❓', label: signal }
+                                            const freshness = getSignalFreshness(weightedSignal)
+                                            return (
+                                                <div key={signal} className={cn(
+                                                    "px-2 py-1 rounded border text-[10px] font-medium flex items-center gap-1.5 transition-all",
+                                                    signal === 'DEFENSIVE' 
+                                                        ? "border-red-500/50 bg-red-500/10 text-red-200" 
+                                                        : freshness === 'fresh'
+                                                            ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-200"
+                                                            : freshness === 'expiring'
+                                                                ? "border-amber-500/50 bg-amber-500/10 text-amber-200"
+                                                                : "border-white/10 bg-white/5 text-white/40 opacity-60"
+                                                )} title={getSignalTooltip(weightedSignal)}>
+                                                    <span>{info.emoji}</span>
+                                                    <span>{info.label}</span>
+                                                    {freshness === 'expiring' && <span className="text-[8px]">⏱</span>}
+                                                    {freshness === 'expired' && <span className="text-[8px]">✕</span>}
+                                                </div>
+                                            )
+                                        })
+                                    ) : contact._agentContext?.signals && contact._agentContext.signals.length > 0 ? (
+                                        // Fallback si _weightedSignals pas disponible
                                         contact._agentContext.signals.map((signal: string) => {
                                             const info = SIGNAL_INFO[signal] || { emoji: '❓', label: signal }
                                             return (
@@ -313,4 +337,91 @@ const SIGNAL_INFO: Record<string, { emoji: string, label: string }> = {
     INTERESTED: { emoji: '🟢', label: 'Interested' },
     ATTACHED: { emoji: '🩷', label: 'Attached' },
     FINANCIAL_TRUST: { emoji: '💰', label: 'Financial Trust' }
+}
+
+// 🔥 NOUVEAU: TTL pour chaque signal (en millisecondes)
+const SIGNAL_TTL: Record<string, number> = {
+    RESPONSIVE: 7 * 24 * 60 * 60 * 1000,
+    EMOTIONALLY_OPEN: 14 * 24 * 60 * 60 * 1000,
+    PROACTIVE: 10 * 24 * 60 * 60 * 1000,
+    COMPLIANT: 5 * 24 * 60 * 60 * 1000,
+    DEFENSIVE: 3 * 24 * 60 * 60 * 1000,
+    INTERESTED: 7 * 24 * 60 * 60 * 1000,
+    ATTACHED: 10 * 24 * 60 * 60 * 1000,
+    FINANCIAL_TRUST: 30 * 24 * 60 * 60 * 1000
+}
+
+// 🔥 NOUVEAU: Calcule la fraîcheur d'un signal
+function getSignalFreshness(weightedSignal: any): 'fresh' | 'expiring' | 'expired' {
+    if (!weightedSignal.detectedAt) return 'fresh' // Fallback
+    
+    const now = Date.now()
+    const detected = new Date(weightedSignal.detectedAt).getTime()
+    const ttl = SIGNAL_TTL[weightedSignal.signal] || 7 * 24 * 60 * 60 * 1000
+    const age = now - detected
+    const ratio = age / ttl
+    
+    if (ratio >= 1) return 'expired'
+    if (ratio >= 0.7) return 'expiring'
+    return 'fresh'
+}
+
+// 🔥 NOUVEAU: Tooltip informatif
+function getSignalTooltip(weightedSignal: any): string {
+    if (!weightedSignal.detectedAt) return ''
+    
+    const detected = new Date(weightedSignal.detectedAt)
+    const ttl = SIGNAL_TTL[weightedSignal.signal] || 7 * 24 * 60 * 60 * 1000
+    const expires = new Date(detected.getTime() + ttl)
+    const daysLeft = Math.ceil((expires.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    
+    return `Detected: ${detected.toLocaleDateString()}\nExpires: ${expires.toLocaleDateString()}\n(${daysLeft} days left)`
+}
+
+// 🔥 NOUVEAU: Barre de santé des signaux
+function SignalHealthBar({ signals }: { signals: any[] }) {
+    if (!signals || signals.length === 0) {
+        return (
+            <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                <div className="h-full w-0 bg-gray-500" />
+            </div>
+        )
+    }
+    
+    // Calculer la santé moyenne (confiance pondérée)
+    const totalHealth = signals.reduce((sum, s) => {
+        const freshness = getSignalFreshness(s)
+        if (freshness === 'fresh') return sum + 100
+        if (freshness === 'expiring') return sum + 50
+        return sum + 10
+    }, 0)
+    
+    const avgHealth = totalHealth / signals.length
+    
+    return (
+        <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+            <div
+                className={cn(
+                    "h-full transition-all duration-1000",
+                    avgHealth > 75 ? "bg-emerald-500" :
+                    avgHealth > 40 ? "bg-amber-500" : "bg-red-500"
+                )}
+                style={{ width: `${avgHealth}%` }}
+            />
+        </div>
+    )
+}
+
+// 🔥 NOUVEAU: Légende des signaux
+function SignalLegend() {
+    return (
+        <div className="flex items-center gap-2 text-[9px] text-white/40">
+            <span className="flex items-center gap-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/50" /> Fresh
+            </span>
+            <span className="flex items-center gap-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500/50" /> Expiring
+            </span>
+        </div>
+    )
 }
