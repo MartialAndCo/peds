@@ -90,6 +90,9 @@ model Contact {
   pendingVoiceValidations PendingVoiceValidation[]
   supervisorAlerts SupervisorAlert[]
   lead            Lead?          // Associated lead if created via provider
+  
+  // Profil intelligence v2 (séparé de Mem0)
+  intelligentProfile ContactProfile?
 
   @@index([status])
   @@index([source])
@@ -807,6 +810,239 @@ model ProviderConfig {
   
   @@index([agentId])
   @@map("provider_configs")
+}
+
+// ==================== SYSTÈME DE PROFIL INTELLIGENT v2 ====================
+// Séparé de Mem0 - Celui-ci est pour l'interface opérateur (renseignement)
+// Mem0 reste la mémoire de l'agent pour les réponses
+
+model ContactProfile {
+  id            String   @id @default(cuid())
+  contactId     String   @unique
+  contact       Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  
+  // Identité
+  displayName   String?
+  realName      String?
+  aliases       String[]
+  
+  // Démographie
+  birthDate     DateTime?
+  ageConfirmed  Boolean  @default(false)
+  gender        String?
+  
+  // Localisation
+  city          String?
+  country       String?
+  timezone      String?
+  
+  // Situation
+  maritalStatus String?
+  livingWith    String?
+  
+  // Profession
+  occupation    String?
+  workplace     String?
+  incomeLevel   String?
+  schedule      String?
+  
+  // Online
+  platforms     String[]
+  usernames     Json?
+  
+  // Métadonnées
+  confidence    Float    @default(0)
+  extractedAt   DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  attributes    ContactAttribute[]
+  relationships ContactRelationship[]
+  events        ContactEvent[]
+  interests     ContactInterest[]
+  psychology    ContactPsychology?
+  financial     ContactFinancial?
+  extractionLogs ProfileExtractionLog[]
+  
+  @@map("contact_profiles")
+}
+
+model ContactAttribute {
+  id          String   @id @default(cuid())
+  profileId   String
+  profile     ContactProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  
+  category    String   // identity, family, work, location, finance, psych, preference, health
+  key         String   // ex: "has_car", "smokes", "pet_name", "school_level"
+  value       String   
+  valueType   String   @default("string") // string, number, boolean, date, json
+  
+  source      String   // message, deduction, inference, external
+  messageId   Int?     
+  confidence  Float    @default(50) // 0-100
+  
+  context     String?  @db.Text // Phrase source
+  extractedAt DateTime @default(now())
+  expiresAt   DateTime? // TTL
+  
+  isVerified  Boolean  @default(false)
+  isDeleted   Boolean  @default(false)
+  
+  @@index([profileId, category])
+  @@index([key])
+  @@index([confidence])
+  @@map("contact_attributes")
+}
+
+model ContactRelationship {
+  id          String   @id @default(cuid())
+  profileId   String
+  profile     ContactProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  
+  relationType String  // mother, father, sibling, partner, ex, friend, colleague, child, pet, other
+  name        String?
+  details     String?
+  closeness   String?  // close, distant, conflictual, unknown
+  
+  source      String
+  confidence  Float    @default(50)
+  context     String?  @db.Text
+  extractedAt DateTime @default(now())
+  
+  @@index([profileId, relationType])
+  @@map("contact_relationships")
+}
+
+model ContactEvent {
+  id          String   @id @default(cuid())
+  profileId   String
+  profile     ContactProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  
+  eventType   String   // past, upcoming, recurring
+  title       String
+  date        DateTime?
+  dateVague   String?  // "next week", "in 3 months"
+  importance  String   @default("normal") // minor, normal, major, critical
+  
+  source      String
+  confidence  Float    @default(50)
+  context     String?  @db.Text
+  extractedAt DateTime @default(now())
+  
+  @@index([profileId, date])
+  @@index([importance])
+  @@map("contact_events")
+}
+
+model ContactInterest {
+  id          String   @id @default(cuid())
+  profileId   String
+  profile     ContactProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  
+  category    String   // sport, music, food, hobby, entertainment, tech, art
+  name        String
+  level       String?  // casual, enthusiast, passionate, professional
+  details     String?
+  
+  source      String
+  confidence  Float    @default(50)
+  extractedAt DateTime @default(now())
+  
+  @@index([profileId, category])
+  @@map("contact_interests")
+}
+
+model ContactPsychology {
+  id          String   @id @default(cuid())
+  profileId   String   @unique
+  profile     ContactProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  
+  // Big Five (1-10)
+  openness          Int?
+  conscientiousness Int?
+  extraversion      Int?
+  agreeableness     Int?
+  neuroticism       Int?
+  
+  // Communication
+  communicationStyle String?
+  responseSpeed     String?
+  verbosity         String?
+  
+  // État émotionnel
+  emotionalState    String?
+  stressors         String[]
+  
+  // Comportement
+  redFlags          String[]
+  greenFlags        String[]
+  
+  // Vulnérabilités pour escalation
+  vulnerabilities   String[]
+  
+  extractedAt       DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@map("contact_psychologies")
+}
+
+model ContactFinancial {
+  id          String   @id @default(cuid())
+  profileId   String   @unique
+  profile     ContactProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  
+  situation   String?
+  occupationType String?
+  
+  hasDebts    Boolean?
+  debtAmount  String?
+  urgentNeeds String[]
+  
+  paymentCapacity String?
+  maxHistoricalPayment Float?
+  
+  hasPayPal   Boolean?
+  hasCashApp  Boolean?
+  hasVenmo    Boolean?
+  hasBankTransfer Boolean?
+  
+  totalPaid   Float    @default(0)
+  paymentCount Int     @default(0)
+  lastPaymentAt DateTime?
+  
+  isFinanciallyVulnerable Boolean @default(false)
+  vulnerabilityContext String? @db.Text
+  
+  extractedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("contact_financials")
+}
+
+model ProfileExtractionLog {
+  id          String   @id @default(cuid())
+  profileId   String
+  profile     ContactProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  
+  triggeredBy String   // auto, manual, ai
+  messageRange String?
+  
+  attributesFound Int    @default(0)
+  relationshipsFound Int @default(0)
+  eventsFound     Int    @default(0)
+  
+  newInfoCount    Int    @default(0)
+  updatedInfoCount Int   @default(0)
+  rejectedCount   Int    @default(0)
+  
+  processingTimeMs Int?
+  aiTokensUsed    Int?
+  
+  errors          String? @db.Text
+  createdAt       DateTime @default(now())
+  
+  @@index([profileId, createdAt])
+  @@map("profile_extraction_logs")
 }
 
 // ==== SYSTEME DE STORIES NARRATIVES ====

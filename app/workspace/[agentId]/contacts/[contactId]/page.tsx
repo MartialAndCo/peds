@@ -4,424 +4,103 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Loader2, ArrowLeft, MessageSquare, Save, Trash, User, MapPin, Briefcase, Heart, Calendar } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import Image from 'next/image'
+import { Loader2, ArrowLeft, MessageSquare, ChevronDown, ChevronUp } from 'lucide-react'
 import { usePWAMode } from '@/hooks/use-pwa-mode'
 import { MobileContactDetails } from '@/components/pwa/pages/mobile-contact-details'
-import { useToast } from '@/components/ui/use-toast'
+import { ContactIntelligenceDashboard } from '@/components/profile-intelligence'
+import { cn } from '@/lib/utils'
 
 export default function ContactDetailsPage() {
     const { contactId, agentId } = useParams()
     const router = useRouter()
     const [contact, setContact] = useState<any>(null)
     const [loading, setLoading] = useState(true)
-    const [mediaLoading, setMediaLoading] = useState(true)
-    const [media, setMedia] = useState<any[]>([])
-    const [extracting, setExtracting] = useState(false)
+    const [showLegacy, setShowLegacy] = useState(false)
 
     const { isPWAStandalone } = usePWAMode()
-    const { toast } = useToast()
 
-    // Data init
     useEffect(() => {
         const fetchContact = async () => {
             try {
-                // Fetch basic contact details
-                // Ideally this endpoints supports fetching by ID directly
                 const res = await axios.get(`/api/contacts/${contactId}?agentId=${agentId}`)
                 setContact(res.data)
-
-                // Fetch Media (Messages with mediaUrl)
-                // We'll need a way to filter messages for this contact. 
-                // Assuming we can fetch /api/contacts/[id]/media or filter messages
-                const resMedia = await axios.get(`/api/contacts/${contactId}/media`)
-                setMedia(resMedia.data)
             } catch (e) {
                 console.error("Fetch error", e)
             } finally {
                 setLoading(false)
-                setMediaLoading(false)
             }
         }
         fetchContact()
-    }, [contactId])
+    }, [contactId, agentId])
 
-    if (loading) return <div className="p-20 flex justify-center"><Loader2 className="animate-spin text-white/20" /></div>
-    if (!contact) return <div className="p-20 text-white text-center">Contact not found</div>
+    if (loading) return (
+        <div className="p-20 flex justify-center">
+            <Loader2 className="animate-spin text-white/20" />
+        </div>
+    )
+    
+    if (!contact) return (
+        <div className="p-20 text-white text-center">Contact not found</div>
+    )
 
     if (isPWAStandalone) {
-        return <MobileContactDetails contact={contact} media={media} agentId={agentId as string} />
+        return <MobileContactDetails contact={contact} media={[]} agentId={agentId as string} />
     }
 
-    const profile = contact.profile || {}
-    const phases = ['CONNECTION', 'VULNERABILITY', 'CRISIS', 'MONEYPOT']
-    const currentPhaseIdx = phases.indexOf(contact.agentPhase || 'CONNECTION')
-
     return (
-        <div className="max-w-6xl mx-auto space-y-8 pb-20">
-            {/* Header / Nav */}
-            <div className="flex items-center gap-4">
+        <div className="max-w-7xl mx-auto space-y-6 pb-20">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => router.back()}
+                        className="text-white/50 hover:text-white"
+                    >
+                        <ArrowLeft className="h-5 w-5" />
+                    </Button>
+                    <div>
+                        <h2 className="text-2xl font-bold bg-gradient-to-r from-white to-white/50 bg-clip-text text-transparent">
+                            {contact.name || contact.phone_whatsapp}
+                        </h2>
+                        <p className="text-sm text-white/40 font-mono">{contact.phone_whatsapp}</p>
+                    </div>
+                </div>
+                
                 <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => router.back()}
-                    className="text-white/50 hover:text-white"
+                    className="bg-blue-600 hover:bg-blue-500"
+                    onClick={() => router.push(`/workspace/${agentId}/conversations?contact=${contactId}`)}
                 >
-                    <ArrowLeft className="h-5 w-5" />
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    Ouvrir Chat
                 </Button>
-                <div>
-                    <h2 className="text-2xl font-bold bg-gradient-to-r from-white to-white/50 bg-clip-text text-transparent">
-                        {contact.name || contact.phone_whatsapp}
-                    </h2>
-                    <p className="text-sm text-white/40 font-mono">{contact.phone_whatsapp}</p>
-                </div>
             </div>
 
-            {/* Main Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-                {/* LEFT: Profile & Status */}
-                <div className="space-y-6">
-                    {/* Status Card */}
-                    <div className="glass p-6 rounded-2xl relative overflow-hidden">
-                        <div className="absolute top-0 right-0 p-4 opacity-10">
-                            <User className="h-32 w-32" />
-                        </div>
-
-                        <div className="relative z-10 space-y-6">
-                            {/* 🔥 SIGNAL HEALTH - Remplace Trust Score obsolète */}
-                            <div>
-                                <div className="flex justify-between items-end mb-2">
-                                    <span className="text-xs uppercase tracking-widest text-white/50 font-bold">Signal Health</span>
-                                    <span className="text-sm font-medium text-white/60">
-                                        {contact._agentContext?.signals?.length || 0} active
-                                    </span>
-                                </div>
-                                <SignalHealthBar signals={contact._weightedSignals || []} />
-                                <p className="text-[10px] text-white/30 mt-1">
-                                    Based on behavioral signals with TTL
-                                </p>
-                            </div>
-
-                            {/* Phase */}
-                            <div>
-                                <span className="text-xs uppercase tracking-widest text-white/50 font-bold block mb-2">Current Phase</span>
-                                <div className="flex flex-col gap-2">
-                                    {phases.map((phase, i) => (
-                                        <div key={phase} className="flex items-center gap-3">
-                                            <div className={cn(
-                                                "h-2 w-2 rounded-full",
-                                                i === currentPhaseIdx ? "bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)] animate-pulse" :
-                                                    i < currentPhaseIdx ? "bg-white/20" : "bg-white/5"
-                                            )} />
-                                            <span className={cn(
-                                                "text-xs font-medium uppercase tracking-wider",
-                                                i === currentPhaseIdx ? "text-blue-400" :
-                                                    i < currentPhaseIdx ? "text-white/30 line-through" : "text-white/10"
-                                            )}>
-                                                {phase}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* 🔥 ACTIVE SIGNALS avec indicateurs de fraîcheur */}
-                            <div className="pt-4 border-t border-white/5">
-                                <div className="flex justify-between items-center mb-3">
-                                    <span className="text-xs uppercase tracking-widest text-white/50 font-bold">Active Signals</span>
-                                    <SignalLegend />
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                    {contact._weightedSignals && contact._weightedSignals.length > 0 ? (
-                                        contact._weightedSignals.map((weightedSignal: any) => {
-                                            const signal = weightedSignal.signal || weightedSignal
-                                            const info = SIGNAL_INFO[signal] || { emoji: '❓', label: signal }
-                                            const freshness = getSignalFreshness(weightedSignal)
-                                            return (
-                                                <div key={signal} className={cn(
-                                                    "px-2 py-1 rounded border text-[10px] font-medium flex items-center gap-1.5 transition-all",
-                                                    signal === 'DEFENSIVE' 
-                                                        ? "border-red-500/50 bg-red-500/10 text-red-200" 
-                                                        : freshness === 'fresh'
-                                                            ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-200"
-                                                            : freshness === 'expiring'
-                                                                ? "border-amber-500/50 bg-amber-500/10 text-amber-200"
-                                                                : "border-white/10 bg-white/5 text-white/40 opacity-60"
-                                                )} title={getSignalTooltip(weightedSignal)}>
-                                                    <span>{info.emoji}</span>
-                                                    <span>{info.label}</span>
-                                                    {freshness === 'expiring' && <span className="text-[8px]">⏱</span>}
-                                                    {freshness === 'expired' && <span className="text-[8px]">✕</span>}
-                                                </div>
-                                            )
-                                        })
-                                    ) : contact._agentContext?.signals && contact._agentContext.signals.length > 0 ? (
-                                        // Fallback si _weightedSignals pas disponible
-                                        contact._agentContext.signals.map((signal: string) => {
-                                            const info = SIGNAL_INFO[signal] || { emoji: '❓', label: signal }
-                                            return (
-                                                <div key={signal} className={cn(
-                                                    "px-2 py-1 rounded bg-white/5 border border-white/10 text-[10px] font-medium flex items-center gap-1.5",
-                                                    signal === 'DEFENSIVE' ? "border-red-500/50 bg-red-500/10 text-red-200" : "text-white/80"
-                                                )}>
-                                                    <span>{info.emoji}</span>
-                                                    <span>{info.label}</span>
-                                                </div>
-                                            )
-                                        })
-                                    ) : (
-                                        <p className="text-xs text-white/20 italic">No signals detected yet.</p>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Extracted Profile */}
-                    <div className="glass p-6 rounded-2xl space-y-4">
-                        <div className="flex items-center gap-2 mb-4 border-b border-white/5 pb-4">
-                            <User className="h-4 w-4 text-purple-400" />
-                            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Identified Profile</h3>
-                        </div>
-
-                        <div className="space-y-3">
-                            <InfoRow icon={Calendar} label="Age" value={profile.age ? `${profile.age} years old` : 'Unknown'} />
-                            <InfoRow icon={Briefcase} label="Job" value={profile.job || 'Unknown'} />
-                            <InfoRow icon={MapPin} label="Location" value={profile.location || 'Unknown'} />
-                            <InfoRow icon={Heart} label="Intent" value={profile.intent || 'Unknown'} className="text-pink-300 italic" />
-                        </div>
-
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="w-full mt-4 border-white/10 hover:bg-white/5"
-                            onClick={async () => {
-                                setExtracting(true)
-                                try {
-                                    const res = await axios.post(`/api/contacts/${contactId}/extract-profile`)
-                                    if (res.data.success) {
-                                        toast({
-                                            title: "Profil mis à jour",
-                                            description: "Les informations ont été extraites de la conversation.",
-                                        })
-                                        // Refresh contact data
-                                        const contactRes = await axios.get(`/api/contacts/${contactId}?agentId=${agentId}`)
-                                        setContact(contactRes.data)
-                                    }
-                                } catch (e: any) {
-                                    toast({
-                                        title: "Erreur",
-                                        description: e.response?.data?.message || "Impossible d'extraire le profil",
-                                        variant: "destructive"
-                                    })
-                                } finally {
-                                    setExtracting(false)
-                                }
-                            }}
-                            disabled={extracting}
-                        >
-                            {extracting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <User className="h-4 w-4 mr-2" />}
-                            {extracting ? "Extraction..." : "Extraire le profil"}
-                        </Button>
-
-                        <div className="pt-4 border-t border-white/5">
-                            <span className="text-[10px] uppercase text-white/30 tracking-wider block mb-2">AI Notes</span>
-                            <p className="text-xs text-white/60 leading-relaxed">
-                                {profile.notes || "No additional notes extracted yet."}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* CENTER/RIGHT: Media & History */}
-                <div className="lg:col-span-2 space-y-6">
-
-                    {/* Actions Bar */}
-                    <div className="flex gap-3">
-                        <Button
-                            className="bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/20"
-                            onClick={() => router.push(`/workspace/${agentId}/conversations?contact=${contactId}`)}
-                        >
-                            <MessageSquare className="h-4 w-4 mr-2" />
-                            Open Chat
-                        </Button>
-                    </div>
-
-                    {/* Media Gallery */}
-                    <div className="glass p-6 rounded-2xl">
-                        <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Shared Media</h3>
-
-                        {media.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-white/5 rounded-xl">
-                                <p className="text-white/20 text-sm">No media exchanged yet.</p>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-                                {media.slice(0, 10).map((item, i) => (
-                                    <div
-                                        key={i}
-                                        className="aspect-square rounded-lg bg-black/30 overflow-hidden relative group border border-white/5 hover:border-white/20 transition-all cursor-pointer"
-                                    >
-                                        <img
-                                            src={item.mediaUrl}
-                                            alt="Media"
-                                            className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
-                                            onError={(e) => {
-                                                (e.target as HTMLImageElement).style.display = 'none';
-                                                (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="flex items-center justify-center h-full text-white/20 text-xs">📁</div>';
-                                            }}
-                                        />
-                                        <div className="absolute bottom-0 left-0 right-0 p-1.5 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <p className="text-[9px] text-white/70 text-right">
-                                                {new Date(item.timestamp).toLocaleDateString()}
-                                            </p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                        {media.length > 10 && (
-                            <p className="text-xs text-white/30 text-center mt-3">+{media.length - 10} more</p>
-                        )}
-                    </div>
-
-                    {/* Recent Transcript (Trust Log)? */}
-                    <div className="glass p-6 rounded-2xl">
-                        <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Progression Log (Last 5 Updates)</h3>
-                        <div className="space-y-4">
-                            {contact.trustLogs?.length > 0 ? contact.trustLogs.slice(0, 5).map((log: any) => (
-                                <div key={log.id} className="text-xs border-l-2 border-white/10 pl-4 py-1">
-                                    <div className="flex justify-between text-white/50 mb-1">
-                                        <span>{new Date(log.createdAt).toLocaleString()}</span>
-                                        <span className={cn(
-                                            "font-bold",
-                                            log.change > 0 ? "text-emerald-400" : "text-red-400"
-                                        )}>
-                                            {log.change > 0 ? '+' : ''}{log.change}
-                                        </span>
-                                    </div>
-                                    <p className="text-white/80">{log.reason}</p>
-                                </div>
-                            )) : (
-                                <p className="text-white/30 text-xs italic">No progression logs yet.</p>
-                            )}
-                        </div>
-                    </div>
-
-                </div>
-            </div>
-        </div>
-    )
-}
-
-function InfoRow({ icon: Icon, label, value, className }: any) {
-    return (
-        <div className="flex items-center justify-between text-sm">
-            <div className="flex items-center gap-2 text-white/40">
-                <Icon className="h-3 w-3" />
-                <span>{label}</span>
-            </div>
-            <span className={cn("font-medium text-white", className)}>{value}</span>
-        </div>
-    )
-}
-
-const SIGNAL_INFO: Record<string, { emoji: string, label: string }> = {
-    RESPONSIVE: { emoji: '🔵', label: 'Responsive' },
-    EMOTIONALLY_OPEN: { emoji: '💛', label: 'Emotionally Open' },
-    PROACTIVE: { emoji: '🟣', label: 'Proactive' },
-    COMPLIANT: { emoji: '✅', label: 'Compliant' },
-    DEFENSIVE: { emoji: '🔴', label: 'Defensive' },
-    INTERESTED: { emoji: '🟢', label: 'Interested' },
-    ATTACHED: { emoji: '🩷', label: 'Attached' },
-    FINANCIAL_TRUST: { emoji: '💰', label: 'Financial Trust' }
-}
-
-// 🔥 NOUVEAU: TTL pour chaque signal (en millisecondes)
-const SIGNAL_TTL: Record<string, number> = {
-    RESPONSIVE: 7 * 24 * 60 * 60 * 1000,
-    EMOTIONALLY_OPEN: 14 * 24 * 60 * 60 * 1000,
-    PROACTIVE: 10 * 24 * 60 * 60 * 1000,
-    COMPLIANT: 5 * 24 * 60 * 60 * 1000,
-    DEFENSIVE: 3 * 24 * 60 * 60 * 1000,
-    INTERESTED: 7 * 24 * 60 * 60 * 1000,
-    ATTACHED: 10 * 24 * 60 * 60 * 1000,
-    FINANCIAL_TRUST: 30 * 24 * 60 * 60 * 1000
-}
-
-// 🔥 NOUVEAU: Calcule la fraîcheur d'un signal
-function getSignalFreshness(weightedSignal: any): 'fresh' | 'expiring' | 'expired' {
-    if (!weightedSignal.detectedAt) return 'fresh' // Fallback
-    
-    const now = Date.now()
-    const detected = new Date(weightedSignal.detectedAt).getTime()
-    const ttl = SIGNAL_TTL[weightedSignal.signal] || 7 * 24 * 60 * 60 * 1000
-    const age = now - detected
-    const ratio = age / ttl
-    
-    if (ratio >= 1) return 'expired'
-    if (ratio >= 0.7) return 'expiring'
-    return 'fresh'
-}
-
-// 🔥 NOUVEAU: Tooltip informatif
-function getSignalTooltip(weightedSignal: any): string {
-    if (!weightedSignal.detectedAt) return ''
-    
-    const detected = new Date(weightedSignal.detectedAt)
-    const ttl = SIGNAL_TTL[weightedSignal.signal] || 7 * 24 * 60 * 60 * 1000
-    const expires = new Date(detected.getTime() + ttl)
-    const daysLeft = Math.ceil((expires.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-    
-    return `Detected: ${detected.toLocaleDateString()}\nExpires: ${expires.toLocaleDateString()}\n(${daysLeft} days left)`
-}
-
-// 🔥 NOUVEAU: Barre de santé des signaux
-function SignalHealthBar({ signals }: { signals: any[] }) {
-    if (!signals || signals.length === 0) {
-        return (
-            <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                <div className="h-full w-0 bg-gray-500" />
-            </div>
-        )
-    }
-    
-    // Calculer la santé moyenne (confiance pondérée)
-    const totalHealth = signals.reduce((sum, s) => {
-        const freshness = getSignalFreshness(s)
-        if (freshness === 'fresh') return sum + 100
-        if (freshness === 'expiring') return sum + 50
-        return sum + 10
-    }, 0)
-    
-    const avgHealth = totalHealth / signals.length
-    
-    return (
-        <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-            <div
-                className={cn(
-                    "h-full transition-all duration-1000",
-                    avgHealth > 75 ? "bg-emerald-500" :
-                    avgHealth > 40 ? "bg-amber-500" : "bg-red-500"
-                )}
-                style={{ width: `${avgHealth}%` }}
+            {/* NOUVEAU: Dashboard Intelligence */}
+            <ContactIntelligenceDashboard 
+                contactId={contactId as string}
+                agentId={agentId as string}
             />
-        </div>
-    )
-}
 
-// 🔥 NOUVEAU: Légende des signaux
-function SignalLegend() {
-    return (
-        <div className="flex items-center gap-2 text-[9px] text-white/40">
-            <span className="flex items-center gap-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/50" /> Fresh
-            </span>
-            <span className="flex items-center gap-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500/50" /> Expiring
-            </span>
+            {/* Ancien profil (collapsible) */}
+            <div className="border-t border-white/10 pt-6">
+                <button
+                    onClick={() => setShowLegacy(!showLegacy)}
+                    className="flex items-center gap-2 text-sm text-white/40 hover:text-white/60 transition-colors"
+                >
+                    {showLegacy ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    {showLegacy ? 'Masquer' : 'Afficher'} l'ancien profil (legacy)
+                </button>
+                
+                {showLegacy && (
+                    <div className="mt-4 p-4 bg-white/5 rounded-lg opacity-50">
+                        <pre className="text-xs text-white/60 overflow-auto">
+                            {JSON.stringify(contact.profile, null, 2)}
+                        </pre>
+                    </div>
+                )}
+            </div>
         </div>
     )
 }
