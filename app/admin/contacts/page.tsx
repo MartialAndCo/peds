@@ -129,8 +129,18 @@ export default function ContactsPage() {
                                 const needsContext = !contact.notes || contact.notes.length < 5
                                 return (
                                     <TableRow key={contact.id} className="border-white/5 hover:bg-white/5 transition-all group">
-                                        <TableCell className="font-semibold text-white/90 py-4">{contact.name}</TableCell>
-                                        <TableCell className="text-white/50 font-mono text-xs">{contact.phone_whatsapp}</TableCell>
+                                        <TableCell className="font-semibold text-white/90 py-4">
+                                            {contact.name || contact.phone_whatsapp || 'Unknown'}
+                                        </TableCell>
+                                        <TableCell className="text-white/50 font-mono text-xs">
+                                            {contact.phone_whatsapp ? (
+                                                contact.phone_whatsapp
+                                            ) : contact.name ? (
+                                                <span className="text-indigo-400">DISCORD: {contact.name}</span>
+                                            ) : (
+                                                '-'
+                                            )}
+                                        </TableCell>
                                         <TableCell>
                                             {needsContext ? (
                                                 <div className="flex items-center gap-3">

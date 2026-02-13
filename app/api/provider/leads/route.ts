@@ -76,7 +76,17 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'No agent assigned to your account' }, { status: 400 })
         }
 
-        const agentId = providerConfig.agentId
+        // Get Discord agent from settings if lead is Discord type
+        let agentId = providerConfig.agentId
+        if (body.type === 'DISCORD') {
+            const discordAgentSetting = await prisma.setting.findUnique({
+                where: { key: 'discord_agent_id' }
+            })
+            if (discordAgentSetting?.value) {
+                agentId = discordAgentSetting.value
+                console.log(`[Provider Lead] Using Discord agent from settings: ${agentId}`)
+            }
+        }
 
         // Normalize identifier
         let normalizedIdentifier = body.identifier
