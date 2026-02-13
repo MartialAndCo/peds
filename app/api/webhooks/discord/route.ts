@@ -51,7 +51,18 @@ export async function POST(req: Request) {
                 }
             }
 
-            // Fallback: If agentId is still 'default' (or invalid), fetch the first active agent
+            // Fallback 1: Use discord_agent_id from settings
+            if (agentId === 'default') {
+                const discordAgentSetting = await prisma.setting.findUnique({
+                    where: { key: 'discord_agent_id' }
+                })
+                if (discordAgentSetting?.value) {
+                    agentId = discordAgentSetting.value
+                    console.log(`[Discord Webhook] Using discord_agent_id from settings: ${agentId}`)
+                }
+            }
+
+            // Fallback 2: If still no agent, use first active agent
             if (agentId === 'default') {
                 const firstAgent = await prisma.agent.findFirst({
                     where: { isActive: true }
