@@ -344,9 +344,15 @@ export function ConversationUnifiedView({
                   const isContact = m.sender === 'contact'
                   
                   const fixedMediaUrl = fixMediaUrl(m.mediaUrl)
-                  const isImage = fixedMediaUrl && (fixedMediaUrl.startsWith('data:image') || fixedMediaUrl.match(/\.(jpeg|jpg|gif|png)$/i) || fixedMediaUrl.startsWith('/9j/') || fixedMediaUrl.startsWith('iVBOR'))
-                  const isVideo = fixedMediaUrl && (fixedMediaUrl.startsWith('data:video') || fixedMediaUrl.match(/\.(mp4|mov)$/i))
-                  const isAudio = fixedMediaUrl && (fixedMediaUrl.startsWith('data:audio') || fixedMediaUrl.match(/\.(mp3|wav|ogg)$/i))
+                  const isVideo = fixedMediaUrl && (fixedMediaUrl.startsWith('data:video') || /\.(mp4|mov|avi|webm|mkv)(\?|#|$)/i.test(fixedMediaUrl))
+                  const isAudio = fixedMediaUrl && (fixedMediaUrl.startsWith('data:audio') || /\.(mp3|wav|ogg|m4a|opus)(\?|#|$)/i.test(fixedMediaUrl))
+                  const isImage = fixedMediaUrl && !isVideo && !isAudio && (
+                    fixedMediaUrl.startsWith('data:image') || 
+                    /\.(jpeg|jpg|gif|png|webp)(\?|#|$)/i.test(fixedMediaUrl) || 
+                    fixedMediaUrl.startsWith('/9j/') || 
+                    fixedMediaUrl.startsWith('iVBOR') ||
+                    fixedMediaUrl.startsWith('http')
+                  )
 
                   return (
                     <div key={m.id} className={cn("flex w-full",

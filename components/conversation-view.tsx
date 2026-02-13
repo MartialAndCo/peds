@@ -52,7 +52,7 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
     // Helper to fix base64 URLs that were stored without proper data URI prefix
     const fixMediaUrl = (url: string | null | undefined): string | null => {
         if (!url) return null
-        
+
         // Fix raw base64 data that was stored without proper data URI prefix
         if (url.startsWith('/9j/')) {
             return `data:image/jpeg;base64,${url}`
@@ -141,7 +141,7 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
         const currentHasMore = hasMoreRef.current
         const currentLoadingMore = loadingMoreRef.current
         const currentOldestId = oldestIdRef.current
-        
+
         console.log('[LoadOlder] Called with hasMore:', currentHasMore, 'loadingMore:', currentLoadingMore, 'oldestId:', currentOldestId)
         if (!currentHasMore || currentLoadingMore || !currentOldestId) {
             console.log('[LoadOlder] Blocked - conditions not met')
@@ -291,7 +291,7 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
 
                         {/* "Load more" button */}
                         {hasMore && !loadingMore && messages.length > 0 && (
-                            <button 
+                            <button
                                 onClick={loadOlderMessages}
                                 className="w-full text-center text-xs text-blue-500 hover:text-blue-600 py-2 cursor-pointer hover:bg-blue-50 rounded transition-colors"
                             >
@@ -316,9 +316,15 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
 
                             // Media Detection
                             const fixedMediaUrl = fixMediaUrl(m.mediaUrl)
-                            const isImage = fixedMediaUrl && (fixedMediaUrl.startsWith('data:image') || fixedMediaUrl.match(/\.(jpeg|jpg|gif|png)$/i) || m.mediaUrl?.startsWith('/9j/') || m.mediaUrl?.startsWith('iVBOR'))
-                            const isVideo = fixedMediaUrl && (fixedMediaUrl.startsWith('data:video') || fixedMediaUrl.match(/\.(mp4|mov)$/i))
-                            const isAudio = fixedMediaUrl && (fixedMediaUrl.startsWith('data:audio') || fixedMediaUrl.match(/\.(mp3|wav|ogg)$/i))
+                            const isVideo = fixedMediaUrl && (fixedMediaUrl.startsWith('data:video') || /\.(mp4|mov|avi|webm|mkv)(\?|#|$)/i.test(fixedMediaUrl))
+                            const isAudio = fixedMediaUrl && (fixedMediaUrl.startsWith('data:audio') || /\.(mp3|wav|ogg|m4a|opus)(\?|#|$)/i.test(fixedMediaUrl))
+                            const isImage = fixedMediaUrl && !isVideo && !isAudio && (
+                                fixedMediaUrl.startsWith('data:image') ||
+                                /\.(jpeg|jpg|gif|png|webp)(\?|#|$)/i.test(fixedMediaUrl) ||
+                                fixedMediaUrl.startsWith('/9j/') ||
+                                fixedMediaUrl.startsWith('iVBOR') ||
+                                fixedMediaUrl.startsWith('http')
+                            )
 
                             return (
                                 <div key={m.id} className={cn("flex w-full",
