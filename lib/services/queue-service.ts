@@ -5,6 +5,7 @@ import { settingsService } from '@/lib/settings-cache'
 import { timeCoherenceAgent } from './time-coherence-agent'
 import { ageCoherenceAgent } from './age-coherence-agent'
 import { messageValidator } from './message-validator'
+import { formatResponse } from '@/lib/response-formatter'
 
 export class QueueService {
     // Track items currently being processed in-memory to prevent concurrent execution
@@ -156,6 +157,19 @@ export class QueueService {
         
         // Text content with aggressive cleanup (for text messages) - FORCED UPDATE
         let textContent = content ? messageValidator.aggressiveArtifactCleanup(content) : ''
+        
+        // Additional cleanup with formatResponse as safety net
+        textContent = formatResponse(textContent)
+        
+        // BLOCK empty or formatting-only messages
+        if (!textContent || textContent.trim().length === 0 || messageValidator.isEmptyOrOnlyFormatting(textContent)) {
+            console.warn(`[QueueService] BLOCKING message ${queueItem.id} - empty or only formatting after cleanup: "${content}"`)
+            await prisma.messageQueue.update({
+                where: { id: queueItem.id },
+                data: { status: 'INVALID_EMPTY', error: 'Message empty after formatting cleanup' }
+            })
+            return { id: queueItem.id, status: 'blocked', reason: 'empty_after_cleanup' }
+        }
 
         // CRITICAL: Double-check status before sending (prevents race conditions with cleanup)
         const currentStatus = await prisma.messageQueue.findUnique({

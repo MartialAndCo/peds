@@ -453,7 +453,8 @@ Output: "jsais pas|||[IMAGE:selfie]|||t'en penses quoi ?" (GARDE !)
         return message
             .replace(/^[`*_]+\s*/g, '')              // Leading artifacts + space
             .replace(/\s*[`*_]+$/g, '')              // Trailing space + artifacts
-            .replace(/\*\*[^*]*\*\*/g, '')           // **anything** in middle
+            .replace(/\*\*[^*]*\*\*/g, '')           // **anything** - REMOVE completely
+            .replace(/\*\*/g, '')                     // Remove any remaining **
             .replace(/```[^`]*```/g, '')             // ```anything```
             .replace(/\s+/g, ' ')                     // Normalize spaces
             .trim()

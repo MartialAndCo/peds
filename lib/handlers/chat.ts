@@ -7,6 +7,7 @@ import { anthropic } from '@/lib/anthropic'
 import { openrouter } from '@/lib/openrouter'
 import { TimingManager } from '@/lib/timing'
 import { logger } from '@/lib/logger'
+import { formatResponse } from '@/lib/response-formatter'
 // import { messageQueue } from '@/lib/queue' // Deprecated
 import { NextResponse } from 'next/server'
 
