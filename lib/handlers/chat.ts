@@ -493,23 +493,8 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         lastContent = messagesForAI[messagesForAI.length - 1]?.content || lastMessageText
     }
 
-    // 2. Memory & Director
-    const { memoryService } = require('@/lib/memory')
+    // 2. Director (for signal analysis and phase)
     const { director } = require('@/lib/director')
-
-    // Load ALL memories for this user (agent-specific if agentId available)
-    let memories: any[] = []
-    try {
-        // Use agent-isolated memories if agentId is known
-        const memoryUserId = agentId
-            ? memoryService.buildUserId(contact.phone_whatsapp, agentId)
-            : contact.phone_whatsapp
-        const res = await memoryService.getAll(memoryUserId)
-        memories = Array.isArray(res) ? res : (res?.results || res?.memories || [])
-        console.log(`[Chat] Loaded ${memories.length} memories for ${memoryUserId}`)
-    } catch (e) {
-        console.warn('[Chat] Memory retrieval failed', e)
-    }
 
     // Check for Trust Analysis Trigger
     // Trigger every 10 messages OR if > 12 hours since last analysis
@@ -545,23 +530,40 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     const { phase } = await director.determinePhase(contact.phone_whatsapp, effectiveAgentId)
     console.log(`[Chat] SWARM-ONLY mode - Phase: ${phase} (Director legacy archived)`)
 
-    // 3. Timing
+    // 3. Timing & Agent Profile (pour Swarm aussi)
     logger.info('Generating AI response', { module: 'chat', conversationId: conversation.id, phase })
     const lastUserDate = new Date() // Approx
 
-    // Fetch Agent Timezone & Locale
+    // Fetch Agent Profile complet (utilisé pour timing et passé au Swarm pour éviter re-requête)
     let agentTimezone = 'Europe/Paris' // Default safe fallback
     let agentLocale = 'en-US' // Default
+    let agentProfilePreloaded = null
+    
     if (effectiveAgentId) {
         try {
-            const agentProfile = await prisma.agentProfile.findUnique({
+            agentProfilePreloaded = await prisma.agentProfile.findUnique({
                 where: { agentId: effectiveAgentId },
-                select: { timezone: true, locale: true }
+                select: {
+                    contextTemplate: true,
+                    styleRules: true,
+                    identityTemplate: true,
+                    phaseConnectionTemplate: true,
+                    phaseVulnerabilityTemplate: true,
+                    phaseCrisisTemplate: true,
+                    phaseMoneypotTemplate: true,
+                    paymentRules: true,
+                    safetyRules: true,
+                    timezone: true,
+                    locale: true,
+                    baseAge: true,
+                    bankAccountNumber: true,
+                    bankRoutingNumber: true
+                }
             })
-            if (agentProfile?.timezone) agentTimezone = agentProfile.timezone
-            if (agentProfile?.locale) agentLocale = agentProfile.locale
+            if (agentProfilePreloaded?.timezone) agentTimezone = agentProfilePreloaded.timezone
+            if (agentProfilePreloaded?.locale) agentLocale = agentProfilePreloaded.locale
         } catch (e) {
-            console.warn('[Chat] Failed to fetch agent timezone/locale, using default:', e)
+            console.warn('[Chat] Failed to fetch agent profile, using default:', e)
         }
     }
 
@@ -642,7 +644,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         }
 
         // Generate NOW (SWARM mode - system prompt handled by swarm)
-        const responseText = await callAI(settings, conversation, queuePrompt || '', contextMessages, lastContent, contact, agentId, platform)
+        const responseText = await callAI(settings, conversation, queuePrompt || '', contextMessages, lastContent, contact, agentId, platform, agentProfilePreloaded)
 
         await prisma.messageQueue.create({
             data: {
@@ -682,7 +684,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
             const swarmContext = (queuePrompt || '') + (attempts > 1 ? 
                 (settings.prompt_ai_retry_logic || "\n\n[SYSTEM CRITICAL]: Your previous response was valid actions like *nods* but contained NO spoken text. You MUST write spoken text now. Do not just act. Say something.") 
                 : '')
-            responseText = await callAI(settings, conversation, swarmContext || null, contextMessages, lastContent, contact, effectiveAgentId, platform)
+            responseText = await callAI(settings, conversation, swarmContext || null, contextMessages, lastContent, contact, effectiveAgentId, platform, agentProfilePreloaded)
         } catch (error: any) {
             console.error(`[Chat] AI Attempt ${attempts} failed:`, error.message)
 
@@ -910,7 +912,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
             const { storyManager } = require('@/lib/engine')
             const activeStory = await storyManager.getActiveStory(contact.id, agentId)
             if (activeStory && activeStory.amount) {
-                await storyManager.resolveStory(activeStory.id)
+                await storyManager.resolveStory(activeStory.id, contact.id, agentId || '')
                 console.log(`[Chat] Story ${activeStory.description} marked as RESOLVED`)
             }
         } catch (e) {
@@ -1142,7 +1144,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     return { handled: true, result: 'sent', textBody: responseText }
 }
 
-async function callAI(settings: any, conv: any, sys: string | null, ctx: any[], last: string, contact?: any, agentId?: string, platform: 'whatsapp' | 'discord' = 'whatsapp') {
+async function callAI(settings: any, conv: any, sys: string | null, ctx: any[], last: string, contact?: any, agentId?: string, platform: 'whatsapp' | 'discord' = 'whatsapp', preloadedProfile?: any) {
     // 🔥 MIGRATION: SWARM-ONLY (Director legacy archived)
     // Le mode SWARM est maintenant le seul mode actif
     
@@ -1158,8 +1160,11 @@ async function callAI(settings: any, conv: any, sys: string | null, ctx: any[], 
         contact.id,
         agentId,
         contact.name || 'friend',
-        contact.lastMessageType || 'text',
-        platform
+        {
+            lastMessageType: contact.lastMessageType || 'text',
+            platform,
+            preloadedProfile: preloadedProfile || undefined
+        }
     )
     // 🚨 REMOVE ALL FORMATTING ARTIFACTS - FORCED UPDATE
     // Remove everything between ** ** (actions like *nods*, *smiles*)

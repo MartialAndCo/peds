@@ -15,9 +15,15 @@ import {
   responseNode,
   validationNode 
 } from './nodes';
-import type { SwarmState, IntentionResult } from './types';
+import type { SwarmState, IntentionResult, AgentProfile } from './types';
 
 // NOTE: API key is now fetched from DB (settings) not env var, to allow hot-swapping
+
+export interface SwarmOptions {
+  lastMessageType?: string;
+  platform?: 'whatsapp' | 'discord';
+  preloadedProfile?: AgentProfile; // Pour éviter re-requête si déjà chargé
+}
 
 export async function runSwarm(
   userMessage: string,
@@ -25,14 +31,37 @@ export async function runSwarm(
   contactId: string,
   agentId: string,
   userName: string,
-  lastMessageType?: string,
-  platform: 'whatsapp' | 'discord' = 'whatsapp'
+  options: SwarmOptions = {}
 ): Promise<string> {
+  const { lastMessageType, platform = 'whatsapp', preloadedProfile } = options;
   console.log(`[Swarm] Starting swarm for: "${userMessage.substring(0, 50)}..."`);
   console.log(`[Swarm] Contact: ${contactId}, Agent: ${agentId}`);
   const dbStartTime = Date.now();
 
   // 🔥 OPTIMISATION: Toutes les requêtes DB en PARALLÈLE
+  // Si preloadedProfile est fourni, on évite de re-requêter
+  const profileLoadPromise = preloadedProfile 
+    ? Promise.resolve(preloadedProfile)
+    : prisma.agentProfile.findUnique({
+        where: { agentId },
+        select: {
+          contextTemplate: true,
+          styleRules: true,
+          identityTemplate: true,
+          phaseConnectionTemplate: true,
+          phaseVulnerabilityTemplate: true,
+          phaseCrisisTemplate: true,
+          phaseMoneypotTemplate: true,
+          paymentRules: true,
+          safetyRules: true,
+          timezone: true,
+          locale: true,
+          baseAge: true,
+          bankAccountNumber: true,
+          bankRoutingNumber: true
+        }
+      });
+
   const [
     contact,
     profile,
@@ -46,26 +75,8 @@ export async function runSwarm(
       select: { phone_whatsapp: true }
     }),
     
-    // 2. Profile complet de l'agent
-    prisma.agentProfile.findUnique({
-      where: { agentId },
-      select: {
-        contextTemplate: true,
-        styleRules: true,
-        identityTemplate: true,
-        phaseConnectionTemplate: true,
-        phaseVulnerabilityTemplate: true,
-        phaseCrisisTemplate: true,
-        phaseMoneypotTemplate: true,
-        paymentRules: true,
-        safetyRules: true,
-        timezone: true,
-        locale: true,
-        baseAge: true,
-        bankAccountNumber: true,
-        bankRoutingNumber: true
-      }
-    }),
+    // 2. Profile complet de l'agent (ou preloaded)
+    profileLoadPromise,
     
     // 3. Phase et signals
     prisma.agentContact.findFirst({

@@ -24,19 +24,22 @@ export async function phaseNode(state: SwarmState): Promise<Partial<SwarmState>>
             // 1. Récupérer ou créer la story
             let storyContext = await storyManager.getStoryContextForPrompt(contactId, agentId)
             
+            // Déterminer la locale de l'agent
+            const locale = profile?.locale || 'fr-FR'
+            
             // 2. Si pas de story active, créer selon la phase
             if (!storyContext.activeStory) {
                 if (phase === 'VULNERABILITY') {
                     // Première story : FACTURE ou FAMILLE
-                    await storyManager.createStory(contactId, agentId, 'FACTURE')
+                    await storyManager.createStory(contactId, agentId, 'FACTURE', locale)
                 } else if (phase === 'CRISIS') {
                     // Suite de la story précédente ou nouvelle
-                    await storyManager.createStory(contactId, agentId)
+                    await storyManager.createStory(contactId, agentId, undefined, locale)
                 } else if (phase === 'MONEYPOT') {
                     // MONEYPOT : rotation des sujets
                     const types = ['SANTE', 'URGENCE', 'FAMILLE', 'ECOLE'] as const
                     const randomType = types[Math.floor(Math.random() * types.length)]
-                    await storyManager.createStory(contactId, agentId, randomType)
+                    await storyManager.createStory(contactId, agentId, randomType, locale)
                 }
                 
                 // Recharger après création

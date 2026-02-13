@@ -20,7 +20,7 @@ export async function GET() {
     })
     
     const msgStart = Date.now()
-    const response = await runSwarm('Salut', [], contact.id, 'cmkvg0kzz00003vyv03zzt9kc', 'Test', 'text')
+    const response = await runSwarm('Salut', [], contact.id, 'cmkvg0kzz00003vyv03zzt9kc', 'Test', { lastMessageType: 'text', platform: 'whatsapp' })
     const msgDuration = Date.now() - msgStart
     
     await prisma.agentContact.deleteMany({ where: { contactId: contact.id } })
