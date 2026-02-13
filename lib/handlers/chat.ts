@@ -714,9 +714,24 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
                         
                         continue;
                     } else {
-                        console.error('[Chat][Queue] Max validation retries reached, using fallback response');
-                        responseText = "jsuis là, tkt";
-                        break;
+                        console.error('[Chat][Queue] Max validation retries reached, NO FALLBACK - alerting admin');
+                        // Créer notification pour admin
+                        await prisma.notification.create({
+                            data: {
+                                title: '🚨 AI Response Blocked',
+                                message: `Supervisor rejected all attempts. Issues: ${validation.issues?.join(', ')}`,
+                                type: 'SYSTEM',
+                                entityId: conversation.id.toString(),
+                                metadata: { 
+                                    conversationId: conversation.id, 
+                                    contactId: contact.id,
+                                    agentId: agentId,
+                                    issues: validation.issues 
+                                }
+                            }
+                        });
+                        // Ne pas envoyer de message - conversation en attente
+                        return { handled: true, result: 'supervisor_blocked_no_fallback', shouldSend: false };
                     }
                 } else if (!validation.isValid) {
                     console.warn('[Chat][Queue] Supervisor found issues but no regeneration needed:', validation.issues);
@@ -1012,9 +1027,24 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
                     
                     continue;
                 } else {
-                    console.error('[Chat] Max validation retries reached, using fallback response');
-                    responseText = "jsuis là, tkt";
-                    break;
+                    console.error('[Chat] Max validation retries reached, NO FALLBACK - alerting admin');
+                    // Créer notification pour admin
+                    await prisma.notification.create({
+                        data: {
+                            title: '🚨 AI Response Blocked',
+                            message: `Supervisor rejected all attempts. Issues: ${validation.issues?.join(', ')}`,
+                            type: 'SYSTEM',
+                            entityId: conversation.id.toString(),
+                            metadata: { 
+                                conversationId: conversation.id, 
+                                contactId: contact.id,
+                                agentId: effectiveAgentId,
+                                issues: validation.issues 
+                            }
+                        }
+                    });
+                    // Ne pas envoyer de message - conversation en attente
+                    return { handled: true, result: 'supervisor_blocked_no_fallback', shouldSend: false };
                 }
             } else if (!validation.isValid) {
                 console.warn('[Chat] Supervisor found issues but no regeneration needed:', validation.issues);
