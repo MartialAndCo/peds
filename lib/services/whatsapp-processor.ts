@@ -757,6 +757,23 @@ Keep response SHORT and excited.)`
             }
         }
 
+        // --- CONTACT ACTIVATION ---
+        // CRITICAL: Ensure contact is active when they send us a message
+        // This handles cases where contact was created as 'unknown' but conversation exists
+        if (contact.status === 'paused' || contact.status === 'new' || contact.status === 'unknown') {
+            const oldStatus = contact.status
+            try {
+                contact = await prisma.contact.update({
+                    where: { id: contact.id },
+                    data: { status: 'active' }
+                })
+                console.log(`[Processor] Contact ${contact.id} activated (was: ${oldStatus})`)
+            } catch (activateError) {
+                console.error(`[Processor] Failed to activate contact ${contact.id}:`, activateError)
+                // Continue with existing contact object
+            }
+        }
+
         // --- 3. Chat Logic ---
         // Find existing Conversation (Active OR Paused)
         console.log(`[Processor] Searching for conversation for Contact ${contact.id} and Agent ${agentId}...`)

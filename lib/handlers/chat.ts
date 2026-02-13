@@ -809,6 +809,26 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         })
     }
 
+    // 🧹 AGGRESSIVE CLEANUP: Remove formatting artifacts like "**********", "```", "**"
+    const { messageValidator } = require('@/lib/services/message-validator')
+    const beforeCleanup = responseText
+    responseText = messageValidator.aggressiveArtifactCleanup(responseText)
+    if (responseText !== beforeCleanup) {
+        console.warn(`[Chat] 🧹 Cleaned formatting artifacts: "${beforeCleanup}" -> "${responseText}"`)
+    }
+
+    // 🚨 BLOCK EMPTY/FORMATTING-ONLY MESSAGES 🚨
+    // Prevents sending "**", "** **", """" etc. (formatting artifacts)
+    if (messageValidator.isEmptyOrOnlyFormatting(responseText)) {
+        console.warn(`[Chat] BLOCKING message with only formatting artifacts: "${responseText}"`)
+        logger.warn('Message blocked - only formatting artifacts', { 
+            module: 'chat', 
+            responseText,
+            conversationId: conversation.id 
+        })
+        return { handled: true, result: 'blocked_formatting_only' }
+    }
+
     // 5.8. TAG STRIPPING (EARLY) - Before Supervisor sees it
     // We strip [IMAGE:...] tags now so they don't appear in Supervisor Dashboard or User Chat.
     const imageKeywords: string[] = []
@@ -1141,5 +1161,18 @@ async function callAI(settings: any, conv: any, sys: string | null, ctx: any[], 
         contact.lastMessageType || 'text',
         platform
     )
-    return response.replace(new RegExp('\\*[^*]+\\*', 'g'), '').trim()
+    // 🚨 REMOVE ALL FORMATTING ARTIFACTS
+    // Remove everything between ** ** (actions like *nods*, *smiles*)
+    // Remove leading/trailing asterisks clusters
+    // Remove backticks used as quotes
+    let cleaned = response
+        .replace(/\*\*[^*]*\*\*/g, '')           // **anything**
+        .replace(/\*[^*]*\*/g, '')               // *anything*
+        .replace(/```/g, '')                     // ``` markers
+        .replace(/^\*+/g, '')                    // Leading asterisks
+        .replace(/\*+$/g, '')                    // Trailing asterisks
+        .replace(/\s+/g, ' ')                     // Normalize spaces
+        .trim()
+    
+    return cleaned
 }

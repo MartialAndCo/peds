@@ -423,6 +423,42 @@ Output: "jsais pas|||[IMAGE:selfie]|||t'en penses quoi ?" (GARDE !)
     },
 
     /**
+     * Check if message is empty or contains only formatting artifacts
+     * Blocks messages like "**", "**********", "```", "` ` `", etc.
+     */
+    isEmptyOrOnlyFormatting(message: string): boolean {
+        if (!message || message.trim().length === 0) return true
+        
+        // Remove all formatting characters
+        const cleaned = message
+            .replace(/\*+/g, '')           // Asterisks (*, **, **********)
+            .replace(/"+/g, '')            // Quotes (", "")
+            .replace(/_+/g, '')             // Underscores
+            .replace(/`+/g, '')             // Backticks (`, ```)
+            .replace(/\s+/g, '')            // Whitespace
+            .trim()
+        
+        // If nothing left after removing formatting, it's empty
+        return cleaned.length === 0
+    },
+
+    /**
+     * Aggressive cleanup of formatting artifacts at start/end of message
+     * Removes: "********** text", "``` text", "** text", etc.
+     */
+    aggressiveArtifactCleanup(message: string): string {
+        if (!message) return ''
+        
+        return message
+            .replace(/^[`*_]+\s*/g, '')              // Leading artifacts + space
+            .replace(/\s*[`*_]+$/g, '')              // Trailing space + artifacts
+            .replace(/\*\*[^*]*\*\*/g, '')           // **anything** in middle
+            .replace(/```[^`]*```/g, '')             // ```anything```
+            .replace(/\s+/g, ' ')                     // Normalize spaces
+            .trim()
+    },
+
+    /**
      * Quick mechanical validation as fallback (if AI validator fails)
      * MINIMAL cleaning only - no [PAYMENT_RECEIVED] logic (AI handles that)
      */

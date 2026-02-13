@@ -20,9 +20,19 @@ export async function GET(req: Request) {
         }
 
         // Normalize identifier
-        let normalizedIdentifier = identifier.replace(/\s/g, '')
-        if (type === 'WHATSAPP' && /^0[67]/.test(normalizedIdentifier)) {
-            normalizedIdentifier = '+33' + normalizedIdentifier.substring(1)
+        let normalizedIdentifier = identifier.replace(/\s/g, '').trim()
+        if (type === 'WHATSAPP') {
+            // Handle different formats:
+            // +33612345678 -> keep as is
+            // 0612345678 -> +33612345678
+            // 33612345678 -> +33612345678 (missing +)
+            if (/^0[67]/.test(normalizedIdentifier)) {
+                normalizedIdentifier = '+33' + normalizedIdentifier.substring(1)
+            } else if (/^[1-9]\d{7,14}$/.test(normalizedIdentifier)) {
+                // Number without + prefix (e.g., 33612345678 or 447923938417)
+                normalizedIdentifier = '+' + normalizedIdentifier
+            }
+            // If already starts with +, keep as is
         } else if (type === 'DISCORD') {
             // Discord: lowercase for case-insensitive comparison
             normalizedIdentifier = normalizedIdentifier.toLowerCase()

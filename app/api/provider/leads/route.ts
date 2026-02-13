@@ -81,10 +81,20 @@ export async function POST(req: Request) {
         // Normalize identifier
         let normalizedIdentifier = body.identifier
         if (body.type === 'WHATSAPP') {
-            normalizedIdentifier = body.identifier.replace(/\s/g, '')
+            // Remove all spaces and ensure + prefix for international format
+            normalizedIdentifier = body.identifier.replace(/\s/g, '').trim()
+            
+            // Handle different formats:
+            // +33612345678 -> keep as is
+            // 0612345678 -> +33612345678
+            // 33612345678 -> +33612345678 (missing +)
             if (/^0[67]/.test(normalizedIdentifier)) {
                 normalizedIdentifier = '+33' + normalizedIdentifier.substring(1)
+            } else if (/^[1-9]\d{7,14}$/.test(normalizedIdentifier)) {
+                // Number without + prefix (e.g., 33612345678 or 447923938417)
+                normalizedIdentifier = '+' + normalizedIdentifier
             }
+            // If already starts with +, keep as is
         } else {
             // Discord: remove spaces and lowercase for consistency
             normalizedIdentifier = body.identifier.replace(/\s/g, '').toLowerCase()

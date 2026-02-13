@@ -58,7 +58,9 @@ export default function AddLeadPage() {
         const checkDuplicate = async () => {
             setIsChecking(true)
             try {
-                const res = await fetch(`/api/provider/check-duplicate?identifier=${encodeURIComponent(debouncedIdentifier)}&type=${form.type}`)
+                // encodeURIComponent properly encodes + as %2B
+                const encodedIdentifier = encodeURIComponent(debouncedIdentifier)
+                const res = await fetch(`/api/provider/check-duplicate?identifier=${encodedIdentifier}&type=${form.type}`)
                 if (res.ok) {
                     const data = await res.json()
                     setDuplicate(data)

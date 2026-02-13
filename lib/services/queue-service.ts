@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger'
 import { settingsService } from '@/lib/settings-cache'
 import { timeCoherenceAgent } from './time-coherence-agent'
 import { ageCoherenceAgent } from './age-coherence-agent'
+import { messageValidator } from './message-validator'
 
 export class QueueService {
     // Track items currently being processed in-memory to prevent concurrent execution
@@ -152,6 +153,9 @@ export class QueueService {
         const { content, contact, conversation, mediaUrl, mediaType, duration } = queueItem
         const phone = contact.phone_whatsapp
         const agentId = conversation?.agentId || undefined
+        
+        // Text content with aggressive cleanup (for text messages)
+        let textContent = content ? messageValidator.aggressiveArtifactCleanup(content) : ''
 
         // CRITICAL: Double-check status before sending (prevents race conditions with cleanup)
         const currentStatus = await prisma.messageQueue.findUnique({
@@ -236,20 +240,31 @@ export class QueueService {
         }
         // C. HANDLE TEXT ONLY
         else {
-            if (!content || content.trim().length === 0) {
+            if (!textContent || textContent.trim().length === 0) {
                 await prisma.messageQueue.update({ where: { id: queueItem.id }, data: { status: 'INVALID_EMPTY' } })
                 return { id: queueItem.id, status: 'skipped_empty' }
             }
 
+            // 🚨 BLOCK MESSAGES WITH ONLY FORMATTING ARTIFACTS
+            // Prevents sending "**", "** **", """" etc.
+            if (messageValidator.isEmptyOrOnlyFormatting(textContent)) {
+                console.warn(`[QueueService] BLOCKING message with only formatting artifacts: "${content}"`)
+                await prisma.messageQueue.update({ 
+                    where: { id: queueItem.id }, 
+                    data: { status: 'INVALID_FORMATTING', error: 'Only formatting artifacts' } 
+                })
+                return { id: queueItem.id, status: 'skipped_formatting_only' }
+            }
+
             await whatsapp.sendTypingState(phone, true, agentId).catch(e => { })
-            const typingMs = Math.min(content.length * 65, 10400) // +30%
+            const typingMs = Math.min(textContent.length * 65, 10400) // +30%
             await new Promise(r => setTimeout(r, typingMs + 650))
 
             // Unified Splitting Logic (Matches route.ts)
-            let parts = content.split(/\|+/).filter((p: string) => p.trim().length > 0)
-            if (parts.length === 1 && content.length > 50) {
+            let parts = textContent.split(/\|+/).filter((p: string) => p.trim().length > 0)
+            if (parts.length === 1 && textContent.length > 50) {
                 // Split on any newline (user prefers multiple bubbles for natural conversation)
-                const paragraphs = content.split(/\n+/).filter((p: string) => p.trim().length > 0)
+                const paragraphs = textContent.split(/\n+/).filter((p: string) => p.trim().length > 0)
                 if (paragraphs.length > 1) parts = paragraphs
             }
 
@@ -289,7 +304,7 @@ export class QueueService {
                 data: {
                     conversationId: queueItem.conversationId,
                     sender: 'ai',
-                    message_text: content || (mediaUrl ? (mediaType?.includes('audio') ? "[Voice Message]" : "[Media Message]") : "[Message]"),
+                    message_text: textContent || (mediaUrl ? (mediaType?.includes('audio') ? "[Voice Message]" : "[Media Message]") : "[Message]"),
                     mediaUrl: mediaUrl,
                     timestamp: new Date()
                 }
