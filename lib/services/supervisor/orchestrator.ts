@@ -82,8 +82,8 @@ export const supervisorOrchestrator = {
             result.issues = result.alerts.map(a => `${a.alertType}: ${a.description}`);
 
             // Déterminer si on doit régénérer
-            result.shouldRegenerate = result.alerts.some(a => 
-                a.severity === 'CRITICAL' || 
+            result.shouldRegenerate = result.alerts.some(a =>
+                a.severity === 'CRITICAL' ||
                 a.severity === 'HIGH' ||
                 a.alertType === 'REPETITION' ||
                 a.alertType === 'PERSONA_BREAK'
@@ -223,12 +223,8 @@ export const supervisorOrchestrator = {
             });
 
             // Mettre à jour la conversation si elle existe
-            const savedAlert = { ...existingAlert, ...alert, severity: updatedSeverity };
-
-            // Pause auto si nécessaire (même logique que avant)
-            if (alert.severity === 'CRITICAL') {
-                await this.pauseConversation(context.conversationId, [savedAlert]);
-            }
+            // NOTE: Pause logic is handled by validateBlocking/analyzeResponse via shouldPause flag
+            // Do NOT pause here - it was causing ALL critical alerts (including LLM false positives) to auto-pause
 
             return;
         }
@@ -313,7 +309,7 @@ export const supervisorOrchestrator = {
 
             if (existingAlert) {
                 // Mettre à jour l'alerte existante si la gravité est supérieure ou égale
-                const shouldUpgrade = 
+                const shouldUpgrade =
                     (alert.severity === 'CRITICAL' && existingAlert.severity !== 'CRITICAL') ||
                     (alert.severity === 'HIGH' && !['CRITICAL', 'HIGH'].includes(existingAlert.severity)) ||
                     (alert.severity === 'MEDIUM' && !['CRITICAL', 'HIGH', 'MEDIUM'].includes(existingAlert.severity));
@@ -328,8 +324,9 @@ export const supervisorOrchestrator = {
                     }
                 });
 
-                updatedAlerts.push({ ...existingAlert, ...alert, 
-                    severity: shouldUpgrade ? alert.severity : existingAlert.severity 
+                updatedAlerts.push({
+                    ...existingAlert, ...alert,
+                    severity: shouldUpgrade ? alert.severity : existingAlert.severity
                 });
             } else {
                 // Créer une nouvelle alerte
@@ -363,7 +360,7 @@ export const supervisorOrchestrator = {
                 ? `🟠 ${newHighAlerts.length} nouvelle(s) alerte(s) HIGH`
                 : `🟡 ${newMediumAlerts.length} nouvelles alertes MEDIUM`;
 
-            const summaryMessage = this.generateBatchSummary(newHighAlerts, newMediumAlerts, 
+            const summaryMessage = this.generateBatchSummary(newHighAlerts, newMediumAlerts,
                 createdAlerts.filter(a => a.severity === 'LOW'));
 
             await prisma.notification.create({
