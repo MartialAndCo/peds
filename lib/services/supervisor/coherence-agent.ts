@@ -27,16 +27,16 @@ export const coherenceAgent = {
         // ═══════════════════════════════════════════════════════════════════════════
         // DÉTECTION PROGRAMMATIQUE RAPIDE (avant LLM)
         // ═══════════════════════════════════════════════════════════════════════════
-        
+
         // 1. Détection de répétition EXACTE
         const lastAiMessages = history
             .filter(h => h.role === 'ai')
             .slice(-3)
             .map(h => h.content.trim().toLowerCase());
-        
+
         if (lastAiMessages.length > 0) {
             const currentNormalized = aiResponse.trim().toLowerCase();
-            
+
             // Répétition exacte
             if (lastAiMessages.some(msg => msg === currentNormalized)) {
                 alerts.push({
@@ -51,7 +51,7 @@ export const coherenceAgent = {
                     evidence: { repeatedPhrases: [aiResponse], type: 'EXACT_DUPLICATE' } as Record<string, any>
                 });
             }
-            
+
             // Similarité élevée (>85%)
             for (const prevMsg of lastAiMessages) {
                 const similarity = this.calculateSimilarity(currentNormalized, prevMsg);
@@ -71,7 +71,7 @@ export const coherenceAgent = {
                 }
             }
         }
-        
+
         // 2. Détection de troncature
         const truncationPatterns = /\b(moi|je|tu|il|elle|nous|vous|ils|elles|et|ou|mais|donc|car|que|qui|où|the|i|you|he|she|we|they|and|but|or|so|because|that|who|where)\s*$/i;
         if (truncationPatterns.test(aiResponse.trim())) {
@@ -87,9 +87,9 @@ export const coherenceAgent = {
                 evidence: { type: 'TRUNCATED_ENDING' } as Record<string, any>
             });
         }
-        
+
         // 3. Détection d'artifacts
-        if (/^\*+$/.test(aiResponse.trim()) || 
+        if (/^\*+$/.test(aiResponse.trim()) ||
             /^`+$/.test(aiResponse.trim()) ||
             aiResponse.trim().length < 2) {
             alerts.push({
@@ -98,27 +98,27 @@ export const coherenceAgent = {
                 contactId,
                 agentType: 'COHERENCE',
                 alertType: 'ARTIFACT',
-                severity: 'CRITICAL',
+                severity: 'HIGH', // HIGH = triggers regeneration, but NOT auto-pause
                 title: '🚨 Artifacts de formatting détectés',
                 description: `Réponse invalide: "${aiResponse}"`,
                 evidence: { type: 'FORMATTING_ARTIFACT' } as Record<string, any>
             });
         }
-        
+
         // 4. Détection de patterns répétitifs fréquents
         const repetitivePhrases = ['be patient', 'love', 'bb', 'bébé', 'tkt', 'jsuis là'];
         const phraseCount: Record<string, number> = {};
-        
+
         for (const phrase of repetitivePhrases) {
             const regex = new RegExp(phrase, 'gi');
             const matches = (aiResponse.match(regex) || []).length;
-            
+
             // Compter aussi dans l'historique récent
             const historyMatches = history
                 .filter(h => h.role === 'ai')
                 .slice(-5)
                 .reduce((count, h) => count + ((h.content.match(regex) || []).length), 0);
-            
+
             if (matches > 0 && historyMatches > 2) {
                 alerts.push({
                     agentId,
@@ -138,7 +138,7 @@ export const coherenceAgent = {
         // Analyse LLM complète - détection intelligente (backup)
         // ═══════════════════════════════════════════════════════════════════════════
         const aiAlerts = await this.aiAnalysis(context);
-        
+
         // Fusionner sans doublons (basé sur alertType)
         const existingTypes = new Set(alerts.map(a => a.alertType));
         for (const alert of aiAlerts) {
@@ -167,10 +167,10 @@ export const coherenceAgent = {
     calculateSimilarity(str1: string, str2: string): number {
         const words1 = new Set(str1.toLowerCase().split(/\s+/));
         const words2 = new Set(str2.toLowerCase().split(/\s+/));
-        
+
         const intersection = new Set([...words1].filter(x => words2.has(x)));
         const union = new Set([...words1, ...words2]);
-        
+
         return intersection.size / union.size;
     },
 
@@ -214,7 +214,7 @@ export const coherenceAgent = {
 
         // Construire le contexte des messages en queue
         const queueText = pendingQueue && pendingQueue.length > 0
-            ? pendingQueue.map(q => `- [${new Date(q.scheduledAt).toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'})}]: "${q.content.substring(0, 80)}${q.content.length > 80 ? '...' : ''}"`).join('\n')
+            ? pendingQueue.map(q => `- [${new Date(q.scheduledAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}]: "${q.content.substring(0, 80)}${q.content.length > 80 ? '...' : ''}"`).join('\n')
             : '(Aucun message en attente)';
 
         const analysisPrompt = `Tu es un superviseur strict qui analyse la cohérence et la qualité d'une réponse d'IA jouant le rôle d'une adolescente (16-18 ans) dans une conversation WhatsApp.
