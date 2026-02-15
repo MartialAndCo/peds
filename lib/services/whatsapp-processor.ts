@@ -161,7 +161,7 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
             const { handleSourceMedia } = require('@/lib/handlers/media')
             const mediaResult = await handleSourceMedia(payload, sourcePhone, normalizedPhone, settings, agentId)
             if (mediaResult.handled) {
-                await queueService.processPendingMessages().catch((err: any) => console.error('[Processor] Queue Worker failed:', err))
+                // Queue processing handled by CRON (every 10s) — no direct call to avoid race conditions
                 return { status: 'handled_media_ingest', type: mediaResult.type }
             }
 
@@ -292,7 +292,7 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
             // First: Check if this Discord user already has a linked contact FOR THIS AGENT
             // Critical: Must filter by agent to prevent cross-agent contact leakage
             contact = await prisma.contact.findFirst({
-                where: { 
+                where: {
                     discordId,
                     agentContacts: {
                         some: { agentId }
@@ -302,7 +302,7 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
 
             if (contact) {
                 console.log(`[Processor] Found linked contact for Discord user ${discordId}: ${contact.phone_whatsapp}`)
-                
+
                 // Activate contact when they send first message (lead is now engaged)
                 if (contact.status === 'paused' || contact.status === 'new' || contact.status === 'unknown') {
                     await prisma.contact.update({
@@ -310,10 +310,10 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                         data: { status: 'active' }
                     })
                     console.log(`[Processor] Discord contact ${contact.id} marked as active`)
-                    
+
                     // Update lead status to CONVERTED if it exists and is still IMPORTED
                     const lead = await prisma.lead.findFirst({
-                        where: { 
+                        where: {
                             contactId: contact.id,
                             status: 'IMPORTED'
                         }
@@ -326,7 +326,7 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                         console.log(`[Processor] Lead ${lead.id} marked as CONVERTED`)
                     }
                 }
-                
+
                 // Ensure AgentContact exists for proper workspace filtering
                 const existingAgentContact = await prisma.agentContact.findUnique({
                     where: { agentId_contactId: { agentId, contactId: contact.id } }
@@ -349,7 +349,7 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                 if (discordUsername) {
                     const normalizedUsername = discordUsername.replace(/\s/g, '').toLowerCase()
                     contact = await prisma.contact.findFirst({
-                        where: { 
+                        where: {
                             name: normalizedUsername,
                             discordId: null,
                             agentContacts: {
@@ -357,25 +357,25 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                             }
                         }
                     })
-                    
+
                     if (contact) {
                         console.log(`[Processor] Found unlinked lead for Discord user ${discordUsername}: ${contact.id}`)
-                        
+
                         // Get the lead to check its agentId (any status, not just IMPORTED)
                         const lead = await prisma.lead.findFirst({
-                            where: { 
+                            where: {
                                 contactId: contact.id,
                                 agentId: agentId  // Ensure lead belongs to this agent
                             }
                         })
-                        
+
                         // If lead has different agent, update agentId for this message processing
                         // CRITICAL: This ensures we use the correct agentId to find the conversation
                         if (lead && lead.agentId !== agentId) {
                             console.log(`[Processor] Lead agent (${lead.agentId}) differs from resolved agent (${agentId}). Using lead agent.`)
                             agentId = lead.agentId
                         }
-                        
+
                         // Link the contact with the real Discord ID
                         contact = await prisma.contact.update({
                             where: { id: contact.id },
@@ -387,7 +387,7 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                             }
                         })
                         console.log(`[Processor] Linked lead ${contact.id} with Discord ID ${discordId}`)
-                        
+
                         // Create AgentContact binding if it doesn't exist for this agent
                         // This is critical for proper workspace filtering
                         const existingAgentContact = await prisma.agentContact.findUnique({
@@ -403,7 +403,7 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                             })
                             console.log(`[Processor] Created AgentContact for ${contact.id} -> ${agentId}`)
                         }
-                        
+
                         // Update lead status to CONVERTED if still IMPORTED
                         if (lead && lead.status === 'IMPORTED') {
                             await prisma.lead.update({
@@ -414,7 +414,7 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                         }
                     }
                 }
-                
+
                 // If still no contact, create new one
                 if (!contact) {
                     contact = await prisma.contact.create({
@@ -428,7 +428,7 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                         }
                     })
                     console.log(`[Processor] Created Discord contact: ${contact.id}`)
-                    
+
                     // Create AgentContact binding to ensure proper filtering in workspace
                     try {
                         await prisma.agentContact.create({
@@ -821,7 +821,7 @@ Keep response SHORT and excited.)`
                 const isWaitingForLead = meta?.state === 'WAITING_FOR_LEAD'
 
                 console.log(`[Processor] Waking up conversation ${conversation.id} (Lead initiated contact, wasWaiting: ${isWaitingForLead})`)
-                
+
                 try {
                     conversation = await prisma.conversation.update({
                         where: { id: conversation.id },
@@ -853,11 +853,11 @@ Keep response SHORT and excited.)`
                     } catch (contactError) {
                         console.error(`[Processor] Failed to activate contact ${contact.id}:`, contactError)
                     }
-                    
+
                     // Update lead status to CONVERTED if it exists and is still IMPORTED
                     try {
                         const lead = await prisma.lead.findFirst({
-                            where: { 
+                            where: {
                                 contactId: contact.id,
                                 status: 'IMPORTED'
                             }
@@ -889,14 +889,10 @@ Keep response SHORT and excited.)`
 
         // ...
 
-        // TRIGGER QUEUE WORKER (Direct Call)
-        // We call the service directly to ensure it runs within the function execution.
-        if (chatResult?.result === 'sent' || chatResult?.result === 'queued') {
-            console.log('[Processor] Starting Queue Worker (Direct Execution)...')
-            // We await it to ensure it finishes before Lambda freeze, 
-            // BUT we catch errors so we don't crash the webhook response.
-            await queueService.processPendingMessages().catch(err => console.error('[Processor] Queue Worker failed:', err))
-            console.log('[Processor] Queue Worker finished.')
+        // Queue processing is handled by CRON loop (every 10s)
+        // Direct call removed to prevent race conditions and promise stacking
+        if (chatResult?.result === 'queued') {
+            console.log('[Processor] Message queued → CRON will process within ~10s')
         }
 
         // AUTO-RECOVERY: TEMPORARILY DISABLED to debug duplicate conversation issue

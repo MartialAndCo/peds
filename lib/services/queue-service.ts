@@ -27,7 +27,7 @@ export class QueueService {
         // 2. Find and lock messages atomically using transaction
         // This prevents multiple CRON instances from grabbing the same messages
         let lockedItems: Array<{ id: string; content: string; mediaUrl: string | null; mediaType: string | null; duration: number | null; scheduledAt: Date; contact: any; conversation: any }> = []
-        
+
         try {
             lockedItems = await prisma.$transaction(async (tx) => {
                 // Find pending messages
@@ -43,14 +43,14 @@ export class QueueService {
 
                 // Immediately lock them with a unique processing ID
                 const processingId = `proc_${Date.now()}_${Math.random().toString(36).substring(7)}`
-                
+
                 for (const item of items) {
                     await tx.messageQueue.update({
-                        where: { 
+                        where: {
                             id: item.id,
                             status: 'PENDING' // Extra safety: only update if still PENDING
                         },
-                        data: { 
+                        data: {
                             status: 'PROCESSING',
                             // Store processing ID and start time for debugging/recovery
                             updatedAt: new Date()
@@ -119,7 +119,13 @@ export class QueueService {
                 QueueService.processingItems.add(queueItem.id)
 
                 try {
-                    const result = await this.processSingleItem(queueItem)
+                    // 90s hard timeout to prevent infinite hangs
+                    const result = await Promise.race([
+                        this.processSingleItem(queueItem),
+                        new Promise<never>((_, reject) =>
+                            setTimeout(() => reject(new Error('TIMEOUT: processSingleItem exceeded 90s')), 90_000)
+                        )
+                    ])
                     results.push(result)
 
                     // If there are more messages for this conversation, wait a bit before sending the next one
@@ -154,13 +160,13 @@ export class QueueService {
         const { content, contact, conversation, mediaUrl, mediaType, duration } = queueItem
         const phone = contact.phone_whatsapp
         const agentId = conversation?.agentId || undefined
-        
+
         // Text content with aggressive cleanup (for text messages) - FORCED UPDATE
         let textContent = content ? messageValidator.aggressiveArtifactCleanup(content) : ''
-        
+
         // Additional cleanup with formatResponse as safety net
         textContent = formatResponse(textContent)
-        
+
         // BLOCK empty or formatting-only messages
         if (!textContent || textContent.trim().length === 0 || messageValidator.isEmptyOrOnlyFormatting(textContent)) {
             console.warn(`[QueueService] BLOCKING message ${queueItem.id} - empty or only formatting after cleanup: "${content}"`)
@@ -176,7 +182,7 @@ export class QueueService {
             where: { id: queueItem.id },
             select: { status: true }
         })
-        
+
         if (currentStatus?.status !== 'PROCESSING') {
             console.log(`[QueueService] Item ${queueItem.id} status changed to ${currentStatus?.status}. Aborting send.`)
             return { id: queueItem.id, status: 'aborted', reason: `status_changed_to_${currentStatus?.status}` }
@@ -263,9 +269,9 @@ export class QueueService {
             // Prevents sending "**", "** **", """" etc.
             if (messageValidator.isEmptyOrOnlyFormatting(textContent)) {
                 console.warn(`[QueueService] BLOCKING message with only formatting artifacts: "${content}"`)
-                await prisma.messageQueue.update({ 
-                    where: { id: queueItem.id }, 
-                    data: { status: 'INVALID_FORMATTING', error: 'Only formatting artifacts' } 
+                await prisma.messageQueue.update({
+                    where: { id: queueItem.id },
+                    data: { status: 'INVALID_FORMATTING', error: 'Only formatting artifacts' }
                 })
                 return { id: queueItem.id, status: 'skipped_formatting_only' }
             }
@@ -323,7 +329,7 @@ export class QueueService {
                     timestamp: new Date()
                 }
             }).catch((e: any) => console.error("Failed to log sent message to history", e))
-            
+
             // Update conversation last activity (AI message)
             await prisma.conversation.update({
                 where: { id: queueItem.conversationId },
@@ -367,7 +373,7 @@ export class QueueService {
     async cleanupStuckJobs() {
         try {
             const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000)
-            
+
             // First: Mark items with too many attempts as FAILED
             const failedResult = await prisma.messageQueue.updateMany({
                 where: {
@@ -380,11 +386,11 @@ export class QueueService {
                     error: 'Max retry attempts exceeded (3)'
                 }
             })
-            
+
             if (failedResult.count > 0) {
                 console.log(`[QueueService] ⚠️ Marked ${failedResult.count} jobs as FAILED (max retries exceeded).`)
             }
-            
+
             // Second: Reset items with fewer attempts to PENDING for retry
             const retryResult = await prisma.messageQueue.updateMany({
                 where: {

@@ -1,47 +1,41 @@
 import { NextResponse } from 'next/server'
 import { queueService } from '@/lib/services/queue-service'
-import { prisma } from '@/lib/prisma'
 
-// Track if processing is already running in this instance
-// Note: This only works within a single instance. For multi-instance deployments,
-// we rely on database-level locking in queueService.processPendingMessages()
-let isProcessing = false
+// Timestamp-based guard: prevents promise stacking but auto-expires after 2 min
+let processingStartedAt: number | null = null
+const MAX_PROCESSING_MS = 120_000 // 2 minutes hard limit
 
 // Répond immédiatement, traite en arrière-plan
 export async function GET(req: Request) {
     try {
         console.log('[Cron] Triggered process-queue endpoint')
-        
-        // Check if another instance is already processing
-        // We check for items in PROCESSING state that were updated recently (< 30 seconds)
-        const recentProcessing = await prisma.messageQueue.findFirst({
-            where: {
-                status: 'PROCESSING',
-                updatedAt: { gt: new Date(Date.now() - 30000) } // Updated in last 30s
+
+        // Check if another processing is still running AND hasn't timed out
+        if (processingStartedAt) {
+            const elapsed = Date.now() - processingStartedAt
+            if (elapsed < MAX_PROCESSING_MS) {
+                console.log(`[Cron] Processing active (${Math.round(elapsed / 1000)}s). Skipping.`)
+                return NextResponse.json({
+                    success: true,
+                    message: 'Processing active, skipped',
+                    timestamp: new Date().toISOString()
+                })
             }
-        })
-        
-        if (recentProcessing && isProcessing) {
-            console.log('[Cron] Processing already active (both local flag and DB indicate activity). Skipping.')
-            return NextResponse.json({
-                success: true,
-                message: 'Processing already active, skipped',
-                timestamp: new Date().toISOString()
-            })
+            console.warn(`[Cron] ⚠️ Previous processing timed out after ${Math.round(elapsed / 1000)}s. Forcing new run.`)
         }
-        
+
         // Lancer le traitement en arrière-plan (sans await)
         // Pour éviter le timeout Amplify (10s max)
-        isProcessing = true
-        
+        processingStartedAt = Date.now()
+
         queueService.processPendingMessages().then(result => {
             console.log(`[Cron] process-queue complete. Processed: ${result.processed}`)
         }).catch(error => {
             console.error('[Cron] Error in background processing:', error)
         }).finally(() => {
-            isProcessing = false
+            processingStartedAt = null
         })
-        
+
         // Répondre immédiatement
         return NextResponse.json({
             success: true,
@@ -51,7 +45,7 @@ export async function GET(req: Request) {
 
     } catch (error: any) {
         console.error('[Cron] Fatal Error:', error)
-        isProcessing = false
+        processingStartedAt = null
         return NextResponse.json({ error: error.message }, { status: 500 })
     }
 }

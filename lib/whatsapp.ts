@@ -419,7 +419,7 @@ export const whatsapp = {
         if (chatId.startsWith('DISCORD_')) {
             return
         }
-        
+
         const { endpoint, apiKey } = await getConfig()
         const MAX_RETRIES = 3
 
@@ -434,7 +434,8 @@ export const whatsapp = {
                 payload.messageKey = messageKey
 
                 await axios.post(`${endpoint}/api/markSeen`, payload, {
-                    headers: { 'X-Api-Key': apiKey }
+                    headers: { 'X-Api-Key': apiKey },
+                    timeout: 5000
                 })
                 return
             } catch (error: any) {
@@ -474,7 +475,8 @@ export const whatsapp = {
                 chatId: formattedChatId,
                 isTyping
             }, {
-                headers: { 'X-Api-Key': apiKey }
+                headers: { 'X-Api-Key': apiKey },
+                timeout: 5000
             })
         } catch (error: any) {
             logger.error('TypingStatus Error', error, { module: 'whatsapp' })
@@ -490,7 +492,8 @@ export const whatsapp = {
                 chatId: formattedChatId,
                 isRecording
             }, {
-                headers: { 'X-Api-Key': apiKey }
+                headers: { 'X-Api-Key': apiKey },
+                timeout: 5000
             })
         } catch (error: any) {
             logger.error('RecordingStatus Error', error, { module: 'whatsapp' })
