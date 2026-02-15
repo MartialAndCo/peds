@@ -7,12 +7,12 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
-import { 
-  Send, 
-  X, 
-  Bot, 
-  Pause, 
-  Play, 
+import {
+  Send,
+  X,
+  Bot,
+  Pause,
+  Play,
   Loader2,
   ChevronLeft,
   FileDown,
@@ -24,7 +24,11 @@ import {
   UserCircle,
   Clock,
   Sparkles,
-  Check
+  Check,
+  Plus,
+  ImageIcon,
+  Upload,
+  Film
 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
@@ -32,6 +36,8 @@ import { ConversationCardData } from './conversation-card'
 import { AudioPlayer } from '@/components/chat/audio-player'
 import { getExportData } from '@/app/actions/conversation'
 import { generateDossier } from '@/lib/pdf-generator'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { AIModeIndicator } from '@/components/ai-mode-indicator'
 
 interface ConversationUnifiedViewProps {
@@ -50,39 +56,51 @@ interface Message {
   timestamp: string
 }
 
+interface GalleryMedia {
+  id: number
+  url: string
+  typeId: string
+  type?: { id: string; description?: string }
+}
+
+interface GalleryMediaType {
+  id: string
+  description?: string
+}
+
 const phaseConfig: Record<string, { label: string; color: string; icon: any; description: string }> = {
-  CONNECTION: { 
-    label: 'Connection', 
+  CONNECTION: {
+    label: 'Connection',
     color: 'text-blue-400 border-blue-500/20 bg-blue-500/10',
     icon: MessageCircle,
     description: 'Building initial rapport'
   },
-  VULNERABILITY: { 
-    label: 'Vulnerability', 
+  VULNERABILITY: {
+    label: 'Vulnerability',
     color: 'text-amber-400 border-amber-500/20 bg-amber-500/10',
     icon: Heart,
     description: 'Emotional depth and trust'
   },
-  CRISIS: { 
-    label: 'Crisis', 
+  CRISIS: {
+    label: 'Crisis',
     color: 'text-red-400 border-red-500/20 bg-red-500/10',
     icon: AlertTriangle,
     description: 'Urgency/problem presentation'
   },
-  MONEYPOT: { 
-    label: 'Moneypot', 
+  MONEYPOT: {
+    label: 'Moneypot',
     color: 'text-emerald-400 border-emerald-500/20 bg-emerald-500/10',
     icon: TrendingUp,
     description: 'Payment ready phase'
   },
 }
 
-export function ConversationUnifiedView({ 
-  conversation: initialConversation, 
-  isOpen, 
-  onClose, 
+export function ConversationUnifiedView({
+  conversation: initialConversation,
+  isOpen,
+  onClose,
   agentId,
-  embedded = false 
+  embedded = false
 }: ConversationUnifiedViewProps) {
   const [conversation, setConversation] = useState(initialConversation)
   const [messages, setMessages] = useState<Message[]>([])
@@ -96,6 +114,17 @@ export function ConversationUnifiedView({
   const [showRegeneratePreview, setShowRegeneratePreview] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const conversationId = conversation.id
+
+  // Media attachment state
+  const [selectedMediaUrl, setSelectedMediaUrl] = useState<string | null>(null)
+  const [selectedMediaType, setSelectedMediaType] = useState<string | null>(null)
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false)
+  const [galleryMedias, setGalleryMedias] = useState<GalleryMedia[]>([])
+  const [galleryTypes, setGalleryTypes] = useState<GalleryMediaType[]>([])
+  const [galleryFilter, setGalleryFilter] = useState<string>('all')
+  const [galleryLoading, setGalleryLoading] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Update conversation when prop changes (fixes desktop switching issue)
   useEffect(() => {
@@ -134,15 +163,19 @@ export function ConversationUnifiedView({
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!inputText.trim()) return
+    if (!inputText.trim() && !selectedMediaUrl) return
 
     setSending(true)
     try {
       await axios.post(`/api/conversations/${conversationId}/send`, {
-        message_text: inputText,
-        sender: 'admin'
+        message_text: inputText || '',
+        sender: 'admin',
+        mediaUrl: selectedMediaUrl || undefined,
+        mediaType: selectedMediaType || undefined
       })
       setInputText('')
+      setSelectedMediaUrl(null)
+      setSelectedMediaType(null)
       await loadMessages()
     } catch (error) {
       console.error('Failed to send:', error)
@@ -150,6 +183,54 @@ export function ConversationUnifiedView({
       setSending(false)
     }
   }
+
+  // Gallery
+  const openGallery = async () => {
+    setIsGalleryOpen(true)
+    setGalleryLoading(true)
+    try {
+      const res = await axios.get('/api/media')
+      setGalleryMedias(res.data.medias || [])
+      setGalleryTypes(res.data.types || [])
+    } catch (e) {
+      console.error('Failed to load gallery', e)
+    } finally {
+      setGalleryLoading(false)
+    }
+  }
+
+  const selectGalleryMedia = (media: GalleryMedia) => {
+    setSelectedMediaUrl(media.url)
+    const lower = media.url.toLowerCase()
+    if (/\.(mp4|mov|webm|avi)/i.test(lower)) setSelectedMediaType('video')
+    else setSelectedMediaType('image')
+    setIsGalleryOpen(false)
+  }
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await axios.post('/api/media/upload', formData)
+      setSelectedMediaUrl(res.data.url)
+      if (file.type.startsWith('image/')) setSelectedMediaType('image')
+      else if (file.type.startsWith('video/')) setSelectedMediaType('video')
+      else setSelectedMediaType('file')
+    } catch (err) {
+      console.error('Upload failed', err)
+      alert('Upload failed')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const filteredGalleryMedias = galleryFilter === 'all'
+    ? galleryMedias
+    : galleryMedias.filter(m => m.typeId === galleryFilter)
 
   const toggleAI = async () => {
     try {
@@ -231,7 +312,7 @@ export function ConversationUnifiedView({
   // Helper to fix base64 URLs that were stored without proper data URI prefix
   const fixMediaUrl = (url: string | null | undefined): string | null => {
     if (!url) return null
-    
+
     // Fix raw base64 data that was stored without proper data URI prefix
     if (url.startsWith('/9j/')) {
       return `data:image/jpeg;base64,${url}`
@@ -261,8 +342,8 @@ export function ConversationUnifiedView({
           <div className="relative">
             <div className={cn(
               "h-10 w-10 rounded-full flex items-center justify-center text-white font-semibold border-2",
-              conversation.unreadCount > 0 
-                ? "bg-red-500/10 border-red-500/50" 
+              conversation.unreadCount > 0
+                ? "bg-red-500/10 border-red-500/50"
                 : "bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border-white/10"
             )}>
               {(conversation.contact.name || '?').charAt(0).toUpperCase()}
@@ -282,11 +363,11 @@ export function ConversationUnifiedView({
             </p>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-2 flex-shrink-0">
           <AIModeIndicator />
-          <Badge 
-            variant="outline" 
+          <Badge
+            variant="outline"
             className={cn("text-xs px-2 py-0.5 hidden sm:inline-flex", phaseInfo.color)}
           >
             <PhaseIcon className="h-3 w-3 mr-1" />
@@ -342,14 +423,14 @@ export function ConversationUnifiedView({
                   const isMe = m.sender === 'admin'
                   const isAi = m.sender === 'ai'
                   const isContact = m.sender === 'contact'
-                  
+
                   const fixedMediaUrl = fixMediaUrl(m.mediaUrl)
                   const isVideo = fixedMediaUrl && (fixedMediaUrl.startsWith('data:video') || /\.(mp4|mov|avi|webm|mkv)(\?|#|$)/i.test(fixedMediaUrl))
                   const isAudio = fixedMediaUrl && (fixedMediaUrl.startsWith('data:audio') || /\.(mp3|wav|ogg|m4a|opus)(\?|#|$)/i.test(fixedMediaUrl))
                   const isImage = fixedMediaUrl && !isVideo && !isAudio && (
-                    fixedMediaUrl.startsWith('data:image') || 
-                    /\.(jpeg|jpg|gif|png|webp)(\?|#|$)/i.test(fixedMediaUrl) || 
-                    fixedMediaUrl.startsWith('/9j/') || 
+                    fixedMediaUrl.startsWith('data:image') ||
+                    /\.(jpeg|jpg|gif|png|webp)(\?|#|$)/i.test(fixedMediaUrl) ||
+                    fixedMediaUrl.startsWith('/9j/') ||
                     fixedMediaUrl.startsWith('iVBOR') ||
                     fixedMediaUrl.startsWith('http')
                   )
@@ -424,7 +505,7 @@ export function ConversationUnifiedView({
                     Discard
                   </Button>
                 </div>
-                
+
                 {isRegenerating ? (
                   <div className="flex items-center gap-2 text-white/40 py-3">
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -435,7 +516,7 @@ export function ConversationUnifiedView({
                     <div className="bg-white/5 rounded-lg p-2.5 mb-2 text-sm text-white/90 border border-white/10 max-h-28 overflow-y-auto">
                       {regeneratedResponse || 'No response generated yet.'}
                     </div>
-                    
+
                     {regeneratedResponse && (
                       <div className="flex gap-2">
                         <Button
@@ -480,19 +561,76 @@ export function ConversationUnifiedView({
                   Generate AI Response
                 </Button>
               )}
-              
+
+              {/* Media Preview */}
+              {selectedMediaUrl && (
+                <div className="flex items-center gap-2 p-2 bg-white/5 border border-white/10 rounded-lg">
+                  {selectedMediaType === 'video' ? (
+                    <Film className="h-10 w-10 text-blue-400 flex-shrink-0" />
+                  ) : (
+                    <img src={selectedMediaUrl} alt="Preview" className="h-12 w-12 rounded object-cover flex-shrink-0" />
+                  )}
+                  <span className="text-xs text-white/50 truncate flex-1">
+                    {selectedMediaUrl.split('/').pop()?.substring(0, 30) || 'Media'}
+                  </span>
+                  <button
+                    onClick={() => { setSelectedMediaUrl(null); setSelectedMediaType(null) }}
+                    className="p-1 hover:bg-white/10 rounded-full"
+                  >
+                    <X className="h-4 w-4 text-white/40" />
+                  </button>
+                </div>
+              )}
+              {uploading && (
+                <div className="flex items-center gap-2 p-2 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
+                  <span className="text-xs text-blue-400">Uploading...</span>
+                </div>
+              )}
+
               {/* Message Input */}
               <form onSubmit={handleSend} className="flex gap-2">
+                {/* + Button */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="flex-shrink-0 bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white h-10 w-10 p-0"
+                      disabled={uploading}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" side="top" className="bg-[#1e293b] border-white/10">
+                    <DropdownMenuItem onClick={openGallery} className="text-white/80 focus:text-white focus:bg-white/10">
+                      <ImageIcon className="h-4 w-4 mr-2" />
+                      Gallery
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => fileInputRef.current?.click()} className="text-white/80 focus:text-white focus:bg-white/10">
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,video/*"
+                  className="hidden"
+                  onChange={handleFileSelect}
+                />
                 <Input
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
-                  placeholder="Type a message..."
+                  placeholder={selectedMediaUrl ? 'Add a caption...' : 'Type a message...'}
                   disabled={sending}
                   className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus-visible:ring-white/20 h-10 text-sm"
                 />
-                <Button 
-                  type="submit" 
-                  disabled={sending || !inputText.trim()}
+                <Button
+                  type="submit"
+                  disabled={sending || (!inputText.trim() && !selectedMediaUrl)}
                   className="bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30 h-10 w-10 p-0 flex-shrink-0"
                 >
                   {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -525,8 +663,8 @@ export function ConversationUnifiedView({
                   <div className="flex justify-between">
                     <span className="text-white/60">Status</span>
                     <Badge variant="outline" className={cn(
-                      conversation.contact.status === 'new' 
-                        ? "border-sky-500/20 text-sky-400 bg-sky-500/10" 
+                      conversation.contact.status === 'new'
+                        ? "border-sky-500/20 text-sky-400 bg-sky-500/10"
                         : "border-emerald-500/20 text-emerald-400 bg-emerald-500/10"
                     )}>
                       {conversation.contact.status}
@@ -551,7 +689,7 @@ export function ConversationUnifiedView({
               {/* Phase & Trust */}
               <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-white/40 mb-4">Relationship Progress</h4>
-                
+
                 <div className="space-y-4">
                   <div>
                     <div className="flex items-center justify-between mb-2">
@@ -571,18 +709,18 @@ export function ConversationUnifiedView({
                       <span className="text-white/60 text-sm">Trust Score</span>
                       <span className={cn(
                         "text-lg font-bold",
-                        trustScore > 70 ? "text-emerald-400" : 
-                        trustScore > 30 ? "text-amber-400" : "text-red-400"
+                        trustScore > 70 ? "text-emerald-400" :
+                          trustScore > 30 ? "text-amber-400" : "text-red-400"
                       )}>
                         {trustScore}%
                       </span>
                     </div>
                     <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                      <div 
+                      <div
                         className={cn(
                           "h-full rounded-full transition-all",
-                          trustScore > 70 ? "bg-emerald-500" : 
-                          trustScore > 30 ? "bg-amber-500" : "bg-red-500"
+                          trustScore > 70 ? "bg-emerald-500" :
+                            trustScore > 30 ? "bg-amber-500" : "bg-red-500"
                         )}
                         style={{ width: `${trustScore}%` }}
                       />
@@ -619,10 +757,10 @@ export function ConversationUnifiedView({
                       {conversation.aiEnabled ? "AI responds automatically" : "Manual responses only"}
                     </p>
                   </div>
-                  <Switch 
-                    id="ai-toggle" 
-                    checked={conversation.aiEnabled} 
-                    onCheckedChange={toggleAI} 
+                  <Switch
+                    id="ai-toggle"
+                    checked={conversation.aiEnabled}
+                    onCheckedChange={toggleAI}
                   />
                 </div>
               </div>
@@ -636,19 +774,19 @@ export function ConversationUnifiedView({
                       {conversation.status === 'active' ? 'Active' : 'Paused'}
                     </span>
                     <p className="text-xs text-white/40 mt-0.5">
-                      {conversation.status === 'active' 
-                        ? "Conversation is flowing normally" 
+                      {conversation.status === 'active'
+                        ? "Conversation is flowing normally"
                         : "Paused - needs your attention"}
                     </p>
                   </div>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     size="sm"
                     onClick={toggleStatus}
                     className={cn(
                       "border-white/10",
-                      conversation.status === 'active' 
-                        ? "text-amber-400 hover:bg-amber-500/10" 
+                      conversation.status === 'active'
+                        ? "text-amber-400 hover:bg-amber-500/10"
                         : "text-emerald-400 hover:bg-emerald-500/10"
                     )}
                   >
@@ -683,6 +821,84 @@ export function ConversationUnifiedView({
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Gallery Dialog */}
+      <Dialog open={isGalleryOpen} onOpenChange={setIsGalleryOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col bg-[#1e293b] border-white/10 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-white">Media Gallery</DialogTitle>
+          </DialogHeader>
+          {/* Type Filter */}
+          <div className="flex gap-2 flex-wrap py-2">
+            <button
+              onClick={() => setGalleryFilter('all')}
+              className={cn(
+                'px-3 py-1 rounded-full text-xs font-medium transition-colors',
+                galleryFilter === 'all'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-white/10 text-white/60 hover:bg-white/20'
+              )}
+            >
+              All
+            </button>
+            {galleryTypes.map(t => (
+              <button
+                key={t.id}
+                onClick={() => setGalleryFilter(t.id)}
+                className={cn(
+                  'px-3 py-1 rounded-full text-xs font-medium transition-colors',
+                  galleryFilter === t.id
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-white/10 text-white/60 hover:bg-white/20'
+                )}
+              >
+                {t.description || t.id}
+              </button>
+            ))}
+          </div>
+          {/* Grid */}
+          <div className="flex-1 overflow-y-auto">
+            {galleryLoading ? (
+              <div className="flex justify-center items-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-white/30" />
+              </div>
+            ) : filteredGalleryMedias.length === 0 ? (
+              <p className="text-center text-white/30 py-12">No media found</p>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 p-1">
+                {filteredGalleryMedias.map(media => {
+                  const isVideo = /\.(mp4|mov|webm|avi)/i.test(media.url)
+                  return (
+                    <button
+                      key={media.id}
+                      onClick={() => selectGalleryMedia(media)}
+                      className="relative aspect-square rounded-lg overflow-hidden border-2 border-transparent hover:border-blue-500 transition-colors group"
+                    >
+                      {isVideo ? (
+                        <div className="w-full h-full bg-gray-900 flex flex-col items-center justify-center">
+                          <Film className="h-8 w-8 text-white/50" />
+                          <span className="text-[10px] text-white/40 mt-1">Video</span>
+                        </div>
+                      ) : (
+                        <img
+                          src={media.url}
+                          alt={media.typeId}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      )}
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors" />
+                      <span className="absolute bottom-1 left-1 text-[9px] bg-black/70 text-white px-1.5 py-0.5 rounded">
+                        {media.typeId}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
