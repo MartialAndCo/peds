@@ -8,12 +8,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/componen
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-import { Send, Bot, User, Pause, Play, Loader2 } from 'lucide-react'
+import { Send, Bot, User, Pause, Play, Loader2, Plus, ImageIcon, Upload, X, Film } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AudioPlayer } from '@/components/chat/audio-player'
 import { getExportData } from '@/app/actions/conversation'
 import { generateDossier } from '@/lib/pdf-generator'
 import { FileDown, FileText } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 
 interface ConversationViewProps {
     conversationId: number
@@ -26,6 +28,19 @@ interface Message {
     message_text: string
     mediaUrl?: string | null
     timestamp: string
+}
+
+interface GalleryMedia {
+    id: number
+    url: string
+    typeId: string
+    type?: { id: string; description?: string }
+    context?: string
+}
+
+interface MediaType {
+    id: string
+    description?: string
 }
 
 export function ConversationView({ conversationId, initialData }: ConversationViewProps) {
@@ -43,6 +58,17 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
     const oldestIdRef = useRef<number | null>(null)
     const hasMoreRef = useRef<boolean>(true)
     const loadingMoreRef = useRef<boolean>(false)
+
+    // Media attachment state
+    const [selectedMediaUrl, setSelectedMediaUrl] = useState<string | null>(null)
+    const [selectedMediaType, setSelectedMediaType] = useState<string | null>(null)
+    const [isGalleryOpen, setIsGalleryOpen] = useState(false)
+    const [galleryMedias, setGalleryMedias] = useState<GalleryMedia[]>([])
+    const [galleryTypes, setGalleryTypes] = useState<MediaType[]>([])
+    const [galleryFilter, setGalleryFilter] = useState<string>('all')
+    const [galleryLoading, setGalleryLoading] = useState(false)
+    const [uploading, setUploading] = useState(false)
+    const fileInputRef = useRef<HTMLInputElement>(null)
 
     // Keep refs in sync with state
     useEffect(() => { oldestIdRef.current = oldestId }, [oldestId])
@@ -196,16 +222,19 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
 
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!inputText.trim()) return
+        if (!inputText.trim() && !selectedMediaUrl) return
 
         setSending(true)
         try {
             await axios.post(`/api/conversations/${conversationId}/send`, {
-                message_text: inputText,
-                sender: 'admin'
+                message_text: inputText || '',
+                sender: 'admin',
+                mediaUrl: selectedMediaUrl || undefined,
+                mediaType: selectedMediaType || undefined
             })
             setInputText('')
-            // Immediate refresh to show sent message
+            setSelectedMediaUrl(null)
+            setSelectedMediaType(null)
             pollNewMessages()
         } catch (error) {
             console.error(error)
@@ -214,6 +243,58 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
             setSending(false)
         }
     }
+
+    // Gallery
+    const openGallery = async () => {
+        setIsGalleryOpen(true)
+        setGalleryLoading(true)
+        try {
+            const res = await axios.get('/api/media')
+            setGalleryMedias(res.data.medias || [])
+            setGalleryTypes(res.data.types || [])
+        } catch (e) {
+            console.error('Failed to load gallery', e)
+        } finally {
+            setGalleryLoading(false)
+        }
+    }
+
+    const selectGalleryMedia = (media: GalleryMedia) => {
+        setSelectedMediaUrl(media.url)
+        // Detect type from URL
+        const lower = media.url.toLowerCase()
+        if (/\.(mp4|mov|webm|avi)/i.test(lower)) setSelectedMediaType('video')
+        else setSelectedMediaType('image')
+        setIsGalleryOpen(false)
+    }
+
+    // File upload from device
+    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        setUploading(true)
+        try {
+            const formData = new FormData()
+            formData.append('file', file)
+            const res = await axios.post('/api/media/upload', formData)
+            setSelectedMediaUrl(res.data.url)
+            // Detect type
+            if (file.type.startsWith('image/')) setSelectedMediaType('image')
+            else if (file.type.startsWith('video/')) setSelectedMediaType('video')
+            else setSelectedMediaType('file')
+        } catch (err) {
+            console.error('Upload failed', err)
+            alert('Upload failed')
+        } finally {
+            setUploading(false)
+            if (fileInputRef.current) fileInputRef.current.value = ''
+        }
+    }
+
+    const filteredGalleryMedias = galleryFilter === 'all'
+        ? galleryMedias
+        : galleryMedias.filter(m => m.typeId === galleryFilter)
 
     const toggleAI = async () => {
         try {
@@ -368,15 +449,65 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
                     </div>
                 </CardContent>
                 <CardFooter className="p-3 border-t">
+                    {/* Media Preview */}
+                    {selectedMediaUrl && (
+                        <div className="flex items-center gap-2 mb-2 p-2 bg-gray-100 rounded-lg w-full">
+                            {selectedMediaType === 'video' ? (
+                                <Film className="h-10 w-10 text-blue-500 flex-shrink-0" />
+                            ) : (
+                                <img src={selectedMediaUrl} alt="Preview" className="h-12 w-12 rounded object-cover flex-shrink-0" />
+                            )}
+                            <span className="text-xs text-gray-500 truncate flex-1">
+                                {selectedMediaUrl.split('/').pop()?.substring(0, 30) || 'Media'}
+                            </span>
+                            <button
+                                onClick={() => { setSelectedMediaUrl(null); setSelectedMediaType(null) }}
+                                className="p-1 hover:bg-gray-200 rounded-full"
+                            >
+                                <X className="h-4 w-4 text-gray-500" />
+                            </button>
+                        </div>
+                    )}
+                    {uploading && (
+                        <div className="flex items-center gap-2 mb-2 p-2 bg-blue-50 rounded-lg w-full">
+                            <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                            <span className="text-xs text-blue-600">Uploading...</span>
+                        </div>
+                    )}
                     <form onSubmit={handleSend} className="flex gap-2 w-full">
+                        {/* + Button */}
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button type="button" variant="outline" size="icon" className="flex-shrink-0" disabled={uploading}>
+                                    <Plus className="h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" side="top">
+                                <DropdownMenuItem onClick={openGallery}>
+                                    <ImageIcon className="h-4 w-4 mr-2" />
+                                    Gallery
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                                    <Upload className="h-4 w-4 mr-2" />
+                                    Upload
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*,video/*"
+                            className="hidden"
+                            onChange={handleFileSelect}
+                        />
                         <Input
                             value={inputText}
                             onChange={(e) => setInputText(e.target.value)}
-                            placeholder="Type a message..."
+                            placeholder={selectedMediaUrl ? 'Add a caption...' : 'Type a message...'}
                             disabled={sending}
                         />
-                        <Button type="submit" disabled={sending}>
-                            <Send className="h-4 w-4" />
+                        <Button type="submit" disabled={sending || (!inputText.trim() && !selectedMediaUrl)}>
+                            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                         </Button>
                     </form>
                 </CardFooter>
@@ -500,6 +631,84 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Gallery Dialog */}
+            <Dialog open={isGalleryOpen} onOpenChange={setIsGalleryOpen}>
+                <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+                    <DialogHeader>
+                        <DialogTitle>Media Gallery</DialogTitle>
+                    </DialogHeader>
+                    {/* Type Filter */}
+                    <div className="flex gap-2 flex-wrap py-2">
+                        <button
+                            onClick={() => setGalleryFilter('all')}
+                            className={cn(
+                                'px-3 py-1 rounded-full text-xs font-medium transition-colors',
+                                galleryFilter === 'all'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            )}
+                        >
+                            All
+                        </button>
+                        {galleryTypes.map(t => (
+                            <button
+                                key={t.id}
+                                onClick={() => setGalleryFilter(t.id)}
+                                className={cn(
+                                    'px-3 py-1 rounded-full text-xs font-medium transition-colors',
+                                    galleryFilter === t.id
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                )}
+                            >
+                                {t.description || t.id}
+                            </button>
+                        ))}
+                    </div>
+                    {/* Grid */}
+                    <div className="flex-1 overflow-y-auto">
+                        {galleryLoading ? (
+                            <div className="flex justify-center items-center py-12">
+                                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+                            </div>
+                        ) : filteredGalleryMedias.length === 0 ? (
+                            <p className="text-center text-gray-400 py-12">No media found</p>
+                        ) : (
+                            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 p-1">
+                                {filteredGalleryMedias.map(media => {
+                                    const isVideo = /\.(mp4|mov|webm|avi)/i.test(media.url)
+                                    return (
+                                        <button
+                                            key={media.id}
+                                            onClick={() => selectGalleryMedia(media)}
+                                            className="relative aspect-square rounded-lg overflow-hidden border-2 border-transparent hover:border-blue-500 transition-colors group"
+                                        >
+                                            {isVideo ? (
+                                                <div className="w-full h-full bg-gray-900 flex flex-col items-center justify-center">
+                                                    <Film className="h-8 w-8 text-white/70" />
+                                                    <span className="text-[10px] text-white/50 mt-1">Video</span>
+                                                </div>
+                                            ) : (
+                                                <img
+                                                    src={media.url}
+                                                    alt={media.typeId}
+                                                    className="w-full h-full object-cover"
+                                                    loading="lazy"
+                                                />
+                                            )}
+                                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                                            <span className="absolute bottom-1 left-1 text-[9px] bg-black/60 text-white px-1.5 py-0.5 rounded">
+                                                {media.typeId}
+                                            </span>
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }

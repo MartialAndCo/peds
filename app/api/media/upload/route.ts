@@ -1,25 +1,18 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { createClient } from '@supabase/supabase-js'
+import { storage } from '@/lib/storage'
 
-// Increase body size limit for this route
-// Note: In App Router, standard fetch/request body parsing is used.
-// 'config' export is deprecated.
-
-// For App Router (Next.js 13+)
 export const runtime = 'nodejs'
-export const maxDuration = 60 // 60 seconds timeout
+export const maxDuration = 60
 
 export async function POST(req: Request) {
-    // 1. Auth Check
     const session = await getServerSession(authOptions)
     if (!session) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     try {
-        // 2. Parse FormData
         const formData = await req.formData()
         const file = formData.get('file') as File
 
@@ -27,50 +20,25 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'No file provided' }, { status: 400 })
         }
 
-        // 3. Upload to Supabase
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
-        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-        if (!supabaseUrl || !supabaseKey) {
-            return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 })
-        }
-
-        const supabase = createClient(supabaseUrl, supabaseKey)
-
-        // Convert file to buffer
         const arrayBuffer = await file.arrayBuffer()
         const buffer = Buffer.from(arrayBuffer)
+        const mimeType = file.type || 'application/octet-stream'
 
-        // Generate unique filename
-        const ext = file.name.split('.').pop() || 'mp3'
-        const fileName = `voice_samples/${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`
+        // Determine folder based on content type
+        let folder = 'chat-media'
+        if (mimeType.startsWith('image/')) folder = 'chat-images'
+        else if (mimeType.startsWith('video/')) folder = 'chat-videos'
+        else if (mimeType.startsWith('audio/')) folder = 'voice-uploads'
 
-        // Upload to voice-uploads bucket
-        const { error: uploadError } = await supabase.storage
-            .from('voice-uploads')
-            .upload(fileName, buffer, {
-                contentType: file.type || 'audio/mpeg',
-                upsert: false
-            })
+        const url = await storage.uploadMedia(buffer, mimeType, folder)
 
-        if (uploadError) {
-            console.error('Supabase upload error:', uploadError)
-            return NextResponse.json({ error: 'Upload failed: ' + uploadError.message }, { status: 500 })
+        if (!url) {
+            return NextResponse.json({ error: 'Upload failed' }, { status: 500 })
         }
 
-        // Get public URL
-        const { data } = supabase.storage
-            .from('voice-uploads')
-            .getPublicUrl(fileName)
-
-        if (!data?.publicUrl) {
-            return NextResponse.json({ error: 'Failed to get public URL' }, { status: 500 })
-        }
-
-        return NextResponse.json({ url: data.publicUrl })
-
+        return NextResponse.json({ url, mimeType, filename: file.name })
     } catch (error: any) {
-        console.error('Upload error:', error)
+        console.error('[Media Upload] Error:', error)
         return NextResponse.json({ error: error.message || 'Upload failed' }, { status: 500 })
     }
 }
