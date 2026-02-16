@@ -476,6 +476,47 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
                     include: { prompt: true }
                 })
 
+                // CRITICAL: Wake up WAITING_FOR_LEAD conversations BEFORE media analysis
+                // Media analysis can return early (paywall, refusal, send, request) and skip
+                // the main wake-up logic at line ~820. We must activate here first.
+                if (currentConversation?.status === 'paused') {
+                    const convMeta = (currentConversation.metadata || {}) as any
+                    if (convMeta?.state === 'WAITING_FOR_LEAD') {
+                        console.log(`[Processor][Pre-Media] ⚡ Waking WAITING_FOR_LEAD conversation ${currentConversation.id}`)
+                        try {
+                            currentConversation = await prisma.conversation.update({
+                                where: { id: currentConversation.id },
+                                data: {
+                                    status: 'active',
+                                    metadata: {
+                                        ...convMeta,
+                                        state: 'active',
+                                        becameActiveAt: new Date(),
+                                        wokenBy: 'pre_media_analysis'
+                                    }
+                                },
+                                include: { prompt: true }
+                            })
+                            console.log(`[Processor][Pre-Media] ✅ Conversation ${currentConversation.id} woken up`)
+                        } catch (preWakeErr) {
+                            console.error(`[Processor][Pre-Media] ❌ Failed to wake conversation:`, preWakeErr)
+                        }
+                    }
+
+                    // Also activate the contact if needed
+                    if (['new', 'unknown', 'paused'].includes(contact.status)) {
+                        try {
+                            contact = await prisma.contact.update({
+                                where: { id: contact.id },
+                                data: { status: 'active' }
+                            })
+                            console.log(`[Processor][Pre-Media] ✅ Contact ${contact.id} activated`)
+                        } catch (e) {
+                            console.error(`[Processor][Pre-Media] ❌ Failed to activate contact:`, e)
+                        }
+                    }
+                }
+
                 // Build conversation history for context-aware paywall detection
                 const lastMessages = currentConversation ? await prisma.message.findMany({
                     where: { conversationId: currentConversation.id },

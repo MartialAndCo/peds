@@ -305,18 +305,56 @@ export async function handleChat(
 
     // 5. Checks (Paused/VoiceFail/ContactStatus)
     if (conversation.status === 'paused') {
-        console.log('[Chat] Conversation is PAUSED. Ignoring message.')
-        logger.info('Conversation paused', { module: 'chat', conversationId: conversation.id })
-        return { handled: true, result: 'paused' }
+        const meta = (conversation.metadata || {}) as any
+        if (meta?.state === 'WAITING_FOR_LEAD') {
+            // Smart Add / Lead Provider: auto-wake conversation on first message
+            console.log(`[Chat] ⚡ WAITING_FOR_LEAD detected on conversation ${conversation.id}. Auto-waking...`)
+            try {
+                conversation = await prisma.conversation.update({
+                    where: { id: conversation.id },
+                    data: {
+                        status: 'active',
+                        metadata: {
+                            ...meta,
+                            state: 'active',
+                            becameActiveAt: new Date(),
+                            wokenBy: 'handleChat_safety_net'
+                        }
+                    },
+                    include: { prompt: true }
+                })
+                console.log(`[Chat] ✅ Conversation ${conversation.id} woken up by handleChat safety net`)
+            } catch (wakeErr) {
+                console.error(`[Chat] ❌ Failed to wake up conversation ${conversation.id}:`, wakeErr)
+                return { handled: true, result: 'paused' }
+            }
+        } else {
+            console.log('[Chat] Conversation is PAUSED (admin/manual). Ignoring message.')
+            logger.info('Conversation paused', { module: 'chat', conversationId: conversation.id })
+            return { handled: true, result: 'paused' }
+        }
     }
 
     // CRITICAL: Only respond if contact status is 'active'
     // Contact statuses: 'new', 'active', 'paused', 'unknown', 'archive', 'blacklisted', 'merged'
     // AI should only respond to 'active' contacts
     if (contact.status !== 'active') {
-        console.log(`[Chat] Contact status is '${contact.status}', not 'active'. Ignoring message.`)
-        logger.info('Contact not active', { module: 'chat', contactId: contact.id, status: contact.status })
-        return { handled: true, result: 'contact_not_active' }
+        // Auto-activate contacts that were just added (Smart Add / Lead Provider)
+        if (['new', 'unknown'].includes(contact.status)) {
+            console.log(`[Chat] ⚡ Contact ${contact.id} status '${contact.status}' — auto-activating...`)
+            try {
+                contact = await prisma.contact.update({
+                    where: { id: contact.id },
+                    data: { status: 'active' }
+                })
+            } catch (activateErr) {
+                console.error(`[Chat] ❌ Failed to activate contact ${contact.id}:`, activateErr)
+            }
+        } else {
+            console.log(`[Chat] Contact status is '${contact.status}', not 'active'. Ignoring message.`)
+            logger.info('Contact not active', { module: 'chat', contactId: contact.id, status: contact.status })
+            return { handled: true, result: 'contact_not_active' }
+        }
     }
     if (messageText.startsWith('[Voice Message -')) {
         // If transcription FAILED, we send refusal.
