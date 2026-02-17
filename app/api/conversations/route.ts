@@ -43,7 +43,8 @@ export async function GET(req: Request) {
             where: {
                 ...where,
                 contact: {
-                    source: { notIn: ['system', 'hidden'] }
+                    source: { notIn: ['system', 'hidden'] },
+                    status: { not: 'blacklisted' }
                 }
             },
             include: {

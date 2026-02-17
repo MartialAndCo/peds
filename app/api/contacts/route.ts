@@ -30,7 +30,12 @@ export async function GET(req: Request) {
         const where: any = {
             source: { notIn: ['system', 'hidden'] }  // Hide system/hidden contacts by default
         }
-        if (status) where.status = status
+        if (status) {
+            where.status = status
+        } else {
+            // Default: Exclude blacklisted unless explicitly requested
+            where.status = { not: 'blacklisted' }
+        }
 
         // NEW: Filter by Agent Binding (AgentContact OR Conversation)
         if (agentId) {

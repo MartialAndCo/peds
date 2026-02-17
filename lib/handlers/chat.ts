@@ -30,6 +30,43 @@ function getMarkAsRead(platform: 'whatsapp' | 'discord') {
         return whatsapp.markAsRead(userId, agentId, messageKey).catch(() => { })
     }
 }
+// Platform-agnostic helper functions (Available to file scope)
+
+
+// 🔒 ATOMIC LOCKING HELPER
+// Tries to set processingLock = NOW if it's null or old (> 30s)
+// Returns TRUE if lock acquired, FALSE if already locked
+async function attemptLock(convId: number): Promise<boolean> {
+    const LOCK_TIMEOUT = 30000 // 30s
+    const now = new Date()
+    const cutoff = new Date(now.getTime() - LOCK_TIMEOUT)
+
+    // Atomic update: only update if lock is null OR older than cutoff
+    const result = await prisma.conversation.updateMany({
+        where: {
+            id: convId,
+            OR: [
+                { processingLock: null },
+                { processingLock: { lt: cutoff } }
+            ]
+        },
+        data: {
+            processingLock: now
+        }
+    })
+
+    return result.count > 0
+}
+
+async function releaseLock(convId: number) {
+    await prisma.conversation.updateMany({
+        where: { id: convId },
+        data: { processingLock: null }
+    })
+}
+// Platform-agnostic helper functions (Moved to top level to avoid duplication)
+// These are now defined at the top of the file
+
 
 
 
@@ -41,7 +78,7 @@ export async function handleChat(
     messageTextInput: string, // The initial text (or transcribed voice from caller)
     agentId?: string, // Added: Agent Context
     platform: 'whatsapp' | 'discord' = 'whatsapp', // Added: Platform Context
-    options?: { skipAI?: boolean } // Added: Burst Mode Support
+    options?: { skipAI?: boolean, previousResponse?: string } // Added: Burst Mode Support
 ) {
     let messageText = messageTextInput
 
@@ -410,26 +447,123 @@ export async function handleChat(
         }
     }
 
-    // 7. Spinlock
-    await acquireLock(conversation.id)
+    // 7. 🔒 ATOMIC CONCURRENCY CONTROL
+    // Instead of waiting (Spinlock), we try to grab the lock.
+    // If we fail, it means another process is ACTIVE.
+    // We implicitly trust that active process to pick up our message in its TAIL LOOP.
+
+    // Attempt to acquire lock atomically
+    const lockAcquired = await attemptLock(conversation.id)
+
+    if (!lockAcquired) {
+        logger.info('⚠️ Concurrency: Lock busy. Assuming active process will handle this message via Tail Loop.', { module: 'chat', conversationId: conversation.id })
+        // Return "handled" so specific webhook processors (like WhatsApp) don't retry.
+        // The message is already saved in DB, so the active process WILL see it.
+        return { handled: true, result: 'merged_into_active_process' }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // 🧠 AI PROCESSING LOOP (The "Tail Loop")
+    // If we have the lock, we process. THEN we check if new messages arrived.
+    // If yes, we loop and process them immediately in this same execution.
+    // ─────────────────────────────────────────────────────────────────────────────
 
     try {
-        // AI GENERATION LOGIC
-        // Pass options (containing previousResponse) to the generator
-        const result = await generateAndSendAI(conversation, contact, settings, messageText, payload, agentId, platform, options, undefined)
+        let loopCount = 0
+        const MAX_LOOPS = 5 // Safety brake
+        let currentMessageText = messageText // Start with current
+        let currentPayload = payload
+        let currentOptions = options
 
-        // 8. Payment Claim Detection: MOVED to Tag-Based in generateAndSendAI
-        // We no longer scan user text. We listen for [PAYMENT_RECEIVED] from AI.
+        // On first iteration, we simply process the message that triggered this.
+        // On subsequent iterations, we process new messages found in DB.
 
-        return result
+        do {
+            loopCount++
+            const loopStart = new Date()
+
+            logger.info(`[Chat] 🔄 AI Processing Loop #${loopCount} started for Contact ${contact.id}`, { loopCount })
+
+            // AI GENERATION LOGIC
+            const result = await generateAndSendAI(conversation, contact, settings, currentMessageText, currentPayload, agentId, platform, currentOptions, undefined)
+
+            // If result was "queued", "paused", or "blocked", we typically still want to check for new messages?
+            // Yes, because a human might be spamming "cancel" or "stop".
+
+            // 🛑 CHECK FOR NEW MESSAGES (Tail Check)
+            // Look for contact messages older than NOW but newer than our start time?
+            // Actually, any message that is NOT "processed" or simply "newer than the one we just handled"?
+            // Simplest: Find any message from 'contact' created AFTER the message we just processed?
+            // OR checks for unreadCount?
+
+            // Let's look for any message from 'contact' that is newer than the one we just processed.
+            // We need the ID of the message we just processed.
+            // But wait, generateAndSendAI fetches the LATEST 50 messages. 
+            // So if a new message arrived during generation, `generateAndSendAI` in the NEXT loop will see it.
+
+            // We need to know IF we should loop.
+            // Check if there is a message from contact that is newer than `loopStart`?
+            // No, newer than the message we just processed.
+
+            // Update timestamp of last processed message
+            // We don't track "processed" status on messages easily yet.
+            // But we know `timestamp` of `currentPayload` (approximated).
+
+            // Robust Check:
+            // "Are there any messages from 'contact' in this conversation created recently that we haven't answered?"
+            // Since we just answered (presumably), the only unanswered ones are those created *during* `generateAndSendAI`.
+
+            const newMessages = await prisma.message.findMany({
+                where: {
+                    conversationId: conversation.id,
+                    sender: 'contact',
+                    timestamp: { gt: loopStart } // Created WHILE we were generating
+                },
+                orderBy: { timestamp: 'asc' }
+            })
+
+            if (newMessages.length > 0) {
+                logger.info(`[Chat] ⚡ Found ${newMessages.length} new messages arrived during processing! Looping...`, { newIds: newMessages.map(m => m.id) })
+
+                // Update context for next loop
+                // We'll use the TEXT of the last new message, but the AI will read ALL of them in history.
+                const lastNewMsg = newMessages[newMessages.length - 1]
+                currentMessageText = lastNewMsg.message_text
+                currentPayload = { id: lastNewMsg.waha_message_id || `sim_${Date.now()}` } // Mock payload for next loop
+
+                // Inject the AI's last response as "previousResponse" context for the next generation
+                // preventing it from repeating itself.
+                const lastAIResponse = result?.textBody
+                if (lastAIResponse) {
+                    currentOptions = { ...currentOptions, previousResponse: lastAIResponse }
+                }
+
+                // Small delay to let DB settle?
+                await new Promise(r => setTimeout(r, 1000))
+
+                // Refresh lock timestamp to prevent timeout during long loops
+                await attemptLock(conversation.id) // Just updates timestamp
+
+            } else {
+                logger.info(`[Chat] ✅ No new messages found. Releasing lock.`)
+                break // Exit loop
+            }
+
+            if (loopCount >= MAX_LOOPS) {
+                logger.warn(`[Chat] ⚠️ Max loops (${MAX_LOOPS}) reached. Breaking to prevent infinite loop.`)
+                break
+            }
+
+        } while (true)
+
+        return { handled: true, result: 'processed_with_tail_loop' }
+
     } catch (error: any) {
-        // CRITICAL: Handle Venice API errors gracefully
+        // ... (Error handling remains same)
         if (error.message?.includes('VENICE_API_REJECTED') || error.message?.includes('402') || error.message?.includes('Insufficient balance')) {
             console.error('[Chat] 🚨 Venice API error in handleChat:', error.message)
-            // Return handled to prevent processor crash
             return { handled: true, result: 'ai_quota_failed', error: error.message }
         }
-        // Re-throw other errors
         throw error
     } finally {
         await releaseLock(conversation.id)
@@ -438,24 +572,8 @@ export async function handleChat(
 
 // --- HELPERS ---
 
-async function acquireLock(convId: number) {
-    const LOCK_TIMEOUT = 30000
-    let isLocked = true
-    let retries = 0
-    while (isLocked && retries < 15) {
-        const c = await prisma.conversation.findUnique({ where: { id: convId } })
-        if (!c?.processingLock || new Date().getTime() - c.processingLock.getTime() > LOCK_TIMEOUT) isLocked = false
-        else {
-            await new Promise(r => setTimeout(r, 1000))
-            retries++
-        }
-    }
-    await prisma.conversation.update({ where: { id: convId }, data: { processingLock: new Date() } })
-}
+// Lock helpers moved to top
 
-async function releaseLock(convId: number) {
-    await prisma.conversation.update({ where: { id: convId }, data: { processingLock: null } })
-}
 
 /**
  * Validation bloquante avec régénération si nécessaire

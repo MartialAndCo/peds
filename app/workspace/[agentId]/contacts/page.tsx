@@ -6,7 +6,7 @@ import axios from 'axios'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
-import { Trash, MessageSquare, Search, Pencil, AlertTriangle, FileText, Eye, Sparkles } from 'lucide-react'
+import { Trash, MessageSquare, Search, Pencil, AlertTriangle, FileText, Eye, Sparkles, Ban, ShieldCheck } from 'lucide-react'
 import { useRouter, useParams } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { ContextDialog } from '@/components/contacts/context-dialog'
@@ -22,7 +22,10 @@ export default function WorkspaceContactsPage() {
     const [contacts, setContacts] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
+
     const [deleting, setDeleting] = useState<string | null>(null)
+    const [viewMode, setViewMode] = useState<'active' | 'blocked'>('active')
+    const [blocking, setBlocking] = useState<string | null>(null)
 
     // Context Dialog State
     const [selectedContact, setSelectedContact] = useState<any>(null)
@@ -32,14 +35,18 @@ export default function WorkspaceContactsPage() {
     const [smartAddOpen, setSmartAddOpen] = useState(false)
 
     useEffect(() => {
-        fetchContacts()
-    }, [])
+        fetchContacts(search)
+    }, [viewMode])
 
     const fetchContacts = async (query = '') => {
         setLoading(true)
         try {
             const params: any = query ? { search: query } : {}
             if (agentId) params.agentId = agentId // Filter by current workspace
+
+            if (viewMode === 'blocked') {
+                params.status = 'blacklisted'
+            }
 
             const res = await axios.get('/api/contacts', { params })
             setContacts(res.data)
@@ -75,6 +82,32 @@ export default function WorkspaceContactsPage() {
             alert('Delete failed. See console.')
         } finally {
             setDeleting(null)
+        }
+    }
+
+    const handleBlock = async (id: string) => {
+        if (!confirm('Block this contact? They will be hidden and ignored by AI.')) return
+        setBlocking(id)
+        try {
+            await axios.put(`/api/contacts/${id}`, { status: 'blacklisted' })
+            fetchContacts(search)
+        } catch (error) {
+            console.error('Block failed:', error)
+        } finally {
+            setBlocking(null)
+        }
+    }
+
+    const handleUnblock = async (id: string) => {
+        if (!confirm('Unblock this contact? They will reappear in the active list.')) return
+        setBlocking(id)
+        try {
+            await axios.put(`/api/contacts/${id}`, { status: 'active' })
+            fetchContacts(search)
+        } catch (error) {
+            console.error('Unblock failed:', error)
+        } finally {
+            setBlocking(null)
         }
     }
 
@@ -120,15 +153,34 @@ export default function WorkspaceContactsPage() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="space-y-1">
                     <h2 className="text-3xl font-bold tracking-tight text-white">Contacts</h2>
-                    <p className="text-white/40 text-sm italic">Manage contacts, add context, and perform HARD delete.</p>
+                    <p className="text-white/40 text-sm italic">Manage contacts, add context, and block users.</p>
                 </div>
-                <Button
-                    onClick={() => setSmartAddOpen(true)}
-                    className="bg-amber-500 hover:bg-amber-600 text-black"
-                >
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Smart Add
-                </Button>
+                <div className="flex gap-2">
+                    <Button
+                        variant={viewMode === 'blocked' ? 'secondary' : 'ghost'}
+                        onClick={() => setViewMode(viewMode === 'active' ? 'blocked' : 'active')}
+                        className="text-white/60 hover:text-white"
+                    >
+                        {viewMode === 'active' ? (
+                            <>
+                                <Ban className="h-4 w-4 mr-2" />
+                                Blocked Users
+                            </>
+                        ) : (
+                            <>
+                                <ShieldCheck className="h-4 w-4 mr-2" />
+                                Active Users
+                            </>
+                        )}
+                    </Button>
+                    <Button
+                        onClick={() => setSmartAddOpen(true)}
+                        className="bg-amber-500 hover:bg-amber-600 text-black"
+                    >
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Smart Add
+                    </Button>
+                </div>
             </div>
 
             <form onSubmit={handleSearch} className="flex gap-3 glass p-4 rounded-xl border-white/10">
@@ -250,6 +302,30 @@ export default function WorkspaceContactsPage() {
                                                     <Trash className="h-4 w-4" />
                                                 )}
                                             </Button>
+
+                                            {viewMode === 'active' ? (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8 text-orange-500/60 hover:text-orange-500 hover:bg-orange-500/10 transition-colors"
+                                                    onClick={() => handleBlock(contact.id)}
+                                                    disabled={blocking === contact.id}
+                                                    title="Block Contact"
+                                                >
+                                                    {blocking === contact.id ? <span className="animate-spin">⏳</span> : <Ban className="h-4 w-4" />}
+                                                </Button>
+                                            ) : (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8 text-emerald-500/60 hover:text-emerald-500 hover:bg-emerald-500/10 transition-colors"
+                                                    onClick={() => handleUnblock(contact.id)}
+                                                    disabled={blocking === contact.id}
+                                                    title="Unblock Contact"
+                                                >
+                                                    {blocking === contact.id ? <span className="animate-spin">⏳</span> : <ShieldCheck className="h-4 w-4" />}
+                                                </Button>
+                                            )}
                                         </TableCell>
                                     </TableRow>
                                 )
