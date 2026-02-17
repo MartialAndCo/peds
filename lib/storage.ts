@@ -58,9 +58,22 @@ export const storage = {
             }
         }
 
-        // All buckets failed — fallback to base64 data URI so the photo is never lost
-        console.error('[Storage] ❌ All bucket uploads failed. Saving as base64 data URI.')
-        return `data:${mimeType};base64,${buffer.toString('base64')}`
+        // All buckets failed
+        console.error('[Storage] ❌ All bucket uploads failed.')
+
+        // FALLBACK DECISION:
+        // If file is small (< 1MB), fallback to base64 to save the content.
+        // If file is large (> 1MB), DO NOT fallback to base64. 
+        // Large base64 strings (e.g. 48MB audio) crash the API (413 Payload Too Large) and break the UI.
+        const MAX_BASE64_SIZE = 1 * 1024 * 1024 // 1MB limit for base64 fallback
+
+        if (buffer.length < MAX_BASE64_SIZE) {
+            console.warn('[Storage] Saving as base64 data URI (fallback for small file).')
+            return `data:${mimeType};base64,${buffer.toString('base64')}`
+        } else {
+            console.error(`[Storage] ⛔ File too large for base64 fallback (${(buffer.length / 1024 / 1024).toFixed(2)} MB > 1 MB). Returning NULL.`)
+            return null
+        }
     }
 }
 
