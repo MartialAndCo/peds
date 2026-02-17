@@ -59,6 +59,7 @@ export interface AnalysisContext {
     phase: string;
     previousAlerts?: SupervisorAlert[];
     pendingQueue?: { id: string; content: string; scheduledAt: string }[];
+    currentActivity?: { name: string; description: string; status: 'AVAILABLE' | 'BUSY' | 'SLEEP' };
 }
 
 export interface AgentAnalysisResult {

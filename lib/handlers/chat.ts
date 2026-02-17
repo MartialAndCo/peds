@@ -125,14 +125,12 @@ export async function handleChat(
     }
 
     // 1. View Once Handling
+    // DO NOT send direct refusal — let AI handle it through normal pipeline
+    // (queue, timing, supervisor, correct language, dashboard visibility)
     const isViewOnce = payload._data?.isViewOnce === true || payload.isViewOnce === true
     if (isViewOnce) {
-        logger.info('ViewOnce message rejected', { module: 'chat', contactId: contact.id })
-        await new Promise(r => setTimeout(r, 2000))
-        const refusalMsg = settings.msg_view_once_refusal || "Mince ça bug mon tel, j'arrive pas à ouvrir les photos éphémères (View Once) 😕\n\nTu peux me la renvoyer en normal stp ?"
-        if (platform !== 'discord') await whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => { })
-        await sendTextPlatform(contact.phone_whatsapp, refusalMsg, undefined, agentId)
-        return { handled: true, result: 'view_once_rejected' }
+        logger.info('ViewOnce message detected — routing to AI pipeline', { module: 'chat', contactId: contact.id })
+        messageText = "[View Once Message - Cannot Open]"
     }
 
     // 2. Transcription (if not already done by caller, but caller handles heavy lifting usually. 
@@ -393,15 +391,14 @@ export async function handleChat(
             return { handled: true, result: 'contact_not_active' }
         }
     }
-    if (messageText.startsWith('[Voice Message -')) {
-        // If transcription FAILED, we send refusal.
-        // If it succeeded, messageText will be the actual text, so we skip this block.
-        if (messageText.includes('Failed') || messageText.includes('Error') || messageText.includes('Disabled')) {
-            const voiceRefusalMsg = settings.msg_voice_refusal || "Désolé, je ne peux pas écouter les messages vocaux pour le moment (Problème technique)."
-            if (platform !== 'discord') await whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => { })
-            await sendTextPlatform(contact.phone_whatsapp, voiceRefusalMsg, undefined, agentId)
-            return { handled: true, result: 'voice_error' }
-        }
+    // Voice transcription failure — DO NOT send hardcoded refusal directly.
+    // Let it flow through the normal AI pipeline so the response:
+    // 1. Uses the agent's correct language (not hardcoded French)
+    // 2. Goes through queue/timing (not instant)
+    // 3. Passes supervisor validation
+    // 4. Gets saved in DB (visible in dashboard)
+    if (messageText.startsWith('[Voice Message -') && (messageText.includes('Failed') || messageText.includes('Error') || messageText.includes('Disabled'))) {
+        logger.warn('Voice transcription failed — routing to AI pipeline (not direct send)', { module: 'chat', messageText })
     }
 
     if (!conversation.ai_enabled) {
@@ -841,6 +838,10 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
             try {
                 const { supervisorOrchestrator } = require('@/lib/services/supervisor')
 
+                // Inject Life Schedule for Supervisor awareness
+                const { personaSchedule } = require('@/lib/services/persona-schedule')
+                const scheduleActivity = personaSchedule.getCurrentActivity(agentTimezone)
+
                 const supervisorContext = {
                     agentId: effectiveAgentId,
                     conversationId: conversation.id,
@@ -856,7 +857,8 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
                         id: item.id,
                         content: item.content,
                         scheduledAt: item.scheduledAt.toISOString()
-                    }))
+                    })),
+                    currentActivity: scheduleActivity
                 }
 
                 const validation = await supervisorOrchestrator.validateBlocking(supervisorContext);
@@ -1154,6 +1156,10 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         try {
             const { supervisorOrchestrator } = require('@/lib/services/supervisor')
 
+            // Inject Life Schedule for Supervisor awareness
+            const { personaSchedule: inlinePersonaSchedule } = require('@/lib/services/persona-schedule')
+            const inlineActivity = inlinePersonaSchedule.getCurrentActivity(agentTimezone)
+
             const supervisorContext = {
                 agentId: effectiveAgentId,
                 conversationId: conversation.id,
@@ -1169,7 +1175,8 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
                     id: item.id,
                     content: item.content,
                     scheduledAt: item.scheduledAt.toISOString()
-                }))
+                })),
+                currentActivity: inlineActivity
             }
 
             const validation = await supervisorOrchestrator.validateBlocking(supervisorContext);

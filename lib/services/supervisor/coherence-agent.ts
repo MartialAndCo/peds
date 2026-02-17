@@ -180,7 +180,7 @@ export const coherenceAgent = {
      */
     async aiAnalysis(context: AnalysisContext): Promise<SupervisorAlert[]> {
         const alerts: SupervisorAlert[] = [];
-        const { aiResponse, history, agentId, conversationId, contactId, phase, pendingQueue } = context;
+        const { aiResponse, history, agentId, conversationId, contactId, phase, pendingQueue, currentActivity } = context;
 
         const settings = await settingsService.getSettings();
         const apiKey = settings.venice_api_key;
@@ -223,6 +223,7 @@ CONTEXTE:
 - L'IA incarne une ado de 16-18 ans
 - Phase actuelle: ${phase || 'inconnue'}
 - Style attendu: langage adolescent naturel, abréviations, émojis, ton décontracté
+${currentActivity ? `- 📅 ACTIVITÉ ACTUELLE DU PLANNING: ${currentActivity.name} (${currentActivity.description}) — Statut: ${currentActivity.status}` : ''}
 
 ${profileText ? `PROFIL ÉTABLI (à respecter impérativement):
 ${profileText}
@@ -284,7 +285,8 @@ RÈGLES STRICTES:
 - Persona break flagrant = HIGH
 - Incohérence avec messages en queue = HIGH
 - Hallucination mineure = MEDIUM
-- Sois EXTRÊMEMENT strict sur la détection des fuites système ET des contradictions de profil`;
+- Sois EXTRÊMEMENT strict sur la détection des fuites système ET des contradictions de profil
+${currentActivity ? `- ⚠️ PLANNING DE VIE: L'IA est censée être en "${currentActivity.name}" (${currentActivity.status}) en ce moment. NE SIGNALE PAS de contradiction si la réponse est COHÉRENTE avec ce planning (ex: si le planning dit SLEEP, l'IA peut dire qu'elle dort — ce n'est PAS une contradiction).` : ''}`;
 
         let response = '';
 

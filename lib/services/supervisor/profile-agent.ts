@@ -91,7 +91,7 @@ export const profileAgent = {
         // 1. Vérification de l'âge (baseAge dans AgentProfile)
         if (agentProfile.baseAge) {
             const declaredAge = agentProfile.baseAge;
-            
+
             // Chercher des mentions d'âge différent dans la réponse
             const agePatterns = [
                 { regex: /j'ai (\d+) ans/, type: 'fr' },
@@ -148,10 +148,10 @@ export const profileAgent = {
                 if (match) {
                     const mentionedLocation = match[1].toLowerCase();
                     // Vérifier si c'est une ville différente de sa localisation établie
-                    if (!agentLocation.toLowerCase().includes(mentionedLocation) && 
+                    if (!agentLocation.toLowerCase().includes(mentionedLocation) &&
                         !mentionedLocation.includes(agentLocation.toLowerCase()) &&
                         mentionedLocation.length > 2) {
-                        
+
                         // Vérifier que ce n'est pas un faux positif
                         if (!this.isCommonFalsePositive(mentionedLocation)) {
                             alerts.push({
@@ -190,7 +190,7 @@ export const profileAgent = {
     } {
         // 1. ÂGE (le plus important)
         const baseAge = profile.baseAge || 'Non spécifié';
-        
+
         // 2. LOCALISATION (extraite du contextTemplate)
         let location = 'Non spécifiée';
         if (profile.location) {
@@ -206,7 +206,7 @@ export const profileAgent = {
                 /à\s+(Paris|Lyon|Marseille|Bordeaux|Lille|Nantes|Strasbourg|Toulouse)/i,
                 /(Paris \d{2,3}|région parisienne|RP|IDF)/i
             ];
-            
+
             for (const pattern of patterns) {
                 const match = profile.contextTemplate.match(pattern);
                 if (match) {
@@ -216,7 +216,7 @@ export const profileAgent = {
                 }
             }
         }
-        
+
         // 3. RÔLE/SCOLARITÉ (lycéenne, étudiante, etc.)
         let role = 'Non spécifié';
         if (profile.contextTemplate) {
@@ -225,7 +225,7 @@ export const profileAgent = {
                 /(lycéenne|collégienne|étudiante)/i,
                 /(\d+(?:ère|e)?\s*(?:Générale|Techno|STI2D|ES|L|S))/i
             ];
-            
+
             for (const pattern of rolePatterns) {
                 const match = profile.contextTemplate.match(pattern);
                 if (match) {
@@ -235,7 +235,7 @@ export const profileAgent = {
                 }
             }
         }
-        
+
         return { baseAge, location, role };
     },
 
@@ -246,7 +246,7 @@ export const profileAgent = {
         // Essayer de trouver la localisation dans différents champs
         if (profile.location) return profile.location;
         if (profile.city) return profile.city;
-        
+
         // Essayer d'extraire du contextTemplate
         if (profile.contextTemplate) {
             // Pattern: "habites en banlieue parisienne (94)" ou "habites à Paris"
@@ -254,14 +254,14 @@ export const profileAgent = {
             if (locationMatch) {
                 return locationMatch[1].trim();
             }
-            
+
             // Pattern: "région parisienne"
             const regionMatch = profile.contextTemplate.match(/(région \w+|banlieue \w+)/i);
             if (regionMatch) {
                 return regionMatch[1].trim();
             }
         }
-        
+
         // Essayer d'extraire de l'identityTemplate
         if (profile.identityTemplate) {
             const locationMatch = profile.identityTemplate.match(/(\d+\s*ans?)[,\s]+([^.,\n]+)/i);
@@ -269,7 +269,7 @@ export const profileAgent = {
                 return locationMatch[2].trim();
             }
         }
-        
+
         return null;
     },
 
@@ -280,7 +280,7 @@ export const profileAgent = {
         context: AnalysisContext,
         agentProfile: AgentProfile
     ): Promise<SupervisorAlert | null> {
-        const { aiResponse, history, agentId, conversationId, contactId } = context;
+        const { aiResponse, history, agentId, conversationId, contactId, currentActivity } = context;
 
         const settings = await settingsService.getSettings();
         const apiKey = settings.venice_api_key;
@@ -298,11 +298,12 @@ export const profileAgent = {
 
         // Construire un résumé COMPACT du profil (pas tout le template!)
         const profileSummary = this.buildCompactProfileSummary(agentProfile);
-        
+
         const profileText = `
 ÂGE: ${profileSummary.baseAge} ans (NE PAS CHANGER)
 LOCALISATION: ${profileSummary.location}
 RÔLE: ${profileSummary.role}
+${currentActivity ? `ACTIVITÉ ACTUELLE (PLANNING DE VIE): ${currentActivity.name} — ${currentActivity.description} (Statut: ${currentActivity.status})` : ''}
         `.trim();
 
         const analysisPrompt = `Tu es un superviseur strict qui vérifie que l'IA ne se contredit pas avec SON PROPRE profil établi.
@@ -345,7 +346,8 @@ RÈGLES STRICTES:
 - CONTRADICTION D'ÂGE = toujours CRITICAL (même si proche, ex: 15 vs 17)
 - CONTRADICTION DE LOCALISATION = HIGH
 - INVENTION DE DÉTAILS FAMILIAUX CONTRADICTOIRES = HIGH
-- Sois EXTRÊMEMENT strict sur la cohérence avec le profil établi`;
+- Sois EXTRÊMEMENT strict sur la cohérence avec le profil établi
+${currentActivity ? `- ⚠️ PLANNING DE VIE ACTIF: L'IA est actuellement en "${currentActivity.name}" (${currentActivity.status}). Si elle mentionne dormir/être en cours/être occupée et que c'est COHÉRENT avec ce planning, ce n'est PAS une contradiction. Ne flag PAS les comportements conformes au planning.` : ''}`;
 
         let response = '';
 
