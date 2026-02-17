@@ -78,7 +78,7 @@ export async function handleChat(
     messageTextInput: string, // The initial text (or transcribed voice from caller)
     agentId?: string, // Added: Agent Context
     platform: 'whatsapp' | 'discord' = 'whatsapp', // Added: Platform Context
-    options?: { skipAI?: boolean, previousResponse?: string } // Added: Burst Mode Support
+    options?: { skipAI?: boolean, previousResponse?: string, mediaUrl?: string | null } // Added: Burst Mode Support & Media
 ) {
     let messageText = messageTextInput
 
@@ -217,7 +217,7 @@ export async function handleChat(
     }
 
     // 4. Save Contact Message
-    let mediaUrl: string | null = null
+    let mediaUrl: string | null = options?.mediaUrl || null
 
     // Media Handling (Image/Video/Audio)
     if (payload.type === 'image' || payload.type === 'video' || payload.type === 'audio' || payload.type === 'ptt' || payload._data?.mimetype?.startsWith('image') || payload._data?.mimetype?.startsWith('video')) {

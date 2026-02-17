@@ -925,7 +925,33 @@ Keep response SHORT and excited.)`
         // Currently, media request Logic returns early, so we only need to worry about BURST logic which handles this inside the CRON loop.
         // The CRON loop will pass `lastResponse` in `options`.
 
-        const chatResult = await handleChat(payload, contact, conversation, settings, messageText, agentId, platform, options)
+        // --- MEDIA HANDLING (Discord & WhatsApp) ---
+        let mediaUrl: string | null = null
+
+        // 1. Discord Attachments
+        if (isDiscord && payload.attachments && payload.attachments.length > 0) {
+            console.log(`[Processor] Processing ${payload.attachments.length} Discord attachments...`)
+            const attachment = payload.attachments[0] // Verify: Handle multiple? For now handle first.
+            const url = attachment.url
+            if (url) {
+                try {
+                    console.log(`[Processor] Downloading Discord attachment: ${url}`)
+                    const axios = require('axios')
+                    const response = await axios.get(url, { responseType: 'arraybuffer' })
+                    const buffer = Buffer.from(response.data)
+                    const mime = attachment.content_type || 'image/jpeg'
+
+                    const { storage } = require('@/lib/storage')
+                    mediaUrl = await storage.uploadMedia(buffer, mime)
+                    console.log(`[Processor] Discord attachment uploaded: ${mediaUrl}`)
+                } catch (e) {
+                    console.error('[Processor] Failed to process Discord attachment', e)
+                }
+            }
+        }
+
+        const chatResult = await handleChat(payload, contact, conversation, settings, messageText, agentId, platform, { ...options, mediaUrl }) // Pass mediaUrl in options
+
         console.log('[Processor] Chat Result:', chatResult)
 
         // ...
