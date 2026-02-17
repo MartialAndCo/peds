@@ -38,6 +38,7 @@ export async function GET(
             convertedCount,
             pendingCount,
             byType,
+            recentLeads,
         ] = await Promise.all([
             // Today
             prisma.lead.count({
@@ -83,6 +84,17 @@ export async function GET(
                 by: ['type'],
                 where: { agentId: agentId },
                 _count: { type: true }
+            }),
+            // Recent Leads (Last 50)
+            prisma.lead.findMany({
+                where: { agentId: agentId },
+                orderBy: { createdAt: 'desc' },
+                take: 50,
+                include: {
+                    contact: {
+                        select: { id: true, status: true }
+                    }
+                }
             })
         ])
 
@@ -106,6 +118,7 @@ export async function GET(
                 acc[curr.type] = curr._count.type
                 return acc
             }, {}),
+            recentLeads,
             earnings: {
                 total: totalEarnings,
                 thisWeek: weeklyEarnings,

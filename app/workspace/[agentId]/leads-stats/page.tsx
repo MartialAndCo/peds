@@ -13,11 +13,28 @@ import {
     BarChart3,
     AlertCircle,
     Calendar,
-    DollarSign
+    DollarSign,
+    MessageCircle,
+    Gamepad2
 } from 'lucide-react'
 import { usePWAMode } from '@/hooks/use-pwa-mode'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { format } from 'date-fns'
+
+interface Lead {
+    id: string
+    type: 'WHATSAPP' | 'DISCORD'
+    identifier: string
+    source: string
+    status: 'PENDING' | 'IMPORTED' | 'CONVERTED' | 'REJECTED'
+    createdAt: string
+    contact?: {
+        id: string
+        status: string
+    }
+}
 
 interface StatsData {
     counts: {
@@ -38,6 +55,14 @@ interface StatsData {
         perLead: number
     }
     conversionRate: number
+    recentLeads: Lead[]
+}
+
+const statusColors: Record<string, string> = {
+    PENDING: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50',
+    IMPORTED: 'bg-blue-500/20 text-blue-400 border-blue-500/50',
+    CONVERTED: 'bg-green-500/20 text-green-400 border-green-500/50',
+    REJECTED: 'bg-red-500/20 text-red-400 border-red-500/50'
 }
 
 export default function LeadsStatsPage() {
@@ -105,7 +130,7 @@ export default function LeadsStatsPage() {
     if (!stats) return null
 
     return (
-        <div className="space-y-6 pb-8">
+        <div className="space-y-6 pb-24">
             {isPWAStandalone ? <PWAHeader /> : (
                 <div className="flex justify-between items-start">
                     <div>
@@ -145,7 +170,7 @@ export default function LeadsStatsPage() {
                 />
             </div>
 
-            {/* Costs Card (Replicating Provider's Earnings Card but for Costs) */}
+            {/* Costs Card */}
             <Card className="bg-gradient-to-r from-blue-900/40 to-indigo-900/40 border-white/[0.06] overflow-hidden">
                 <CardContent className="p-6">
                     <div className="flex items-center justify-between">
@@ -173,43 +198,63 @@ export default function LeadsStatsPage() {
                 <StatusSummaryCard label="Pending" value={stats.status.pending} color="bg-amber-500" textColor="text-amber-400" />
             </div>
 
-            {/* Platforms Breakdown */}
-            <Card className="glass border-white/[0.06]">
-                <CardHeader>
-                    <CardTitle className="text-lg font-medium text-white flex items-center gap-2">
-                        <Users className="h-5 w-5 text-blue-400" />
-                        Platforms
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="space-y-6">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-                                    <span className="text-emerald-400 font-bold text-xs">WA</span>
-                                </div>
-                                <div>
-                                    <p className="font-medium text-white text-sm">WhatsApp</p>
-                                    <p className="text-xs text-white/40">Phone numbers</p>
-                                </div>
-                            </div>
-                            <span className="text-xl font-bold text-white">{stats.byType.WHATSAPP || 0}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center">
-                                    <span className="text-indigo-400 font-bold text-xs">DC</span>
-                                </div>
-                                <div>
-                                    <p className="font-medium text-white text-sm">Discord</p>
-                                    <p className="text-xs text-white/40">Usernames</p>
-                                </div>
-                            </div>
-                            <span className="text-xl font-bold text-white">{stats.byType.DISCORD || 0}</span>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
+            {/* Recent Leads History */}
+            <div className="space-y-4">
+                <h3 className="text-lg font-medium text-white flex items-center gap-2">
+                    <Clock className="h-5 w-5 text-purple-400" />
+                    Recent Leads Details
+                </h3>
+
+                <div className="space-y-3">
+                    {stats.recentLeads.length === 0 ? (
+                        <Card className="glass border-white/[0.06] p-8 text-center">
+                            <p className="text-white/20">No leads found for this agent</p>
+                        </Card>
+                    ) : (
+                        stats.recentLeads.map((lead) => (
+                            <Card key={lead.id} className="glass border-white/[0.06] hover:bg-white/[0.02] transition-colors overflow-hidden">
+                                <CardContent className="p-4">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                {lead.type === 'WHATSAPP' ? (
+                                                    <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center shrink-0">
+                                                        <MessageCircle className="w-4 h-4 text-emerald-400" />
+                                                    </div>
+                                                ) : (
+                                                    <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center shrink-0">
+                                                        <Gamepad2 className="w-4 h-4 text-indigo-400" />
+                                                    </div>
+                                                )}
+                                                <div className="min-w-0">
+                                                    <p className="font-medium text-white text-sm truncate">
+                                                        {lead.identifier}
+                                                    </p>
+                                                    <p className="text-[10px] text-white/40 uppercase tracking-wider">{lead.source}</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-3 text-[11px] text-white/30">
+                                                <span className="flex items-center gap-1">
+                                                    <Calendar className="w-3 h-3" />
+                                                    {format(new Date(lead.createdAt), 'MMM d, HH:mm')}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <Badge
+                                            variant="outline"
+                                            className={`text-[10px] py-0 px-2 h-5 rounded-full border-0 ${statusColors[lead.status]}`}
+                                        >
+                                            {lead.status}
+                                        </Badge>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ))
+                    )}
+                </div>
+            </div>
         </div>
     )
 }
