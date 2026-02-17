@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { whatsapp } from '@/lib/whatsapp'
+import { discord } from '@/lib/discord'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 
@@ -34,22 +35,68 @@ export async function POST(
         }
 
         const agentId = conversation.agentId || undefined
+        const isDiscord = phone.startsWith('DISCORD_') || conversation.contact.source === 'discord' || phone.includes('@discord')
 
-        // Send media or text via WhatsApp
+        // Send media or text via WhatsApp or Discord
         if (mediaUrl) {
             const detectedType = mediaType || detectMediaType(mediaUrl)
 
-            if (detectedType === 'image') {
-                await whatsapp.sendImage(phone, mediaUrl, messageText || undefined, agentId)
-            } else if (detectedType === 'video') {
-                await whatsapp.sendVideo(phone, mediaUrl, messageText || undefined, agentId)
+            if (isDiscord) {
+                // Discord Sending Logic
+                if (detectedType === 'image') {
+                    await discord.sendImage(phone, mediaUrl, messageText || undefined, agentId)
+                } else if (detectedType === 'video') {
+                    // Discord treats videos as files usually, or we can use sendFile if sendVideo isn't specific
+                    // Using sendFile for video as per typical Discord bot patterns if no specific video endpoint
+                    const filename = mediaUrl.split('/').pop() || 'video.mp4'
+                    await discord.sendFile(phone, mediaUrl, filename, messageText || undefined, agentId)
+                } else {
+                    // Generic file
+                    const filename = mediaUrl.split('/').pop() || 'file'
+                    await discord.sendFile(phone, mediaUrl, filename, messageText || undefined, agentId)
+                }
             } else {
-                // Generic file
-                const filename = mediaUrl.split('/').pop() || 'file'
-                await whatsapp.sendFile(phone, mediaUrl, filename, messageText || undefined, agentId)
+                // WhatsApp Sending Logic
+                if (detectedType === 'image') {
+                    await whatsapp.sendImage(phone, mediaUrl, messageText || undefined, agentId)
+                } else if (detectedType === 'video') {
+                    await whatsapp.sendVideo(phone, mediaUrl, messageText || undefined, agentId)
+                } else {
+                    // Generic file
+                    const filename = mediaUrl.split('/').pop() || 'file'
+                    await whatsapp.sendFile(phone, mediaUrl, filename, messageText || undefined, agentId)
+                }
+            }
+
+            // Update Media.sentTo if this media exists in our bank
+            try {
+                // Find media by URL (we use endsWith to match potential query params difference)
+                // Note: exact match is safer if URLs are consistent
+                const media = await prisma.media.findFirst({
+                    where: { url: mediaUrl }
+                })
+
+                if (media) {
+                    const alreadySent = media.sentTo.includes(phone)
+                    if (!alreadySent) {
+                        await prisma.media.update({
+                            where: { id: media.id },
+                            data: {
+                                sentTo: { push: phone }
+                            }
+                        })
+                    }
+                }
+            } catch (err) {
+                console.error('[Send] Failed to update media tracking:', err)
+                // Don't fail the request, just log it
             }
         } else if (messageText) {
-            await whatsapp.sendText(phone, messageText, undefined, agentId)
+            if (isDiscord) {
+                await discord.sendText(phone, messageText, agentId)
+            } else {
+                await whatsapp.sendText(phone, messageText, undefined, agentId)
+            }
         } else {
             return NextResponse.json({ error: 'No message or media provided' }, { status: 400 })
         }

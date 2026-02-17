@@ -469,104 +469,120 @@ export async function handleChat(
     // ─────────────────────────────────────────────────────────────────────────────
 
     try {
-        let loopCount = 0
-        const MAX_LOOPS = 5 // Safety brake
-        let currentMessageText = messageText // Start with current
-        let currentPayload = payload
-        let currentOptions = options
+        try {
+            let loopCount = 0
+            const MAX_LOOPS = 5 // Safety brake
+            let currentMessageText = messageText // Start with current
+            let currentPayload = payload
+            let currentOptions = options
 
-        // On first iteration, we simply process the message that triggered this.
-        // On subsequent iterations, we process new messages found in DB.
+            // On first iteration, we simply process the message that triggered this.
+            // On subsequent iterations, we process new messages found in DB.
 
-        do {
-            loopCount++
-            const loopStart = new Date()
+            do {
+                loopCount++
+                const loopStart = new Date()
 
-            logger.info(`[Chat] 🔄 AI Processing Loop #${loopCount} started for Contact ${contact.id}`, { loopCount })
+                logger.info(`[Chat] 🔄 AI Processing Loop #${loopCount} started for Contact ${contact.id}`, { loopCount })
 
-            // AI GENERATION LOGIC
-            const result = await generateAndSendAI(conversation, contact, settings, currentMessageText, currentPayload, agentId, platform, currentOptions, undefined)
+                // AI GENERATION LOGIC
+                const result = await generateAndSendAI(conversation, contact, settings, currentMessageText, currentPayload, agentId, platform, currentOptions, undefined)
 
-            // If result was "queued", "paused", or "blocked", we typically still want to check for new messages?
-            // Yes, because a human might be spamming "cancel" or "stop".
+                // If result was "queued", "paused", or "blocked", we typically still want to check for new messages?
+                // Yes, because a human might be spamming "cancel" or "stop".
 
-            // 🛑 CHECK FOR NEW MESSAGES (Tail Check)
-            // Look for contact messages older than NOW but newer than our start time?
-            // Actually, any message that is NOT "processed" or simply "newer than the one we just handled"?
-            // Simplest: Find any message from 'contact' created AFTER the message we just processed?
-            // OR checks for unreadCount?
+                // 🛑 CHECK FOR NEW MESSAGES (Tail Check)
+                // Look for contact messages older than NOW but newer than our start time?
+                // Actually, any message that is NOT "processed" or simply "newer than the one we just handled"?
+                // Simplest: Find any message from 'contact' created AFTER the message we just processed?
+                // OR checks for unreadCount?
 
-            // Let's look for any message from 'contact' that is newer than the one we just processed.
-            // We need the ID of the message we just processed.
-            // But wait, generateAndSendAI fetches the LATEST 50 messages. 
-            // So if a new message arrived during generation, `generateAndSendAI` in the NEXT loop will see it.
+                // Let's look for any message from 'contact' that is newer than the one we just processed.
+                // We need the ID of the message we just processed.
+                // But wait, generateAndSendAI fetches the LATEST 50 messages. 
+                // So if a new message arrived during generation, `generateAndSendAI` in the NEXT loop will see it.
 
-            // We need to know IF we should loop.
-            // Check if there is a message from contact that is newer than `loopStart`?
-            // No, newer than the message we just processed.
+                // We need to know IF we should loop.
+                // Check if there is a message from contact that is newer than `loopStart`?
+                // No, newer than the message we just processed.
 
-            // Update timestamp of last processed message
-            // We don't track "processed" status on messages easily yet.
-            // But we know `timestamp` of `currentPayload` (approximated).
+                // Update timestamp of last processed message
+                // We don't track "processed" status on messages easily yet.
+                // But we know `timestamp` of `currentPayload` (approximated).
 
-            // Robust Check:
-            // "Are there any messages from 'contact' in this conversation created recently that we haven't answered?"
-            // Since we just answered (presumably), the only unanswered ones are those created *during* `generateAndSendAI`.
+                // Robust Check:
+                // "Are there any messages from 'contact' in this conversation created recently that we haven't answered?"
+                // Since we just answered (presumably), the only unanswered ones are those created *during* `generateAndSendAI`.
 
-            const newMessages = await prisma.message.findMany({
-                where: {
-                    conversationId: conversation.id,
-                    sender: 'contact',
-                    timestamp: { gt: loopStart } // Created WHILE we were generating
-                },
-                orderBy: { timestamp: 'asc' }
-            })
+                const newMessages = await prisma.message.findMany({
+                    where: {
+                        conversationId: conversation.id,
+                        sender: 'contact',
+                        timestamp: { gt: loopStart } // Created WHILE we were generating
+                    },
+                    orderBy: { timestamp: 'asc' }
+                })
 
-            if (newMessages.length > 0) {
-                logger.info(`[Chat] ⚡ Found ${newMessages.length} new messages arrived during processing! Looping...`, { newIds: newMessages.map(m => m.id) })
+                if (newMessages.length > 0) {
+                    logger.info(`[Chat] ⚡ Found ${newMessages.length} new messages arrived during processing! Looping...`, { newIds: newMessages.map(m => m.id) })
 
-                // Update context for next loop
-                // We'll use the TEXT of the last new message, but the AI will read ALL of them in history.
-                const lastNewMsg = newMessages[newMessages.length - 1]
-                currentMessageText = lastNewMsg.message_text
-                currentPayload = { id: lastNewMsg.waha_message_id || `sim_${Date.now()}` } // Mock payload for next loop
+                    // Update context for next loop
+                    // We'll use the TEXT of the last new message, but the AI will read ALL of them in history.
+                    const lastNewMsg = newMessages[newMessages.length - 1]
+                    currentMessageText = lastNewMsg.message_text
+                    currentPayload = { id: lastNewMsg.waha_message_id || `sim_${Date.now()}` } // Mock payload for next loop
 
-                // Inject the AI's last response as "previousResponse" context for the next generation
-                // preventing it from repeating itself.
-                const lastAIResponse = result?.textBody
-                if (lastAIResponse) {
-                    currentOptions = { ...currentOptions, previousResponse: lastAIResponse }
+                    // Inject the AI's last response as "previousResponse" context for the next generation
+                    // preventing it from repeating itself.
+                    const lastAIResponse = result?.textBody
+                    if (lastAIResponse) {
+                        currentOptions = { ...currentOptions, previousResponse: lastAIResponse }
+                    }
+
+                    // Small delay to let DB settle?
+                    await new Promise(r => setTimeout(r, 1000))
+
+                    // Refresh lock timestamp to prevent timeout during long loops
+                    await attemptLock(conversation.id) // Just updates timestamp
+
+                } else {
+                    logger.info(`[Chat] ✅ No new messages found. Releasing lock.`)
+                    break // Exit loop
                 }
 
-                // Small delay to let DB settle?
-                await new Promise(r => setTimeout(r, 1000))
+                if (loopCount >= MAX_LOOPS) {
+                    logger.warn(`[Chat] ⚠️ Max loops (${MAX_LOOPS}) reached. Breaking to prevent infinite loop.`)
+                    break
+                }
 
-                // Refresh lock timestamp to prevent timeout during long loops
-                await attemptLock(conversation.id) // Just updates timestamp
+            } while (true)
 
-            } else {
-                logger.info(`[Chat] ✅ No new messages found. Releasing lock.`)
-                break // Exit loop
+            return { handled: true, result: 'processed_with_tail_loop' }
+
+        } catch (error: any) {
+            // ... (Error handling remains same)
+            if (error.message?.includes('VENICE_API_REJECTED') || error.message?.includes('402') || error.message?.includes('Insufficient balance')) {
+                console.error('[Chat] 🚨 Venice API error in handleChat:', error.message)
+                return { handled: true, result: 'ai_quota_failed', error: error.message }
             }
-
-            if (loopCount >= MAX_LOOPS) {
-                logger.warn(`[Chat] ⚠️ Max loops (${MAX_LOOPS}) reached. Breaking to prevent infinite loop.`)
-                break
-            }
-
-        } while (true)
-
-        return { handled: true, result: 'processed_with_tail_loop' }
-
-    } catch (error: any) {
-        // ... (Error handling remains same)
-        if (error.message?.includes('VENICE_API_REJECTED') || error.message?.includes('402') || error.message?.includes('Insufficient balance')) {
-            console.error('[Chat] 🚨 Venice API error in handleChat:', error.message)
-            return { handled: true, result: 'ai_quota_failed', error: error.message }
+            throw error
+        } finally {
+            await releaseLock(conversation.id)
         }
-        throw error
-    } finally {
-        await releaseLock(conversation.id)
+    } catch (globalError: any) {
+        console.error('🔥 CRITICAL UNHANDLED ERROR in handleChat:', globalError)
+
+        // 🔥 ALERT: Global Chat Handler Failure
+        const { logSystemError } = require('@/lib/monitoring/system-logger')
+        logSystemError(
+            'whatsapp', // or discord
+            'CRITICAL',
+            `Unhandled Chat Error: ${globalError.message}`,
+            JSON.stringify({ contactId: contact.id, conversationId: conversation.id }),
+            'chat-handler'
+        ).catch(console.error)
+
+        throw globalError // Re-throw to ensure caller knows
     }
 }
 
@@ -1315,8 +1331,22 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
                         const result = mediaResult // reuse
                         // 1. Send Image
                         let dataUrl = result.media.data
-                        if (dataUrl && !dataUrl.startsWith('http') && !dataUrl.startsWith('data:')) {
-                            dataUrl = `data:${result.media.mimeType || 'image/jpeg'};base64,${dataUrl}`
+                        // For Discord, we prefer URL if available, otherwise base64
+                        // WhatsApp helper handles base64 automatically
+                        // Discord helper expects URL?
+                        // Actually, my updated discord.ts takes a URL string. 
+                        // If it's a base64 string, does it work? 
+                        // discord.sendImage docs say "url". 
+                        // If `result.media.url` exists (Supabase URL), prefer that!
+                        const mediaUrl = result.media.url || dataUrl
+
+                        if (mediaUrl && !mediaUrl.startsWith('http') && !mediaUrl.startsWith('data:')) {
+                            // It's raw base64, add prefix for WhatsApp.
+                            // For Discord, we might need to upload it first or send as attachment buffer...
+                            // Current discord.ts implementation expects a URL or assumes the service handles it.
+                            dataUrl = `data:${result.media.mimeType || 'image/jpeg'};base64,${mediaUrl}`
+                        } else {
+                            dataUrl = mediaUrl
                         }
 
                         if (platform !== 'discord') await whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => { })
@@ -1325,10 +1355,18 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
                         const isVideo = (result.media.mimeType && result.media.mimeType.startsWith('video')) ||
                             (dataUrl.match(/\.(mp4|mov|avi|webm|mkv)(\?|$)/i));
 
-                        if (isVideo) {
-                            await whatsapp.sendVideo(contact.phone_whatsapp, dataUrl, result.media.caption || '', agentId)
+                        if (platform === 'discord') {
+                            if (isVideo) {
+                                await discord.sendFile(contact.phone_whatsapp, dataUrl, 'video.mp4', result.media.caption || '', agentId)
+                            } else {
+                                await discord.sendImage(contact.phone_whatsapp, dataUrl, result.media.caption || '', agentId)
+                            }
                         } else {
-                            await whatsapp.sendImage(contact.phone_whatsapp, dataUrl, result.media.caption || '', agentId)
+                            if (isVideo) {
+                                await whatsapp.sendVideo(contact.phone_whatsapp, dataUrl, result.media.caption || '', agentId)
+                            } else {
+                                await whatsapp.sendImage(contact.phone_whatsapp, dataUrl, result.media.caption || '', agentId)
+                            }
                         }
 
                         // 2. Mark as Sent

@@ -150,6 +150,18 @@ export const openrouter = {
         } catch (error: any) {
             const msg = error.response?.data?.error?.message || error.response?.data || error.message;
             console.error("[OpenRouter Vision] Error:", msg);
+
+            // 🔥 ALERT: Notify admin of Vision failure if it's not just a rate limit
+            // Import dynamically to avoid circular dependencies if any
+            const { logSystemError } = require('./monitoring/system-logger');
+            logSystemError(
+                'cron', // flagging as cron/system source 
+                'ERROR',
+                `Vision Analysis Failed: ${msg}`,
+                JSON.stringify({ mimeType, bufferSize: imageBuffer.length }),
+                'vision'
+            ).catch(console.error);
+
             if (throwOnError) throw new Error(`OpenRouter API Error: ${JSON.stringify(msg)}`);
             return null;
         }

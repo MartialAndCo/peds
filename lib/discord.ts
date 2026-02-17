@@ -43,6 +43,53 @@ export const discord = {
     },
 
     /**
+     * Send an image to a Discord user
+     */
+    async sendImage(userId: string, url: string, caption?: string, agentId?: string): Promise<boolean> {
+        const cleanUserId = userId.replace('DISCORD_', '').replace('@discord', '')
+        try {
+            const response = await axios.post(`${DISCORD_SERVICE_URL}/api/sendImage`, {
+                chatId: cleanUserId,
+                image: { url }, // Wrapper to match WAHA/Baileys structure often used
+                caption: caption || '',
+                sessionId: agentId ? `discord_${agentId}` : 'discord_default'
+            }, {
+                timeout: 60000
+            })
+            return response.data?.success === true
+        } catch (error: any) {
+            console.error(`[Discord] Failed to send image to ${cleanUserId}:`, error.message)
+            return false
+        }
+    },
+
+    /**
+     * Send a general file to a Discord user
+     */
+    async sendFile(userId: string, url: string, filename: string, caption?: string, agentId?: string): Promise<boolean> {
+        const cleanUserId = userId.replace('DISCORD_', '').replace('@discord', '')
+        try {
+            // For now mapping sendFile to sendImage/sendText or generic endpoint if available
+            // Assuming the Discord service has a similar generic 'sendFile' or we use sendImage for now if it's media
+            // If strictly file, we might need a specific endpoint. 
+            // Attempting /api/sendFile if it exists, otherwise falling back or logging.
+            // PROCEEDING with /api/sendFile assumption based on pattern.
+            const response = await axios.post(`${DISCORD_SERVICE_URL}/api/sendFile`, {
+                chatId: cleanUserId,
+                file: { url, filename },
+                caption: caption || '',
+                sessionId: agentId ? `discord_${agentId}` : 'discord_default'
+            }, {
+                timeout: 60000
+            })
+            return response.data?.success === true
+        } catch (error: any) {
+            console.error(`[Discord] Failed to send file to ${cleanUserId}:`, error.message)
+            return false
+        }
+    },
+
+    /**
      * Send typing indicator to Discord user
      * Note: Discord.js handles this automatically in most cases
      */

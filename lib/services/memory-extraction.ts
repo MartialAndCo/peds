@@ -115,7 +115,7 @@ export const memoryExtractionService = {
                         await memoryService.addMany(userId, facts)
                         factsExtracted += facts.length
                         console.log(`[MemoryExtraction] Stored ${facts.length} facts for ${phone}`)
-                        
+
                         // 🔥 NOUVEAU: Détecter signaux implicites dans les mémoires
                         try {
                             await memorySignalBridge.onMemoryExtraction(
@@ -135,8 +135,17 @@ export const memoryExtractionService = {
                     })
 
                     processed++
-                } catch (e) {
+                } catch (e: any) {
                     console.error(`[MemoryExtraction] Failed for conv ${conv.id}:`, e)
+                    // 🔥 ALERT: Log significant extraction failures
+                    const { logSystemError } = require('@/lib/monitoring/system-logger');
+                    logSystemError(
+                        'cron',
+                        'WARN',
+                        `Memory Extraction Failed for Conv ${conv.id}: ${e.message}`,
+                        JSON.stringify({ conversationId: conv.id, agentId: agent.id }),
+                        'memory-extraction'
+                    ).catch(console.error);
                 }
             }
         }
