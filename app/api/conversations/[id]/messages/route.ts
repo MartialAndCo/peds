@@ -42,19 +42,22 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const messagesAsc = messages.reverse()
 
     // Strip base64 data URIs from mediaUrl to prevent payload bloat (413 errors)
-    // Base64 images can be 100KB-2MB+ each — with 50 messages this easily exceeds limits
-    // Only HTTP(S) URLs (Supabase) are kept; the frontend displays those directly
+    // REVERTED: User reported images missing. Some images are ONLY base64.
+    // We must return them for now, even if it risks 413.
+    // TODO: Migrate base64 to Supabase storage.
+    /*
     const sanitizedMessages = messagesAsc.map(m => ({
         ...m,
         mediaUrl: m.mediaUrl && m.mediaUrl.startsWith('data:') ? null : m.mediaUrl
     }))
+    */
 
     // Check if there are more messages
     const hasMore = messages.length === limit && messages.length > 0
-    const oldestId = sanitizedMessages.length > 0 ? sanitizedMessages[0].id : null
+    const oldestId = messagesAsc.length > 0 ? messagesAsc[0].id : null
 
     return NextResponse.json({
-        messages: sanitizedMessages,
+        messages: messagesAsc,
         hasMore,
         oldestId
     })
