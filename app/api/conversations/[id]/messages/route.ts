@@ -42,15 +42,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const messagesAsc = messages.reverse()
 
     // Strip base64 data URIs from mediaUrl to prevent payload bloat (413 errors)
-    // REVERTED: User reported images missing. Some images are ONLY base64.
-    // We must return them for now, even if it risks 413.
-    // TODO: Migrate base64 to Supabase storage.
-    /*
-    const sanitizedMessages = messagesAsc.map(m => ({
-        ...m,
-        mediaUrl: m.mediaUrl && m.mediaUrl.startsWith('data:') ? null : m.mediaUrl
-    }))
-    */
+    // Legacy base64 data has been migrated to Supabase.
+    // This now acts as a safety guard: better to show no image than crash the whole chat with 413.
+    const sanitizedMessages = messagesAsc.map(m => {
+        if (m.mediaUrl && m.mediaUrl.startsWith('data:')) {
+            console.warn(`[API] Stripped base64 media from message ${m.id} to prevent 413 error.`)
+            return { ...m, mediaUrl: null }
+        }
+        return m
+    })
 
     // Check if there are more messages
     const hasMore = messages.length === limit && messages.length > 0
