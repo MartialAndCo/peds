@@ -1,5 +1,5 @@
 
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 import { whatsapp } from '@/lib/whatsapp'
 import { handleChat } from '@/lib/handlers/chat'
 
@@ -11,7 +11,7 @@ whatsapp.sendText = async (to, text) => {
 whatsapp.markAsRead = async () => true
 whatsapp.sendTypingState = async () => true
 
-const prisma = new PrismaClient()
+// using shared prisma instance
 
 async function main() {
     console.log("🚀 Starting LLM Concurrency Coherence Test...")

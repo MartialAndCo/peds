@@ -427,9 +427,10 @@ export function ConversationUnifiedView({
                   const fixedMediaUrl = fixMediaUrl(m.mediaUrl)
                   const isVideo = fixedMediaUrl && (fixedMediaUrl.startsWith('data:video') || /\.(mp4|mov|avi|webm|mkv)(\?|#|$)/i.test(fixedMediaUrl))
                   const isAudio = fixedMediaUrl && (fixedMediaUrl.startsWith('data:audio') || /\.(mp3|wav|ogg|m4a|opus)(\?|#|$)/i.test(fixedMediaUrl))
-                  const isImage = fixedMediaUrl && !isVideo && !isAudio && (
+                  const isSticker = fixedMediaUrl && /\.(webp)(\?|#|$)/i.test(fixedMediaUrl)
+                  const isImage = fixedMediaUrl && !isVideo && !isAudio && !isSticker && (
                     fixedMediaUrl.startsWith('data:image') ||
-                    /\.(jpeg|jpg|gif|png|webp)(\?|#|$)/i.test(fixedMediaUrl) ||
+                    /\.(jpeg|jpg|gif|png)(\?|#|$)/i.test(fixedMediaUrl) ||
                     fixedMediaUrl.startsWith('/9j/') ||
                     fixedMediaUrl.startsWith('iVBOR') ||
                     fixedMediaUrl.startsWith('http')
@@ -457,6 +458,11 @@ export function ConversationUnifiedView({
                           </span>
                         </div>
 
+                        {isSticker && fixedMediaUrl && (
+                          <div className="mb-2 mt-1">
+                            <img src={fixedMediaUrl} alt="Sticker" className="w-32 h-32 object-contain" />
+                          </div>
+                        )}
                         {isImage && fixedMediaUrl && (
                           <div className="mb-2 mt-1">
                             <a href={fixedMediaUrl} target="_blank" rel="noopener noreferrer">

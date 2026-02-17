@@ -17,10 +17,12 @@ const getDatabaseUrl = () => {
         // Conservative limits to prevent connection exhaustion
         // PostgreSQL default max_connections is 100, we need to stay well below
         if (!urlObj.searchParams.has('connection_limit')) {
-            urlObj.searchParams.set('connection_limit', '5')
+            const limit = process.env.DATABASE_CONNECTION_LIMIT || '5'
+            urlObj.searchParams.set('connection_limit', limit)
         }
         if (!urlObj.searchParams.has('pool_timeout')) {
-            urlObj.searchParams.set('pool_timeout', '10') // 10s wait before throwing timeout
+            const timeout = process.env.DATABASE_POOL_TIMEOUT || '10'
+            urlObj.searchParams.set('pool_timeout', timeout) // wait before throwing timeout
         }
         if (!urlObj.searchParams.has('idle_timeout')) {
             urlObj.searchParams.set('idle_timeout', '30') // Close idle connections after 30s

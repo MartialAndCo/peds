@@ -630,7 +630,7 @@ async function startSession(sessionId: string) {
     sock.ev.on('messages.upsert', async (m) => {
         // DEBUG: Log ALL incoming messages
         server.log.info({ sessionId, type: m.type, count: m.messages.length }, 'messages.upsert event received')
-        
+
         // Add to log buffer for monitoring dashboard
         const sender = m.messages[0]?.key?.remoteJid?.split('@')[0] || 'unknown'
         addToLogBuffer(`${new Date().toISOString()} [${sessionId}] Message from ${sender} (${m.messages.length} msgs)`)
@@ -721,6 +721,7 @@ async function startSession(sessionId: string) {
             let type = 'chat'
             if (msg.message.imageMessage) type = 'image'
             if (msg.message.audioMessage) type = 'ptt'
+            if (msg.message.stickerMessage) type = 'sticker'
 
             server.log.info({ sessionId, from: msg.key.remoteJid, type, fromMe: msg.key.fromMe, bodyPreview: body.substring(0, 50) }, 'Processing message')
 
@@ -1123,9 +1124,9 @@ server.get('/status', async (req, reply) => {
 
 // Health check endpoint
 server.get('/health', async (req: any, reply) => {
-    return { 
-        success: true, 
-        status: 'healthy', 
+    return {
+        success: true,
+        status: 'healthy',
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
         sessions: sessions.size

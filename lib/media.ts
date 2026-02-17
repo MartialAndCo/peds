@@ -62,7 +62,7 @@ export const mediaService = {
             /je shoot en/i,
         ];
         const isHobbyStatement = hobbyPatterns.some(pattern => pattern.test(text));
-        
+
         if (isHobbyStatement) {
             console.log(`[MediaService] Detected hobby statement, skipping media request analysis`);
             return {
@@ -108,7 +108,7 @@ export const mediaService = {
             /i (finally)? developed my photos/i,
         ];
         const isSharingOwnPhoto = sharingPatterns.some(pattern => pattern.test(text));
-        
+
         if (isSharingOwnPhoto) {
             console.log(`[MediaService] Detected user sharing their own photo, skipping media request analysis`);
             return {
@@ -139,7 +139,7 @@ export const mediaService = {
             /tu m'envoies (ça|ca) quand/i,
         ];
         const isAppearanceRequest = appearanceRequestPatterns.some(pattern => pattern.test(text));
-        
+
         if (isAppearanceRequest) {
             console.log(`[MediaService] Detected appearance request pattern - forcing isMediaRequest=true`);
             return {
@@ -172,7 +172,7 @@ export const mediaService = {
             /j'aime la photo$/i,
         ];
         const isNotRequest = notRequestPatterns.some(pattern => pattern.test(text));
-        
+
         if (isNotRequest) {
             console.log(`[MediaService] Detected non-request pattern, skipping media request analysis`);
             return {
@@ -280,7 +280,10 @@ Respond ONLY with JSON:
         const systemPrompt = systemPromptTemplate
             .replace('{BLACKLIST}', blacklistText || '(No restrictions for this phase)')
             .replace('{CATEGORIES}', availableCategories)
-            .replace('{PHASE}', contactPhase);
+            .replace('{PHASE}', contactPhase)
+            + "\n\nCRITICAL: Respond ONLY with VALID JSON. Do not use markdown blocks (```json). Use double quotes for all keys and string values.";
+
+        let responseText = "";
 
         try {
             // Use Venice or Anthropic based on settings preference
@@ -290,7 +293,6 @@ Respond ONLY with JSON:
 
             const userMessage = `Analyze this request: "${text}"`;
 
-            let responseText = "";
             if (settings.ai_provider === 'anthropic') {
                 // simplify for now or use the preferred provider
                 responseText = await anthropic.chatCompletion(
@@ -306,14 +308,43 @@ Respond ONLY with JSON:
 
             // Extract JSON from response (sometimes models add markdown)
             const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+
             if (jsonMatch) {
-                return JSON.parse(jsonMatch[0]);
+                const jsonStr = jsonMatch[0];
+                try {
+                    return JSON.parse(jsonStr);
+                } catch (firstPassError) {
+                    logger.warn('Initial JSON parse failed, attempting repair', { module: 'media_service', error: firstPassError, raw: jsonStr });
+
+                    // Basic repair for common LLM JSON errors
+                    // 1. Quote unquoted keys: { key: "value" } -> { "key": "value" }
+                    // 2. Trailing commas: { "key": "value", } -> { "key": "value" }
+                    // 3. Single quotes to double quotes for keys (simple check)
+                    let cleaned = jsonStr
+                        .replace(/([{,]\s*)([a-zA-Z0-9_]+)\s*:/g, '$1"$2":') // Quote keys
+                        .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commands
+                        .replace(/'([^']+)'\s*:/g, '"$1":'); // Single quotes keys
+
+                    try {
+                        return JSON.parse(cleaned);
+                    } catch (repairError) {
+                        logger.error('JSON Repair Failed', repairError as Error, { module: 'media_service', raw: jsonStr, repaired: cleaned });
+                        // Return safe default instead of throwing
+                        return {
+                            isMediaRequest: false,
+                            allowed: false,
+                            intentCategory: null,
+                            explanation: "JSON Parse Error (Unrecoverable)"
+                        };
+                    }
+                }
             }
-            logger.warn('Failed to parse AI JSON response', { module: 'media_service', responseText });
+
+            logger.warn('Failed to extract JSON from AI response', { module: 'media_service', responseText });
             return null;
 
         } catch (e: any) {
-            logger.error('Analysis Failed', e, { module: 'media_service' });
+            logger.error('Analysis Failed', e as Error, { module: 'media_service', responseText });
             return null;
         }
     },

@@ -219,8 +219,8 @@ export async function handleChat(
     // 4. Save Contact Message
     let mediaUrl: string | null = options?.mediaUrl || null
 
-    // Media Handling (Image/Video/Audio)
-    if (payload.type === 'image' || payload.type === 'video' || payload.type === 'audio' || payload.type === 'ptt' || payload._data?.mimetype?.startsWith('image') || payload._data?.mimetype?.startsWith('video')) {
+    // Media Handling (Image/Video/Audio/Sticker)
+    if (payload.type === 'image' || payload.type === 'video' || payload.type === 'audio' || payload.type === 'ptt' || payload.type === 'sticker' || payload._data?.mimetype?.startsWith('image') || payload._data?.mimetype?.startsWith('video')) {
         console.log(`[Chat] 📸 Media detected (type: ${payload.type}, mime: ${payload._data?.mimetype || 'unknown'}). Downloading...`)
         try {
             const media = await whatsapp.downloadMedia(payload.id)
@@ -228,7 +228,7 @@ export async function handleChat(
                 const { storage } = require('@/lib/storage')
                 // FIX: media.data is already a Buffer
                 const buffer = Buffer.isBuffer(media.data) ? media.data : Buffer.from(media.data as unknown as string, 'base64')
-                const mime = media.mimetype || (payload.type === 'image' ? 'image/jpeg' : 'video/mp4')
+                const mime = media.mimetype || (payload.type === 'image' ? 'image/jpeg' : (payload.type === 'sticker' ? 'image/webp' : 'video/mp4'))
                 console.log(`[Chat] 📸 Media downloaded: ${buffer.length} bytes, mime: ${mime}`)
 
                 mediaUrl = await storage.uploadMedia(buffer, mime)
