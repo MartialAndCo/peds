@@ -45,6 +45,7 @@ interface MediaType {
 
 export function ConversationView({ conversationId, initialData }: ConversationViewProps) {
     const [conversation, setConversation] = useState(initialData)
+    const [previewImage, setPreviewImage] = useState<string | null>(null)
     const [messages, setMessages] = useState<Message[]>([])
     const [inputText, setInputText] = useState('')
     const [sending, setSending] = useState(false)
@@ -430,10 +431,8 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
                                             </div>
                                         )}
                                         {isImage && fixedMediaUrl && (
-                                            <div className="mb-2 mt-1">
-                                                <a href={fixedMediaUrl} target="_blank" rel="noopener noreferrer">
-                                                    <img src={fixedMediaUrl} alt="Shared Media" className="max-w-full rounded-md max-h-64 object-cover" />
-                                                </a>
+                                            <div className="mb-2 mt-1 cursor-pointer" onClick={() => setPreviewImage(fixedMediaUrl)}>
+                                                <img src={fixedMediaUrl} alt="Shared Media" className="max-w-full rounded-md max-h-64 object-cover hover:opacity-95 transition-opacity" />
                                             </div>
                                         )}
                                         {isVideo && fixedMediaUrl && (
@@ -715,6 +714,26 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
                     </div>
                 </DialogContent>
             </Dialog>
+
+            {/* Image Preview Modal */}
+            {previewImage && (
+                <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setPreviewImage(null)}>
+                    <div className="relative max-w-full max-h-full animate-in fade-in zoom-in duration-200">
+                        <button
+                            onClick={() => setPreviewImage(null)}
+                            className="absolute -top-12 right-0 p-2 text-white/70 hover:text-white"
+                        >
+                            <X className="h-8 w-8" />
+                        </button>
+                        <img
+                            src={previewImage}
+                            alt="Preview"
+                            className="max-h-[85vh] max-w-[90vw] object-contain rounded-lg shadow-2xl"
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
