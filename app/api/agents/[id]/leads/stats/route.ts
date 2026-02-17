@@ -5,10 +5,10 @@ import { authOptions } from '@/lib/auth'
 
 export async function GET(
     request: Request,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     const session = await getServerSession(authOptions)
-    const agentId = params.id
+    const { id: agentId } = await params
 
     if (!session) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
