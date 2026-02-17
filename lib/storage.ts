@@ -39,7 +39,11 @@ export const storage = {
                     })
 
                 if (error) {
-                    console.warn(`[Storage] Upload to '${bucket}' failed:`, error.message)
+                    if (error.message.includes('The object exceeded the maximum allowed size') || (error as any).statusCode === '413') {
+                        console.error(`[Storage] ⛔ Upload to '${bucket}' DENIED: File exceeds Supabase size limit (usually 50MB). Check Supabase Dashboard > Storage > Settings.`)
+                    } else {
+                        console.warn(`[Storage] Upload to '${bucket}' failed:`, error.message)
+                    }
                     continue
                 }
 
