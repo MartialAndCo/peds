@@ -16,7 +16,8 @@ import {
     TrendingUp,
     Fingerprint,
     Settings,
-    ShieldCheck
+    ShieldCheck,
+    BarChart3
 } from "lucide-react"
 
 export default function WorkspaceLayout({
@@ -48,6 +49,7 @@ export default function WorkspaceLayout({
         {
             title: "Data",
             routes: [
+                { label: 'Leads Stats', icon: BarChart3, href: `/workspace/${agentId}/leads-stats` },
                 { label: 'Queue', icon: Clock, href: `/workspace/${agentId}/queue` },
                 { label: 'Payments', icon: TrendingUp, href: `/workspace/${agentId}/payments` },
                 { label: 'Moderation', icon: ShieldCheck, href: `/workspace/${agentId}/moderation` },

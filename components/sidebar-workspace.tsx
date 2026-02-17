@@ -14,7 +14,8 @@ import {
     Users,
     ShieldCheck,
     Clock,
-    TrendingUp
+    TrendingUp,
+    BarChart3
 } from 'lucide-react'
 import { useAgent } from '@/components/agent-provider'
 
@@ -31,6 +32,7 @@ export function SidebarWorkspace() {
             title: "Performance",
             routes: [
                 { label: 'Overview', icon: LayoutDashboard, href: `${baseUrl}` },
+                { label: 'Leads Stats', icon: BarChart3, href: `${baseUrl}/leads-stats` },
                 { label: 'Pipeline', icon: Zap, href: `${baseUrl}/pipeline` },
                 { label: 'Queue', icon: Clock, href: `${baseUrl}/queue` },
                 { label: 'Conversations', icon: MessageSquare, href: `${baseUrl}/conversations` },
