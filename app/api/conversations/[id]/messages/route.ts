@@ -25,18 +25,36 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const messages = await prisma.message.findMany({
         where: whereClause,
         orderBy: { id: 'desc' }, // Get newest ones relative to cursor
-        take: limit
+        take: limit,
+        select: {
+            id: true,
+            conversationId: true,
+            sender: true,
+            message_text: true,
+            mediaUrl: true,
+            status: true,
+            timestamp: true,
+            waha_message_id: true,
+        }
     })
 
     // Reverse to get chronological order for display
     const messagesAsc = messages.reverse()
 
+    // Strip base64 data URIs from mediaUrl to prevent payload bloat (413 errors)
+    // Base64 images can be 100KB-2MB+ each — with 50 messages this easily exceeds limits
+    // Only HTTP(S) URLs (Supabase) are kept; the frontend displays those directly
+    const sanitizedMessages = messagesAsc.map(m => ({
+        ...m,
+        mediaUrl: m.mediaUrl && m.mediaUrl.startsWith('data:') ? null : m.mediaUrl
+    }))
+
     // Check if there are more messages
     const hasMore = messages.length === limit && messages.length > 0
-    const oldestId = messagesAsc.length > 0 ? messagesAsc[0].id : null
+    const oldestId = sanitizedMessages.length > 0 ? sanitizedMessages[0].id : null
 
     return NextResponse.json({
-        messages: messagesAsc,
+        messages: sanitizedMessages,
         hasMore,
         oldestId
     })
