@@ -28,7 +28,7 @@ export async function deleteContactCompletely(contactId: string) {
         if (contact.phone_whatsapp) {
             // Global memories
             await memoryService.deleteAll(contact.phone_whatsapp)
-            
+
             // Agent-specific memories
             for (const agentId of agentIds) {
                 if (agentId) {
@@ -43,7 +43,7 @@ export async function deleteContactCompletely(contactId: string) {
             await tx.message.deleteMany({
                 where: { conversationId: { in: conversationIds } }
             })
-            
+
             // Delete message queues linked to conversations
             await tx.messageQueue.deleteMany({
                 where: { conversationId: { in: conversationIds } }
@@ -52,6 +52,11 @@ export async function deleteContactCompletely(contactId: string) {
 
         // 3. Delete message queues linked directly to contact
         await tx.messageQueue.deleteMany({
+            where: { contactId }
+        })
+
+        // 3.5 Delete supervisor alerts (BEFORE conversations - they have FK to conversationId)
+        await tx.supervisorAlert.deleteMany({
             where: { contactId }
         })
 
@@ -92,10 +97,7 @@ export async function deleteContactCompletely(contactId: string) {
             })
         }
 
-        // 11. Delete supervisor alerts
-        await tx.supervisorAlert.deleteMany({
-            where: { contactId }
-        })
+        // 11. Supervisor alerts already deleted in step 3.5
 
         // 12. Delete pending voice validations
         await tx.pendingVoiceValidation.deleteMany({

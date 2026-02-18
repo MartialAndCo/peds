@@ -21,7 +21,7 @@ const getDatabaseUrl = () => {
             urlObj.searchParams.set('connection_limit', limit)
         }
         if (!urlObj.searchParams.has('pool_timeout')) {
-            const timeout = process.env.DATABASE_POOL_TIMEOUT || '10'
+            const timeout = process.env.DATABASE_POOL_TIMEOUT || '30'
             urlObj.searchParams.set('pool_timeout', timeout) // wait before throwing timeout
         }
         if (!urlObj.searchParams.has('idle_timeout')) {

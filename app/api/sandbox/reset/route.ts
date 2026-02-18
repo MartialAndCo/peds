@@ -35,6 +35,7 @@ export async function POST() {
 
         if (ids.length > 0) {
             await prisma.message.deleteMany({ where: { conversationId: { in: ids } } })
+            await prisma.supervisorAlert.deleteMany({ where: { conversationId: { in: ids } } })
             await prisma.conversation.deleteMany({ where: { contactId: contact.id } })
         }
 
