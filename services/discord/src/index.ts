@@ -3,6 +3,7 @@ import { Client } from 'discord.js-selfbot-v13';
 import fastify from 'fastify';
 import axios from 'axios';
 import dotenv from 'dotenv';
+// @ts-ignore
 import debug from 'debug';
 
 dotenv.config();
@@ -30,7 +31,17 @@ if (!DISCORD_TOKEN) {
 }
 
 // --- Discord Client Setup ---
-const client = new Client();
+const client = new Client({
+    // @ts-ignore
+    checkUpdate: false,
+    ws: {
+        properties: {
+            $os: 'Discord iOS',
+            $browser: 'Discord iOS',
+            $device: 'iPhone'
+        }
+    }
+});
 const server = fastify({ logger: true });
 
 // --- Helper: Heartbeat ---
@@ -64,6 +75,74 @@ client.on('ready', async () => {
     // Keep alive every minute
     setInterval(sendHeartbeat, 60 * 1000);
 });
+
+// --- Helper: Get Persona Status ---
+const getPersonaStatus = async () => {
+    try {
+        const res = await axios.get(`${BASE_API_URL}/integrations/discord/schedule`);
+        return res.data; // { status: 'AVAILABLE' | 'BUSY' | 'SLEEP', ... }
+    } catch (e) {
+        logger.error('Failed to fetch persona schedule, defaulting to AVAILABLE');
+        return { status: 'AVAILABLE' };
+    }
+}
+
+// Auto-accept friend requests (Delayed + Schedule Aware)
+client.on('relationshipAdd', async (relationship: any) => {
+    if (relationship.type === 3) { // 3 = PENDING_INCOMING
+        const userTag = relationship.user?.tag || 'Unknown';
+        logger.info(`Received friend request from ${userTag}. Waiting 5 minutes before processing...`);
+
+        // Wait 5 minutes
+        setTimeout(async () => {
+            try {
+                const { status } = await getPersonaStatus();
+                logger.info(`Processing friend request from ${userTag}. Persona Status: ${status}`);
+
+                if (status === 'SLEEP') {
+                    logger.info(`Persona is SLEEPING. Friend request from ${userTag} left pending.`);
+                    return;
+                }
+
+                // If not sleeping, accept
+                await relationship.user?.setFriend();
+                logger.info(`Accepted friend request from ${userTag} after delay.`);
+            } catch (err: any) {
+                logger.error(`Failed to accept friend request from ${userTag}: ${err.message}`);
+            }
+        }, 5 * 60 * 1000);
+    }
+});
+
+// Periodic Catch-up (Every 30 mins)
+// Accepts pending requests if we are now AWAKE
+setInterval(async () => {
+    try {
+        const { status } = await getPersonaStatus();
+        if (status === 'SLEEP') return;
+
+        // @ts-ignore
+        const pending = client.relationships.cache.filter((r: any) => r.type === 3);
+        if (pending.size === 0) return;
+
+        logger.info(`Catch-up: Found ${pending.size} pending friend requests while AWAKE.`);
+
+        for (const [id, relationship] of pending) {
+            try {
+                // @ts-ignore
+                await relationship.user?.setFriend();
+                // @ts-ignore
+                logger.info(`Catch-up: Accepted friend request from ${relationship.user?.tag}`);
+                // Small delay to avoid rate limits
+                await new Promise(r => setTimeout(r, 2000));
+            } catch (e: any) {
+                logger.error(`Catch-up failed for relationship: ${e.message}`);
+            }
+        }
+    } catch (error) {
+        logger.error('Error in periodic friend request catch-up:', error);
+    }
+}, 30 * 60 * 1000); // 30 minutes
 
 client.on('messageCreate', async (message) => {
     // 1. Ignore own messages
