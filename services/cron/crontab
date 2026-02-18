@@ -1,24 +1,24 @@
 # Every 1 minute: Process Incoming Messages (Discord/WhatsApp queue) - CRITICAL for message processing
-* * * * * echo "[CRON] $(date) - Running process-incoming" > /proc/1/fd/1 2>&1 && curl -Sf "https://main.d2in5shy58lp10.amplifyapp.com/api/cron/process-incoming" >> /proc/1/fd/1 2>&1
-* * * * * (sleep 30; echo "[CRON] $(date) - Running process-incoming (delayed)" > /proc/1/fd/1 2>&1 && curl -Sf "https://main.d2in5shy58lp10.amplifyapp.com/api/cron/process-incoming" >> /proc/1/fd/1 2>&1)
+* * * * * /run-job.sh "process-incoming" "https://main.d2in5shy58lp10.amplifyapp.com/api/cron/process-incoming" > /proc/1/fd/1 2>&1
+* * * * * (sleep 30; /run-job.sh "process-incoming (delayed)" "https://main.d2in5shy58lp10.amplifyapp.com/api/cron/process-incoming" > /proc/1/fd/1 2>&1)
 
 # Every 1 minute: Process Message Queue
-* * * * * echo "[CRON] $(date) - Running process-queue" > /proc/1/fd/1 2>&1 && curl -Sf "https://main.d2in5shy58lp10.amplifyapp.com/api/cron/process-queue" >> /proc/1/fd/1 2>&1
+* * * * * /run-job.sh "process-queue" "https://main.d2in5shy58lp10.amplifyapp.com/api/cron/process-queue" > /proc/1/fd/1 2>&1
 
 # Every 10 minutes: Rescue Abandoned Conversations
-*/10 * * * * echo "[CRON] $(date) - Running rescue" > /proc/1/fd/1 2>&1 && curl -Sf "https://main.d2in5shy58lp10.amplifyapp.com/api/cron/rescue" >> /proc/1/fd/1 2>&1
+*/10 * * * * /run-job.sh "rescue" "https://main.d2in5shy58lp10.amplifyapp.com/api/cron/rescue" > /proc/1/fd/1 2>&1
 
 # Every 5 minutes: Remind Voice Source
-*/5 * * * * echo "[CRON] $(date) - Running remind-voice" > /proc/1/fd/1 2>&1 && curl -Sf "https://main.d2in5shy58lp10.amplifyapp.com/api/cron/remind-voice" >> /proc/1/fd/1 2>&1
+*/5 * * * * /run-job.sh "remind-voice" "https://main.d2in5shy58lp10.amplifyapp.com/api/cron/remind-voice" > /proc/1/fd/1 2>&1
 
 # Every 1 minute: Remind Lead Provider (Urgent)
-* * * * * echo "[CRON] $(date) - Running remind-leads" > /proc/1/fd/1 2>&1 && curl -Sf "https://main.d2in5shy58lp10.amplifyapp.com/api/cron/remind-leads" >> /proc/1/fd/1 2>&1
+* * * * * /run-job.sh "remind-leads" "https://main.d2in5shy58lp10.amplifyapp.com/api/cron/remind-leads" > /proc/1/fd/1 2>&1
 
 # Every 2 minutes: Recover Failed Webhooks
-*/2 * * * * echo "[CRON] $(date) - Running recovery" > /proc/1/fd/1 2>&1 && curl -Sf "https://main.d2in5shy58lp10.amplifyapp.com/api/cron/recovery" >> /proc/1/fd/1 2>&1
+*/2 * * * * /run-job.sh "recovery" "https://main.d2in5shy58lp10.amplifyapp.com/api/cron/recovery" > /proc/1/fd/1 2>&1
 
 # Every 1 minute: Process RVC Voice Conversion Jobs
-* * * * * echo "[CRON] $(date) - Running process-voice" > /proc/1/fd/1 2>&1 && curl -Sf "https://main.d2in5shy58lp10.amplifyapp.com/api/cron/process-voice" >> /proc/1/fd/1 2>&1
+* * * * * /run-job.sh "process-voice" "https://main.d2in5shy58lp10.amplifyapp.com/api/cron/process-voice" > /proc/1/fd/1 2>&1
 
 # Every 1 hour: Extract Memories from Conversations
-0 * * * * echo "[CRON] $(date) - Running extract-memories" > /proc/1/fd/1 2>&1 && curl -Sf "https://main.d2in5shy58lp10.amplifyapp.com/api/cron/extract-memories" >> /proc/1/fd/1 2>&1
+0 * * * * /run-job.sh "extract-memories" "https://main.d2in5shy58lp10.amplifyapp.com/api/cron/extract-memories" > /proc/1/fd/1 2>&1
