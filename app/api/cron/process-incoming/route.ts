@@ -19,7 +19,7 @@ export async function GET(req: Request) {
         console.log('[CRON] Timestamp:', new Date().toISOString())
         let processed = 0
         let stillProcessing = 0
-        
+
         // Count items in each status for debugging
         const counts = await prisma.incomingQueue.groupBy({
             by: ['status'],
@@ -31,36 +31,77 @@ export async function GET(req: Request) {
         // ATOMIC CLAIM: Use transaction with row-level locking
         // This ensures only ONE CRON invocation can claim each item.
         const pending = await prisma.$transaction(async (tx) => {
-            // Find items that are ready - Reduced batch for stability
-            // IMPORTANT: We must order by createdAt ASC to process in order
-            const items = await tx.incomingQueue.findMany({
-                where: { status: 'PENDING' },
-                take: 5, // Reduced: 5 messages max to respect Venice 150 RPM with SWARM sequential delays
+            // BUFFER STRATEGY:
+            // 1. Find "Anchor" messages that are older than 10s.
+            //    This creates a buffer window for bursts to accumulate.
+            const bufferThreshold = new Date(Date.now() - 10000) // 10 seconds ago
+
+            const anchors = await tx.incomingQueue.findMany({
+                where: {
+                    status: 'PENDING',
+                    createdAt: { lt: bufferThreshold }
+                },
+                take: 50, // Process up to 50 bursts at once
+                select: { id: true, payload: true, agentId: true }
+            })
+
+            if (anchors.length === 0) return []
+
+            // 2. Identify Senders from Anchors
+            const senderKeys = new Set<string>()
+            const agentIds = new Set<string>()
+
+            for (const anchor of anchors) {
+                const p = anchor.payload as any
+                const from = p.payload?.from
+                if (from && anchor.agentId) {
+                    senderKeys.add(`${anchor.agentId}:${from}`)
+                    agentIds.add(anchor.agentId)
+                }
+            }
+
+            // 3. Fetch ALL pending messages for these specific senders (including young ones)
+            //    We need to scan PENDING items again, filtering by the agents we found.
+            //    (Filtering by exact sender in JSON is hard in Prisma without raw query, 
+            //     so we fetch by AgentId and filter in memory, or just fetch all PENDING for these agents)
+
+            const candidates = await tx.incomingQueue.findMany({
+                where: {
+                    status: 'PENDING',
+                    agentId: { in: Array.from(agentIds) }
+                },
                 orderBy: { createdAt: 'asc' }
             })
 
+            // Filter in memory for the specific senders we identified
+            const burstItems = candidates.filter(item => {
+                const p = item.payload as any
+                const from = p.payload?.from
+                const key = `${item.agentId}:${from}`
+                return senderKeys.has(key)
+            })
+
             // Immediately lock ALL of them with a unique processing ID
-            // This allows us to track which instance is processing what
             const processingId = `cron_${Date.now()}_${Math.random().toString(36).substring(7)}`
-            
-            if (items.length > 0) {
+
+            if (burstItems.length > 0) {
                 await tx.incomingQueue.updateMany({
-                    where: { 
-                        id: { in: items.map(i => i.id) },
-                        status: 'PENDING' // Extra safety: only update if still PENDING
+                    where: {
+                        id: { in: burstItems.map(i => i.id) },
+                        status: 'PENDING'
                     },
-                    data: { 
+                    data: {
                         status: 'PROCESSING',
-                        error: processingId // Use error field to track processing instance
+                        error: processingId
                     }
                 })
             }
 
-            return items
+            return burstItems
         }, {
             // Transaction options
             maxWait: 5000,
-            timeout: 10000
+            timeout: 20000 // Increased timeout for larger batches
         })
 
         // Group by Sender + AgentId (Burst logic)
@@ -103,7 +144,7 @@ export async function GET(req: Request) {
                         where: { id: item.id },
                         select: { status: true }
                     })
-                    
+
                     if (currentItem?.status !== 'PROCESSING') {
                         console.log(`[CRON] Item ${item.id} status changed to ${currentItem?.status}. Skipping.`)
                         continue
@@ -126,15 +167,15 @@ export async function GET(req: Request) {
                     }
 
                     // Check Result - Only mark DONE for successful outcomes
-                    const SUCCESS_STATUSES = ['sent', 'queued', 'saved_skipped_ai', 'ignored_from_me', 'ignored_old_sync', 
+                    const SUCCESS_STATUSES = ['sent', 'queued', 'saved_skipped_ai', 'ignored_from_me', 'ignored_old_sync',
                         'ignored_group', 'status_updated', 'ignored_update_no_data', 'duplicate', 'duplicate_found_early',
                         'admin_validation', 'view_once_rejected', 'voice_error', 'ai_disabled', 'empty_message',
                         'debounced', 'media_pending_silence', 'reaction_only', 'presend_aborted_newer_messages',
-                        'voice_tts_sent', 'tts_failed_notified', 'handled_admin', 'handled_media_ingest', 
+                        'voice_tts_sent', 'tts_failed_notified', 'handled_admin', 'handled_media_ingest',
                         'handled_lead_provider', 'ignored_admin_text', 'media_request_pending', 'media_sent',
                         'media_request_blocked', 'paused']
-                    
-                    const RETRY_STATUSES = ['ai_quota_failed', 'ai_response_empty', 'ai_quota_failed_queued_for_retry', 
+
+                    const RETRY_STATUSES = ['ai_quota_failed', 'ai_response_empty', 'ai_quota_failed_queued_for_retry',
                         'blocked_safety', 'async_error']
 
                     if (result?.status === 'async_job_started' && result?.jobId) {

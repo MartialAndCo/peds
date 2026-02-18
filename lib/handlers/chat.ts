@@ -485,6 +485,12 @@ export async function handleChat(
                 // AI GENERATION LOGIC
                 const result = await generateAndSendAI(conversation, contact, settings, currentMessageText, currentPayload, agentId, platform, currentOptions, undefined)
 
+                // 🛑 CHECK IF ABORTED DUE TO PRE-SEND (Newer messages detected during gen)
+                if (result.result === 'presend_aborted_newer_messages') {
+                    logger.info(`[Chat] Response aborted in generateAndSendAI due to newer messages. Exiting loop to let new message take over.`)
+                    return { handled: true, result: 'presend_aborted_newer_messages' }
+                }
+
                 // If result was "queued", "paused", or "blocked", we typically still want to check for new messages?
                 // Yes, because a human might be spamming "cancel" or "stop".
 
@@ -1457,7 +1463,9 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     // and let the latest message's handler deal with ALL messages in context.
     // ═══════════════════════════════════════════════════════════════════════════
     const currentMsgId = (await prisma.message.findFirst({ where: { waha_message_id: payload.id } }))?.id
+
     if (currentMsgId) {
+        // 1. Check for newer committed messages
         const newerUserMessages = await prisma.message.findMany({
             where: {
                 conversationId: conversation.id,
@@ -1467,15 +1475,53 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
             orderBy: { timestamp: 'asc' }
         })
 
-        if (newerUserMessages.length > 0) {
-            console.log(`[Chat] PRE-SEND ABORT: ${newerUserMessages.length} newer message(s) detected. Letting latest handler respond.`)
+        // 2. Check for pending messages in the BUFFER (IncomingQueue)
+        // These might not be in the Message table yet but represent user activity
+        const cleanPhone = contact.phone_whatsapp.replace('+', '')
+        const pendingBufferedMessages = await prisma.incomingQueue.count({
+            where: {
+                agentId: agentId,
+                status: 'PENDING',
+                // JSON filtering: check if payload.from contains the phone number
+                // Note: Prisma JSON filter syntax depends on DB, but raw query/path is safer if complex.
+                // Simple approach: Check agentId + time window or just rely on the count if we trust agentId separation
+                // Let's refine: We really want to know if *this specific user* sent something.
+                // Since payload is JSON, we can't easily filter by path in standard Prisma without some specific syntax support or exact match.
+                // However, we can just check if ANY pending message exists for this agent that is NEWER than our start time.
+                // A more robust way might be ensuring specific sender check if possible.
+                // For now, let's stick to the Message table check + a simplified Queue check if feasible, 
+                // OR just rely on the Message table check which covers processed messages.
+                // BUT the user specifically asked about "while in queue".
+
+                // actually, CRON buffer means they sit in IncomingQueue.
+                // We MUST check IncomingQueue.
+            }
+        })
+
+        const recentPending = await prisma.incomingQueue.findMany({
+            where: {
+                agentId: agentId,
+                status: 'PENDING',
+                createdAt: { gt: new Date(Date.now() - 20000) } // Look back 20s
+            },
+            select: { payload: true }
+        })
+
+        const hasPendingFromUser = recentPending.some((p: any) => {
+            const from = p.payload?.payload?.from || ''
+            return from.includes(cleanPhone)
+        })
+
+
+
+        if (newerUserMessages.length > 0 || hasPendingFromUser) {
+            console.log(`[Chat] PRE-SEND ABORT: Newer messages detected (DB: ${newerUserMessages.length}, Queue: ${hasPendingFromUser}). Aborting.`)
             logger.info('Pre-send abort: newer messages detected', {
                 module: 'chat',
                 currentMsgId,
                 newerCount: newerUserMessages.length,
-                newerIds: newerUserMessages.map(m => m.id)
+                queueHit: hasPendingFromUser
             })
-            // Don't send this response - the newest message's handler will include ALL context
             return { handled: true, result: 'presend_aborted_newer_messages' }
         }
     }

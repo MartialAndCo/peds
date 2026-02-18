@@ -188,6 +188,37 @@ export class QueueService {
             return { id: queueItem.id, status: 'aborted', reason: `status_changed_to_${currentStatus?.status}` }
         }
 
+        // ═══════════════════════════════════════════════════════════════════════════
+        // OBSOLESCENCE CHECK: Did the user speak SINCE this message was queued?
+        // If yes, this queued message is likely out of context.
+        // ═══════════════════════════════════════════════════════════════════════════
+        // Only check for messages created AFTER the queue item
+        // We look for 'contact' messages in the same conversation
+        if (conversation?.id && queueItem.createdAt) {
+            const newerUserMessages = await prisma.message.findFirst({
+                where: {
+                    conversationId: conversation.id,
+                    sender: 'contact',
+                    timestamp: { gt: queueItem.createdAt } // Created AFTER this queue item
+                }
+            })
+
+            if (newerUserMessages) {
+                console.warn(`[QueueService] 🛑 STALE MESSAGE: User sent a message (ID ${newerUserMessages.id}) after this was queued. Aborting.`)
+
+                await prisma.messageQueue.update({
+                    where: { id: queueItem.id },
+                    data: {
+                        status: 'INVALID_STALE',
+                        error: `User replied at ${newerUserMessages.timestamp.toISOString()}`
+                    }
+                })
+
+                return { id: queueItem.id, status: 'aborted_stale', reason: 'user_replied_meanwhile' }
+            }
+        }
+        // ═══════════════════════════════════════════════════════════════════════════
+
         // Récupérer l'âge du profil pour la vérification
         const agentProfile = await prisma.agentProfile.findUnique({
             where: { agentId },
