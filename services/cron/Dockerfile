@@ -4,4 +4,4 @@ RUN apk add --no-cache curl
 COPY crontab /etc/crontabs/root
 
 # Run crond in foreground
-CMD ["crond", "-f", "-d", "8"]
+CMD ["crond", "-f", "-L", "/dev/stdout"]
