@@ -12,9 +12,11 @@ RUN printf '#!/bin/sh\n\
     echo "" >> /etc/crontabs-clean/root\n\
     chmod 0644 /etc/crontabs-clean/root\n\
     \n\
-    # Fix CRLF for run-job.sh and make executable\n\
-    cat /run-job.sh | tr -d "\\r" > /usr/local/bin/run-job.sh\n\
-    chmod +x /usr/local/bin/run-job.sh\n\
+    # Fix CRLF for run-job.sh and make executable (in place)\n\
+    cp /run-job.sh /run-job.temp\n\
+    cat /run-job.temp | tr -d "\\r" > /run-job.sh\n\
+    rm /run-job.temp\n\
+    chmod +x /run-job.sh\n\
     \n\
     # Run crond using the cleaned crontab directory\n\
     exec crond -f -c /etc/crontabs-clean -L /dev/stdout\n\
