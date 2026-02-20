@@ -137,6 +137,26 @@ export const coherenceAgent = {
         // ═══════════════════════════════════════════════════════════════════════════
         // Analyse LLM complète - détection intelligente (backup)
         // ═══════════════════════════════════════════════════════════════════════════
+        // 1.5. Détection de LONGUEUR ANORMALE (Nouveau : Blocage Strict)
+        // Les ados n'écrivent pas de paragraphes de 50 mots.
+        const wordCount = context.aiResponse.split(/\s+/).length;
+        if (wordCount > 30) {
+            console.warn(`[Coherence] 🔴 Longueur anormale détectée: ${wordCount} mots. Bloqué.`)
+            alerts.push({
+                agentId: context.agentId,
+                conversationId: context.conversationId,
+                contactId: context.contactId,
+                agentType: 'COHERENCE',
+                alertType: 'PERSONA_BREAK',
+                severity: 'HIGH', // Forcer la régénération
+                title: 'Persona Break - Longueur Anormale',
+                description: `Le message est beaucoup trop long pour un ado sur chat (${wordCount} mots). Fais une réponse courte et naturelle (max 10-15 mots).`,
+                evidence: { wordCount } as Record<string, any>
+            });
+            // Si c'est bloqué ici, on peut potentiellement skip le LLM pour économiser les appels
+            // mais on le laisse passer pour collecter d'autres erreurs éventuelles.
+        }
+
         const aiAlerts = await this.aiAnalysis(context);
 
         // Fusionner sans doublons (basé sur alertType)
@@ -401,7 +421,8 @@ ${currentActivity ? `- ⚠️ PLANNING DE VIE: L'IA est censée être en "${curr
                         contactId,
                         agentType: 'COHERENCE',
                         alertType: 'HALLUCINATION',
-                        severity: analysis.severity === 'CRITICAL' ? 'CRITICAL' : 'MEDIUM',
+                        severity: analysis.severity === 'CRITICAL' ? 'CRITICAL' :
+                            (analysis.severity === 'HIGH' ? 'HIGH' : 'MEDIUM'),
                         title: 'Hallucination détectée',
                         description: `[Confiance: ${Math.round(analysis.confidence * 100)}%] ${analysis.explanation || analysis.hallucinationDetails || "L'IA invente des éléments sans contexte"}`,
                         evidence: evidence as Record<string, any>

@@ -88,6 +88,49 @@ async function resolveSessionId(agentId?: number | string): Promise<string> {
     return agentId.toString()
 }
 
+async function withWahaRetry<T>(
+    operationName: string,
+    sessionId: string,
+    operation: () => Promise<T>
+): Promise<T> {
+    const { endpoint, apiKey } = await getConfig();
+    const MAX_RETRIES = 3;
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+            return await operation();
+        } catch (error: any) {
+            const status = error.response?.status;
+
+            // If 404 (Session Not Found) or 503 (Unavailable), try to auto-restart the session
+            // t3.small EC2 instances might crash WAHA under load.
+            if ((status === 404 || status === 503 || status === 502) && attempt < MAX_RETRIES) {
+                logger.warn(`[WhatsApp] ${operationName} ${status} error (Attempt ${attempt}). Auto-restarting session...`, { sessionId });
+                try {
+                    await axios.post(`${endpoint}/api/sessions/start`, { sessionId }, { headers: { 'X-Api-Key': apiKey }, timeout: 10000 });
+                    // Provide adequate time for Baileys to reconnect
+                    await new Promise(r => setTimeout(r, 6000));
+                    continue; // retry operation
+                } catch (startError: any) {
+                    // Ignore 409 Conflict (Session already starting/started)
+                    if (startError.response?.status !== 409) {
+                        logger.warn(`[WhatsApp] ${operationName} Auto-restart failed`, { error: startError.message });
+                    }
+                    // Wait anyway, maybe it's booting up
+                    await new Promise(r => setTimeout(r, 4000));
+                    continue;
+                }
+            }
+
+            // Raise error to be handled by the specific function
+            if (attempt === MAX_RETRIES || (status !== 404 && status !== 503 && status !== 502)) {
+                throw error;
+            }
+        }
+    }
+    throw new Error('Max retries reached');
+}
+
 export const whatsapp = {
     async sendText(chatId: string, text: string, replyTo?: string, agentId?: string) {
         // console.log(`[WhatsApp] Sending Text to ${chatId} (Agent: ${agentId})`)
@@ -127,20 +170,22 @@ export const whatsapp = {
 
             // Call our new microservice
             const url = `${endpoint}/api/sendText`
-            const response = await axios.post(url, {
-                sessionId: sessionId,
-                chatId: formattedChatId,
-                text,
-                replyTo
-            }, {
-                headers: { 'X-Api-Key': apiKey },
-                timeout: 15000 // 15s timeout
-            })
+            const response = await withWahaRetry('sendText', sessionId, () =>
+                axios.post(url, {
+                    sessionId: sessionId,
+                    chatId: formattedChatId,
+                    text,
+                    replyTo
+                }, {
+                    headers: { 'X-Api-Key': apiKey },
+                    timeout: 20000 // 20s timeout
+                })
+            )
             console.log(`[WhatsApp] SendText success (ID: ${response.data?.id?.id || 'unknown'})`)
             return response.data
         } catch (error: any) {
             logger.error('WhatsApp sendText failed', error, { module: 'whatsapp', chatId })
-            if (error.code === 'ECONNABORTED') throw new Error('WhatsApp Service Timeout (15s)')
+            if (error.code === 'ECONNABORTED') throw new Error('WhatsApp Service Timeout (20s)')
             throw new Error(`Failed to send WhatsApp message: ${error.message}`)
         }
     },
@@ -196,14 +241,18 @@ export const whatsapp = {
                 }
             }
 
-            const response = await axios.post(`${endpoint}/api/sendVoice`, {
-                sessionId: await resolveSessionId(agentId),
-                chatId: formattedChatId,
-                file: filePayload,
-                replyTo
-            }, {
-                headers: { 'X-Api-Key': apiKey }
-            })
+            const sessionId = await resolveSessionId(agentId);
+            const response = await withWahaRetry('sendVoice', sessionId, () =>
+                axios.post(`${endpoint}/api/sendVoice`, {
+                    sessionId: sessionId,
+                    chatId: formattedChatId,
+                    file: filePayload,
+                    replyTo
+                }, {
+                    headers: { 'X-Api-Key': apiKey },
+                    timeout: 30000
+                })
+            )
             return response.data
         } catch (error: any) {
             logger.error('WhatsApp sendVoice failed', error, { module: 'whatsapp', chatId })
@@ -218,18 +267,22 @@ export const whatsapp = {
             const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
             const base64Data = fileDataUrl.split(',')[1] || fileDataUrl
 
-            await axios.post(`${endpoint}/api/sendFile`, {
-                sessionId: await resolveSessionId(agentId),
-                chatId: formattedChatId,
-                file: {
-                    mimetype: 'application/octet-stream',
-                    data: base64Data,
-                    filename: filename
-                },
-                caption: caption
-            }, {
-                headers: { 'X-Api-Key': apiKey }
-            })
+            const sessionId = await resolveSessionId(agentId);
+            await withWahaRetry('sendFile', sessionId, () =>
+                axios.post(`${endpoint}/api/sendFile`, {
+                    sessionId: sessionId,
+                    chatId: formattedChatId,
+                    file: {
+                        mimetype: 'application/octet-stream',
+                        data: base64Data,
+                        filename: filename
+                    },
+                    caption: caption
+                }, {
+                    headers: { 'X-Api-Key': apiKey },
+                    timeout: 30000
+                })
+            )
         } catch (error: any) {
             logger.error('WhatsApp sendFile failed', error, { module: 'whatsapp', chatId, filename })
             throw new Error(`Failed to send File: ${error.message}`)
@@ -248,15 +301,18 @@ export const whatsapp = {
         try {
             const formattedChatId = chatId.includes('@') ? chatId : `${chatId.replace('+', '')}@c.us`
 
-            const response = await axios.post(`${endpoint}/api/sendReaction`, {
-                sessionId: await resolveSessionId(agentId),
-                chatId: formattedChatId,
-                messageId,
-                emoji
-            }, {
-                headers: { 'X-Api-Key': apiKey },
-                timeout: 10000
-            })
+            const sessionId = await resolveSessionId(agentId);
+            const response = await withWahaRetry('sendReaction', sessionId, () =>
+                axios.post(`${endpoint}/api/sendReaction`, {
+                    sessionId: sessionId,
+                    chatId: formattedChatId,
+                    messageId,
+                    emoji
+                }, {
+                    headers: { 'X-Api-Key': apiKey },
+                    timeout: 10000
+                })
+            )
 
             logger.info('Reaction sent successfully', { module: 'whatsapp', chatId, emoji })
             return { success: true, data: response.data }
@@ -288,18 +344,22 @@ export const whatsapp = {
 
             const ext = mime.split('/')[1] || 'jpg'
 
-            await axios.post(`${endpoint}/api/sendImage`, {
-                sessionId: await resolveSessionId(agentId),
-                chatId: formattedChatId,
-                file: {
-                    mimetype: mime,
-                    data: base64Data,
-                    filename: `image.${ext}`
-                },
-                caption: caption
-            }, {
-                headers: { 'X-Api-Key': apiKey }
-            })
+            const sessionId = await resolveSessionId(agentId);
+            await withWahaRetry('sendImage', sessionId, () =>
+                axios.post(`${endpoint}/api/sendImage`, {
+                    sessionId: sessionId,
+                    chatId: formattedChatId,
+                    file: {
+                        mimetype: mime,
+                        data: base64Data,
+                        filename: `image.${ext}`
+                    },
+                    caption: caption
+                }, {
+                    headers: { 'X-Api-Key': apiKey },
+                    timeout: 30000
+                })
+            )
         } catch (error: any) {
             logger.error('WhatsApp sendImage failed', error, { module: 'whatsapp', chatId })
             throw new Error(`Failed to send Image: ${error.message}`)
@@ -328,18 +388,22 @@ export const whatsapp = {
 
             const ext = mime.split('/')[1] || 'mp4'
 
-            await axios.post(`${endpoint}/api/sendVideo`, {
-                sessionId: await resolveSessionId(agentId),
-                chatId: formattedChatId,
-                file: {
-                    mimetype: mime,
-                    data: base64Data,
-                    filename: `video.${ext}`
-                },
-                caption: caption
-            }, {
-                headers: { 'X-Api-Key': apiKey }
-            })
+            const sessionId = await resolveSessionId(agentId);
+            await withWahaRetry('sendVideo', sessionId, () =>
+                axios.post(`${endpoint}/api/sendVideo`, {
+                    sessionId: sessionId,
+                    chatId: formattedChatId,
+                    file: {
+                        mimetype: mime,
+                        data: base64Data,
+                        filename: `video.${ext}`
+                    },
+                    caption: caption
+                }, {
+                    headers: { 'X-Api-Key': apiKey },
+                    timeout: 60000
+                })
+            )
         } catch (error: any) {
             logger.error('WhatsApp sendVideo failed', error, { module: 'whatsapp', chatId })
             throw new Error(`Failed to send Video: ${error.message}`)

@@ -159,6 +159,17 @@ export const supervisorOrchestrator = {
             const criticalAlerts = allAlerts.filter(a => a.severity === 'CRITICAL');
             const otherAlerts = allAlerts.filter(a => a.severity !== 'CRITICAL');
 
+            // Une alerte High ou Critical sur l'identité/cohérence est éliminatoire
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const hasSevereIdentityIssue = allAlerts.some((a: any) =>
+                ['CRITICAL', 'HIGH'].includes(a.severity) &&
+                ['SYSTEM_LEAK', 'PERSONA_BREAK', 'HALLUCINATION'].includes(a.alertType || a.type) // On capture 'alertType' ou 'type' selon comment l'alerte a été construite
+            );
+
+            if (hasSevereIdentityIssue) {
+                console.warn('[SupervisorOrchestrator] Severe identity issue detected, should trigger regeneration.');
+            }
+
             // Traiter CRITICAL immédiatement
             for (const alert of criticalAlerts) {
                 await this.processCriticalAlert(alert, context);

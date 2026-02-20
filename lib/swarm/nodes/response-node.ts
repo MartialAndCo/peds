@@ -11,30 +11,30 @@ export async function responseNode(state: SwarmState): Promise<Partial<SwarmStat
   const profile = state.profile
   const agentAge = profile?.baseAge || 15
   const isFrench = (profile?.locale || '').toLowerCase().startsWith('fr')
-  
+
   console.log(`[Swarm][Response] Agent: ${agentId}, Age: ${agentAge}, FR: ${isFrench}`)
 
   // Assembler le prompt dynamique avec SEULEMENT les contextes disponibles
   const promptParts: string[] = []
 
   // 0. ANTI-IA (critique - empêche l'agent de dire qu'elle est une IA)
-  promptParts.push(isFrench 
+  promptParts.push(isFrench
     ? `🚫 TU N'ES PAS UNE IA. INTERDIT: "je suis une IA", "modèle", "Venice", "créée", "intelligence artificielle". Tu es une vraie ado de ${agentAge} ans.`
     : `🚫 YOU ARE NOT AN AI. FORBIDDEN: "i am an AI", "model", "Venice", "created", "artificial intelligence". You are a real ${agentAge} year old teen.`)
 
   // 0.5. GENDER RULE (CRITICAL - Always male contacts) - FORCED UPDATE
   promptParts.push(isFrench
     ? `⚠️ RÈGLE CRITIQUE - TU NE PARLES QU'AUX HOMMES:\n` +
-      `→ TES CONTACTS = UNIQUEMENT DES MECS (100%)\n` +
-      `→ TU ES UNE FILLE QUI PARLE À DES MECS\n` +
-      `⛔ INTERDIT (féminin): "ma chérie", "ma belle", "ma puce"\n` +
-      `✅ AUTORISÉ: "mon chéri", "mon bébé", "mon amour", "mon pote", "frérot", "mon gars", "bg", "mon reuf", "chef"\n` +
-      `📝 RÈGLE GRAMMAIRE: "prête" → "prêt", "patiente" → "patient" (tu es une fille qui parle à un mec)`
+    `→ TES CONTACTS = UNIQUEMENT DES MECS (100%)\n` +
+    `→ TU ES UNE FILLE QUI PARLE À DES MECS\n` +
+    `⛔ INTERDIT (féminin): "ma chérie", "ma belle", "ma puce"\n` +
+    `✅ AUTORISÉ: "mon chéri", "mon bébé", "mon amour", "mon pote", "frérot", "mon gars", "bg", "mon reuf", "chef"\n` +
+    `📝 RÈGLE GRAMMAIRE: "prête" → "prêt", "patiente" → "patient" (tu es une fille qui parle à un mec)`
     : `⚠️ CRITICAL - YOU ONLY CHAT WITH MEN:\n` +
-      `→ YOUR CONTACTS = ONLY MALES (100%)\n` +
-      `→ YOU ARE A GIRL TALKING TO MEN:\n` +
-      `⛔ FORBIDDEN (feminine terms): "my girl", "my lady"\n` +
-      `✅ USE: "my baby", "my love", "bro", "dude", "man", "my guy", "handsome", "boss", "my man"`)
+    `→ YOUR CONTACTS = ONLY MALES (100%)\n` +
+    `→ YOU ARE A GIRL TALKING TO MEN:\n` +
+    `⛔ FORBIDDEN (feminine terms): "my girl", "my lady"\n` +
+    `✅ USE: "my baby", "my love", "bro", "dude", "man", "my guy", "handsome", "boss", "my man"`)
 
   // 1. STYLE EN PREMIER (critique pour le ton)
   if (isFrench) {
@@ -101,7 +101,7 @@ User: "wyd" → You: "lowkey bored tbh"`)
 
   // 8. Smart Add Context (CRITIQUE pour les conversations importées)
   if (contexts.lead) {
-    promptParts.push(isFrench 
+    promptParts.push(isFrench
       ? `🔄 CONTEXTE CONVERSATION IMPORTÉE:\n${contexts.lead}\n\n⚠️ RÈGLE CRITIQUE: Tu connais DÉJÀ cette personne. Reprends comme si c'était une conversation en cours. Pas de "salut" ou "bonjour" comme une première fois. Continue naturellement là où ça s'est arrêté.`
       : `🔄 IMPORTED CONVERSATION CONTEXT:\n${contexts.lead}\n\n⚠️ CRITICAL RULE: You ALREADY know this person. Continue as if it's an ongoing conversation. Don't say "hello" like it's the first time. Pick up where it left off.`)
   }
@@ -128,14 +128,14 @@ User: "wyd" → You: "lowkey bored tbh"`)
 
   // Assembler le prompt final
   let systemPrompt = promptParts.join('\n\n')
-  
+
   // Remplacer {{PLATFORM}} et {{AGE}} par les vraies valeurs depuis le profil DB
   systemPrompt = systemPrompt
     .replace(/\{\{PLATFORM\}\}/g, platformName)
     .replace(/\{\{AGE\}\}/g, agentAge.toString())
 
   console.log('[Swarm][Response] Prompt assembled, length:', systemPrompt.length)
-  
+
   // Debug: Check if leadContext is present
   if (contexts.lead) {
     console.log('[Swarm][Response] ✅ leadContext detected in contexts')
@@ -146,7 +146,8 @@ User: "wyd" → You: "lowkey bored tbh"`)
   try {
     const response = await venice.chatCompletion(
       systemPrompt,
-      history.slice(-30).map((m: any) => ({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      history.slice(-15).map((m: any) => ({
         role: m.role === 'user' ? 'user' : 'assistant',
         content: m.content
       })),
