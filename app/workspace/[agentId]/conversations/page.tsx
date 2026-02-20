@@ -6,25 +6,33 @@ import axios from 'axios'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import { usePWAMode } from '@/hooks/use-pwa-mode'
-import { 
-  Search, 
-  Loader2, 
-  RefreshCw, 
+import {
+  Search,
+  Loader2,
+  RefreshCw,
   MessageSquare,
   Inbox,
-  X
+  X,
+  Download
 } from 'lucide-react'
 import { ConversationCard, ConversationCardData } from '@/components/conversations/conversation-card'
-import { 
-  ConversationFilters, 
+import {
+  ConversationFilters,
   ConversationFilter,
   ConversationSort,
-  SortOption 
+  SortOption
 } from '@/components/conversations/conversation-filters'
 import { ConversationUnifiedView } from '@/components/conversations/conversation-unified-view'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuLabel
+} from '@/components/ui/dropdown-menu'
 
 interface FilterCounts {
   all: number
@@ -41,7 +49,7 @@ interface FilterCounts {
 export default function WorkspaceConversationsPage() {
   const { isPWAStandalone } = usePWAMode()
   const { agentId } = useParams()
-  
+
   const [conversations, setConversations] = useState<ConversationCardData[]>([])
   const [loading, setLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState<ConversationFilter>('all')
@@ -71,7 +79,7 @@ export default function WorkspaceConversationsPage() {
 
   useEffect(() => {
     fetchConversations()
-    
+
     // Auto-refresh every 10 seconds for unread counts
     const interval = setInterval(fetchConversations, 10000)
     return () => clearInterval(interval)
@@ -86,6 +94,11 @@ export default function WorkspaceConversationsPage() {
     setIsViewOpen(false)
     setSelectedConversationId(null)
     fetchConversations()
+  }
+
+  const handleExport = (period: string) => {
+    if (!agentId) return
+    window.location.href = `/api/conversations/export?agentId=${agentId}&period=${period}`
   }
 
   // Get selected conversation data - updates automatically when conversations change
@@ -110,17 +123,43 @@ export default function WorkspaceConversationsPage() {
                     </Badge>
                   )}
                 </h1>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={fetchConversations}
-                  disabled={loading}
-                  className="text-white/60 h-8 w-8"
-                >
-                  <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-                </Button>
+                <div className="flex items-center gap-2">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="text-white/60 h-8 w-8">
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuLabel>Export JSON</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => handleExport('24h')}>
+                        Last 24 Hours
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleExport('48h')}>
+                        Last 48 Hours
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleExport('7d')}>
+                        Last 7 Days
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => handleExport('all')}>
+                        All Time
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={fetchConversations}
+                    disabled={loading}
+                    className="text-white/60 h-8 w-8"
+                  >
+                    <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+                  </Button>
+                </div>
               </div>
-              
+
               {/* Search */}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
@@ -131,7 +170,7 @@ export default function WorkspaceConversationsPage() {
                   className="pl-9 bg-white/5 border-white/10 rounded-lg text-white placeholder:text-white/30 h-9 text-sm"
                 />
               </div>
-              
+
               {/* Filters */}
               <div className="mt-2 overflow-x-auto scrollbar-hide pb-1">
                 <ConversationFilters
@@ -208,6 +247,31 @@ export default function WorkspaceConversationsPage() {
             </h2>
           </div>
           <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="border-white/10 text-white/60 hover:text-white hover:bg-white/5 h-8 px-2">
+                  <Download className="h-4 w-4 mr-2" />
+                  Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48 bg-[#1e293b] text-white border-white/10">
+                <DropdownMenuLabel className="text-white/60">Export JSON</DropdownMenuLabel>
+                <DropdownMenuSeparator className="bg-white/10" />
+                <DropdownMenuItem className="focus:bg-white/10 focus:text-white cursor-pointer" onClick={() => handleExport('24h')}>
+                  Last 24 Hours
+                </DropdownMenuItem>
+                <DropdownMenuItem className="focus:bg-white/10 focus:text-white cursor-pointer" onClick={() => handleExport('48h')}>
+                  Last 48 Hours
+                </DropdownMenuItem>
+                <DropdownMenuItem className="focus:bg-white/10 focus:text-white cursor-pointer" onClick={() => handleExport('7d')}>
+                  Last 7 Days
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="bg-white/10" />
+                <DropdownMenuItem className="focus:bg-white/10 focus:text-white cursor-pointer" onClick={() => handleExport('all')}>
+                  All Time
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <ConversationSort value={sortBy} onChange={setSortBy} />
             <Button
               variant="outline"
@@ -242,7 +306,7 @@ export default function WorkspaceConversationsPage() {
               </Button>
             )}
           </div>
-          
+
           <ConversationFilters
             activeFilter={activeFilter}
             onFilterChange={setActiveFilter}
