@@ -1,51 +1,46 @@
 import { NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
 import { queueService } from '@/lib/services/queue-service'
 
-// Timestamp-based guard: prevents promise stacking but auto-expires after 2 min
-let processingStartedAt: number | null = null
-const MAX_PROCESSING_MS = 120_000 // 2 minutes hard limit
+// Allow long processing on VPS (no serverless timeout)
+export const maxDuration = 300
 
-// Répond immédiatement, traite en arrière-plan
 export async function GET(req: Request) {
     try {
         console.log('[Cron] Triggered process-queue endpoint')
 
-        // Check if another processing is still running AND hasn't timed out
-        if (processingStartedAt) {
-            const elapsed = Date.now() - processingStartedAt
-            if (elapsed < MAX_PROCESSING_MS) {
-                console.log(`[Cron] Processing active (${Math.round(elapsed / 1000)}s). Skipping.`)
-                return NextResponse.json({
-                    success: true,
-                    message: 'Processing active, skipped',
-                    timestamp: new Date().toISOString()
-                })
+        // DB-based concurrency guard: check if messages are actively being processed
+        // This replaces the old in-memory guard that caused stuck queues
+        const activeProcessing = await prisma.messageQueue.count({
+            where: {
+                status: 'PROCESSING',
+                updatedAt: { gt: new Date(Date.now() - 120_000) } // Updated within last 2 min
             }
-            console.warn(`[Cron] ⚠️ Previous processing timed out after ${Math.round(elapsed / 1000)}s. Forcing new run.`)
-        }
-
-        // Lancer le traitement en arrière-plan (sans await)
-        // Pour éviter le timeout Amplify (10s max)
-        processingStartedAt = Date.now()
-
-        queueService.processPendingMessages().then(result => {
-            console.log(`[Cron] process-queue complete. Processed: ${result.processed}`)
-        }).catch(error => {
-            console.error('[Cron] Error in background processing:', error)
-        }).finally(() => {
-            processingStartedAt = null
         })
 
-        // Répondre immédiatement
+        if (activeProcessing > 0) {
+            console.log(`[Cron] ${activeProcessing} messages actively processing (updated <2min ago). Skipping.`)
+            return NextResponse.json({
+                success: true,
+                message: `Skipped: ${activeProcessing} messages still processing`,
+                activeProcessing,
+                timestamp: new Date().toISOString()
+            })
+        }
+
+        // Synchronous processing (VPS has no timeout constraint)
+        const result = await queueService.processPendingMessages()
+
+        console.log(`[Cron] process-queue complete. Processed: ${result.processed}`)
+
         return NextResponse.json({
             success: true,
-            message: 'Processing started in background',
+            ...result,
             timestamp: new Date().toISOString()
         })
 
     } catch (error: any) {
         console.error('[Cron] Fatal Error:', error)
-        processingStartedAt = null
         return NextResponse.json({ error: error.message }, { status: 500 })
     }
 }

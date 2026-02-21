@@ -37,7 +37,7 @@ export class QueueService {
                         scheduledAt: { lte: now }
                     },
                     include: { contact: true, conversation: true },
-                    take: 5, // Reduced from 10 to be gentler on the system
+                    take: 15, // Increased: VPS can handle more, prevents queue buildup
                     orderBy: { scheduledAt: 'asc' }
                 })
 
@@ -190,31 +190,22 @@ export class QueueService {
 
         // ═══════════════════════════════════════════════════════════════════════════
         // OBSOLESCENCE CHECK: Did the user speak SINCE this message was queued?
-        // If yes, this queued message is likely out of context.
+        // WARNING ONLY: Previously this blocked the message entirely (INVALID_STALE),
+        // but that caused messages to silently disappear when users sent casual replies
+        // like "ok", "lol", or emojis. Now we just log a warning and send anyway.
+        // The AI will see the new messages in its next cycle.
         // ═══════════════════════════════════════════════════════════════════════════
-        // Only check for messages created AFTER the queue item
-        // We look for 'contact' messages in the same conversation
         if (conversation?.id && queueItem.createdAt) {
             const newerUserMessages = await prisma.message.findFirst({
                 where: {
                     conversationId: conversation.id,
                     sender: 'contact',
-                    timestamp: { gt: queueItem.createdAt } // Created AFTER this queue item
+                    timestamp: { gt: queueItem.createdAt }
                 }
             })
 
             if (newerUserMessages) {
-                console.warn(`[QueueService] 🛑 STALE MESSAGE: User sent a message (ID ${newerUserMessages.id}) after this was queued. Aborting.`)
-
-                await prisma.messageQueue.update({
-                    where: { id: queueItem.id },
-                    data: {
-                        status: 'INVALID_STALE',
-                        error: `User replied at ${newerUserMessages.timestamp.toISOString()}`
-                    }
-                })
-
-                return { id: queueItem.id, status: 'aborted_stale', reason: 'user_replied_meanwhile' }
+                console.warn(`[QueueService] ⚠️ STALE WARNING: User sent a message (ID ${newerUserMessages.id}) after this was queued. Sending anyway (was previously blocked).`)
             }
         }
         // ═══════════════════════════════════════════════════════════════════════════
