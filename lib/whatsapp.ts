@@ -50,7 +50,22 @@ export async function getConfig() {
 // Helper to resolve the actual Baileys Session ID (handles UUIDs and legacy IDs)
 async function resolveSessionId(agentId?: number | string): Promise<string> {
     if (!agentId) {
+        // NEVER fall back to "default" - find the first active agent's session
+        try {
+            const firstAgent = await prisma.agent.findFirst({
+                where: { isActive: true },
+                select: { id: true }
+            })
+            if (firstAgent) {
+                console.warn(`[WhatsApp] No agentId provided, using first active agent: ${firstAgent.id}`)
+                return firstAgent.id
+            }
+        } catch (e) {
+            console.error('[WhatsApp] Failed to find fallback agent:', e)
+        }
+        // Last resort: use config default (may still be "default" but logged)
         const { defaultSession } = await getConfig()
+        console.error(`[WhatsApp] CRITICAL: No agent found, falling back to session: ${defaultSession}`)
         return defaultSession
     }
 
