@@ -328,14 +328,32 @@ Respond ONLY with JSON:
                     try {
                         return JSON.parse(cleaned);
                     } catch (repairError) {
-                        logger.error('JSON Repair Failed', repairError as Error, { module: 'media_service', raw: jsonStr, repaired: cleaned });
-                        // Return safe default instead of throwing
-                        return {
-                            isMediaRequest: false,
-                            allowed: false,
-                            intentCategory: null,
-                            explanation: "JSON Parse Error (Unrecoverable)"
+                        logger.warn('JSON Repair Failed, attempting regex extraction', { module: 'media_service', raw: jsonStr, repaired: cleaned });
+
+                        // Aggressive fallback for completely mangled JSON (e.g., random text injected like "2026-02-20", missing quotes)
+                        const getBool = (key: string, def = false) => {
+                            const m = jsonStr.match(new RegExp(`"?${key}"?\\s*:\\s*(true|false)`, 'i'));
+                            return m ? m[1].toLowerCase() === 'true' : def;
                         };
+
+                        const getStr = (key: string) => {
+                            const quoted = jsonStr.match(new RegExp(`"?${key}"?\\s*:\\s*"([^"]+)"`, 'i'));
+                            if (quoted) return quoted[1];
+                            const unquoted = jsonStr.match(new RegExp(`"?${key}"?\\s*:\\s*([^\\s,}]+)`, 'i'));
+                            if (unquoted && unquoted[1].toLowerCase() !== 'null') return unquoted[1];
+                            return null;
+                        };
+
+                        const extracted = {
+                            isMediaRequest: getBool('isMediaRequest'),
+                            allowed: getBool('allowed'),
+                            paywallTriggered: getBool('paywallTriggered'), // Also extracting in case needed
+                            refusalReason: getStr('refusalReason'),
+                            intentCategory: getStr('intentCategory')
+                        };
+
+                        logger.info('Extracted object via regex', { module: 'media_service', extracted });
+                        return extracted;
                     }
                 }
             }

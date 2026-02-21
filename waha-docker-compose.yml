@@ -1,0 +1,14 @@
+version: '3.1'
+
+services:
+  waha:
+    image: devlikeapro/waha:latest
+    restart: always
+    ports:
+      - 3000:3000
+    environment:
+      - WAHA_PRINT_QR=False
+      - WAHA_HTTP_API_KEY=azerty1234567890azerty1234567890
+    volumes:
+      - ./.media:/app/.media
+      - ./sessions:/app/sessions

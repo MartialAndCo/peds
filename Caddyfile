@@ -1,0 +1,11 @@
+89-167-94-105.nip.io {
+    reverse_proxy localhost:8000
+}
+
+waha.89-167-94-105.nip.io {
+    reverse_proxy localhost:3000
+}
+
+peds.89-167-94-105.nip.io {
+    reverse_proxy localhost:3005
+}

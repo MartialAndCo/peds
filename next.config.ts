@@ -25,7 +25,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: https: blob: http://16.171.66.98:8000 http://localhost:8000; media-src 'self' data: blob: https://*.supabase.co https://*.nip.io https://cfpcmrecikujyjammjck.supabase.co https://github.com https://raw.githubusercontent.com http://16.171.66.98:8000 http://localhost:8000; worker-src 'self' blob:; connect-src 'self' https: http://16.171.66.98:8000 http://localhost:8000;",
+            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: https: blob: https://89-167-94-105.nip.io http://localhost:8000; media-src 'self' data: blob: https://*.supabase.co https://*.nip.io https://cfpcmrecikujyjammjck.supabase.co https://github.com https://raw.githubusercontent.com https://89-167-94-105.nip.io http://localhost:8000; worker-src 'self' blob:; connect-src 'self' https: https://89-167-94-105.nip.io http://localhost:8000;",
           },
         ],
       },
@@ -35,10 +35,11 @@ const nextConfig = {
     return [
       {
         source: '/supabase-proxy/:path*',
-        destination: 'http://16.171.66.98:8000/:path*',
+        destination: 'https://89-167-94-105.nip.io/:path*',
       },
     ]
   },
+  output: 'standalone',
   experimental: {
     serverActions: {
       bodySizeLimit: '100mb',

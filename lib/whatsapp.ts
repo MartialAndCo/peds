@@ -13,7 +13,7 @@ const cleanKey = (key?: string) => {
 export async function getConfig() {
     // Known defaults
     const KNOWN_KEY = 'e3f9a1c4d8b2f0a7c5e6d9b1a4f8c2d0e7b5a9c3f1d4b8e6a2f0c7'
-    const KNOWN_ENDPOINT = 'http://13.60.16.81:3001'
+    const KNOWN_ENDPOINT = 'http://localhost:3001'
 
     try {
         const settings = await settingsService.getSettings() || {}
@@ -25,13 +25,6 @@ export async function getConfig() {
         const apiKey = (dbKey && dbKey !== 'secret') ? dbKey : (envKey && envKey !== 'secret' ? envKey : KNOWN_KEY)
 
         let endpoint = (settings['waha_endpoint'] as string) || process.env.WAHA_ENDPOINT || KNOWN_ENDPOINT
-        // Fix: Force port 3001 if 3000 is configured (Baileys runs on 3001)
-        endpoint = endpoint.replace(':3000', ':3001')
-        if (endpoint.includes('13.60.16.81:3000')) {
-            endpoint = 'http://13.60.16.81:3001'
-        } else if (endpoint === 'http://13.60.16.81' || endpoint === 'https://13.60.16.81') {
-            endpoint = 'http://13.60.16.81:3001'
-        }
         const defaultSession = (settings['waha_session'] as string) || process.env.WAHA_SESSION || 'default'
 
         return {
@@ -45,13 +38,6 @@ export async function getConfig() {
 
         const envKey = cleanKey(process.env.AUTH_TOKEN || process.env.WAHA_API_KEY)
         let fallbackEndpoint = process.env.WAHA_ENDPOINT || KNOWN_ENDPOINT
-        // Fix: Force port 3001 if 3000 is configured
-        fallbackEndpoint = fallbackEndpoint.replace(':3000', ':3001')
-        if (fallbackEndpoint.includes('13.60.16.81:3000')) {
-            fallbackEndpoint = 'http://13.60.16.81:3001'
-        } else if (fallbackEndpoint === 'http://13.60.16.81' || fallbackEndpoint === 'https://13.60.16.81') {
-            fallbackEndpoint = 'http://13.60.16.81:3001'
-        }
         return {
             endpoint: fallbackEndpoint,
             apiKey: envKey || KNOWN_KEY,
@@ -141,7 +127,7 @@ export const whatsapp = {
 
         // --- DISCORD ROUTING ---
         if (chatId.startsWith('DISCORD_')) {
-            const discordEndpoint = process.env.DISCORD_API_ENDPOINT || 'http://13.60.16.81:3002' // Default to EC2 Discord Service
+            const discordEndpoint = process.env.DISCORD_API_ENDPOINT || 'http://localhost:3002' // Default to local Discord Service
             const discordUserId = chatId.replace('DISCORD_', '').replace('@discord', '')
 
             try {
@@ -517,7 +503,7 @@ export const whatsapp = {
 
         // --- DISCORD ROUTING ---
         if (chatId.startsWith('DISCORD_')) {
-            const discordEndpoint = process.env.DISCORD_API_ENDPOINT || 'http://13.60.16.81:3002'
+            const discordEndpoint = process.env.DISCORD_API_ENDPOINT || 'http://localhost:3002'
             const discordUserId = chatId.replace('DISCORD_', '').replace('@discord', '')
             try {
                 await axios.post(`${discordEndpoint}/api/sendStateTyping`, {

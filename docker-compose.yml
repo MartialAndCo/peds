@@ -6,9 +6,9 @@ services:
     container_name: baos
     restart: unless-stopped
     ports:
-      - "3001:3001"
+      - "127.0.0.1:3001:3001"
     environment:
-      - WEBHOOK_URL=https://main.d2in5shy58lp10.amplifyapp.com/api/webhooks/whatsapp
+      - WEBHOOK_URL=https://peds.89-167-94-105.nip.io/api/webhooks/whatsapp
       - AUTH_TOKEN=${AUTH_TOKEN}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET}
     extra_hosts:
@@ -22,9 +22,9 @@ services:
     container_name: discord_bot
     restart: unless-stopped
     ports:
-      - "3002:3002"
+      - "127.0.0.1:3002:3002"
     environment:
-      - WEBHOOK_URL=https://main.d2in5shy58lp10.amplifyapp.com/api/webhooks/discord
+      - WEBHOOK_URL=https://peds.89-167-94-105.nip.io/api/webhooks/discord
       - PORT=3002
       - WEBHOOK_SECRET=${WEBHOOK_SECRET}
       - AGENT_ID=${AGENT_ID}
