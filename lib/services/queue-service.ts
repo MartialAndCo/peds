@@ -101,9 +101,19 @@ export class QueueService {
         console.log(`[QueueService] Processing ${lockedItems.length} messages across ${itemsByConversation.size} conversations`)
 
         // Process each conversation's messages
+        // Rate-limit sends per agent/session to avoid WhatsApp anti-spam
+        let conversationCount = 0
         for (const [conversationId, items] of itemsByConversation) {
             // Sort by scheduled time
             items.sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime())
+
+            // RATE LIMIT: Wait between conversations to space out sends on same WhatsApp session
+            if (conversationCount > 0) {
+                const interConvDelay = 8000 + Math.random() * 7000 // 8-15 seconds
+                console.log(`[QueueService] ⏳ Rate limit: waiting ${Math.round(interConvDelay)}ms before next conversation (${conversationId})`)
+                await new Promise(r => setTimeout(r, interConvDelay))
+            }
+            conversationCount++
 
             console.log(`[QueueService] Conversation ${conversationId}: ${items.length} messages to send`)
 
@@ -129,7 +139,6 @@ export class QueueService {
                     results.push(result)
 
                     // If there are more messages for this conversation, wait a bit before sending the next one
-                    // This creates a natural "burst" of messages instead of spacing them by 30 minutes
                     if (i < items.length - 1) {
                         const delayBetweenMessages = 3000 + Math.random() * 2000 // 3-5 seconds
                         console.log(`[QueueService] Waiting ${Math.round(delayBetweenMessages)}ms before sending next message for conversation ${conversationId}`)
