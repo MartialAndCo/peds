@@ -17,7 +17,7 @@ export async function POST(
         }
 
         const body = await req.json()
-        const { message_text, text, mediaUrl, mediaType } = body
+        const { message_text, text, mediaUrl, mediaType, voiceBase64 } = body
         const messageText = message_text || text || '' // Support both formats
         const { id: idStr } = await params
         const conversation = await prisma.conversation.findUnique({
@@ -37,8 +37,16 @@ export async function POST(
         const agentId = conversation.agentId || undefined
         const isDiscord = phone.startsWith('DISCORD_') || conversation.contact.source === 'discord' || phone.includes('@discord')
 
-        // Send media or text via WhatsApp or Discord
-        if (mediaUrl) {
+        // Send voice, media, or text via WhatsApp or Discord
+        if (voiceBase64) {
+            // Voice message (TTS generated)
+            if (isDiscord) {
+                // Discord doesn't support PTT voice, send as file
+                await discord.sendFile(phone, voiceBase64, 'voice.mp3', undefined, agentId)
+            } else {
+                await whatsapp.sendVoice(phone, voiceBase64, undefined, agentId)
+            }
+        } else if (mediaUrl) {
             const detectedType = mediaType || detectMediaType(mediaUrl)
 
             if (isDiscord) {
@@ -106,7 +114,7 @@ export async function POST(
             data: {
                 conversationId: conversation.id,
                 sender: 'admin',
-                message_text: messageText || (mediaUrl ? '[Media]' : ''),
+                message_text: voiceBase64 ? `[VOICE] ${messageText}` : (messageText || (mediaUrl ? '[Media]' : '')),
                 mediaUrl: mediaUrl || null,
                 timestamp: new Date()
             }

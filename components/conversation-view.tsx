@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/componen
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-import { Send, Bot, User, Pause, Play, Loader2, Plus, ImageIcon, Upload, X, Film } from 'lucide-react'
+import { Send, Bot, User, Pause, Play, Loader2, Plus, ImageIcon, Upload, X, Film, Mic } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AudioPlayer } from '@/components/chat/audio-player'
 import { getExportData } from '@/app/actions/conversation'
@@ -70,6 +70,13 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
     const [galleryLoading, setGalleryLoading] = useState(false)
     const [uploading, setUploading] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
+
+    // Voice message state
+    const [isVoiceOpen, setIsVoiceOpen] = useState(false)
+    const [voiceText, setVoiceText] = useState('')
+    const [voiceAudio, setVoiceAudio] = useState<string | null>(null)
+    const [voiceGenerating, setVoiceGenerating] = useState(false)
+    const [voiceSending, setVoiceSending] = useState(false)
 
     // Keep refs in sync with state
     useEffect(() => { oldestIdRef.current = oldestId }, [oldestId])
@@ -293,6 +300,44 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
         }
     }
 
+    // Voice message handlers
+    const handleGenerateVoice = async () => {
+        if (!voiceText.trim()) return
+        setVoiceGenerating(true)
+        setVoiceAudio(null)
+        try {
+            const res = await axios.post(`/api/conversations/${conversationId}/voice-preview`, {
+                text: voiceText
+            })
+            setVoiceAudio(res.data.audioBase64)
+        } catch (error: any) {
+            console.error('Voice generation failed', error)
+            alert(`Voice generation failed: ${error.response?.data?.error || error.message}`)
+        } finally {
+            setVoiceGenerating(false)
+        }
+    }
+
+    const handleSendVoice = async () => {
+        if (!voiceAudio) return
+        setVoiceSending(true)
+        try {
+            await axios.post(`/api/conversations/${conversationId}/send`, {
+                message_text: voiceText,
+                voiceBase64: voiceAudio
+            })
+            setIsVoiceOpen(false)
+            setVoiceText('')
+            setVoiceAudio(null)
+            pollNewMessages()
+        } catch (error) {
+            console.error('Voice send failed', error)
+            alert('Failed to send voice message')
+        } finally {
+            setVoiceSending(false)
+        }
+    }
+
     const filteredGalleryMedias = galleryFilter === 'all'
         ? galleryMedias
         : galleryMedias.filter(m => m.typeId === galleryFilter)
@@ -495,6 +540,10 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
                                 <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
                                     <Upload className="h-4 w-4 mr-2" />
                                     Upload
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setIsVoiceOpen(true)}>
+                                    <Mic className="h-4 w-4 mr-2" />
+                                    Voice
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
@@ -709,6 +758,73 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
                                         </button>
                                     )
                                 })}
+                            </div>
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Voice Message Dialog */}
+            <Dialog open={isVoiceOpen} onOpenChange={(open) => {
+                setIsVoiceOpen(open)
+                if (!open) { setVoiceAudio(null); setVoiceGenerating(false) }
+            }}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Mic className="h-5 w-5" />
+                            Voice Message
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <textarea
+                            value={voiceText}
+                            onChange={(e) => setVoiceText(e.target.value)}
+                            placeholder="Type what she should say..."
+                            rows={3}
+                            className="w-full rounded-lg border border-gray-300 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                            disabled={voiceGenerating || voiceSending}
+                        />
+
+                        <Button
+                            onClick={handleGenerateVoice}
+                            disabled={!voiceText.trim() || voiceGenerating}
+                            className="w-full"
+                            variant="outline"
+                        >
+                            {voiceGenerating ? (
+                                <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Generating...</>
+                            ) : (
+                                <><Mic className="h-4 w-4 mr-2" /> Generate Voice</>
+                            )}
+                        </Button>
+
+                        {voiceAudio && (
+                            <div className="space-y-3">
+                                <div className="bg-gray-50 rounded-lg p-3">
+                                    <audio controls src={voiceAudio} className="w-full" />
+                                </div>
+                                <div className="flex gap-2">
+                                    <Button
+                                        onClick={handleGenerateVoice}
+                                        variant="outline"
+                                        className="flex-1"
+                                        disabled={voiceSending}
+                                    >
+                                        🔄 Retry
+                                    </Button>
+                                    <Button
+                                        onClick={handleSendVoice}
+                                        className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                                        disabled={voiceSending}
+                                    >
+                                        {voiceSending ? (
+                                            <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Sending...</>
+                                        ) : (
+                                            <>✅ Send Voice</>
+                                        )}
+                                    </Button>
+                                </div>
                             </div>
                         )}
                     </div>
