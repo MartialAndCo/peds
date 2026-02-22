@@ -14,18 +14,63 @@ import type {
     ActionEvidence
 } from './types';
 
-// Mots-clés qui indiquent une demande de photo
-const PHOTO_REQUEST_KEYWORDS = [
-    // Français
-    'photo', 'image', 'pic', 'selfie', 'montre', 'voir', 'vois',
-    'envoie', 'envoyer', 'montre-moi', 'montre toi', 'fais voir',
-    'jveux voir', 'je veux voir', 'tu peux montrer',
-    'photo de toi', 'ton visage', 'ta tête',
-    // Anglais
-    'send me a pic', 'send a pic', 'show me', 'let me see',
-    'your photo', 'picture of you', 'see your face',
-    'selfie', 'send photo', 'show yourself'
+// ── Photo demand detection ──
+// Phrase-based: always valid demand signals (multi-word, unambiguous)
+const PHOTO_DEMAND_PHRASES = [
+    'envoie une photo', 'envoie moi', 'envoie-moi', 'montre-moi', 'montre toi',
+    'fais voir', 'send me a pic', 'send a pic', 'send me a photo', 'show me',
+    'let me see', 'photo de toi', 'picture of you', 'jveux voir',
+    'je veux voir', 'tu peux montrer', 'see your face',
+    'show yourself', 'send photo', 'your photo', 'ton visage', 'ta tête',
+    'une photo de toi', 'pic of you'
 ];
+
+// Single keywords that are always unambiguous demands
+const PHOTO_UNAMBIGUOUS_KEYWORDS = ['selfie'];
+
+// False positive patterns: user talking ABOUT photos, not requesting
+const PHOTO_FALSE_POSITIVE_PATTERNS = [
+    /j'ai.*photo/i,
+    /j'ai envoyé.*photo/i,
+    /une photo de (mon|ma|mes|son|sa|ses)/i,
+    /photo de (mon|ma|mes)/i,
+    /photo de profil/i,
+    /j'ai pris.*photo/i,
+    /belle(s)? photo/i,
+    /bonne photo/i,
+    /sur (la|une|cette) photo/i,
+    /c'est (une|la) photo/i,
+    /j'aime (la|ta|cette) photo/i,
+    /j'ai vu.*photo/i,
+    /ma photo/i,
+    /mes photos/i,
+    /la photo (de|du|des)/i,
+    /i (took|have|had|saw|like|love).*photo/i,
+    /nice (photo|pic|picture)/i,
+    /great (photo|pic|picture)/i,
+    /good (photo|pic|picture)/i,
+];
+
+function isUserRequestingPhoto(userMessage: string): boolean {
+    const msg = userMessage.toLowerCase();
+
+    // Check false positives first
+    if (PHOTO_FALSE_POSITIVE_PATTERNS.some(p => p.test(msg))) {
+        return false;
+    }
+
+    // Check unambiguous single keywords
+    if (PHOTO_UNAMBIGUOUS_KEYWORDS.some(kw => msg.includes(kw))) {
+        return true;
+    }
+
+    // Check multi-word demand phrases
+    if (PHOTO_DEMAND_PHRASES.some(phrase => msg.includes(phrase))) {
+        return true;
+    }
+
+    return false;
+}
 
 // Mots-clés qui indiquent une demande de vocal
 const VOICE_REQUEST_KEYWORDS = [
@@ -73,9 +118,7 @@ export const actionAgent = {
         for (const pattern of photoSentPatterns) {
             if (pattern.test(aiResponse)) {
                 // Vérifier si l'utilisateur avait demandé une photo
-                const userAskedPhoto = PHOTO_REQUEST_KEYWORDS.some(kw =>
-                    userMessage.toLowerCase().includes(kw.toLowerCase())
-                );
+                const userAskedPhoto = isUserRequestingPhoto(userMessage);
 
                 if (!userAskedPhoto) {
                     const evidence: ActionEvidence = {
@@ -181,20 +224,10 @@ export const actionAgent = {
         contactId?: string | null
     ): SupervisorAlert | null {
         // Vérifier si l'utilisateur a explicitement demandé une photo
-        const userAskedPhoto = PHOTO_REQUEST_KEYWORDS.some(kw =>
-            userMessage.toLowerCase().includes(kw.toLowerCase())
-        );
+        const userAskedPhoto = isUserRequestingPhoto(userMessage);
 
         // Vérifier les faux positifs (l'utilisateur parle D'UNE photo, pas DEMANDE une photo)
-        const falsePositivePatterns = [
-            /j'ai.*photo/i,  // "j'ai une photo de..."
-            /j'ai envoyé.*photo/i,
-            /une photo de mon/i,
-            /photo de ma/i,
-            /j'ai pris.*photo/i
-        ];
-
-        const isFalsePositive = falsePositivePatterns.some(p => p.test(userMessage));
+        const isFalsePositive = PHOTO_FALSE_POSITIVE_PATTERNS.some(p => p.test(userMessage));
 
         if (!userAskedPhoto || isFalsePositive) {
             const evidence: ActionEvidence = {
@@ -241,9 +274,7 @@ export const actionAgent = {
 
         if (action === 'PHOTO_SENT') {
             // Vérifier si c'était justifié
-            const userAskedPhoto = PHOTO_REQUEST_KEYWORDS.some(kw =>
-                triggerMessage.toLowerCase().includes(kw.toLowerCase())
-            );
+            const userAskedPhoto = isUserRequestingPhoto(triggerMessage);
 
             if (!userAskedPhoto) {
                 const evidence: ActionEvidence = {

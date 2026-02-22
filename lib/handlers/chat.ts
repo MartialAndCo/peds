@@ -864,7 +864,8 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
                         content: item.content,
                         scheduledAt: item.scheduledAt.toISOString()
                     })),
-                    currentActivity: scheduleActivity
+                    currentActivity: scheduleActivity,
+                    baseAge: agentProfilePreloaded?.baseAge || null
                 }
 
                 const validation = await supervisorOrchestrator.validateBlocking(supervisorContext);
@@ -1138,22 +1139,8 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         return { handled: true, result: 'blocked_formatting_only' }
     }
 
-    // 5.8. TAG STRIPPING (EARLY) - Before Supervisor sees it
-    // We strip [IMAGE:...] tags now so they don't appear in Supervisor Dashboard or User Chat.
-    const imageKeywords: string[] = []
-    const imageTagRegex = /\[IMAGE:(.+?)\]/g
-    let imgMatch
-    // Extract all keywords
-    while ((imgMatch = imageTagRegex.exec(responseText)) !== null) {
-        imageKeywords.push(imgMatch[1].trim())
-    }
-    // Remove all tags globally
-    responseText = responseText.replace(imageTagRegex, '').trim()
-
-    console.log(`[Chat] AI Response (final cleaned): "${responseText.substring(0, 100)}${responseText.length > 100 ? '...' : ''}"`)
-
     // ═══════════════════════════════════════════════════════════════════════════
-    // SUPERVISOR AI - BLOQUANT: Valide avant envoi, régénère si nécessaire
+    // 5.8. SUPERVISOR AI - BLOQUANT (BEFORE tag stripping so it sees raw [IMAGE:] tags)
     // ═══════════════════════════════════════════════════════════════════════════
     let inlineValidationAttempts = 0;
     const MAX_INLINE_VALIDATION_RETRIES = 2;
@@ -1171,7 +1158,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
                 conversationId: conversation.id,
                 contactId: contact.id,
                 userMessage: lastContent,
-                aiResponse: responseText,
+                aiResponse: responseText, // Still contains [IMAGE:] tags — Supervisor can detect them
                 history: contextMessages.map((m: any) => ({
                     role: m.role === 'user' ? 'user' as const : 'ai' as const,
                     content: m.content
@@ -1182,7 +1169,8 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
                     content: item.content,
                     scheduledAt: item.scheduledAt.toISOString()
                 })),
-                currentActivity: inlineActivity
+                currentActivity: inlineActivity,
+                baseAge: agentProfilePreloaded?.baseAge || null
             }
 
             const validation = await supervisorOrchestrator.validateBlocking(supervisorContext);
@@ -1220,7 +1208,6 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
                     continue;
                 } else {
                     console.error('[Chat] Max validation retries reached, NO FALLBACK - alerting admin');
-                    // Créer notification pour admin
                     await prisma.notification.create({
                         data: {
                             title: '🚨 AI Response Blocked',
@@ -1235,7 +1222,6 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
                             }
                         }
                     });
-                    // Ne pas envoyer de message - conversation en attente
                     return { handled: true, result: 'supervisor_blocked_no_fallback', shouldSend: false };
                 }
             } else if (!validation.isValid) {
@@ -1252,6 +1238,19 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         }
     }
     // ═══════════════════════════════════════════════════════════════════════════
+
+    // 5.9. TAG STRIPPING - AFTER Supervisor validation
+    // Strip [IMAGE:...] tags so they don't appear in user chat or dashboard
+    const imageKeywords: string[] = []
+    const imageTagRegex = /\[IMAGE:(.+?)\]/g
+    let imgMatch
+    while ((imgMatch = imageTagRegex.exec(responseText)) !== null) {
+        imageKeywords.push(imgMatch[1].trim())
+    }
+    responseText = responseText.replace(imageTagRegex, '').trim()
+
+    console.log(`[Chat] AI Response (final cleaned): "${responseText.substring(0, 100)}${responseText.length > 100 ? '...' : ''}"`)
+
 
     // 6. Notification Trigger (Internal Tags)
     // PAYMENT DETECTION: Now ONLY via AI tag (keyword detection removed to avoid false positives)
@@ -1320,6 +1319,22 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
 
     // Image Logic ([IMAGE:keyword]) - Processed from extracted keywords
+    if (imageKeywords.length > 0) {
+        // Rate-limit: Max 3 photos per day per conversation
+        const photosSentToday = await prisma.message.count({
+            where: {
+                conversationId: conversation.id,
+                sender: 'ai',
+                message_text: { startsWith: '[Sent Media:' },
+                timestamp: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+            }
+        })
+        if (photosSentToday >= 3) {
+            console.warn(`[Chat] ⚠️ RATE LIMIT: Already sent ${photosSentToday} photos today for conv ${conversation.id}. Skipping image send.`)
+            imageKeywords.length = 0 // Clear to prevent sending
+        }
+    }
+
     if (imageKeywords.length > 0) {
         const keyword = imageKeywords[0];
         console.log(`[Chat] AI wanted to send ${imageKeywords.length} image(s). Check availability for: ${keyword}`)
