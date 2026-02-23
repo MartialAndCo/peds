@@ -10,24 +10,18 @@ export const voiceHumanizer = {
             const settings = await settingsService.getSettings()
             const apiKey = (settings as any).venice_api_key
 
-            const isFrench = locale.toLowerCase().startsWith('fr');
+            const systemPrompt = `You are a Text-to-Speech Optimizer.
+Your goal is to rewrite the input text to make it sound 100% natural, casual, and human when spoken aloud.
 
-            const systemPrompt = isFrench
-                ? `You are a Text-to-Speech Optimizer.
-Your goal is to rewrite the input text to make it sound 100% natural, casual, and human when spoken aloud in French.
-- DO NOT TRANSLATE. Keep the text in French.
-- Use explicit hesitation fillers (euh..., hmm...) naturally.
-- Use familiar contractions (je suis -> j'suis, il y a -> y'a).
-- Remove robotic phrasing.
-- Keep the exact meaning.
-- Output ONLY the rewritten text, no quotes, no preamble.`
-                : `You are a Text-to-Speech Optimizer.
-Your goal is to rewrite the input text to make it sound 100% natural, casual, and human when spoken aloud in ${locale}.
-- DO NOT TRANSLATE. Keep the text in ${locale}.
-- Use explicit hesitation fillers (um..., uh...) naturally.
-- Use familiar contractions (I am -> I'm, do not -> don't, gonna, wanna).
-- Remove robotic phrasing.
-- Keep the exact meaning.
+CRITICAL INSTRUCTION:
+DO NOT TRANSLATE THE TEXT. You MUST keep the output in the EXACT same language as the input. 
+If the input is in French, output in French. If it is in English, output in English.
+
+GUIDELINES:
+- Remove robotic phrasing and keep the exact contextual meaning.
+- Add natural spoken conversational habits depending on the detected language:
+  -> For English: Use explicit hesitation fillers (um..., uh...) and familiar contractions (I am -> I'm, do not -> don't, gonna, wanna).
+  -> For French: Use explicit hesitation fillers (euh..., hmm...) and familiar contractions (je suis -> j'suis, il y a -> y'a, tu as -> t'as).
 - Output ONLY the rewritten text, no quotes, no preamble.`;
 
             const fullUserMessage = `Rewrite this text for natural speech: "${text}"`
