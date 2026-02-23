@@ -28,7 +28,8 @@ import {
   Plus,
   ImageIcon,
   Upload,
-  Film
+  Film,
+  Mic
 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
@@ -126,6 +127,13 @@ export function ConversationUnifiedView({
   const [galleryLoading, setGalleryLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Voice message state
+  const [isVoiceOpen, setIsVoiceOpen] = useState(false)
+  const [voiceText, setVoiceText] = useState('')
+  const [voiceAudio, setVoiceAudio] = useState<string | null>(null)
+  const [voiceGenerating, setVoiceGenerating] = useState(false)
+  const [voiceSending, setVoiceSending] = useState(false)
 
   // Update conversation when prop changes (fixes desktop switching issue)
   useEffect(() => {
@@ -226,6 +234,44 @@ export function ConversationUnifiedView({
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleGenerateVoice = async () => {
+    if (!voiceText.trim()) return
+    setVoiceGenerating(true)
+    setVoiceAudio(null)
+    try {
+      const res = await axios.post(`/api/conversations/${conversationId}/voice-preview`, {
+        text: voiceText
+      })
+      setVoiceAudio(res.data.audioBase64)
+    } catch (error: any) {
+      console.error('Voice generation failed', error)
+      alert(`Voice generation failed: ${error.response?.data?.error || error.message}`)
+    } finally {
+      setVoiceGenerating(false)
+    }
+  }
+
+  const handleSendVoice = async () => {
+    if (!voiceAudio) return
+    setVoiceSending(true)
+    try {
+      await axios.post(`/api/conversations/${conversationId}/send`, {
+        message_text: voiceText,
+        voiceBase64: voiceAudio,
+        sender: 'admin'
+      })
+      setIsVoiceOpen(false)
+      setVoiceText('')
+      setVoiceAudio(null)
+      await loadMessages()
+    } catch (error) {
+      console.error('Voice send failed', error)
+      alert('Failed to send voice message')
+    } finally {
+      setVoiceSending(false)
     }
   }
 
@@ -617,6 +663,10 @@ export function ConversationUnifiedView({
                       <Upload className="h-4 w-4 mr-2" />
                       Upload
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setIsVoiceOpen(true)} className="text-white/80 focus:text-white focus:bg-white/10">
+                      <Mic className="h-4 w-4 mr-2" />
+                      Voice
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
                 <input
@@ -633,6 +683,16 @@ export function ConversationUnifiedView({
                   disabled={sending}
                   className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus-visible:ring-white/20 h-10 text-sm"
                 />
+                {!inputText.trim() && !selectedMediaUrl && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsVoiceOpen(true)}
+                    className="bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white h-10 w-10 p-0 flex-shrink-0"
+                  >
+                    <Mic className="h-4 w-4" />
+                  </Button>
+                )}
                 <Button
                   type="submit"
                   disabled={sending || (!inputText.trim() && !selectedMediaUrl)}
@@ -924,6 +984,63 @@ export function ConversationUnifiedView({
           </div>
         </div>
       )}
+
+      {/* Voice Message Dialog */}
+      <Dialog open={isVoiceOpen} onOpenChange={(open) => {
+        setIsVoiceOpen(open)
+        if (!open) { setVoiceAudio(null); setVoiceGenerating(false) }
+      }}>
+        <DialogContent className="max-w-md bg-[#1e293b] border-white/10 text-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-white">
+              <Mic className="h-5 w-5" />
+              Voice Message
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <textarea
+              value={voiceText}
+              onChange={(e) => setVoiceText(e.target.value)}
+              placeholder="Que doit-elle dire..."
+              rows={3}
+              className="w-full rounded-lg bg-white/5 border border-white/10 p-3 text-sm focus:outline-none focus:border-blue-500/50 resize-none text-white placeholder:text-white/30"
+              disabled={voiceGenerating || voiceSending}
+            />
+
+            <Button
+              onClick={handleGenerateVoice}
+              disabled={!voiceText.trim() || voiceGenerating}
+              className="w-full bg-white/10 hover:bg-white/20 text-white border-0"
+              variant="outline"
+            >
+              {voiceGenerating ? (
+                <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Generating...</>
+              ) : (
+                "Generate Audio"
+              )}
+            </Button>
+
+            {voiceAudio && (
+              <div className="pt-4 space-y-4">
+                <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                  <AudioPlayer src={voiceAudio} isMe={true} />
+                </div>
+                <Button
+                  onClick={handleSendVoice}
+                  disabled={voiceSending}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {voiceSending ? (
+                    <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Sending...</>
+                  ) : (
+                    <><Send className="h-4 w-4 mr-2" /> Send voice message</>
+                  )}
+                </Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

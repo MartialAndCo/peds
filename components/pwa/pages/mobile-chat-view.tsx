@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { updateContactStatus, updateConversationAi, updateContactTestMode, getExportData, updateConversationStatus } from '@/app/actions/conversation'
 import { generateDossier } from '@/lib/pdf-generator'
 import axios from 'axios'
+import { AudioPlayer } from '@/components/chat/audio-player'
 
 interface MobileChatViewProps {
     conversation: any
@@ -34,7 +35,7 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
     const [sending, setSending] = useState(false)
     const [infoOpen, setInfoOpen] = useState(false)
     const [isPending, startTransition] = useTransition()
-    
+
     // Pagination states
     const [messages, setMessages] = useState<Message[]>([])
     const [loadingMore, setLoadingMore] = useState(false)
@@ -45,6 +46,13 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
     const oldestIdRef = useRef<number | null>(null)
     const hasMoreRef = useRef<boolean>(true)
     const loadingMoreRef = useRef<boolean>(false)
+
+    // Voice Message State
+    const [isVoiceOpen, setIsVoiceOpen] = useState(false)
+    const [voiceText, setVoiceText] = useState('')
+    const [voiceAudio, setVoiceAudio] = useState<string | null>(null)
+    const [voiceGenerating, setVoiceGenerating] = useState(false)
+    const [voiceSending, setVoiceSending] = useState(false)
 
     // Keep refs in sync with state
     useEffect(() => { oldestIdRef.current = oldestId }, [oldestId])
@@ -101,7 +109,7 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
         const currentHasMore = hasMoreRef.current
         const currentLoadingMore = loadingMoreRef.current
         const currentOldestId = oldestIdRef.current
-        
+
         if (!currentHasMore || currentLoadingMore || !currentOldestId) return
         setLoadingMore(true)
         prevScrollHeight.current = scrollContainerRef.current?.scrollHeight || 0
@@ -152,6 +160,53 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
             console.error('Send error', error)
         } finally {
             setSending(false)
+        }
+    }
+
+    const fixMediaUrl = (url: string | null | undefined): string | null => {
+        if (!url) return null
+        if (url.startsWith('/9j/')) return `data:image/jpeg;base64,${url}`
+        if (url.startsWith('iVBOR')) return `data:image/png;base64,${url}`
+        if (url.startsWith('R0lGOD')) return `data:image/gif;base64,${url}`
+        if (url.startsWith('UklGR')) return `data:image/webp;base64,${url}`
+        return url
+    }
+
+    const handleGenerateVoice = async () => {
+        if (!voiceText.trim()) return
+        setVoiceGenerating(true)
+        setVoiceAudio(null)
+        try {
+            const res = await axios.post(`/api/conversations/${conversation.id}/voice-preview`, {
+                text: voiceText
+            })
+            setVoiceAudio(res.data.audioBase64)
+        } catch (error: any) {
+            console.error('Voice generation failed', error)
+            alert(`Voice generation failed: ${error.response?.data?.error || error.message}`)
+        } finally {
+            setVoiceGenerating(false)
+        }
+    }
+
+    const handleSendVoice = async () => {
+        if (!voiceAudio) return
+        setVoiceSending(true)
+        try {
+            await axios.post(`/api/conversations/${conversation.id}/send`, {
+                message_text: voiceText,
+                voiceBase64: voiceAudio,
+                sender: 'admin'
+            })
+            setIsVoiceOpen(false)
+            setVoiceText('')
+            setVoiceAudio(null)
+            pollNewMessages()
+        } catch (error) {
+            console.error('Voice send failed', error)
+            alert('Failed to send voice message')
+        } finally {
+            setVoiceSending(false)
         }
     }
 
@@ -280,20 +335,20 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
                         <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
                     </div>
                 )}
-                
+
                 {/* "Load more" hint */}
                 {hasMore && !loadingMore && messages.length > 0 && (
                     <div className="text-center text-xs text-gray-400 py-2">
                         ↑ Scroll up for older messages
                     </div>
                 )}
-                
+
                 {!hasMore && messages.length > 0 && (
                     <div className="text-center text-xs text-gray-400 py-2">
                         — Beginning of conversation —
                     </div>
                 )}
-                
+
                 <div
                     className="transition-transform duration-200 ease-out will-change-transform"
                     style={{ transform: `translateX(-${dragOffset}px)` }}
@@ -302,6 +357,9 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
                         const isMe = msg.sender !== 'contact'
                         const prevMsg = messages[index - 1]
                         const showTimeHeader = !prevMsg || (new Date(msg.timestamp).getTime() - new Date(prevMsg.timestamp).getTime() > 1000 * 60 * 60) // 1 hour gap
+
+                        const fixedMediaUrl = fixMediaUrl(msg.mediaUrl)
+                        const isAudio = fixedMediaUrl && (fixedMediaUrl.startsWith('data:audio') || /\.(mp3|wav|ogg|m4a|opus)(\?|#|$)/i.test(fixedMediaUrl))
 
                         return (
                             <div key={msg.id} className="flex flex-col w-full relative">
@@ -324,7 +382,12 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
                                             ? "bg-gradient-to-br from-blue-600 to-blue-500 text-white rounded-br-none"
                                             : "bg-[#1e293b] text-white rounded-bl-none border border-white/5"
                                     )}>
-                                        <p>{msg.message_text}</p>
+                                        {isAudio && fixedMediaUrl && (
+                                            <div className="mb-2 mt-1 -mx-2">
+                                                <AudioPlayer src={fixedMediaUrl} isMe={isMe} />
+                                            </div>
+                                        )}
+                                        {msg.message_text && <p>{msg.message_text}</p>}
                                     </div>
                                 </div>
                                 {/* Swipe Timestamp (Revealed on Right) */}
@@ -358,7 +421,10 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
                         onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
                     />
                     {!message.trim() && (
-                        <div className="h-10 w-10 rounded-full flex items-center justify-center text-white/40">
+                        <div
+                            className="h-10 w-10 rounded-full flex items-center justify-center text-white/40 cursor-pointer active:scale-90 transition-transform hover:bg-white/5"
+                            onClick={() => setIsVoiceOpen(true)}
+                        >
                             <Mic className="h-5 w-5" />
                         </div>
                     )}
@@ -474,6 +540,63 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
                                 Report / Block
                             </Button>
                         </div>
+                    </div>
+                </SheetContent>
+            </Sheet>
+
+            {/* Voice Message Sheet */}
+            <Sheet open={isVoiceOpen} onOpenChange={(open) => {
+                setIsVoiceOpen(open)
+                if (!open) { setVoiceAudio(null); setVoiceGenerating(false) }
+            }}>
+                <SheetContent side="bottom" className="bg-[#0f172a] border-t border-white/10 text-white rounded-t-3xl min-h-[50vh]">
+                    <SheetHeader className="pb-4">
+                        <SheetTitle className="flex items-center gap-2 text-white">
+                            <Mic className="h-5 w-5" />
+                            Message Vocal
+                        </SheetTitle>
+                    </SheetHeader>
+                    <div className="space-y-4 pb-8">
+                        <textarea
+                            value={voiceText}
+                            onChange={(e) => setVoiceText(e.target.value)}
+                            placeholder="Que doit-elle dire..."
+                            rows={4}
+                            className="w-full rounded-2xl bg-white/5 border border-white/10 p-4 text-[16px] text-white focus:outline-none focus:border-blue-500/50 resize-none placeholder:text-white/30"
+                            disabled={voiceGenerating || voiceSending}
+                        />
+
+                        <Button
+                            onClick={handleGenerateVoice}
+                            disabled={!voiceText.trim() || voiceGenerating}
+                            className="w-full h-12 bg-white/10 hover:bg-white/20 text-white border-none rounded-xl"
+                            variant="outline"
+                        >
+                            {voiceGenerating ? (
+                                <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Génération...</>
+                            ) : (
+                                "Générer l'audio"
+                            )}
+                        </Button>
+
+                        {voiceAudio && (
+                            <div className="pt-4 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                                <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
+                                    <AudioPlayer src={voiceAudio} isMe={true} />
+                                </div>
+                                <Button
+                                    onClick={handleSendVoice}
+                                    disabled={voiceSending}
+                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white h-14 rounded-xl text-[16px] font-medium shadow-lg shadow-blue-900/40"
+                                >
+                                    {voiceSending ? (
+                                        <><Loader2 className="h-5 w-5 animate-spin mr-2" /> Envoi en cours...</>
+                                    ) : (
+                                        <><Send className="h-5 w-5 mr-2" /> Envoyer le vocal</>
+                                    )}
+                                </Button>
+                            </div>
+                        )}
                     </div>
                 </SheetContent>
             </Sheet>
