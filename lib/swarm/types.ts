@@ -70,7 +70,7 @@ export interface SwarmState {
         safety?: string  // Règles de sécurité depuis DB
         lead?: string  // Smart Add context
     }
-    
+
     // Smart Add lead context
     leadContext?: string
 
@@ -80,24 +80,32 @@ export interface SwarmState {
     // Output
     response?: string
     error?: string
-    
+
     // Meta
     photoType?: string
     shouldSendVoice?: boolean
     currentPhase?: string
     isBlacklisted?: boolean  // Si la demande média est blacklistée
-    
+
     // Profile complet de l'agent (pour accès rapide aux templates)
     profile?: AgentProfile
-    
+
     // Données AgentContact (pour éviter requêtes)
     agentContact?: AgentContactData
-    
+
     // Messages bruts pour analyse
     messages?: Array<{ role: string; content: string; timestamp?: Date }>
-    
+
     // Métadonnées pour stockage temporaire entre nœuds
     metadata?: Record<string, any>
+
+    // Active Scenario Context
+    activeScenario?: {
+        scenarioId: string
+        title: string
+        description: string
+        targetContext?: string | null
+    }
 }
 
 export interface IntentionResult {

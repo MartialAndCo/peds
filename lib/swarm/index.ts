@@ -1,19 +1,19 @@
 import { prisma } from '@/lib/prisma';
 import { SwarmGraph } from './graph';
 import { settingsService } from '@/lib/settings-cache';
-import { 
-  intentionNode, 
-  memoryNode, 
-  personaNode, 
-  timingNode, 
-  phaseNode, 
+import {
+  intentionNode,
+  memoryNode,
+  personaNode,
+  timingNode,
+  phaseNode,
   styleNode,
   paymentNode,
   mediaNode,
   voiceNode,
   safetyNode,
   responseNode,
-  validationNode 
+  validationNode
 } from './nodes';
 import type { SwarmState, IntentionResult, AgentProfile } from './types';
 
@@ -40,62 +40,74 @@ export async function runSwarm(
 
   // 🔥 OPTIMISATION: Toutes les requêtes DB en PARALLÈLE
   // Si preloadedProfile est fourni, on évite de re-requêter
-  const profileLoadPromise = preloadedProfile 
+  const profileLoadPromise = preloadedProfile
     ? Promise.resolve(preloadedProfile)
     : prisma.agentProfile.findUnique({
-        where: { agentId },
-        select: {
-          contextTemplate: true,
-          styleRules: true,
-          identityTemplate: true,
-          phaseConnectionTemplate: true,
-          phaseVulnerabilityTemplate: true,
-          phaseCrisisTemplate: true,
-          phaseMoneypotTemplate: true,
-          paymentRules: true,
-          safetyRules: true,
-          timezone: true,
-          locale: true,
-          baseAge: true,
-          bankAccountNumber: true,
-          bankRoutingNumber: true
-        }
-      });
+      where: { agentId },
+      select: {
+        contextTemplate: true,
+        styleRules: true,
+        identityTemplate: true,
+        phaseConnectionTemplate: true,
+        phaseVulnerabilityTemplate: true,
+        phaseCrisisTemplate: true,
+        phaseMoneypotTemplate: true,
+        paymentRules: true,
+        safetyRules: true,
+        timezone: true,
+        locale: true,
+        baseAge: true,
+        bankAccountNumber: true,
+        bankRoutingNumber: true
+      }
+    });
 
   const [
     contact,
     profile,
     agentContact,
     activeConversation,
-    agentSettings
+    agentSettings,
+    activeScenarioData
   ] = await Promise.all([
     // 1. Contact pour le phone (mémoires)
     prisma.contact.findUnique({
       where: { id: contactId },
       select: { phone_whatsapp: true }
     }),
-    
+
     // 2. Profile complet de l'agent (ou preloaded)
     profileLoadPromise,
-    
+
     // 3. Phase et signals
     prisma.agentContact.findFirst({
       where: { agentId, contactId },
       select: { phase: true, signals: true, paymentEscalationTier: true }
     }),
-    
+
     // 4. Conversation active (leadContext)
     prisma.conversation.findFirst({
-      where: { 
-        contactId, 
+      where: {
+        contactId,
         agentId,
         status: { in: ['active', 'paused'] }
       },
       select: { metadata: true }
     }),
-    
+
     // 5. Settings (avec cache) - pour payment-node et autres
-    settingsService.getAgentSettings(agentId)
+    settingsService.getAgentSettings(agentId),
+
+    // 6. Active Scenario (if any)
+    prisma.activeScenario.findFirst({
+      where: {
+        contactId,
+        status: 'RUNNING'
+      },
+      include: {
+        scenario: true
+      }
+    })
   ]);
 
   const dbDuration = Date.now() - dbStartTime;
@@ -105,12 +117,12 @@ export async function runSwarm(
 
   const contactPhone = contact?.phone_whatsapp || contactId;
   const phase = agentContact?.phase || 'CONNECTION';
-  
+
   // Extraire le leadContext si présent
   const metadata = activeConversation?.metadata as any;
   const leadContext = metadata?.leadContext || metadata?.previousContext;
   const leadPlatform = metadata?.platform || 'previous platform';
-  
+
   // Récupérer la clé API Venice depuis les settings (déjà chargés avec cache)
   const veniceApiKey = agentSettings['venice_api_key'] as string || process.env.VENICE_API_KEY || '';
 
@@ -124,8 +136,8 @@ export async function runSwarm(
     userName,
     lastMessageType: lastMessageType || 'text',
     platform,
-    settings: { 
-      venice_api_key: veniceApiKey, 
+    settings: {
+      venice_api_key: veniceApiKey,
       venice_model: (agentSettings['venice_model'] as string) || 'venice-uncensored',
       timezone: profile.timezone || 'Europe/Paris',
       locale: profile.locale || 'fr-FR',
@@ -156,7 +168,15 @@ export async function runSwarm(
     currentPhase: phase,
     leadContext: leadContext || undefined,
     // Données supplémentaires pour éviter requêtes
-    agentContact: agentContact || undefined
+    agentContact: agentContact || undefined,
+
+    // Active Scenario data
+    activeScenario: activeScenarioData ? {
+      scenarioId: activeScenarioData.scenarioId,
+      title: activeScenarioData.scenario.title,
+      description: activeScenarioData.scenario.description,
+      targetContext: activeScenarioData.scenario.targetContext
+    } : undefined
   };
 
   // Créer le graph
@@ -222,7 +242,7 @@ export async function runSwarm(
   const finalState = await graph.execute('intention', initialState);
 
   console.log('[Swarm] Graph execution complete');
-  
+
   if (finalState.error) {
     console.error('[Swarm] Error during execution:', finalState.error);
   }
@@ -232,6 +252,6 @@ export async function runSwarm(
     console.error('[Swarm] CRITICAL: No response generated (Venice likely failed)')
     throw new Error('VENICE_API_REJECTED: No response from AI')
   }
-  
+
   return finalState.response;
 }

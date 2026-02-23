@@ -1288,8 +1288,23 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
                 await storyManager.resolveStory(activeStory.id, contact.id, agentId || '')
                 console.log(`[Chat] Story ${activeStory.description} marked as RESOLVED`)
             }
+
+            // 🔥 SCENARIO PAYMENT LOGGING
+            const activeScenario = await prisma.activeScenario.findFirst({
+                where: { contactId: contact.id, status: 'RUNNING' }
+            });
+            if (activeScenario) {
+                await prisma.scenarioPayment.create({
+                    data: {
+                        contactId: contact.id,
+                        scenarioId: activeScenario.scenarioId,
+                        status: 'PENDING'
+                    }
+                });
+                console.log(`[Chat] ScenarioPayment PENDING created for scenario ${activeScenario.scenarioId}`);
+            }
         } catch (e) {
-            console.error('[Chat] Failed to trigger notification or resolve story', e)
+            console.error('[Chat] Failed to trigger notification, resolve story, or log scenario payment', e)
         }
     }
 

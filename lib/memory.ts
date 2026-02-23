@@ -1,5 +1,6 @@
 import { MemoryClient } from 'mem0ai';
 import { prisma } from '@/lib/prisma';
+import { logger } from '@/lib/logger';
 
 export const memoryService = {
     async getClient() {
@@ -8,7 +9,7 @@ export const memoryService = {
         const apiKey = settings?.value || process.env.MEM0_API_KEY;
 
         if (!apiKey) {
-            console.warn('MEM0_API_KEY not configured.');
+            logger.warn('MEM0_API_KEY not configured', { module: 'mem0' });
             return null;
         }
 
@@ -29,9 +30,9 @@ export const memoryService = {
             if (!client) return;
 
             await client.add([{ role: "user", content: text }], { user_id: userId });
-            console.log(`[Mem0] Memory added for user ${userId}`);
+            logger.info(`Memory added for user ${userId}`, { module: 'mem0', userId, textLength: text.length });
         } catch (error) {
-            console.error('[Mem0] Failed to add memory:', error);
+            logger.error('Failed to add memory', error as Error, { module: 'mem0', userId });
         }
     },
 
@@ -50,9 +51,9 @@ export const memoryService = {
             for (const fact of facts) {
                 await client.add([{ role: "user", content: fact }], { user_id: userId });
             }
-            console.log(`[Mem0] Added ${facts.length} memories for user ${userId}`);
+            logger.info(`Added ${facts.length} memories for user ${userId}`, { module: 'mem0', userId, count: facts.length });
         } catch (error) {
-            console.error('[Mem0] Failed to add memories:', error);
+            logger.error('Failed to add memories', error as Error, { module: 'mem0', userId });
         }
     },
 
@@ -62,9 +63,10 @@ export const memoryService = {
             if (!client) return [];
 
             const memories = await client.search(query, { user_id: userId });
+            logger.info(`Search returned ${(memories || []).length} results for user ${userId}`, { module: 'mem0', userId, query: query.substring(0, 50) });
             return memories || [];
         } catch (error) {
-            console.error('[Mem0] Failed to search memory:', error);
+            logger.error('Failed to search memory', error as Error, { module: 'mem0', userId });
             return [];
         }
     },
@@ -75,9 +77,10 @@ export const memoryService = {
             if (!client) return [];
 
             const memories = await client.getAll({ user_id: userId });
+            logger.info(`GetAll returned ${(memories || []).length} memories for user ${userId}`, { module: 'mem0', userId });
             return memories || [];
         } catch (error) {
-            console.error('[Mem0] Failed to get all memories:', error);
+            logger.error('Failed to get all memories', error as Error, { module: 'mem0', userId });
             return [];
         }
     },
@@ -94,9 +97,9 @@ export const memoryService = {
             if (!client) return;
 
             await client.deleteAll({ user_id: userId });
-            console.log(`[Mem0] All memories deleted for user ${userId}`);
+            logger.info(`All memories deleted for user ${userId}`, { module: 'mem0', userId });
         } catch (error) {
-            console.error('[Mem0] Failed to delete all memories:', error);
+            logger.error('Failed to delete all memories', error as Error, { module: 'mem0', userId });
         }
     }
 };

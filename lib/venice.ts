@@ -24,12 +24,12 @@ export const venice = {
         // Validate and sanitize inputs to prevent API rejection
         const sanitizedSystemPrompt = systemPrompt || 'You are a helpful assistant.'
         const sanitizedUserMessage = userMessage || 'Hello'
-        
+
         // Filter out messages with null/undefined content and map roles
         const validHistoryMessages = messages
             .filter(m => m.content && typeof m.content === 'string')
             .map(m => ({
-                role: m.role === 'ai' ? 'assistant' : 'user',
+                role: (m.role === 'ai' || m.role === 'assistant') ? 'assistant' : 'user',
                 content: m.content
             }))
 
@@ -79,7 +79,7 @@ export const venice = {
                     // CRITICAL: Venice credits depleted or API rejected
                     console.error(`[Venice] 🚨 API REJECTED (${status}): ${detail}`)
                     logger.error(`Venice API rejected request`, error, { module: 'venice', status, detail })
-                    
+
                     // Throw clear error for upstream handling
                     throw new Error(`VENICE_API_REJECTED:${status}:${detail}`)
                 }

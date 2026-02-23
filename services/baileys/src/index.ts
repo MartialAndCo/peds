@@ -711,19 +711,47 @@ async function startSession(sessionId: string) {
             }
             // -----------------------------
 
+            // Deeply unwrap nested messages (View Once, Ephemeral, Document with Caption)
+            let actualMessage = msg.message;
+            let isViewOnce = false;
+
+            if (actualMessage?.viewOnceMessageV2?.message) {
+                actualMessage = actualMessage.viewOnceMessageV2.message;
+                isViewOnce = true;
+            } else if (actualMessage?.viewOnceMessage?.message) {
+                actualMessage = actualMessage.viewOnceMessage.message;
+                isViewOnce = true;
+            } else if (actualMessage?.viewOnceMessageV2Extension?.message) {
+                actualMessage = actualMessage.viewOnceMessageV2Extension.message;
+                isViewOnce = true;
+            }
+
+            if (actualMessage?.ephemeralMessage?.message) {
+                actualMessage = actualMessage.ephemeralMessage.message;
+            }
+            if (actualMessage?.documentWithCaptionMessage?.message) {
+                actualMessage = actualMessage.documentWithCaptionMessage.message;
+            }
+
             // Determine Body
-            let body = msg.message.conversation ||
-                msg.message.extendedTextMessage?.text ||
-                msg.message.imageMessage?.caption ||
+            let body = actualMessage?.conversation ||
+                actualMessage?.extendedTextMessage?.text ||
+                actualMessage?.imageMessage?.caption ||
+                actualMessage?.videoMessage?.caption ||
+                actualMessage?.documentMessage?.caption ||
                 ''
 
-            // Determine Type
+            // Determine Type and mimetype
             let type = 'chat'
-            if (msg.message.imageMessage) type = 'image'
-            if (msg.message.audioMessage) type = 'ptt'
-            if (msg.message.stickerMessage) type = 'sticker'
+            let mimetype = undefined;
 
-            server.log.info({ sessionId, from: msg.key.remoteJid, type, fromMe: msg.key.fromMe, bodyPreview: body.substring(0, 50) }, 'Processing message')
+            if (actualMessage?.imageMessage) { type = 'image'; mimetype = actualMessage.imageMessage.mimetype; }
+            else if (actualMessage?.videoMessage) { type = 'video'; mimetype = actualMessage.videoMessage.mimetype; }
+            else if (actualMessage?.audioMessage) { type = 'ptt'; mimetype = actualMessage.audioMessage.mimetype; }
+            else if (actualMessage?.stickerMessage) { type = 'sticker'; mimetype = actualMessage.stickerMessage.mimetype; }
+            else if (actualMessage?.documentMessage) { type = 'document'; mimetype = actualMessage.documentMessage.mimetype; }
+
+            server.log.info({ sessionId, from: msg.key.remoteJid, type, mimetype, isViewOnce, fromMe: msg.key.fromMe, bodyPreview: body.substring(0, 50) }, 'Processing message')
 
             // LID to Phone Number Resolution
             let resolvedPhoneNumber: string | null = null
@@ -796,11 +824,14 @@ async function startSession(sessionId: string) {
                     id: msg.key.id,
                     from: msg.key.remoteJid,
                     body,
+                    isViewOnce,
                     fromMe: msg.key.fromMe,
                     type,
                     messageKey: msg.key, // Full key for read receipts
                     _data: {
                         notifyName: msg.pushName,
+                        mimetype,
+                        isViewOnce,
                         phoneNumber: resolvedPhoneNumber // Include resolved phone number for LID messages
                     }
                 }
@@ -1469,9 +1500,40 @@ server.get('/api/messages/:messageId/media', async (req: any, reply) => {
         }
     }
 
+    if (!cachedMessage) {
+        // Fallback: search in persistent stores (up to 200 messages per conversation)
+        server.log.info({ messageId }, 'Message not in ephemeral cache, searching persistent stores...');
+
+        let storeFoundMsg: WAMessage | undefined;
+        let storeFoundSession: SessionData | undefined;
+
+        const sessionsToSearch = sessionIdParam ? [sessions.get(sessionIdParam)] : Array.from(sessions.values());
+
+        for (const session of sessionsToSearch) {
+            if (!session || !session.store) continue;
+
+            // store.messages is a Map<jid, WAMessage[]>
+            for (const [jid, msgs] of session.store.messages.entries()) {
+                const found = msgs.find((m: any) => m.key.id === messageId);
+                if (found) {
+                    storeFoundMsg = found;
+                    storeFoundSession = session;
+                    break;
+                }
+            }
+            if (storeFoundMsg) break;
+        }
+
+        if (storeFoundMsg && storeFoundSession) {
+            targetSession = storeFoundSession;
+            cachedMessage = storeFoundMsg;
+            server.log.info({ messageId, foundInSession: targetSession.id }, 'Message found in persistent store fallback');
+        }
+    }
+
     if (!cachedMessage || !targetSession) {
-        server.log.warn({ messageId }, 'Message not found in any session cache')
-        return reply.code(404).send({ error: 'Message not found in cache. It may have expired (5min TTL).' })
+        server.log.warn({ messageId }, 'Message not found in any session cache or store')
+        return reply.code(404).send({ error: 'Message not found in cache or store. It may have expired.' })
     }
 
     try {

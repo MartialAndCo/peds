@@ -94,6 +94,10 @@ model Contact {
   // Profil intelligence v2 (séparé de Mem0)
   intelligentProfile ContactProfile?
 
+  // Scenarios
+  activeScenarios ActiveScenario[]
+  scenarioPayments ScenarioPayment[]
+
   @@index([status])
   @@index([source])
   @@index([agentPhase])
@@ -1094,4 +1098,76 @@ model Story {
   @@index([agentId, contactId, status])
   @@index([agentId, contactId, createdAt])
   @@map("stories")
+}
+
+// ============================================================================
+// SCENARIOS & CATASTROPHES SYSTEM
+// ============================================================================
+
+model Scenario {
+  id          String   @id @default(uuid())
+  title       String
+  description String   @db.Text
+  targetContext String? @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  activeScenarios ActiveScenario[]
+  media           ScenarioMedia[]
+  payments        ScenarioPayment[]
+
+  @@map("scenarios")
+}
+
+model ScenarioMedia {
+  id          String   @id @default(uuid())
+  scenarioId  String
+  scenario    Scenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  
+  bucketPath  String   // Path in the 'scenarios' Supabase storage bucket
+  mediaType   String   // 'image', 'video', 'audio', 'document'
+  aiDescription String @db.Text // Description for the AI to know when to use it
+  createdAt   DateTime @default(now())
+
+  @@index([scenarioId])
+  @@map("scenario_media")
+}
+
+model ActiveScenario {
+  id          String   @id @default(uuid())
+  contactId   String
+  contact     Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  scenarioId  String
+  scenario    Scenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  
+  status      String   @default("PENDING") // PENDING, RUNNING, COMPLETED, CANCELLED
+  startTime   DateTime // The scheduled time to trigger the scenario
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([contactId, scenarioId]) // A contact can only be in one instance of a specific scenario at a time
+  @@index([status, startTime])
+  @@index([contactId])
+  @@map("active_scenarios")
+}
+
+model ScenarioPayment {
+  id          String   @id @default(uuid())
+  contactId   String
+  contact     Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  scenarioId  String
+  scenario    Scenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  
+  amountPromised Decimal? @db.Decimal(10, 2)
+  status      String   @default("PENDING") // PENDING (awaiting validation), VALIDATED (user confirmed payment), FAILED (user rejected)
+  
+  hasBeenUsedToRelance Boolean @default(false) // If rejected, has the AI already sent the follow-up message?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([contactId])
+  @@index([scenarioId])
+  @@index([status])
+  @@map("scenario_payments")
 }

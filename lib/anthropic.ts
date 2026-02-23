@@ -19,7 +19,7 @@ export const anthropic = {
 
         // Previous messages
         const anthropicMessages: any[] = messages.map(m => ({
-            role: m.role === 'ai' ? 'assistant' : 'user', // mapping 'ai' -> 'assistant', 'contact'/'user' -> 'user'
+            role: (m.role === 'ai' || m.role === 'assistant') ? 'assistant' : 'user', // mapping 'ai'/'assistant' -> 'assistant', 'contact'/'user' -> 'user'
             content: m.content
         }))
 

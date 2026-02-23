@@ -17,7 +17,8 @@ import {
     ListTodo,
     Mic2,
     TrendingUp,
-    BrainCircuit
+    BrainCircuit,
+    Flame
 } from 'lucide-react'
 
 const adminRoutes = [
@@ -27,6 +28,7 @@ const adminRoutes = [
             { label: 'Overview', icon: LayoutDashboard, href: '/admin' },
             { label: 'Agents', icon: Bot, href: '/admin/agents' },
             { label: 'Team', icon: Users, href: '/admin/team' },
+            { label: 'Scenarios', icon: Flame, href: '/admin/scenarios' },
         ]
     },
     {

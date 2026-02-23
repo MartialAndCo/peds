@@ -560,6 +560,9 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
                             placeholder={selectedMediaUrl ? 'Add a caption...' : 'Type a message...'}
                             disabled={sending}
                         />
+                        <Button type="button" variant="outline" size="icon" className="flex-shrink-0" onClick={() => setIsVoiceOpen(true)} title="Voice message">
+                            <Mic className="h-4 w-4" />
+                        </Button>
                         <Button type="submit" disabled={sending || (!inputText.trim() && !selectedMediaUrl)}>
                             {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                         </Button>

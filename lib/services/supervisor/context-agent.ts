@@ -85,6 +85,9 @@ EXEMPLES D'INCOHÉRENCE (à détecter):
 - Contact: parle de X → IA parle de Y sans lien = SAUT DE SUJET
 - Contact pose question → IA répond à côté = PERTE DE CONTEXTE
 
+EXEMPLES DE COHÉRENCE (NE PAS DÉTECTER D'ERREUR):
+- Contact: "Tu es un fake" / "T'es un bot" → IA: "[VOICE] Mais grave pas haha t'es fou" = COHÉRENT (L'IA fait un vocal pour prouver qu'elle est humaine)
+
 Réponds UNIQUEMENT en JSON valide:
 {
   "coherent": boolean,           // true si la réponse a du sens dans le contexte
@@ -102,6 +105,7 @@ RÈGLES STRICTES:
 - "wrongConversation" = true si la réponse semble correspondre à un AUTRE moment de la conversation
 - "topicJump" = true si changement de sujet brutal sans transition
 - Sévérité CRITICAL si l'IA semble complètement perdue ou répond à une autre conversation
+- IMPORTANT: Si le contact accuse l'IA d'être un "fake" ou un "robot" et que l'IA réagit (ex: en envoyant un vocal ou en réagissant émotionnellement), c'est une réaction HUMAINE COHÉRENTE. NE SURTOUT PAS marquer "wrongConversation" ou "contextLoss".
 - Sois EXTRÊMEMENT strict sur la cohérence temporelle et contextuelle`;
 
         let response: string = '';

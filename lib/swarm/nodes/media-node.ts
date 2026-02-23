@@ -164,7 +164,30 @@ RULES:
     mediaContext += `\nDEMANDE DÉTECTÉE: "${photoDemandee}"`;
   }
 
-  // === AVAILABLE MEDIA TYPES (C5) ===
+  // === SCENARIO MEDIA (CRISIS OVERRIDE) ===
+  let hasScenarioMedia = false;
+  try {
+    if (state.activeScenario) {
+      const scenarioMedia = await prisma.scenarioMedia.findMany({
+        where: { scenarioId: state.activeScenario.scenarioId }
+      });
+      if (scenarioMedia.length > 0) {
+        hasScenarioMedia = true;
+        mediaContext += `\n\n[URGENT ROLEPLAY / SCENARIO MEDIA]:\n`;
+        mediaContext += isFrench
+          ? `Tu AS ces fichiers (photos/vidéos/documents) prêts à être envoyés pour prouver la situation actuele ("${state.activeScenario.title}").\nPour envoyer un fichier, écris EXACTEMENT le TAG LISTÉ ci-dessous :\n`
+          : `You HAVE these specific media to prove the current crisis situation ("${state.activeScenario.title}").\nTo send one, write EXACTLY the TAG LISTED below:\n`;
+
+        for (const sm of scenarioMedia) {
+          mediaContext += `- Pour envoyer : "${sm.aiDescription}" -> ÉCRIS EXACTEMENT: [IMAGE:scenario_${sm.id}]\n`;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[Swarm][Media] Failed to fetch scenario media:', e);
+  }
+
+  // === AVAILABLE MEDIA TYPES (GENERIC) ===
   // Tell the AI what photo types it actually has available (excluding already-sent to this contact)
   try {
     const contactPhone = (state as any).contactPhone || '';
@@ -181,12 +204,12 @@ RULES:
       )];
 
       const availableList = availableTypes.join(', ') || 'aucune';
-      mediaContext += `\nPHOTOS DISPONIBLES: ${availableList}`;
+      mediaContext += `\nPHOTOS DISPONIBLES (Génériques): ${availableList}`;
 
-      if (availableTypes.length === 0) {
+      if (availableTypes.length === 0 && !hasScenarioMedia) {
         mediaContext += isFrench
-          ? `\n⚠️ Tu n'as PLUS de photos disponibles. Si on te demande, dis que t'en as plus pour le moment.`
-          : `\n⚠️ You have NO photos available. If asked, say you don't have any right now.`;
+          ? `\n⚠️ Tu n'as PLUS de photos génériques disponibles. Si on te demande, dis que t'en as plus pour le moment.`
+          : `\n⚠️ You have NO generic photos available. If asked, say you don't have any right now.`;
       }
     }
   } catch (e) {

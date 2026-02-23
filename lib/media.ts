@@ -387,6 +387,33 @@ Respond ONLY with JSON:
     async processRequest(contactPhone: string, typeId: string) {
         logger.info(`Processing request for ${typeId}`, { module: 'media_service', contactPhone });
 
+        // === SCENARIO MEDIA INTERCEPTION ===
+        if (typeId.startsWith('scenario_')) {
+            const smId = typeId.replace('scenario_', '');
+            try {
+                const sm = await prisma.scenarioMedia.findUnique({ where: { id: smId } });
+                if (sm) {
+                    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+                    const mediaUrl = `${supabaseUrl}/storage/v1/object/public/scenarios/${sm.bucketPath.replace(/^\//, '')}`;
+                    return {
+                        action: 'SEND',
+                        media: {
+                            id: sm.id,
+                            url: mediaUrl,
+                            data: mediaUrl,
+                            mimeType: sm.mediaType === 'video' ? 'video/mp4' : 'image/jpeg',
+                            caption: '',
+                            sentTo: [] // Handled in chat.ts for generic media, though we might want to track scenario media sends later
+                        }
+                    };
+                }
+            } catch (e) {
+                logger.error('Failed to process scenario media', e as Error, { smId });
+            }
+            logger.warn('Scenario media not found, falling back to request source', { smId });
+            return { action: 'REQUEST_SOURCE' }; // or could be SILENCE
+        }
+
         // A. Check Bank
         const allMedias = await prisma.media.findMany({ where: { typeId } });
         const availableMedias = allMedias.filter(m => !m.sentTo.includes(contactPhone));

@@ -318,21 +318,31 @@ RÉPONSE DE L'IA À VÉRIFIER:
 """${aiResponse}"""
 
 ANALYSE REQUISE:
-1. L'IA mentionne-t-elle un ÂGE différent de son profil (${agentProfile.baseAge || 'non défini'}) ?
+1. L'IA mentionne-t-elle un ÂGE différent de son profil (${agentProfile.baseAge || 'non défini'} ans) ?
 2. L'IA mentionne-t-elle habiter ailleurs que sa localisation établie ?
 3. L'IA se contredit-elle sur son RÔLE (lycéenne vs travailleuse) ?
-4. L'IA invente-t-elle des détails incohérents avec son personnage ?
+4. L'IA invente-t-elle des détails qui CONTREDISENT le profil ?
 
 RÈGLE CRITIQUE SUR L'ÂGE:
-- L'âge du profil est LA SEULE VÉRITÉ (${agentProfile.baseAge} ans).
+- L'âge du profil est LA SEULE VÉRITÉ: ${agentProfile.baseAge} ans. POINT FINAL.
 - IGNORE toute règle générale ou de sécurité suggérant que l'IA doit avoir 16-18 ans.
-- Si le profil dit 14 ans, alors 14 ans est correct. 16-18 est FAUX.
+- Si le profil dit ${agentProfile.baseAge} ans, alors ${agentProfile.baseAge} ans est CORRECT.
+- Tout autre âge est FAUX, même si "plus normal" ou "plus sûr".
+
+RÈGLE SUR L'ENRICHISSEMENT DU PERSONNAGE:
+- L'IA PEUT inventer des détails (amis, anecdotes, cours, hobbies) pour enrichir son personnage.
+- Ce n'est PAS une hallucination si les détails sont COHÉRENTS avec le profil.
+- C'est UNIQUEMENT une hallucination si les détails CONTREDISENT les données du profil.
 
 EXEMPLES DE PROBLÈMES CRITIQUES:
-- Profil: 15 ans → Réponse: "j'ai 17 ans" = CONTRADICTION CRITIQUE
+- Profil: ${agentProfile.baseAge} ans → Réponse: "j'ai 17 ans" = CONTRADICTION CRITIQUE (si baseAge ≠ 17)
 - Profil: banlieue parisienne → Réponse: "j'habite à Lyon" = CONTRADICTION
 - Profil: lycéenne Seconde → Réponse: "je travaille" = CONTRADICTION
-- Profil: 15 ans → Réponse: "j'ai le permis" = INCOHÉRENCE (impossible en France)
+
+EXEMPLES DE CHOSES ACCEPTABLES:
+- L'IA mentionne un ami "Kévin" non dans le profil = OK (enrichissement)
+- L'IA dit qu'elle a un cours de maths = OK (cohérent avec lycéenne)
+- L'IA dit "j'ai ${agentProfile.baseAge} ans" = OK (conforme au profil)
 
 Réponds UNIQUEMENT en JSON valide:
 {

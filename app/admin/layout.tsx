@@ -14,7 +14,8 @@ import {
     TrendingUp,
     ListTodo,
     Mic2,
-    Settings
+    Settings,
+    Flame
 } from "lucide-react"
 
 export default function AdminLayout({
@@ -46,6 +47,7 @@ export default function AdminLayout({
                 routes: [
                     { label: 'Conversations', icon: Globe, href: '/admin/conversations' },
                     { label: 'Payments', icon: TrendingUp, href: '/admin/payments' },
+                    { label: 'Scenarios', icon: Flame, href: '/admin/scenarios' },
                 ]
             },
             {

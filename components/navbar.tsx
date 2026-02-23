@@ -11,6 +11,10 @@ const Navbar = () => {
     const { agentId } = useParams();
     const { agents } = useAgent();
 
+    // Hide navbar on individual conversation pages (PWA: more screen space for chat)
+    const isConversationDetail = /\/conversations\/\d+/.test(pathname);
+    if (isConversationDetail) return null;
+
     const isWorkspace = pathname.startsWith('/workspace');
     const currentAgent = Array.isArray(agents) ? agents.find(a => a.id.toString() === agentId) : null;
 

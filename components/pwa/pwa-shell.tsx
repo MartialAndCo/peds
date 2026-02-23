@@ -20,9 +20,19 @@ export function PWAShell({ children, className, variant = "workspace" }: PWAShel
     );
 }
 
+import { usePathname } from "next/navigation";
+
 export function PWAContent({ children, className }: { children: React.ReactNode; className?: string }) {
+    const pathname = usePathname();
+    const isConversationDetail = pathname?.match(/\/conversations\/[a-zA-Z0-9_-]+/);
+
     return (
-        <div className={cn("flex-1 overflow-y-auto overflow-x-hidden pwa-hide-scrollbar px-5 pb-32", className)}>
+        <div className={cn(
+            "flex-1 overflow-y-auto overflow-x-hidden pwa-hide-scrollbar",
+            !isConversationDetail && "px-5 pb-32",
+            isConversationDetail && "pb-0",
+            className
+        )}>
             {children}
         </div>
     );

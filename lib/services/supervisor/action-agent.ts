@@ -148,7 +148,7 @@ export const actionAgent = {
         }
 
         // 3. Détection VOICE tag sans trigger
-        const voiceTagMatch = aiResponse.match(/\[VOICE\]/i);
+        const voiceTagMatch = aiResponse.match(/\[VOICE\]/i) || aiResponse.match(/\[VOICE:/i);
         if (voiceTagMatch) {
             const userAskedVoice = VOICE_REQUEST_KEYWORDS.some(kw =>
                 userMessage.toLowerCase().includes(kw.toLowerCase())
@@ -158,7 +158,10 @@ export const actionAgent = {
             const isVoiceReply = userMessage.toLowerCase().includes('[voice message]') ||
                 userMessage.toLowerCase().includes('vocal');
 
-            if (!userAskedVoice && !isVoiceReply) {
+            const msgLower = userMessage.toLowerCase();
+            const isAccused = msgLower.includes('fake') || msgLower.includes('bot') || msgLower.includes('robot') || msgLower.includes('ia') || msgLower.includes('ai') || msgLower.includes('not real');
+
+            if (!userAskedVoice && !isVoiceReply && !isAccused) {
                 const evidence: ActionEvidence = {
                     action: 'SENT_VOICE',
                     triggerMessage: userMessage,

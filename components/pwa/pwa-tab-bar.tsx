@@ -36,6 +36,10 @@ export function PWATabBar({ tabs, menuItems }: PWATabBarProps) {
         return false;
     };
 
+    // Hide the tab bar completely inside conversation views so it doesn't block the message input
+    const isConversationDetail = pathname.match(/\/conversations\/[a-zA-Z0-9_-]+/);
+    if (isConversationDetail) return null;
+
     return (
         <>
             <nav className="fixed bottom-6 left-4 right-4 z-50 rounded-3xl bg-[#0f172a]/80 backdrop-blur-2xl border border-white/10 shadow-lg shadow-black/50 pwa-safe-area-bottom">
