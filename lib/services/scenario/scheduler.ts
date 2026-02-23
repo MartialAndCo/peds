@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 
 export class ScenarioScheduler {
@@ -36,7 +36,7 @@ export class ScenarioScheduler {
 
             return { triggered: triggeredCount };
         } catch (error) {
-            logger.error('Failed to check and trigger scenarios', { error });
+            logger.error('Failed to check and trigger scenarios', error as Error);
             throw error;
         }
     }
@@ -64,7 +64,7 @@ export class ScenarioScheduler {
 
             logger.info(`Successfully triggered scenario ${activeScenario.id}`);
         } catch (error) {
-            logger.error(`Failed to trigger scenario ${activeScenario.id}`, { error });
+            logger.error(`Failed to trigger scenario ${activeScenario.id}`, error as Error);
             // Depending on requirement, we might mark it as FAILED or keep it PENDING for retry.
         }
     }
@@ -83,7 +83,7 @@ export class ScenarioScheduler {
             });
             logger.info(`Purged ${deleted.count} pending messages for contact ${contactId} due to scenario trigger.`);
         } catch (error) {
-            logger.error(`Failed to purge message queue for contact ${contactId}`, { error });
+            logger.error(`Failed to purge message queue for contact ${contactId}`, error as Error);
             throw error;
         }
     }

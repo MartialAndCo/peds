@@ -155,7 +155,7 @@ export default function ScenarioDetailPage() {
                             <label className="text-sm font-medium text-white/80">Title</label>
                             <Input
                                 value={scenario.title}
-                                onChange={(e) => setScenario(prev => ({ ...prev, title: e.target.value }))}
+                                onChange={(e) => setScenario((prev: any) => ({ ...prev, title: e.target.value }))}
                                 className="bg-[#0f172a] border-white/10 text-white"
                             />
                         </div>
@@ -163,7 +163,7 @@ export default function ScenarioDetailPage() {
                             <label className="text-sm font-medium text-white/80">Main Description</label>
                             <Textarea
                                 value={scenario.description}
-                                onChange={(e) => setScenario(prev => ({ ...prev, description: e.target.value }))}
+                                onChange={(e) => setScenario((prev: any) => ({ ...prev, description: e.target.value }))}
                                 className="bg-[#0f172a] border-white/10 text-white min-h-[120px]"
                             />
                         </div>
@@ -171,7 +171,7 @@ export default function ScenarioDetailPage() {
                             <label className="text-sm font-medium text-white/80">Target Context / Directives</label>
                             <Textarea
                                 value={scenario.targetContext || ""}
-                                onChange={(e) => setScenario(prev => ({ ...prev, targetContext: e.target.value }))}
+                                onChange={(e) => setScenario((prev: any) => ({ ...prev, targetContext: e.target.value }))}
                                 className="bg-[#0f172a] border-white/10 text-white min-h-[120px]"
                             />
                         </div>
