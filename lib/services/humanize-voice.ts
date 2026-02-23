@@ -4,19 +4,31 @@ import { logger } from '@/lib/logger'
 import { settingsService } from '@/lib/settings-cache'
 
 export const voiceHumanizer = {
-    async humanize(text: string): Promise<string> {
+    async humanize(text: string, locale: string = 'en-US'): Promise<string> {
         try {
             // Get API Key from Settings
             const settings = await settingsService.getSettings()
             const apiKey = (settings as any).venice_api_key
 
-            const systemPrompt = `You are a Text-to-Speech Optimizer.
-Your goal is to rewrite the input text to make it sound 100% natural, casual, and human when spoken aloud.
+            const isFrench = locale.toLowerCase().startsWith('fr');
+
+            const systemPrompt = isFrench
+                ? `You are a Text-to-Speech Optimizer.
+Your goal is to rewrite the input text to make it sound 100% natural, casual, and human when spoken aloud in French.
+- DO NOT TRANSLATE. Keep the text in French.
 - Use explicit hesitation fillers (euh..., hmm...) naturally.
 - Use familiar contractions (je suis -> j'suis, il y a -> y'a).
 - Remove robotic phrasing.
 - Keep the exact meaning.
 - Output ONLY the rewritten text, no quotes, no preamble.`
+                : `You are a Text-to-Speech Optimizer.
+Your goal is to rewrite the input text to make it sound 100% natural, casual, and human when spoken aloud in ${locale}.
+- DO NOT TRANSLATE. Keep the text in ${locale}.
+- Use explicit hesitation fillers (um..., uh...) naturally.
+- Use familiar contractions (I am -> I'm, do not -> don't, gonna, wanna).
+- Remove robotic phrasing.
+- Keep the exact meaning.
+- Output ONLY the rewritten text, no quotes, no preamble.`;
 
             const fullUserMessage = `Rewrite this text for natural speech: "${text}"`
 
