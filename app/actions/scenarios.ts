@@ -92,3 +92,36 @@ export async function deleteScenarioMedia(id: string, scenarioId: string) {
         return { success: false, error: error.message || "Failed to delete scenario media" }
     }
 }
+
+// Launch Scenario
+export async function launchScenario(scenarioId: string, contactId: string, startTime: Date) {
+    try {
+        // Find existing to prevent duplicates if running?
+        const existing = await prisma.activeScenario.findFirst({
+            where: {
+                scenarioId,
+                contactId,
+                status: { in: ['PENDING', 'RUNNING'] }
+            }
+        })
+
+        if (existing) {
+            return { success: false, error: "This scenario is already scheduled or running for this contact." }
+        }
+
+        await prisma.activeScenario.create({
+            data: {
+                scenarioId,
+                contactId,
+                startTime,
+                status: 'PENDING'
+            }
+        })
+
+        revalidatePath('/admin/scenarios')
+        revalidatePath(`/admin/scenarios/${scenarioId}`)
+        return { success: true }
+    } catch (error: any) {
+        return { success: false, error: error.message || "Failed to schedule scenario" }
+    }
+}
