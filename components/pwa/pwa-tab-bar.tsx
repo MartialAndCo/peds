@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { LucideIcon, MoreHorizontal } from "lucide-react";
 import { PWAMenuSheet, MenuItem } from "./pwa-menu-sheet";
@@ -23,6 +23,7 @@ interface PWATabBarProps {
 
 export function PWATabBar({ tabs, menuItems }: PWATabBarProps) {
     const pathname = usePathname();
+    const searchParams = useSearchParams();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
 
     // Should show active state for tabs if current path starts with tab href (simple logic)
@@ -37,7 +38,7 @@ export function PWATabBar({ tabs, menuItems }: PWATabBarProps) {
     };
 
     // Hide the tab bar completely inside conversation views so it doesn't block the message input
-    const isConversationDetail = pathname.match(/\/conversations\/[a-zA-Z0-9_-]+/);
+    const isConversationDetail = pathname.match(/\/conversations\/[a-zA-Z0-9_-]+/) || searchParams.has('chat');
     if (isConversationDetail) return null;
 
     return (

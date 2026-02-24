@@ -597,7 +597,7 @@ export function ConversationUnifiedView({
             )}
 
             {/* Input Area */}
-            <div className="p-3 space-y-2">
+            <div className="p-3 pb-6 md:pb-3 space-y-2 pwa-safe-area-bottom">
               {/* Generate Button */}
               {!showRegeneratePreview && (
                 <Button

@@ -1,4 +1,5 @@
 'use client'
+import { Suspense } from 'react'
 
 import { SidebarWorkspace } from "@/components/sidebar-workspace"
 import Navbar from "@/components/navbar"
@@ -68,7 +69,11 @@ export default function WorkspaceLayout({
                     <PWAContent className={isInConversation ? "pb-0" : ""}>
                         {children}
                     </PWAContent>
-                    {!isInConversation && <PWATabBar tabs={tabs} menuItems={menuItems} />}
+                    {!isInConversation && (
+                        <Suspense fallback={null}>
+                            <PWATabBar tabs={tabs} menuItems={menuItems} />
+                        </Suspense>
+                    )}
                 </PWAShell>
             </AgentProvider>
         )

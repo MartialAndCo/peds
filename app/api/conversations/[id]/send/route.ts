@@ -120,6 +120,21 @@ export async function POST(
             }
         })
 
+        // Cancel any pending queued AI messages since admin just replied manually
+        try {
+            const deletedQueue = await prisma.messageQueue.deleteMany({
+                where: {
+                    conversationId: conversation.id,
+                    status: 'PENDING'
+                }
+            })
+            if (deletedQueue.count > 0) {
+                console.log(`[Send] Cancelled ${deletedQueue.count} pending queue messages for manual reply.`)
+            }
+        } catch (queueErr) {
+            console.error('[Send] Failed to clear pending AI messages:', queueErr)
+        }
+
         // Update conversation last activity
         await prisma.conversation.update({
             where: { id: conversation.id },

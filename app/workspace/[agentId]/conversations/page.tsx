@@ -88,13 +88,28 @@ export default function WorkspaceConversationsPage() {
   const handleConversationClick = (conversationId: number) => {
     setSelectedConversationId(conversationId)
     setIsViewOpen(true)
+    // Add query param to hide tab builder
+    window.history.pushState({}, '', `?chat=${conversationId}`)
   }
 
   const handleCloseView = () => {
     setIsViewOpen(false)
     setSelectedConversationId(null)
+    window.history.pushState({}, '', window.location.pathname)
     fetchConversations()
   }
+
+  // Listen for back button to close chat automatically
+  useEffect(() => {
+    const handlePopState = () => {
+      if (isViewOpen) {
+        setIsViewOpen(false)
+        setSelectedConversationId(null)
+      }
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [isViewOpen])
 
   const handleExport = (period: string) => {
     if (!agentId) return
