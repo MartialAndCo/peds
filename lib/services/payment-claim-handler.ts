@@ -287,7 +287,7 @@ export async function processPaymentClaimDecision(
         // Build Prompt for Confirmation
         const { director } = require('@/lib/director')
         const vKey = settings.venice_api_key || process.env.VENICE_API_KEY
-        const vModel = settings.venice_model || 'venice-uncensored'
+        const vModel = 'google-gemma-3-27b-it'
 
         if (vKey) {
             const history = conversation ? await prisma.message.findMany({
@@ -388,7 +388,7 @@ Example responses (mix them up, be creative):
         const { director } = require('@/lib/director')
         // We need settings for API keys.
         const vKey = settings.venice_api_key || process.env.VENICE_API_KEY
-        const vModel = settings.venice_model || 'venice-uncensored'
+        const vModel = 'google-gemma-3-27b-it'
 
         if (vKey) {
             const history = conversation ? await prisma.message.findMany({

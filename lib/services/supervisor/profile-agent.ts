@@ -373,7 +373,7 @@ ${currentActivity ? `- ⚠️ PLANNING DE VIE ACTIF: L'IA est actuellement en "$
                 'Analyse cohérence profil agent',
                 {
                     apiKey,
-                    model: 'llama-3.3-70b',
+                    model: 'google-gemma-3-27b-it',
                     temperature: 0.05,
                     max_tokens: 500
                 }

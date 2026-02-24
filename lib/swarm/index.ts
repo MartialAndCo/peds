@@ -138,7 +138,7 @@ export async function runSwarm(
     platform,
     settings: {
       venice_api_key: veniceApiKey,
-      venice_model: (agentSettings['venice_model'] as string) || 'venice-uncensored',
+      venice_model: (agentSettings['venice_model'] as string) || 'google-gemma-3-27b-it',
       timezone: profile.timezone || 'Europe/Paris',
       locale: profile.locale || 'fr-FR',
       // Payment settings pour éviter requête dans payment-node

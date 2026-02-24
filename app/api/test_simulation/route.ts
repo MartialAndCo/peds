@@ -50,7 +50,7 @@ Tu es stressée mais tu ne demandes pas directement d'aide.`
             prompt,
             [],
             userMessage,
-            { apiKey: process.env.VENICE_API_KEY, model: settings.venice_model || 'venice-uncensored' }
+            { apiKey: process.env.VENICE_API_KEY, model: settings.venice_model || 'google-gemma-3-27b-it' }
         )
 
         return NextResponse.json({

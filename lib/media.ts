@@ -302,7 +302,7 @@ Respond ONLY with JSON:
             } else {
                 responseText = await venice.chatCompletion(
                     systemPrompt, [], userMessage,
-                    { apiKey: settings.venice_api_key, model: settings.venice_model || 'venice-uncensored' }
+                    { apiKey: settings.venice_api_key, model: settings.venice_model || 'google-gemma-3-27b-it' }
                 );
             }
 

@@ -566,7 +566,7 @@ Keep response SHORT and excited.)`
                         if (provider === 'anthropic') {
                             aiPaywallResponse = await anthropic.chatCompletion(fullSystemPrompt, history, userMessageWithInstruction, { apiKey: settings.anthropic_api_key, model: settings.anthropic_model })
                         } else {
-                            aiPaywallResponse = await venice.chatCompletion(fullSystemPrompt, history, userMessageWithInstruction, { apiKey: settings.venice_api_key, model: settings.venice_model })
+                            aiPaywallResponse = await venice.chatCompletion(fullSystemPrompt, history, userMessageWithInstruction, { apiKey: settings.venice_api_key, model: 'venice-uncensored' })
                         }
 
                         await whatsapp.markAsRead(contactPhone).catch(() => { })
@@ -635,7 +635,7 @@ Keep response SHORT and excited.)`
                         if (provider === 'anthropic') {
                             aiRefusal = await anthropic.chatCompletion(fullSystemPrompt, history, userMessageWithInstruction, { apiKey: settings.anthropic_api_key, model: settings.anthropic_model })
                         } else {
-                            aiRefusal = await venice.chatCompletion(fullSystemPrompt, history, userMessageWithInstruction, { apiKey: settings.venice_api_key, model: settings.venice_model })
+                            aiRefusal = await venice.chatCompletion(fullSystemPrompt, history, userMessageWithInstruction, { apiKey: settings.venice_api_key, model: 'venice-uncensored' })
                         }
 
                         await whatsapp.markAsRead(contactPhone).catch(() => { })
@@ -765,7 +765,7 @@ Keep response SHORT and excited.)`
                                     fullSystemPrompt,
                                     history,
                                     userMessageForAI,
-                                    { apiKey: settings.venice_api_key, model: settings.venice_model || 'venice-uncensored' }
+                                    { apiKey: settings.venice_api_key, model: 'venice-uncensored' }
                                 );
                             }
 

@@ -117,7 +117,7 @@ RÈGLES STRICTES:
                 'Analyse cohérence contextuelle',
                 {
                     apiKey,
-                    model: 'llama-3.3-70b', // Venice medium
+                    model: 'google-gemma-3-27b-it', // Better quality/cost ratio for analysis
                     temperature: 0.05,       // Très faible pour plus de précision
                     max_tokens: 500
                 }

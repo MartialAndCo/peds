@@ -32,7 +32,7 @@ export async function PUT(req: Request) {
                     name: name || 'Default Persona',
                     system_prompt,
                     isActive: true,
-                    model: 'venice-uncensored'
+                    model: 'google-gemma-3-27b-it'
                 }
             });
             return NextResponse.json(newPrompt);

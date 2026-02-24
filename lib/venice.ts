@@ -15,7 +15,7 @@ export const venice = {
             })
         }
 
-        const model = config.model || process.env.VENICE_MODEL || 'venice-uncensored'
+        const model = config.model || process.env.VENICE_MODEL || 'google-gemma-3-27b-it'
 
         // Construct message history: System -> History -> New User Message
         // Note: Venice accepts 'system' role for system prompts.

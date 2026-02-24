@@ -105,7 +105,7 @@ export async function GET(req: Request) {
                     systemPrompt,
                     history.slice(0, -1), // Context
                     lastUserText, // Trigger
-                    { apiKey: settings.venice_api_key, model: conv.prompt.model || 'venice-uncensored' }
+                    { apiKey: settings.venice_api_key, model: 'venice-uncensored' }
                 )
 
                 const cleanResponse = responseText.replace(new RegExp('\\*[^*]+\\*', 'g'), '').trim()
@@ -116,7 +116,7 @@ export async function GET(req: Request) {
                     console.log(`[Rescue] Skipping conversation ${conv.id} - no phone number`)
                     continue
                 }
-                await whatsapp.sendText(phone, cleanResponse)
+                await whatsapp.sendText(phone, cleanResponse, undefined, conv.agentId || undefined)
 
                 // Save
                 await prisma.message.create({

@@ -151,7 +151,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         "Continue the conversation.",
         { 
           apiKey: settings.venice_api_key, 
-          model: settings.venice_model || 'venice-uncensored',
+          model: 'venice-uncensored',
           temperature: 0.8,
           max_tokens: 300 // Keep it concise
         }

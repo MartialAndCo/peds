@@ -91,7 +91,7 @@ export async function POST(req: Request) {
             body.conversation, // User message = the pasted conversation
             {
                 apiKey: veniceApiKey,
-                model: settings.venice_model || 'venice-uncensored',
+                model: settings.venice_model || 'google-gemma-3-27b-it',
                 temperature: 0.5, // Lower for more factual extraction
                 max_tokens: 300
             }

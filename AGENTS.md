@@ -54,7 +54,7 @@ PedsAI is a sophisticated multi-agent AI platform designed to manage conversatio
 - **Animations**: Framer Motion
 
 ### AI Providers
-- **Venice AI**: Primary provider (`venice-uncensored`, `llama-3.3-70b`)
+- **Venice AI**: Primary provider (`google-gemma-3-27b-it`, `google-gemma-3-27b-it`)
 - **Anthropic**: Claude 3 Haiku fallback
 - **OpenRouter**: Additional model access
 - **RunPod**: Self-hosted fallback for Venice failures
@@ -173,7 +173,7 @@ WAHA_SESSION="default"
 # AI Providers
 # -----------------------------
 VENICE_API_KEY=""
-VENICE_MODEL="venice-uncensored"
+VENICE_MODEL="google-gemma-3-27b-it"
 ANTHROPIC_API_KEY=""
 ANTHROPIC_MODEL="claude-3-haiku-20240307"
 AI_PROVIDER="venice"

@@ -132,7 +132,7 @@ export async function POST(req: Request) {
                             conversation.prompt.system_prompt || "You are a helpful assistant.",
                             [],
                             userMessageForAI,
-                            { apiKey: settings.venice_api_key, model: settings.venice_model || 'venice-uncensored' }
+                            { apiKey: settings.venice_api_key, model: 'venice-uncensored' }
                         )
                     }
                     responsePayload = { type: 'text', content: aiText, meta: '[System] Requested from Source' }
@@ -239,7 +239,7 @@ export async function POST(req: Request) {
                     systemPrompt,
                     contextMessages,
                     lastMessage,
-                    { apiKey: settings.venice_api_key, model: conversation.prompt.model || 'venice-uncensored', temperature: Number(conversation.prompt.temperature) }
+                    { apiKey: settings.venice_api_key, model: 'venice-uncensored', temperature: Number(conversation.prompt.temperature) }
                 )
             }
 

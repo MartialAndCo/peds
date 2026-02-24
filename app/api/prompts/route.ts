@@ -7,7 +7,7 @@ import { z } from 'zod'
 const promptSchema = z.object({
     name: z.string().min(3).max(255),
     system_prompt: z.string().min(10).max(100000),
-    model: z.string().default('venice-uncensored'),
+    model: z.string().default('google-gemma-3-27b-it'),
     temperature: z.number().min(0).max(1), // input as number, Prisma converts to Decimal
     max_tokens: z.number().min(50).max(2000).default(500),
     isActive: z.boolean().default(false),

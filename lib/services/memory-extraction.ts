@@ -168,7 +168,7 @@ export const memoryExtractionService = {
                 prompt,
                 {
                     apiKey: settings.venice_api_key,
-                    model: settings.venice_model || 'venice-uncensored',
+                    model: settings.venice_model || 'google-gemma-3-27b-it',
                     temperature: 0.3, // Low temperature for consistency
                     max_tokens: 500
                 }

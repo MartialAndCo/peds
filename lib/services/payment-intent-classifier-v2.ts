@@ -216,7 +216,7 @@ Respond with JSON:
       userPrompt,
       { 
         apiKey: apiKey || process.env.VENICE_API_KEY, 
-        model: process.env.VENICE_MODEL || 'venice-uncensored',
+        model: process.env.VENICE_MODEL || 'google-gemma-3-27b-it',
         temperature: 0.05 // Very low for consistency
       }
     );

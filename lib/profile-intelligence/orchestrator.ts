@@ -37,7 +37,7 @@ export class ProfileExtractionOrchestrator {
         // Récupérer les settings AI
         const settings = await settingsService.getSettings()
         const apiKey = settings.venice_api_key
-        const model = settings.venice_model || 'venice-uncensored'
+        const model = settings.venice_model || 'google-gemma-3-27b-it'
         
         // Exécuter les 6 extracteurs EN SÉQUENTIEL avec délai
         const identity = await this.extractWithDelay(

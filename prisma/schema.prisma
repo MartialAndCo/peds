@@ -45,7 +45,7 @@ model Prompt {
   id            Int      @id @default(autoincrement())
   name          String
   system_prompt String
-  model         String   @default("venice-uncensored")
+  model         String   @default("google-gemma-3-27b-it")
   temperature   Decimal  @default(0.7)
   max_tokens    Int      @default(500)
   isActive      Boolean  @default(false)

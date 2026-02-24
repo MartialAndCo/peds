@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
 
         // Call Venice
         const veniceResponse = await axios.post('https://api.venice.ai/api/v1/chat/completions', {
-            model: settings['venice_model'] || 'venice-uncensored',
+            model: settings['venice_model'] || 'google-gemma-3-27b-it',
             messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: test.message }

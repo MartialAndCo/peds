@@ -35,7 +35,7 @@ export async function extractInterests(
             `${INTEREST_PROMPT}\n\nCONVERSATION:\n${conversation}\n\nExtract interests JSON:`,
             {
                 apiKey,
-                model: model || 'venice-uncensored',
+                model: model || 'google-gemma-3-27b-it',
                 temperature: 0.2,
                 max_tokens: 600
             }

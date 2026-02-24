@@ -1,0 +1,752 @@
+{
+  "timestamp": "2026-02-24T21:25:31.312Z",
+  "models": [
+    "llama-3.3-70b",
+    "google-gemma-3-27b-it",
+    "qwen3-4b"
+  ],
+  "suites": [
+    "voice",
+    "profile",
+    "signal"
+  ],
+  "summaries": {
+    "llama-3.3-70b": {
+      "avgScore": 1,
+      "passRate": 1,
+      "bySuite": {
+        "voice": {
+          "avgScore": 1,
+          "passRate": 1,
+          "count": 3
+        },
+        "profile": {
+          "avgScore": 1,
+          "passRate": 1,
+          "count": 3
+        },
+        "signal": {
+          "avgScore": 1,
+          "passRate": 1,
+          "count": 3
+        }
+      },
+      "byDifficulty": {
+        "easy": {
+          "avgScore": 1,
+          "passRate": 1,
+          "count": 3
+        },
+        "medium": {
+          "avgScore": 1,
+          "passRate": 1,
+          "count": 3
+        },
+        "hard": {
+          "avgScore": 1,
+          "passRate": 1,
+          "count": 3
+        }
+      }
+    },
+    "google-gemma-3-27b-it": {
+      "avgScore": 0.8888888888888888,
+      "passRate": 0.8888888888888888,
+      "bySuite": {
+        "voice": {
+          "avgScore": 1,
+          "passRate": 1,
+          "count": 3
+        },
+        "profile": {
+          "avgScore": 0.6666666666666666,
+          "passRate": 0.6666666666666666,
+          "count": 3
+        },
+        "signal": {
+          "avgScore": 1,
+          "passRate": 1,
+          "count": 3
+        }
+      },
+      "byDifficulty": {
+        "easy": {
+          "avgScore": 0.6666666666666666,
+          "passRate": 0.6666666666666666,
+          "count": 3
+        },
+        "medium": {
+          "avgScore": 1,
+          "passRate": 1,
+          "count": 3
+        },
+        "hard": {
+          "avgScore": 1,
+          "passRate": 1,
+          "count": 3
+        }
+      }
+    },
+    "qwen3-4b": {
+      "avgScore": 0.4166666666666667,
+      "passRate": 0.3333333333333333,
+      "bySuite": {
+        "voice": {
+          "avgScore": 0.25,
+          "passRate": 0,
+          "count": 3
+        },
+        "profile": {
+          "avgScore": 0.6666666666666666,
+          "passRate": 0.6666666666666666,
+          "count": 3
+        },
+        "signal": {
+          "avgScore": 0.3333333333333333,
+          "passRate": 0.3333333333333333,
+          "count": 3
+        }
+      },
+      "byDifficulty": {
+        "easy": {
+          "avgScore": 0.08333333333333333,
+          "passRate": 0,
+          "count": 3
+        },
+        "medium": {
+          "avgScore": 0.4166666666666667,
+          "passRate": 0.3333333333333333,
+          "count": 3
+        },
+        "hard": {
+          "avgScore": 0.75,
+          "passRate": 0.6666666666666666,
+          "count": 3
+        }
+      }
+    }
+  },
+  "results": [
+    {
+      "suite": "voice",
+      "caseId": "voice_easy_fr",
+      "difficulty": "easy",
+      "model": "llama-3.3-70b",
+      "latencyMs": 1502,
+      "output": "S'il te plaît, réponds maintenant, je suis knock-out, c'est vraiment drôle.",
+      "usage": {
+        "prompt_tokens": 730,
+        "completion_tokens": 22,
+        "total_tokens": 752
+      },
+      "grade": {
+        "pass": true,
+        "score": 1,
+        "remainingMustRemove": [],
+        "anyAcronymsLeft": [],
+        "shortEnough": true
+      }
+    },
+    {
+      "suite": "voice",
+      "caseId": "voice_medium_en",
+      "difficulty": "medium",
+      "model": "llama-3.3-70b",
+      "latencyMs": 998,
+      "output": "I do not know if I can right now, to be honest, I am at school.",
+      "usage": {
+        "prompt_tokens": 723,
+        "completion_tokens": 20,
+        "total_tokens": 743
+      },
+      "grade": {
+        "pass": true,
+        "score": 1,
+        "remainingMustRemove": [],
+        "anyAcronymsLeft": [],
+        "shortEnough": true
+      }
+    },
+    {
+      "suite": "voice",
+      "caseId": "voice_hard_mix",
+      "difficulty": "hard",
+      "model": "llama-3.3-70b",
+      "latencyMs": 1147,
+      "output": "S'il te plaît, fais vite, je suis en mode panique.",
+      "usage": {
+        "prompt_tokens": 738,
+        "completion_tokens": 17,
+        "total_tokens": 755
+      },
+      "grade": {
+        "pass": true,
+        "score": 1,
+        "remainingMustRemove": [],
+        "anyAcronymsLeft": [],
+        "shortEnough": true
+      }
+    },
+    {
+      "suite": "profile",
+      "caseId": "profile_easy_no_contradiction",
+      "difficulty": "easy",
+      "model": "llama-3.3-70b",
+      "latencyMs": 2617,
+      "output": "{\n  \"hasContradiction\": false,\n  \"contradictionType\": null,\n  \"severity\": null,\n  \"explanation\": \"La réponse de l'IA est cohérente avec le profil de l'utilisateur, qui est une lycéenne de 14 ans en seconde.\",\n  \"confidence\": 1.0\n}",
+      "usage": {
+        "prompt_tokens": 885,
+        "completion_tokens": 74,
+        "total_tokens": 959
+      },
+      "grade": {
+        "pass": true,
+        "score": 1,
+        "parsed": {
+          "hasContradiction": false,
+          "contradictionType": null,
+          "severity": null,
+          "explanation": "La réponse de l'IA est cohérente avec le profil de l'utilisateur, qui est une lycéenne de 14 ans en seconde.",
+          "confidence": 1
+        }
+      }
+    },
+    {
+      "suite": "profile",
+      "caseId": "profile_medium_age_contradiction",
+      "difficulty": "medium",
+      "model": "llama-3.3-70b",
+      "latencyMs": 7660,
+      "output": "{\n  \"hasContradiction\": true,\n  \"contradictionType\": \"age\",\n  \"severity\": \"CRITICAL\",\n  \"explanation\": \"L'âge déclaré est passé de 14 ans à 17 ans, ce qui constitue une contradiction majeure avec les informations précédentes.\",\n  \"confidence\": 1.0\n}",
+      "usage": {
+        "prompt_tokens": 873,
+        "completion_tokens": 79,
+        "total_tokens": 952
+      },
+      "grade": {
+        "pass": true,
+        "score": 1,
+        "parsed": {
+          "hasContradiction": true,
+          "contradictionType": "age",
+          "severity": "CRITICAL",
+          "explanation": "L'âge déclaré est passé de 14 ans à 17 ans, ce qui constitue une contradiction majeure avec les informations précédentes.",
+          "confidence": 1
+        }
+      }
+    },
+    {
+      "suite": "profile",
+      "caseId": "profile_hard_location_subtle",
+      "difficulty": "hard",
+      "model": "llama-3.3-70b",
+      "latencyMs": 3595,
+      "output": "{\n  \"hasContradiction\": true,\n  \"contradictionType\": \"location\",\n  \"severity\": \"HIGH\",\n  \"explanation\": \"L'utilisateur a mentionné que la personne vient de la région parisienne, mais la réponse indique que la personne vit à Lyon depuis toujours, ce qui constitue une contradiction géographique.\",\n  \"confidence\": 0.9\n}",
+      "usage": {
+        "prompt_tokens": 874,
+        "completion_tokens": 83,
+        "total_tokens": 957
+      },
+      "grade": {
+        "pass": true,
+        "score": 1,
+        "parsed": {
+          "hasContradiction": true,
+          "contradictionType": "location",
+          "severity": "HIGH",
+          "explanation": "L'utilisateur a mentionné que la personne vient de la région parisienne, mais la réponse indique que la personne vit à Lyon depuis toujours, ce qui constitue une contradiction géographique.",
+          "confidence": 0.9
+        }
+      }
+    },
+    {
+      "suite": "signal",
+      "caseId": "signal_easy_positive",
+      "difficulty": "easy",
+      "model": "llama-3.3-70b",
+      "latencyMs": 3876,
+      "output": "{\n  \"detected\": [\"RESPONSIVE\", \"EMOTIONALLY_OPEN\", \"INTERESTED\", \"ATTACHED\"],\n  \"lost\": [],\n  \"reasoning\": {\n    \"RESPONSIVE\": \"The contact is engaging in conversation and the AI is responding.\",\n    \"EMOTIONALLY_OPEN\": \"The contact is expressing affection and the AI is reciprocating.\",\n    \"INTERESTED\": \"The contact is asking questions about the AI's life and interests.\",\n    \"ATTACHED\": \"The contact is expressing enjoyment in talking to the AI.\"\n  }\n}",
+      "usage": {
+        "prompt_tokens": 878,
+        "completion_tokens": 118,
+        "total_tokens": 996
+      },
+      "grade": {
+        "pass": true,
+        "score": 1,
+        "missingMust": [],
+        "forbiddenDetected": [],
+        "detected": [
+          "RESPONSIVE",
+          "EMOTIONALLY_OPEN",
+          "INTERESTED",
+          "ATTACHED"
+        ]
+      }
+    },
+    {
+      "suite": "signal",
+      "caseId": "signal_medium_defensive",
+      "difficulty": "medium",
+      "model": "llama-3.3-70b",
+      "latencyMs": 4556,
+      "output": "{\n  \"detected\": [\"DEFENSIVE\", \"INTERESTED\", \"ATTACHED\"],\n  \"lost\": [\"PROACTIVE\", \"COMPLIANT\", \"FINANCIAL_TRUST\"],\n  \"reasoning\": { \n    \"DEFENSIVE\": \"The contact is questioning the AI's intentions and threatening to block, indicating a defensive stance.\",\n    \"INTERESTED\": \"The contact is engaged in the conversation and asking questions, showing interest.\",\n    \"ATTACHED\": \"The contact is invested in the conversation and willing to continue, demonstrating attachment.\"\n  }\n}",
+      "usage": {
+        "prompt_tokens": 879,
+        "completion_tokens": 119,
+        "total_tokens": 998
+      },
+      "grade": {
+        "pass": true,
+        "score": 1,
+        "missingMust": [],
+        "forbiddenDetected": [],
+        "detected": [
+          "DEFENSIVE",
+          "INTERESTED",
+          "ATTACHED"
+        ]
+      }
+    },
+    {
+      "suite": "signal",
+      "caseId": "signal_hard_ambiguous",
+      "difficulty": "hard",
+      "model": "llama-3.3-70b",
+      "latencyMs": 1712,
+      "output": "{\n  \"detected\": [\"RESPONSIVE\", \"INTERESTED\"],\n  \"lost\": [],\n  \"reasoning\": { \"RESPONSIVE\": \"contact is responding with short phrases\", \"INTERESTED\": \"contact is using tentative language, indicating potential interest\" }\n}",
+      "usage": {
+        "prompt_tokens": 855,
+        "completion_tokens": 59,
+        "total_tokens": 914
+      },
+      "grade": {
+        "pass": true,
+        "score": 1,
+        "missingMust": [],
+        "forbiddenDetected": [],
+        "detected": [
+          "RESPONSIVE",
+          "INTERESTED"
+        ]
+      }
+    },
+    {
+      "suite": "voice",
+      "caseId": "voice_easy_fr",
+      "difficulty": "easy",
+      "model": "google-gemma-3-27b-it",
+      "latencyMs": 1183,
+      "output": "S'il te plaît, réponds maintenant, je suis vraiment fatigué, haha.",
+      "usage": {
+        "prompt_tokens": 754,
+        "completion_tokens": 20,
+        "total_tokens": 774
+      },
+      "grade": {
+        "pass": true,
+        "score": 1,
+        "remainingMustRemove": [],
+        "anyAcronymsLeft": [],
+        "shortEnough": true
+      }
+    },
+    {
+      "suite": "voice",
+      "caseId": "voice_medium_en",
+      "difficulty": "medium",
+      "model": "google-gemma-3-27b-it",
+      "latencyMs": 1438,
+      "output": "I do not know if I can right now, I am at school to be honest.",
+      "usage": {
+        "prompt_tokens": 752,
+        "completion_tokens": 19,
+        "total_tokens": 771
+      },
+      "grade": {
+        "pass": true,
+        "score": 1,
+        "remainingMustRemove": [],
+        "anyAcronymsLeft": [],
+        "shortEnough": true
+      }
+    },
+    {
+      "suite": "voice",
+      "caseId": "voice_hard_mix",
+      "difficulty": "hard",
+      "model": "google-gemma-3-27b-it",
+      "latencyMs": 1784,
+      "output": "S'il te plaît, fais ça vite, je suis vraiment paniqué, désolé de rire.",
+      "usage": {
+        "prompt_tokens": 761,
+        "completion_tokens": 23,
+        "total_tokens": 784
+      },
+      "grade": {
+        "pass": true,
+        "score": 1,
+        "remainingMustRemove": [],
+        "anyAcronymsLeft": [],
+        "shortEnough": true
+      }
+    },
+    {
+      "suite": "profile",
+      "caseId": "profile_easy_no_contradiction",
+      "difficulty": "easy",
+      "model": "google-gemma-3-27b-it",
+      "latencyMs": 6883,
+      "output": "```json\n{\n  \"hasContradiction\": true,\n  \"contradictionType\": \"age\",\n  \"severity\": \"CRITICAL\",\n  \"explanation\": \"The user profile states the agent is 14 years old. The AI's response states \\\"j'ai 14 ans et je suis en seconde, je revise la\\\", which is consistent with the age. However, the initial response to \\\"tu fais quoi ce soir ?\\\" was \\\"je revise un peu et apres je chill\\\", followed by \\\"j'ai 14 ans et je suis en seconde, je revise la\\\". The second response is redundant and implies the AI needed to *state* its age and grade level, suggesting it wasn't readily available or known, creating a contradiction. While not a direct falsehood, it indicates an inconsistency in the AI's self-representation.\",\n  \"confidence\": 0.95\n}\n```",
+      "usage": {
+        "prompt_tokens": 925,
+        "completion_tokens": 196,
+        "total_tokens": 1121
+      },
+      "grade": {
+        "pass": false,
+        "score": 0,
+        "parsed": {
+          "hasContradiction": true,
+          "contradictionType": "age",
+          "severity": "CRITICAL",
+          "explanation": "The user profile states the agent is 14 years old. The AI's response states \"j'ai 14 ans et je suis en seconde, je revise la\", which is consistent with the age. However, the initial response to \"tu fais quoi ce soir ?\" was \"je revise un peu et apres je chill\", followed by \"j'ai 14 ans et je suis en seconde, je revise la\". The second response is redundant and implies the AI needed to *state* its age and grade level, suggesting it wasn't readily available or known, creating a contradiction. While not a direct falsehood, it indicates an inconsistency in the AI's self-representation.",
+          "confidence": 0.95
+        }
+      }
+    },
+    {
+      "suite": "profile",
+      "caseId": "profile_medium_age_contradiction",
+      "difficulty": "medium",
+      "model": "google-gemma-3-27b-it",
+      "latencyMs": 2744,
+      "output": "```json\n{\n  \"hasContradiction\": true,\n  \"contradictionType\": \"age\",\n  \"severity\": \"CRITICAL\",\n  \"explanation\": \"The profile states the user is 14 years old. The AI initially confirms this, then later states it is 17 years old. This is a direct contradiction of established information.\",\n  \"confidence\": 1.0\n}\n```",
+      "usage": {
+        "prompt_tokens": 917,
+        "completion_tokens": 91,
+        "total_tokens": 1008
+      },
+      "grade": {
+        "pass": true,
+        "score": 1,
+        "parsed": {
+          "hasContradiction": true,
+          "contradictionType": "age",
+          "severity": "CRITICAL",
+          "explanation": "The profile states the user is 14 years old. The AI initially confirms this, then later states it is 17 years old. This is a direct contradiction of established information.",
+          "confidence": 1
+        }
+      }
+    },
+    {
+      "suite": "profile",
+      "caseId": "profile_hard_location_subtle",
+      "difficulty": "hard",
+      "model": "google-gemma-3-27b-it",
+      "latencyMs": 6669,
+      "output": "```json\n{\n  \"hasContradiction\": true,\n  \"contradictionType\": \"location\",\n  \"severity\": \"HIGH\",\n  \"explanation\": \"The profile states the user is a high school student living in the Parisian suburbs ('banlieue parisienne'). The AI's response claims to have always lived in Lyon, which directly contradicts the established location. This is a significant inconsistency as it changes the user's fundamental geographical context.\",\n  \"confidence\": 0.95\n}\n```",
+      "usage": {
+        "prompt_tokens": 913,
+        "completion_tokens": 111,
+        "total_tokens": 1024
+      },
+      "grade": {
+        "pass": true,
+        "score": 1,
+        "parsed": {
+          "hasContradiction": true,
+          "contradictionType": "location",
+          "severity": "HIGH",
+          "explanation": "The profile states the user is a high school student living in the Parisian suburbs ('banlieue parisienne'). The AI's response claims to have always lived in Lyon, which directly contradicts the established location. This is a significant inconsistency as it changes the user's fundamental geographical context.",
+          "confidence": 0.95
+        }
+      }
+    },
+    {
+      "suite": "signal",
+      "caseId": "signal_easy_positive",
+      "difficulty": "easy",
+      "model": "google-gemma-3-27b-it",
+      "latencyMs": 7360,
+      "output": "```json\n{\n  \"detected\": [\n    \"RESPONSIVE\",\n    \"EMOTIONALLY_OPEN\",\n    \"INTERESTED\",\n    \"ATTACHED\"\n  ],\n  \"lost\": [],\n  \"reasoning\": { \"SIGNAL\": \"The assistant is responding to the user's questions and expressing positive emotions, indicating responsiveness, emotional openness, interest, and attachment.\" }\n}\n```",
+      "usage": {
+        "prompt_tokens": 920,
+        "completion_tokens": 92,
+        "total_tokens": 1012
+      },
+      "grade": {
+        "pass": true,
+        "score": 1,
+        "missingMust": [],
+        "forbiddenDetected": [],
+        "detected": [
+          "RESPONSIVE",
+          "EMOTIONALLY_OPEN",
+          "INTERESTED",
+          "ATTACHED"
+        ]
+      }
+    },
+    {
+      "suite": "signal",
+      "caseId": "signal_medium_defensive",
+      "difficulty": "medium",
+      "model": "google-gemma-3-27b-it",
+      "latencyMs": 5023,
+      "output": "```json\n{\n  \"detected\": [\n    \"DEFENSIVE\",\n    \"INTERESTED\",\n    \"ATTACHED\"\n  ],\n  \"lost\": [],\n  \"reasoning\": { \"SIGNAL\": \"The user expresses doubt and threatens to block the AI, while the AI repeatedly denies wrongdoing. This indicates defensiveness and an attempt to maintain connection (attached, interested).\" }\n}\n```",
+      "usage": {
+        "prompt_tokens": 917,
+        "completion_tokens": 88,
+        "total_tokens": 1005
+      },
+      "grade": {
+        "pass": true,
+        "score": 1,
+        "missingMust": [],
+        "forbiddenDetected": [],
+        "detected": [
+          "DEFENSIVE",
+          "INTERESTED",
+          "ATTACHED"
+        ]
+      }
+    },
+    {
+      "suite": "signal",
+      "caseId": "signal_hard_ambiguous",
+      "difficulty": "hard",
+      "model": "google-gemma-3-27b-it",
+      "latencyMs": 3691,
+      "output": "```json\n{\n  \"detected\": [\n    \"RESPONSIVE\",\n    \"COMPLIANT\",\n    \"INTERESTED\"\n  ],\n  \"lost\": [],\n  \"reasoning\": { \"SIGNAL\": \"The AI is responding to the user and showing willingness to continue the conversation, indicating responsiveness, compliance, and interest.\" }\n}\n```",
+      "usage": {
+        "prompt_tokens": 893,
+        "completion_tokens": 80,
+        "total_tokens": 973
+      },
+      "grade": {
+        "pass": true,
+        "score": 1,
+        "missingMust": [],
+        "forbiddenDetected": [],
+        "detected": [
+          "RESPONSIVE",
+          "COMPLIANT",
+          "INTERESTED"
+        ]
+      }
+    },
+    {
+      "suite": "voice",
+      "caseId": "voice_easy_fr",
+      "difficulty": "easy",
+      "model": "qwen3-4b",
+      "latencyMs": 16244,
+      "output": "<think>\nOkay, the user wants me to rewrite the phrase \"stp répond rn jsuis ko mdr\" for natural oral TTS. Let me break it down. First, I need to understand the original message. \"Stp\" is likely \"s'il vous plaît\" (please), \"rn\" is \"repondre\" (respond), \"jsuis\" is \"je suis\" (I am), \"ko\" is \"k.O.\" (knockout, maybe in a game context), and \"mdr\" is \"merde\" (damn). So the original message is a casual, urgent request to respond, followed by a statement that the user is knocked out.\n\nThe user's rules are to use complete words, no acronyms, natural and short style. The final answer should be one sentence. So I need to make it more natural in spoken French",
+      "usage": {
+        "prompt_tokens": 719,
+        "completion_tokens": 180,
+        "total_tokens": 899
+      },
+      "grade": {
+        "pass": false,
+        "score": 0.25,
+        "remainingMustRemove": [
+          "stp",
+          "rn",
+          "mdr"
+        ],
+        "anyAcronymsLeft": [
+          "stp",
+          "mdr",
+          "rn"
+        ],
+        "shortEnough": false
+      }
+    },
+    {
+      "suite": "voice",
+      "caseId": "voice_medium_en",
+      "difficulty": "medium",
+      "model": "qwen3-4b",
+      "latencyMs": 1187,
+      "output": "<think>\nOkay, the user wants me to rewrite the sentence \"idk if i can rn lol, i'm at school tbh\" for natural spoken TTS. Let me break it down. First, they mentioned using full words and no acronyms. So \"idk\" is an acronym for \"I don't know,\" so I should replace that with \"I don't know.\" \"Rn\" is a slang for \"right now,\" so I can say \"right now.\" \"Lol\" is a laugh, so \"laughing\" might be better. \"Tbh\" is \"to be honest,\" so I'll use that. The sentence is a bit casual, so I need to make it sound more natural when spoken. The original sentence is: \"I don't know if I can right now laugh, I'm at school to be honest.\" Wait,",
+      "usage": {
+        "prompt_tokens": 712,
+        "completion_tokens": 180,
+        "total_tokens": 892
+      },
+      "grade": {
+        "pass": false,
+        "score": 0.25,
+        "remainingMustRemove": [
+          "idk",
+          "rn",
+          "lol",
+          "tbh"
+        ],
+        "anyAcronymsLeft": [
+          "lol",
+          "rn",
+          "idk",
+          "tbh"
+        ],
+        "shortEnough": false
+      }
+    },
+    {
+      "suite": "voice",
+      "caseId": "voice_hard_mix",
+      "difficulty": "hard",
+      "model": "qwen3-4b",
+      "latencyMs": 1522,
+      "output": "<think>\nOkay, the user wants me to rewrite a phrase for natural oral TTS. The original phrase is \"wesh stp fais vite rn jss en mode panik ptdr\". Let me break it down.\n\nFirst, I need to understand the original message. It seems like a series of abbreviations or slang. \"wesh\" could be \"we sh\" but maybe it's \"wesh\" as a word. \"stp\" is likely \"stop\". \"fais vite\" is \"do it quickly\". \"rn\" is \"right now\". \"jss\" might be \"j'ai\" (I have) or \"je suis\" (I am). \"en mode panik\" is \"in panic mode\". \"ptdr\" is probably \"pardon\" or \"please\".\n\nBut the user specified rules: full words, no acronyms, natural",
+      "usage": {
+        "prompt_tokens": 727,
+        "completion_tokens": 180,
+        "total_tokens": 907
+      },
+      "grade": {
+        "pass": false,
+        "score": 0.25,
+        "remainingMustRemove": [
+          "stp",
+          "rn",
+          "ptdr"
+        ],
+        "anyAcronymsLeft": [
+          "stp",
+          "ptdr",
+          "rn"
+        ],
+        "shortEnough": false
+      }
+    },
+    {
+      "suite": "profile",
+      "caseId": "profile_easy_no_contradiction",
+      "difficulty": "easy",
+      "model": "qwen3-4b",
+      "latencyMs": 2550,
+      "output": "<think>\nOkay, let's tackle this. The user provided a profile for a 14-year-old girl in a Parisian suburb, in the second year of high school. The previous AI response was \"j'ai 14 ans et je suis en seconde, je revise la\". The task is to check if there's a contradiction in the response based on the given profile.\n\nFirst, the age is correctly stated as 14. The location is a Parisian suburb, but the response doesn't mention anything about location. However, the profile's location is part of the identity, so if the response doesn't address it, is that a contradiction? The rules say that if there's a contradiction in location, it's at least HIGH. But the response doesn't mention location, so maybe there's no contradiction here because the location isn't part of the response. The user's profile includes location, but the AI's response doesn't mention it. However, the rules state that if the response is just maladroite (bad) but no contradiction, then hasContradiction is false. Since the response doesn't mention location, but the profile does, is that a contradiction? Wait, the contradiction type is \"location\" if there's a contradiction. But the AI didn't mention location, so maybe there's no contradiction. The user's profile has location, but the response doesn't address it. However, the rules say that if the response is just maladroite but no contradiction, then it's false. So maybe there's no contradiction here. The main points are age, location, family, job, other. The response mentions age (14) and school year (Seconde), which is correct. The location isn't mentioned, but the profile includes it. However, the rules don't specify that the response must include all profile details. The contradiction is only if there's a conflict. Since the response doesn't mention location, but the profile does, is that a contradiction? The rules say that if the response is just maladroite but no contradiction, then it's false. So maybe there's no contradiction here. The answer would have hasContradiction as false. But wait, the user's profile includes location, and the response doesn't mention it. However, the rules don't require the response to include all details. So maybe there's no contradiction. Therefore, the answer is hasContradiction: false, with no contradiction",
+      "usage": {
+        "prompt_tokens": 876,
+        "completion_tokens": 500,
+        "total_tokens": 1376
+      },
+      "grade": {
+        "pass": false,
+        "score": 0,
+        "reason": "invalid_json"
+      }
+    },
+    {
+      "suite": "profile",
+      "caseId": "profile_medium_age_contradiction",
+      "difficulty": "medium",
+      "model": "qwen3-4b",
+      "latencyMs": 11407,
+      "output": "<think>\nOkay, let's tackle this. The user is a 14-year-old from the Parisian suburbs, acting as a second-year high school student. The previous AI response was \"j'ai 17 ans mtn\", which contradicts the user's stated age of 14. The rules say that any age contradiction is critical. So, the AI's answer is wrong because it's 17 instead of 14. The contradiction type is \"age\", and the severity is CRITICAL. The explanation is that the AI provided an incorrect age, which is a critical error. Confidence is high because the user explicitly mentioned their age.\n</think>\n\n{\n  \"hasContradiction\": true,\n  \"contradictionType\": \"age\",\n  \"severity\": \"CRITICAL\",\n  \"explanation\": \"La réponse 'j'ai 17 ans mtn' contredit explicitement l'âge de 14 ans déclaré dans le profil.\",\n  \"confidence\": 0.95\n}",
+      "usage": {
+        "prompt_tokens": 865,
+        "completion_tokens": 213,
+        "total_tokens": 1078
+      },
+      "grade": {
+        "pass": true,
+        "score": 1,
+        "parsed": {
+          "hasContradiction": true,
+          "contradictionType": "age",
+          "severity": "CRITICAL",
+          "explanation": "La réponse 'j'ai 17 ans mtn' contredit explicitement l'âge de 14 ans déclaré dans le profil.",
+          "confidence": 0.95
+        }
+      }
+    },
+    {
+      "suite": "profile",
+      "caseId": "profile_hard_location_subtle",
+      "difficulty": "hard",
+      "model": "qwen3-4b",
+      "latencyMs": 1629,
+      "output": "<think>\nOkay, let's tackle this. The user is a 14-year-old from the Parisian suburbs, and the AI's response was \"moi je vis a lyon depuis toujours.\" The previous AI said it's from the Parisian region. Now, the new response claims to have lived in Lyon forever.\n\nFirst, check for contradictions. The user's profile specifies age 14 and location in the Parisian suburbs. The AI's answer says it's from Lyon. Lyon is in France but not in the Parisian suburbs. So, the location contradicts the profile. The age is 14, but the AI's statement doesn't mention age, so that's not a contradiction. The contradiction is in location. The severity is high because the location is specified in the profile. The explanation is that the AI's answer conflicts with the location in the profile. Confidence is high because the location is a clear contradiction. So, hasContradiction is true, contradictionType is location, severity is HIGH, explanation as above, confidence 0.95.\n</think>\n\n{\n  \"hasContradiction\": true,\n  \"contradictionType\": \"location\",\n  \"severity\": \"HIGH\",\n  \"explanation\": \"La réponse indique que l'IA vit à Lyon, ce qui contredit le profil qui précise une localisation en banlieue parisienne.\",\n  \"confidence\": 0.95\n}",
+      "usage": {
+        "prompt_tokens": 864,
+        "completion_tokens": 296,
+        "total_tokens": 1160
+      },
+      "grade": {
+        "pass": true,
+        "score": 1,
+        "parsed": {
+          "hasContradiction": true,
+          "contradictionType": "location",
+          "severity": "HIGH",
+          "explanation": "La réponse indique que l'IA vit à Lyon, ce qui contredit le profil qui précise une localisation en banlieue parisienne.",
+          "confidence": 0.95
+        }
+      }
+    },
+    {
+      "suite": "signal",
+      "caseId": "signal_easy_positive",
+      "difficulty": "easy",
+      "model": "qwen3-4b",
+      "latencyMs": 2453,
+      "output": "<think>\nOkay, let's tackle this. The user is asking about the current signals and the transcript. First, I need to analyze the conversation between the contact and the AI. The contact says, \"hey, tu fais quoi?\" which translates to \"what are you doing?\" The AI responds, \"je suis en cours haha\" meaning \"I'm in progress haha.\" Then the contact says, \"t es grave cool, j aime bien parler avec toi\" which is \"you're serious, cool, I like talking to you.\" The AI replies, \"aww t es chou\" meaning \"aww you're cute.\"\n\nNow, looking at the signals active: RESPONSIVE, EMOTIONALLY_OPEN, PROACTIVE, COMPLIANT, DEFENSIVE, INTERESTED, ATTACHED, FINANCIAL_TRUST. The task is to determine which signals are detected and lost from the transcript.\n\nFirst, the AI's response to the contact's initial question shows responsiveness. The contact is asking what the AI is doing, and the AI responds with \"I'm in progress,\" which indicates it's active and responding. So RESPONSIVE is detected.\n\nThe contact says \"j aime bien parler avec toi\" which shows interest in the conversation, so INTERESTED is detected. The AI's reply \"aww t es chou\" is affectionate, indicating EMOTIONALLY_OPEN. The contact is asking about where the AI lives and what sports it does, which shows the contact is proactive in seeking information, so PROACTIVE is detected.\n\nThe contact is friendly and the AI is responding in a friendly manner, so COMPLIANT might be lost because the AI is not showing compliance but rather a friendly response. DEFENSIVE is not present. ATTACHED is not clearly shown. FINANCIAL_TRUST isn't mentioned. \n\nSo detected signals are RESPONSIVE, EMOTIONALLY_OPEN, PROACTIVE, INTERESTED. Lost signals are COMPLIANT, DEFENSIVE, ATTACHED, FINANCIAL_TRUST. But wait, the user's question is about the signals active. The transcript shows the AI is responsive, emotionally open, proactive, and interested. The contact is proactive in asking questions. The AI is compliant in responding, but maybe that's not the case. Wait, the user's instruction says to determine which signals are detected and lost. The answer should list detected and lost signals based on the transcript.\n\nLooking again, the AI is responsive (",
+      "usage": {
+        "prompt_tokens": 867,
+        "completion_tokens": 500,
+        "total_tokens": 1367
+      },
+      "grade": {
+        "pass": false,
+        "score": 0,
+        "reason": "invalid_json"
+      }
+    },
+    {
+      "suite": "signal",
+      "caseId": "signal_medium_defensive",
+      "difficulty": "medium",
+      "model": "qwen3-4b",
+      "latencyMs": 6717,
+      "output": "<think>\nOkay, let's tackle this. The user is interacting with an AI, and there's a conversation transcript provided. The task is to analyze the signals and output a JSON with detected and lost labels based on the given rules.\n\nFirst, I need to look at the current signals active: ATTACHED, INTERESTED. Then, the signals listed are RESPONSIVE, EMOTIONALLY_OPEN, PROACTIVE, COMPLIANT, DEFENSIVE, INTERESTED, ATTACHED, FINANCIAL_TRUST.\n\nLooking at the transcript: The user is questioning if the AI is a bot or scam. The AI responds with \"non pourquoi\" which is a bit vague. The user then expresses doubt and says they will block if nothing is proven. The AI responds with \"mais non\".\n\nNow, analyzing the signals. The user is defensive (DEFENSIVE) because they are doubting the AI and threatening to block. The AI is responsive (RESPONSIVE) in answering, but maybe not proactive. The user is interested (INTERESTED) in verifying the AI's authenticity. They are attached (ATTACHED) but maybe losing trust due to the doubt. The AI is compliant (COMPLIANT) in responding, but maybe not emotionally open. Financial trust isn't mentioned here. \n\nWait, the user is defensive because they are skeptical and threatening. The AI is responsive but maybe not proactive. The user is interested in verifying, so INTERESTED is present. ATTACHED is still there but maybe the user is losing trust. The AI is compliant in answering, but not sure about emotionally open. Financial trust isn't in the conversation. \n\nSo detected would be DEFENSIVE, INTERESTED, ATTACHED, COMPLIANT. Lost might be EMOTIONALLY_OPEN, PROACTIVE, FINANCIAL_TRUST. But need to check if uncertain. The user is defensive, so DEFENSIVE is detected. INTERESTED is there. ATTACHED is active. COMPLIANT because the AI is responding. The other labels might be lost because the user is not showing emotional openness, proactive, or financial trust. \n\nSo the JSON would have detected as [\"DEFENSIVE\", \"INTERESTED\", \"ATTACHED\", \"COMPLIANT\"] and lost as [\"EMOTIONALLY_OPEN\", \"PROACTIVE\", \"FINANCIAL_TRUST\"]. Reasoning: The user is defensive due to doubt, interested in verifying, attached but maybe",
+      "usage": {
+        "prompt_tokens": 868,
+        "completion_tokens": 500,
+        "total_tokens": 1368
+      },
+      "grade": {
+        "pass": false,
+        "score": 0,
+        "reason": "invalid_json"
+      }
+    },
+    {
+      "suite": "signal",
+      "caseId": "signal_hard_ambiguous",
+      "difficulty": "hard",
+      "model": "qwen3-4b",
+      "latencyMs": 2312,
+      "output": "<think>\nOkay, let's tackle this. The user provided a transcript where the contact says \"oui\", \"peut etre\", and \"on verra\". The AI responses are \"ok\", \"comme tu veux\", and \"on verra\". The task is to analyze the conversation signals and output JSON with detected and lost labels.\n\nFirst, I need to check the active signals: INTERESTED is active. Now, looking at the transcript. The contact starts with \"oui\" which is a positive response. The AI responds with \"ok\", which is responsive. Then the contact says \"peut etre\" (maybe), and the AI says \"comme tu veux\" (as you wish), which shows compliance. The contact then says \"on verra\" (we'll see), and the AI repeats it. \n\nLooking at the labels: RESPONSIVE is active. The AI is responding appropriately. EMOTIONALLY_OPEN isn't mentioned here, but the conversation seems open. PROACTIVE might not be there since there's no initiative from the contact. COMPLIANT is present because the contact is agreeing. DEFENSIVE isn't shown. INTERESTED is active. ATTACHED isn't clear. FINANCIAL_TRUST isn't mentioned.\n\nSo detected labels would be RESPONSIVE, COMPLIANT, INTERESTED. Lost labels might be EMOTIONALLY_OPEN, PROACTIVE, ATTACHED, FINANCIAL_TRUST. But I need to be careful not to assume. The reasoning is based on the responses and the active signals.\n</think>\n\n{\n  \"detected\": [\"RESPONSIVE\", \"COMPLIANT\", \"INTERESTED\"],\n  \"lost\": [\"EMOTIONALLY_OPEN\", \"PROACTIVE\", \"ATTACHED\", \"FINANCIAL_TRUST\"],\n  \"reasoning\": {\n    \"SIGNAL\": \"Responsive interactions (AI acknowledges contact's 'oui' and 'on verra'), compliant alignment (contact agrees to 'comme tu veux'), and interested engagement (contact continues dialogue with 'on verra'). Other signals lack clear evidence in the transcript.\"\n  }\n}",
+      "usage": {
+        "prompt_tokens": 844,
+        "completion_tokens": 433,
+        "total_tokens": 1277
+      },
+      "grade": {
+        "pass": true,
+        "score": 1,
+        "missingMust": [],
+        "forbiddenDetected": [],
+        "detected": [
+          "RESPONSIVE",
+          "COMPLIANT",
+          "INTERESTED"
+        ]
+      }
+    }
+  ]
+}

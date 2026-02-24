@@ -36,7 +36,7 @@ export async function extractPsychology(
             `${PSYCHOLOGY_PROMPT}\n\nCONVERSATION:\n${conversation}\n\nExtract psychology JSON:`,
             {
                 apiKey,
-                model: model || 'venice-uncensored',
+                model: model || 'google-gemma-3-27b-it',
                 temperature: 0.25, // Légèrement plus haut pour nuances psychologiques
                 max_tokens: 800
             }

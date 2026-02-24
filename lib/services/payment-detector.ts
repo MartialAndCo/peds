@@ -141,7 +141,7 @@ Now analyze the user's latest message: "${message}"`
             userMessage,
             {
                 apiKey: s.venice_api_key,
-                model: s.venice_model || 'venice-uncensored',
+                model: s.venice_model || 'google-gemma-3-27b-it',
                 max_tokens: 150
             }
         )

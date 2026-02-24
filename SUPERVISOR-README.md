@@ -195,8 +195,8 @@ Aucune nouvelle variable requise. Le supervisor utilise :
 
 ### Modèles Venice
 
-- **Tâches simples** : `venice-uncensored` (détection mécanique)
-- **Analyses complexes** : `llama-3.3-70b` (coherence, contexte)
+- **Tâches simples** : `google-gemma-3-27b-it` (détection mécanique)
+- **Analyses complexes** : `google-gemma-3-27b-it` (coherence, contexte)
 
 ---
 

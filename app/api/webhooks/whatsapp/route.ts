@@ -81,7 +81,7 @@ export async function POST(req: Request) {
                 const reaction = reactionData.reaction?.text || reactionData.text || reactionData.emoji
 
                 // Resolve Agent ID
-                let agentId = 'default'
+                let agentId = body.sessionId ? body.sessionId.toString() : '1'
                 if (body.sessionId) {
                     if (body.sessionId.toString().startsWith('session_')) {
                         const setting = await prisma.agentSetting.findFirst({
@@ -159,7 +159,7 @@ export async function POST(req: Request) {
         }
 
         const payload = body.payload
-        let agentId = 'default'
+        let agentId = body.sessionId ? body.sessionId.toString() : '1'
 
         if (body.sessionId) {
             const sid = body.sessionId.toString()

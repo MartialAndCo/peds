@@ -42,8 +42,8 @@ EXEMPLES:
 - "Appelle-moi" → intention: "vocal", besoinVoice: true
 - "Ton chat s'appelle comment ?" → intention: "personnel", besoinMemoire: true`
 
-    // Utiliser venice-uncensored (non censuré et fiable)
-    const model = 'venice-uncensored'
+    // Utiliser google-gemma-3-27b-it (non censuré et fiable)
+    const model = 'google-gemma-3-27b-it'
     
     try {
         console.log(`[Swarm][Intention] Using model: ${model}`)

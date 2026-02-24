@@ -180,7 +180,7 @@ export default function SettingsPage() {
         waha_session: 'default',
         waha_api_key: '',
         venice_api_key: '',
-        venice_model: 'venice-uncensored',
+        venice_model: 'google-gemma-3-27b-it',
         anthropic_api_key: '',
         anthropic_model: 'claude-3-haiku-20240307',
         openrouter_api_key: '',

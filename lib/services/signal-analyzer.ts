@@ -582,7 +582,7 @@ RULES:
                     "Analyze and output JSON only.",
                     [],
                     analysisPrompt,
-                    { apiKey: settings.venice_api_key, model: 'llama-3.3-70b' }
+                    { apiKey: settings.venice_api_key, model: 'google-gemma-3-27b-it' }
                 )
             }
 

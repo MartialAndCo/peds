@@ -50,8 +50,10 @@ export async function getConfig() {
 // Helper to resolve the actual Baileys Session ID (handles UUIDs and legacy IDs)
 async function resolveSessionId(agentId?: number | string): Promise<string> {
     if (!agentId) {
+        // Fallback to default configs instead of hardcoding '1' to avoid crossing conversations
+        // We log a critical error because agentId MUST be supplied.
         const { defaultSession } = await getConfig()
-        console.error(`[WhatsApp] CRITICAL: No agentId provided! Falling back to session: "${defaultSession}". This will likely fail.`)
+        console.error(`[WhatsApp] CRITICAL: No agentId provided! Falling back to session: "${defaultSession}". This will likely fail or cross conversations.`)
         return defaultSession
     }
 

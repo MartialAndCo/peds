@@ -45,7 +45,7 @@ export async function GET(req: Request) {
                 }
                 console.log(`[RemindLeads] Reminding Provider ${phone}`)
 
-                await whatsapp.sendText(phone, `⚠️ **Reminder**: Lead waiting for validation.\n\nTarget: ${metadata.draft?.phone}\n\nReply **OK** to send.\nReply **CANCEL** to drop.`)
+                await whatsapp.sendText(phone, `⚠️ **Reminder**: Lead waiting for validation.\n\nTarget: ${metadata.draft?.phone}\n\nReply **OK** to send.\nReply **CANCEL** to drop.`, undefined, conv.agentId || undefined)
 
                 // Update Metadata
                 const newMetadata = {
