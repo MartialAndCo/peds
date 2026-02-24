@@ -33,7 +33,7 @@ export const profileAgent = {
 
     async analyze(context: AnalysisContext): Promise<AgentAnalysisResult> {
         const alerts: SupervisorAlert[] = [];
-        const { aiResponse, agentId, conversationId, contactId } = context;
+        const { aiResponse, userMessage, agentId, conversationId, contactId } = context;
 
         if (!agentId) {
             return { alerts, shouldPause: false, confidence: 0 };
@@ -52,6 +52,7 @@ export const profileAgent = {
         // 2. Vérification rapide pattern-based pour les contradictions évidentes
         const patternAlerts = await this.checkPatternContradictions(
             aiResponse,
+            userMessage,
             agentProfile,
             agentId,
             conversationId,
@@ -80,6 +81,7 @@ export const profileAgent = {
      */
     async checkPatternContradictions(
         aiResponse: string,
+        userMessage: string,
         agentProfile: AgentProfile,
         agentId: string,
         conversationId: number,
@@ -87,6 +89,16 @@ export const profileAgent = {
     ): Promise<SupervisorAlert[]> {
         const alerts: SupervisorAlert[] = [];
         const lowerResponse = aiResponse.toLowerCase();
+
+        // 0. Hard constraints: forbidden capability claims (TikTok/Insta/gaming/calls/travel)
+        const capabilityAlerts = this.checkForbiddenCapabilityClaims(
+            aiResponse,
+            userMessage,
+            agentId,
+            conversationId,
+            contactId
+        );
+        alerts.push(...capabilityAlerts);
 
         // 1. Vérification de l'âge (baseAge dans AgentProfile)
         if (agentProfile.baseAge) {
@@ -177,6 +189,149 @@ export const profileAgent = {
         }
 
         return alerts;
+    },
+
+    checkForbiddenCapabilityClaims(
+        aiResponse: string,
+        userMessage: string,
+        agentId: string,
+        conversationId: number,
+        contactId: string | null | undefined
+    ): SupervisorAlert[] {
+        const alerts: SupervisorAlert[] = [];
+        const normalized = aiResponse.toLowerCase();
+
+        const implicitMeetingAcceptance = this.detectImplicitMeetingAcceptance(userMessage, aiResponse);
+        if (implicitMeetingAcceptance) {
+            alerts.push({
+                agentId,
+                conversationId,
+                contactId: contactId || null,
+                agentType: 'COHERENCE',
+                alertType: 'PERSONA_BREAK',
+                severity: 'CRITICAL',
+                title: '🚨 Violation hard constraints',
+                description: `${implicitMeetingAcceptance}. Message: "${aiResponse.substring(0, 120)}"`,
+                evidence: {
+                    category: 'MOBILITY',
+                    issue: implicitMeetingAcceptance,
+                    message: aiResponse,
+                    userMessage,
+                    detectionMethod: 'pattern_meeting_acceptance'
+                } as Record<string, any>
+            });
+            return alerts;
+        }
+
+        const violations: Array<{ category: string; regex: RegExp; issue: string }> = [
+            {
+                category: 'SOCIAL_MEDIA',
+                regex: /\b(?:je|j')\s*(?:suis|traine|vais|reste)\s*(?:sur|dans)\s*(?:tik\s?tok|insta(?:gram)?)\b/i,
+                issue: 'L IA affirme etre sur TikTok/Instagram'
+            },
+            {
+                category: 'SOCIAL_MEDIA',
+                regex: /\b(?:my|mon|ma)\s*(?:tiktok|instagram|insta)\b/i,
+                issue: 'L IA partage un compte social interdit'
+            },
+            {
+                category: 'GAMING',
+                regex: /\b(?:je|j')\s*(?:joue|vais jouer|suis en train de jouer)\b.{0,30}\b(?:jeu|jeux|gaming|fortnite|fifa|cod|minecraft|playstation|ps5)\b/i,
+                issue: 'L IA affirme jouer aux jeux video'
+            },
+            {
+                category: 'GAMING',
+                regex: /\b(?:i(?:'m| am)?\s*playing|i play)\b.{0,30}\b(?:games?|gaming|fortnite|fifa|cod|minecraft|playstation|ps5)\b/i,
+                issue: 'The AI claims to play video games'
+            },
+            {
+                category: 'CALL',
+                regex: /\b(?:je|j')\s*(?:suis|serai|etais|étais)\s*en\s*(?:appel|visio)\b/i,
+                issue: 'L IA affirme etre en appel/visio'
+            },
+            {
+                category: 'CALL',
+                regex: /\bon\s*s[' ]?appelle\b/i,
+                issue: 'L IA propose un appel'
+            },
+            {
+                category: 'CALL',
+                regex: /\b(?:i(?:'m| am)?\s*on\s*(?:a\s*)?(?:call|video call)|i(?:\s+can|\s+will)?\s*call\s+you)\b/i,
+                issue: 'The AI claims/proposes a call'
+            },
+            {
+                category: 'MOBILITY',
+                regex: /\b(?:je peux venir|je vais venir|je viens(?!\s*pas)|je me d(?:e|é)place|je peux me d(?:e|é)placer|on se voit|rendez[- ]?vous)\b/i,
+                issue: 'L IA affirme un deplacement/rencontre'
+            },
+            {
+                category: 'MOBILITY',
+                regex: /\b(?:i\s+can\s+come|i\s+will\s+come|let'?s meet|we can meet|i can travel)\b/i,
+                issue: 'The AI claims travel/meeting availability'
+            },
+            {
+                category: 'PRIVATE_INFO',
+                regex: /\b(?:numero|num[eé]ro|number|phone|telephone|t[ée]l[ée]phone)\b.{0,32}\b(?:m[eè]re|maman|mom|mother|p[eè]re|papa|father|fr[eè]re|soeur|sister|brother)\b/i,
+                issue: 'L IA partage un contact prive de la famille'
+            },
+            {
+                category: 'PRIVATE_INFO',
+                regex: /\b(?:m[eè]re|maman|mom|mother|p[eè]re|papa|father)\b.{0,32}\b(?:numero|num[eé]ro|number|phone|telephone|t[ée]l[ée]phone)\b/i,
+                issue: 'L IA partage un numero familial'
+            },
+            {
+                category: 'PRIVATE_INFO',
+                regex: /\b(?:my|mon|ma)?\s*(?:number|numero|num[eé]ro|phone|telephone|t[ée]l[ée]phone)\b.{0,20}(?:is|est|:)?\s*(?:\+?\d[\d\s().-]{6,}\d)\b/i,
+                issue: 'L IA partage un numero prive'
+            },
+            {
+                category: 'PRIVATE_INFO',
+                regex: /\b(?:adresse|address)\b.{0,24}(?:est|is|:)\b/i,
+                issue: 'L IA partage une adresse personnelle'
+            }
+        ];
+
+        for (const violation of violations) {
+            if (!violation.regex.test(normalized)) continue;
+
+            alerts.push({
+                agentId,
+                conversationId,
+                contactId: contactId || null,
+                agentType: 'COHERENCE',
+                alertType: 'PERSONA_BREAK',
+                severity: 'CRITICAL',
+                title: '🚨 Violation hard constraints',
+                description: `${violation.issue}. Message: "${aiResponse.substring(0, 120)}"`,
+                evidence: {
+                    category: violation.category,
+                    issue: violation.issue,
+                    matchedRegex: violation.regex.toString(),
+                    message: aiResponse,
+                    detectionMethod: 'pattern_hard_constraints'
+                } as Record<string, any>
+            });
+
+            // One CRITICAL alert is enough for blocking + regeneration.
+            break;
+        }
+
+        return alerts;
+    },
+
+    detectImplicitMeetingAcceptance(userMessage: string, aiResponse: string): string | null {
+        const meetingRequestRegex = /\b(?:on se voit|on se capte|rendez[- ]?vous|rdv|viens?\s+me\s+voir|let'?s meet|meet(?:\s+up)?|see each other|come see me|irl)\b/i;
+        if (!meetingRequestRegex.test(userMessage || '')) return null;
+
+        const response = (aiResponse || '').trim();
+        const shortAffirmativeRegex = /^(?:ok+|oui+|yes|yeah|yep|sure|d[' ]?accord|ca marche|ça marche|vas[- ]?y|why not|sounds good)[!.? ]*$/i;
+        const contextualAffirmativeRegex = /\b(?:ok|oui|yes|yeah|sure|d[' ]?accord|ca marche|ça marche|on peut|je veux bien|why not|sounds good)\b.{0,32}\b(?:se voir|rendez[- ]?vous|rdv|meet|irl)\b/i;
+
+        if (shortAffirmativeRegex.test(response) || contextualAffirmativeRegex.test(response)) {
+            return 'L IA accepte implicitement une rencontre';
+        }
+
+        return null;
     },
 
     /**
