@@ -197,6 +197,25 @@ export class QueueService {
             return { id: queueItem.id, status: 'aborted', reason: `status_changed_to_${currentStatus?.status}` }
         }
 
+        // Hard block sends to blocked/archived/merged contacts.
+        const liveContact = contact?.id
+            ? await prisma.contact.findUnique({
+                where: { id: contact.id },
+                select: { status: true }
+            })
+            : null
+
+        if (liveContact?.status && ['blacklisted', 'archive', 'merged'].includes(liveContact.status)) {
+            await prisma.messageQueue.update({
+                where: { id: queueItem.id },
+                data: {
+                    status: 'FAILED',
+                    error: `Contact status is ${liveContact.status}`
+                }
+            })
+            return { id: queueItem.id, status: 'blocked', reason: `contact_status_${liveContact.status}` }
+        }
+
         // ═══════════════════════════════════════════════════════════════════════════
         // OBSOLESCENCE CHECK: Did the user speak SINCE this message was queued?
         // WARNING ONLY: Previously this blocked the message entirely (INVALID_STALE),

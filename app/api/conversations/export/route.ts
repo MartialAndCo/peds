@@ -27,7 +27,13 @@ export async function GET(request: Request) {
         }
         // if 'all', dateFilter remains empty for no filter
 
-        const whereClause: any = { agentId }
+        const whereClause: any = {
+            agentId,
+            contact: {
+                source: { notIn: ['system', 'hidden'] },
+                status: { notIn: ['blacklisted', 'archive', 'merged'] }
+            }
+        }
         if (Object.keys(dateFilter).length > 0) {
             whereClause.lastMessageAt = dateFilter
         }

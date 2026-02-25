@@ -27,7 +27,8 @@ export async function GET(req: Request) {
     // Base filter: exclude system/hidden contacts from dashboard
     conditions.push({
         contact: {
-            source: { notIn: ['system', 'hidden'] }
+            source: { notIn: ['system', 'hidden'] },
+            status: { notIn: ['blacklisted', 'archive', 'merged'] }
         }
     })
 

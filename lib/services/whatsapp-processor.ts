@@ -462,6 +462,16 @@ export async function processWhatsAppPayload(payload: any, agentId: string, opti
             })
         }
 
+        // Hard ignore blocked/archived/merged contacts before any activation/media/AI logic.
+        if (['blacklisted', 'archive', 'merged'].includes(contact.status)) {
+            logger.info('Incoming message ignored due to contact status', {
+                module: 'processor',
+                contactId: contact.id,
+                status: contact.status
+            })
+            return { status: 'ignored_contact_status' }
+        }
+
         const { mediaService } = require('@/lib/media')
 
         if (payload.type === 'chat') {

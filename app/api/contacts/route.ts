@@ -33,8 +33,8 @@ export async function GET(req: Request) {
         if (status) {
             where.status = status
         } else {
-            // Default: Exclude blacklisted unless explicitly requested
-            where.status = { not: 'blacklisted' }
+            // Default: hide archived/blocked/merged contacts from the main list.
+            where.status = { notIn: ['blacklisted', 'archive', 'merged'] }
         }
 
         // NEW: Filter by Agent Binding (AgentContact OR Conversation)

@@ -99,10 +99,46 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
             updateData.status = 'active';
         }
 
-        const contact = await prisma.contact.update({
-            where: { id },
-            data: updateData
-        })
+        const isArchivedStatus = body.status === 'blacklisted' || body.status === 'archive'
+
+        const contact = isArchivedStatus
+            ? await prisma.$transaction(async (tx) => {
+                const updatedContact = await tx.contact.update({
+                    where: { id },
+                    data: updateData
+                })
+
+                // Archive all open conversations for this contact.
+                await tx.conversation.updateMany({
+                    where: {
+                        contactId: id,
+                        status: { in: ['active', 'paused'] }
+                    },
+                    data: {
+                        status: 'closed',
+                        ai_enabled: false,
+                        unreadCount: 0
+                    }
+                })
+
+                // Cancel pending scheduled sends so blocked/archived contacts are fully ignored.
+                await tx.messageQueue.updateMany({
+                    where: {
+                        contactId: id,
+                        status: { in: ['PENDING', 'PROCESSING'] }
+                    },
+                    data: {
+                        status: 'FAILED',
+                        error: `Cancelled: contact status set to ${body.status}`
+                    }
+                })
+
+                return updatedContact
+            })
+            : await prisma.contact.update({
+                where: { id },
+                data: updateData
+            })
 
         // SYNC CONVERSATION STATUS & TRIGGER AI
         // If contact is made active, ensure the latest conversation is also active (unpaused) AND reply.

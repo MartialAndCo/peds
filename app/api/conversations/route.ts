@@ -44,7 +44,7 @@ export async function GET(req: Request) {
                 ...where,
                 contact: {
                     source: { notIn: ['system', 'hidden'] },
-                    status: { not: 'blacklisted' }
+                    status: { notIn: ['blacklisted', 'archive', 'merged'] }
                 }
             },
             include: {
