@@ -63,6 +63,7 @@ interface GalleryMedia {
   url: string
   typeId: string
   type?: { id: string; description?: string }
+  sentTo?: string[]
 }
 
 interface GalleryMediaType {
@@ -281,6 +282,25 @@ export function ConversationUnifiedView({
   const filteredGalleryMedias = galleryFilter === 'all'
     ? galleryMedias
     : galleryMedias.filter(m => m.typeId === galleryFilter)
+  const galleryTargetPhone = conversation?.contact?.phone_whatsapp || ''
+  const normalizeRecipient = (value?: string | null): string => {
+    if (!value) return ''
+    const raw = String(value).trim()
+    if (!raw) return ''
+
+    if (/^DISCORD_/i.test(raw) || /@discord/i.test(raw)) {
+      return `discord:${raw.replace(/^DISCORD_/i, '').replace(/@discord/i, '').toLowerCase()}`
+    }
+
+    const local = raw.split('@')[0] || raw
+    let digits = local.replace(/\D/g, '')
+    if (!digits) return raw.toLowerCase()
+    if (local.startsWith('00') && digits.length > 2) {
+      digits = digits.slice(2)
+    }
+    return `wa:${digits}`
+  }
+  const normalizedGalleryTarget = normalizeRecipient(galleryTargetPhone)
 
   const toggleAI = async () => {
     try {
@@ -936,11 +956,21 @@ export function ConversationUnifiedView({
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 p-1">
                 {filteredGalleryMedias.map(media => {
                   const isVideo = /\.(mp4|mov|webm|avi)/i.test(media.url)
+                  const isAlreadySent = Boolean(
+                    normalizedGalleryTarget &&
+                    Array.isArray(media.sentTo) &&
+                    media.sentTo.some((recipient) => normalizeRecipient(recipient) === normalizedGalleryTarget)
+                  )
                   return (
                     <button
                       key={media.id}
                       onClick={() => selectGalleryMedia(media)}
-                      className="relative aspect-square rounded-lg overflow-hidden border-2 border-transparent hover:border-blue-500 transition-colors group"
+                      className={cn(
+                        "relative aspect-square rounded-lg overflow-hidden border-2 transition-colors group",
+                        isAlreadySent
+                          ? "border-white/15 opacity-45 grayscale hover:border-blue-500 cursor-pointer"
+                          : "border-transparent hover:border-blue-500"
+                      )}
                     >
                       {isVideo ? (
                         <div className="w-full h-full bg-gray-900 flex flex-col items-center justify-center">
@@ -955,10 +985,18 @@ export function ConversationUnifiedView({
                           loading="lazy"
                         />
                       )}
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors" />
+                      <div className={cn(
+                        "absolute inset-0 transition-colors",
+                        isAlreadySent ? "bg-black/25" : "bg-black/0 group-hover:bg-black/30"
+                      )} />
                       <span className="absolute bottom-1 left-1 text-[9px] bg-black/70 text-white px-1.5 py-0.5 rounded">
                         {media.typeId}
                       </span>
+                      {isAlreadySent && (
+                        <span className="absolute top-1 right-1 text-[9px] bg-black/80 text-gray-200 px-1.5 py-0.5 rounded">
+                          Already sent
+                        </span>
+                      )}
                     </button>
                   )
                 })}

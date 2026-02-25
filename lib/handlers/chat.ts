@@ -1497,36 +1497,55 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
         if (mediaResult.action === 'SEND' && mediaResult.media) {
             console.log(`[Chat] âœ… Media available for "${typeId}". Sending image + original text.`)
+            try {
+                const result = mediaResult
+                let dataUrl = result.media.data
+                const mediaUrl = result.media.url || dataUrl
 
-                // EXECUTE ASYNC SEND (Fire & Forget to strictly unblock queues, but handled internally)
-                ; (async () => {
-                    try {
-                        const result = mediaResult // reuse
-                        // 1. Send Image
-                        let dataUrl = result.media.data
-                        // For Discord, we prefer URL if available, otherwise base64
-                        // WhatsApp helper handles base64 automatically
-                        // Discord helper expects URL?
-                        // Actually, my updated discord.ts takes a URL string. 
-                        // If it's a base64 string, does it work? 
-                        // discord.sendImage docs say "url". 
-                        // If `result.media.url` exists (Supabase URL), prefer that!
-                        const mediaUrl = result.media.url || dataUrl
+                if (mediaUrl && !mediaUrl.startsWith('http') && !mediaUrl.startsWith('data:')) {
+                    dataUrl = `data:${result.media.mimeType || 'image/jpeg'};base64,${mediaUrl}`
+                } else {
+                    dataUrl = mediaUrl
+                }
 
-                        if (mediaUrl && !mediaUrl.startsWith('http') && !mediaUrl.startsWith('data:')) {
-                            // It's raw base64, add prefix for WhatsApp.
-                            // For Discord, we might need to upload it first or send as attachment buffer...
-                            // Current discord.ts implementation expects a URL or assumes the service handles it.
-                            dataUrl = `data:${result.media.mimeType || 'image/jpeg'};base64,${mediaUrl}`
-                        } else {
-                            dataUrl = mediaUrl
+                const normalizeMediaUrl = (url?: string | null) =>
+                    (url || '').split('?')[0].split('#')[0].trim()
+                const normalizedCandidateUrl = normalizeMediaUrl(result.media.url)
+
+                if (normalizedCandidateUrl) {
+                    const sentMediaMessages = await prisma.message.findMany({
+                        where: {
+                            sender: 'ai',
+                            mediaUrl: { not: null },
+                            conversation: {
+                                contactId: contact.id
+                            }
+                        },
+                        select: { mediaUrl: true },
+                        orderBy: { timestamp: 'desc' },
+                        take: 200
+                    })
+
+                    const alreadySentSameMedia = sentMediaMessages.some((m: any) =>
+                        normalizeMediaUrl(m.mediaUrl) === normalizedCandidateUrl
+                    )
+
+                    if (alreadySentSameMedia) {
+                        console.warn(`[Chat] Duplicate media blocked for ${contact.phone_whatsapp} (url=${normalizedCandidateUrl}).`)
+                        if (typeof result.media.id === 'number') {
+                            const currentSentTo = Array.isArray(result.media.sentTo) ? result.media.sentTo : []
+                            if (!currentSentTo.includes(contact.phone_whatsapp)) {
+                                await prisma.media.update({
+                                    where: { id: result.media.id },
+                                    data: { sentTo: { push: contact.phone_whatsapp } }
+                                })
+                            }
                         }
-
+                    } else {
                         if (platform !== 'discord') await whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => { })
 
-                        // Smart Send: Check if it's actually a video
                         const isVideo = (result.media.mimeType && result.media.mimeType.startsWith('video')) ||
-                            (dataUrl.match(/\.(mp4|mov|avi|webm|mkv)(\?|$)/i));
+                            /\.(mp4|mov|avi|webm|mkv)(\?|$)/i.test(dataUrl || '')
 
                         if (platform === 'discord') {
                             if (isVideo) {
@@ -1542,16 +1561,16 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
                             }
                         }
 
-                        // 2. Mark as Sent
-                        const currentSentTo = result.media.sentTo || []
-                        if (!currentSentTo.includes(contact.phone_whatsapp)) {
-                            await prisma.media.update({
-                                where: { id: result.media.id },
-                                data: { sentTo: { push: contact.phone_whatsapp } }
-                            })
+                        if (typeof result.media.id === 'number') {
+                            const currentSentTo = Array.isArray(result.media.sentTo) ? result.media.sentTo : []
+                            if (!currentSentTo.includes(contact.phone_whatsapp)) {
+                                await prisma.media.update({
+                                    where: { id: result.media.id },
+                                    data: { sentTo: { push: contact.phone_whatsapp } }
+                                })
+                            }
                         }
 
-                        // 3. Save Message to Database (So it shows in UI)
                         await prisma.message.create({
                             data: {
                                 conversationId: conversation.id,
@@ -1561,11 +1580,103 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
                                 timestamp: new Date()
                             }
                         })
-                    } catch (e: any) {
-                        console.error('[Chat] Failed to process AI Image sends', e)
                     }
-                })()
+                } else {
+                    console.warn(`[Chat] Media has no stable URL for duplicate-check (type=${typeId}). Proceeding with send.`)
+                    if (platform !== 'discord') await whatsapp.markAsRead(contact.phone_whatsapp, agentId, payload.messageKey).catch(() => { })
 
+                    const isVideo = (result.media.mimeType && result.media.mimeType.startsWith('video')) ||
+                        /\.(mp4|mov|avi|webm|mkv)(\?|$)/i.test(dataUrl || '')
+
+                    if (platform === 'discord') {
+                        if (isVideo) {
+                            await discord.sendFile(contact.phone_whatsapp, dataUrl, 'video.mp4', result.media.caption || '', agentId)
+                        } else {
+                            await discord.sendImage(contact.phone_whatsapp, dataUrl, result.media.caption || '', agentId)
+                        }
+                    } else {
+                        if (isVideo) {
+                            await whatsapp.sendVideo(contact.phone_whatsapp, dataUrl, result.media.caption || '', agentId)
+                        } else {
+                            await whatsapp.sendImage(contact.phone_whatsapp, dataUrl, result.media.caption || '', agentId)
+                        }
+                    }
+
+                    if (typeof result.media.id === 'number') {
+                        const currentSentTo = Array.isArray(result.media.sentTo) ? result.media.sentTo : []
+                        if (!currentSentTo.includes(contact.phone_whatsapp)) {
+                            await prisma.media.update({
+                                where: { id: result.media.id },
+                                data: { sentTo: { push: contact.phone_whatsapp } }
+                            })
+                        }
+                    }
+
+                    await prisma.message.create({
+                        data: {
+                            conversationId: conversation.id,
+                            sender: 'ai',
+                            message_text: `[Sent Media: ${keyword}]`,
+                            mediaUrl: result.media.url || dataUrl,
+                            timestamp: new Date()
+                        }
+                    })
+                }
+            } catch (e: any) {
+                console.error('[Chat] Failed to process AI Image sends', e)
+            }
+        } else if (mediaResult.action === 'NO_UNSENT_LEFT') {
+            console.log(`[Chat] No unsent media left for "${typeId}" and ${contact.phone_whatsapp}. Skipping media send.`)
+
+            // Notify admin (in-app + PWA push) when a contact asks for media and stock is exhausted.
+            // Deduplicated for 6h per (contact,typeId) to avoid spam.
+            try {
+                const entityId = `${contact.id}:${typeId}`
+                const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000)
+
+                const existingRecentNotif = await prisma.notification.findFirst({
+                    where: {
+                        type: 'MEDIA_DEPLETED',
+                        entityId,
+                        createdAt: { gte: sixHoursAgo }
+                    },
+                    select: { id: true }
+                })
+
+                if (!existingRecentNotif) {
+                    const contactLabel = contact.name || contact.phone_whatsapp || 'Unknown contact'
+                    const resolvedAgentId = agentId || conversation?.agentId || effectiveAgentId || null
+
+                    await prisma.notification.create({
+                        data: {
+                            title: 'Media exhausted for contact',
+                            message: `${contactLabel} asked for "${typeId}" but all photos/videos were already sent.`,
+                            type: 'MEDIA_DEPLETED',
+                            agentId: resolvedAgentId,
+                            entityId,
+                            metadata: {
+                                contactId: contact.id,
+                                contactPhone: contact.phone_whatsapp,
+                                contactName: contact.name || null,
+                                conversationId: conversation.id,
+                                mediaTypeId: typeId
+                            }
+                        }
+                    })
+
+                    const { sendPushNotificationToAll } = require('@/lib/push-notifications')
+                    await sendPushNotificationToAll({
+                        title: 'Media exhausted',
+                        body: `${contactLabel}: no unsent "${typeId}" left.`,
+                        url: '/admin/conversations',
+                        tag: `media-depleted-${entityId}`,
+                        icon: '/icon.png',
+                        badge: '/icon.png'
+                    })
+                }
+            } catch (notifErr: any) {
+                console.error('[Chat] Failed to create/send MEDIA_DEPLETED notification', notifErr)
+            }
         } else {
             // ACTION: REQUEST_SOURCE (Media Missing)
             console.log(`[Chat] âŒ Media missing for "${typeId}". STRICT RULE: Silence & Request Source.`)

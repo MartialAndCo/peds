@@ -416,16 +416,21 @@ Respond ONLY with JSON:
 
         // A. Check Bank
         const allMedias = await prisma.media.findMany({ where: { typeId } });
-        const availableMedias = allMedias.filter(m => !m.sentTo.includes(contactPhone));
 
-        if (availableMedias.length > 0) {
-            // Send one
-            const mediaToSend = availableMedias[0];
-            return { action: 'SEND', media: mediaToSend };
+        // No media exists at all for this type -> ask source
+        if (allMedias.length === 0) {
+            return { action: 'REQUEST_SOURCE' };
         }
 
-        // B. Request Source
-        return { action: 'REQUEST_SOURCE' };
+        // Media exists but all were already sent to this contact -> do nothing
+        const availableMedias = allMedias.filter(m => !m.sentTo.includes(contactPhone));
+        if (availableMedias.length === 0) {
+            return { action: 'NO_UNSENT_LEFT' };
+        }
+
+        // Send first unsent media
+        const mediaToSend = availableMedias[0];
+        return { action: 'SEND', media: mediaToSend };
     },
 
     // 3. Request from Source

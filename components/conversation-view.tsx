@@ -37,6 +37,7 @@ interface GalleryMedia {
     typeId: string
     type?: { id: string; description?: string }
     context?: string
+    sentTo?: string[]
 }
 
 interface MediaType {
@@ -104,6 +105,26 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
             return `data:image/webp;base64,${url}`
         }
         return url
+    }
+
+    // Normalize recipient identifiers to compare sentTo entries reliably
+    // across legacy formats (+33..., 33...@c.us, @s.whatsapp.net, DISCORD_...).
+    const normalizeRecipient = (value?: string | null): string => {
+        if (!value) return ''
+        const raw = String(value).trim()
+        if (!raw) return ''
+
+        if (/^DISCORD_/i.test(raw) || /@discord/i.test(raw)) {
+            return `discord:${raw.replace(/^DISCORD_/i, '').replace(/@discord/i, '').toLowerCase()}`
+        }
+
+        const local = raw.split('@')[0] || raw
+        let digits = local.replace(/\D/g, '')
+        if (!digits) return raw.toLowerCase()
+        if (local.startsWith('00') && digits.length > 2) {
+            digits = digits.slice(2)
+        }
+        return `wa:${digits}`
     }
 
     // Initial load - get latest messages
@@ -344,6 +365,8 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
     const filteredGalleryMedias = galleryFilter === 'all'
         ? galleryMedias
         : galleryMedias.filter(m => m.typeId === galleryFilter)
+    const galleryTargetPhone = conversation?.contact?.phone_whatsapp || ''
+    const normalizedGalleryTarget = normalizeRecipient(galleryTargetPhone)
 
     const toggleAI = async () => {
         try {
@@ -738,11 +761,21 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
                             <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 p-1">
                                 {filteredGalleryMedias.map(media => {
                                     const isVideo = /\.(mp4|mov|webm|avi)/i.test(media.url)
+                                    const isAlreadySent = Boolean(
+                                        normalizedGalleryTarget &&
+                                        Array.isArray(media.sentTo) &&
+                                        media.sentTo.some((recipient) => normalizeRecipient(recipient) === normalizedGalleryTarget)
+                                    )
                                     return (
                                         <button
                                             key={media.id}
                                             onClick={() => selectGalleryMedia(media)}
-                                            className="relative aspect-square rounded-lg overflow-hidden border-2 border-transparent hover:border-blue-500 transition-colors group"
+                                            className={cn(
+                                                "relative aspect-square rounded-lg overflow-hidden border-2 transition-colors group",
+                                                isAlreadySent
+                                                    ? "border-gray-200 opacity-45 grayscale hover:border-blue-500 cursor-pointer"
+                                                    : "border-transparent hover:border-blue-500"
+                                            )}
                                         >
                                             {isVideo ? (
                                                 <div className="w-full h-full bg-gray-900 flex flex-col items-center justify-center">
@@ -757,10 +790,18 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
                                                     loading="lazy"
                                                 />
                                             )}
-                                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                                            <div className={cn(
+                                                "absolute inset-0 transition-colors",
+                                                isAlreadySent ? "bg-black/15" : "bg-black/0 group-hover:bg-black/20"
+                                            )} />
                                             <span className="absolute bottom-1 left-1 text-[9px] bg-black/60 text-white px-1.5 py-0.5 rounded">
                                                 {media.typeId}
                                             </span>
+                                            {isAlreadySent && (
+                                                <span className="absolute top-1 right-1 text-[9px] bg-gray-900/80 text-gray-200 px-1.5 py-0.5 rounded">
+                                                    Already sent
+                                                </span>
+                                            )}
                                         </button>
                                     )
                                 })}
