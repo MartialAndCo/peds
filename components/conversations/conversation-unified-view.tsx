@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react'
 import axios from 'axios'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -56,6 +57,13 @@ interface Message {
   message_text: string
   mediaUrl?: string | null
   timestamp: string
+}
+
+interface SendMessagePayload {
+  messageText?: string
+  mediaUrl?: string | null
+  mediaType?: string | null
+  voiceBase64?: string | null
 }
 
 interface GalleryMedia {
@@ -123,6 +131,7 @@ export function ConversationUnifiedView({
   const oldestIdRef = useRef<number | null>(null)
   const hasMoreRef = useRef(true)
   const loadingMoreRef = useRef(false)
+  const optimisticMessageIdRef = useRef(-1)
   const conversationId = conversation.id
   const displayName = getContactDisplayName(conversation.contact)
   const displayInitial = getContactInitial(conversation.contact)
@@ -167,6 +176,81 @@ export function ConversationUnifiedView({
     container.scrollTo({ top: container.scrollHeight, behavior })
   }, [])
 
+  const rowVirtualizer = useVirtualizer({
+    count: messages.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 130,
+    overscan: 10,
+  })
+
+  const buildOptimisticMessage = useCallback((payload: SendMessagePayload): Message => {
+    const text = (payload.messageText || '').trim()
+    const mediaUrl = payload.voiceBase64 || payload.mediaUrl || null
+    const computedText = payload.voiceBase64
+      ? (text || '[Voice message]')
+      : (text || (mediaUrl ? '[Media]' : ''))
+
+    return {
+      id: optimisticMessageIdRef.current--,
+      sender: 'admin',
+      message_text: computedText,
+      mediaUrl,
+      timestamp: new Date().toISOString(),
+    }
+  }, [])
+
+  const appendOptimisticMessage = useCallback((message: Message) => {
+    setMessages(prev => [...prev, message])
+    requestAnimationFrame(() => scrollToBottom('smooth'))
+  }, [scrollToBottom])
+
+  const replaceOrRemoveOptimisticMessage = useCallback((optimisticId: number, persistedMessage?: Message) => {
+    setMessages(prev => {
+      const index = prev.findIndex(m => m.id === optimisticId)
+      if (index === -1) {
+        if (persistedMessage && !prev.some(m => m.id === persistedMessage.id)) {
+          return [...prev, persistedMessage]
+        }
+        return prev
+      }
+
+      if (!persistedMessage) {
+        return prev.filter(m => m.id !== optimisticId)
+      }
+
+      const samePersistedMessageIndex = prev.findIndex(m => m.id === persistedMessage.id && m.id !== optimisticId)
+      if (samePersistedMessageIndex !== -1) {
+        return prev.filter(m => m.id !== optimisticId)
+      }
+
+      const next = [...prev]
+      next[index] = persistedMessage
+      return next
+    })
+  }, [])
+
+  const sendMessageWithOptimisticUi = useCallback(async (payload: SendMessagePayload): Promise<Message | null> => {
+    const optimisticMessage = buildOptimisticMessage(payload)
+    appendOptimisticMessage(optimisticMessage)
+
+    try {
+      const res = await axios.post(`/api/conversations/${conversationId}/send`, {
+        message_text: payload.messageText || '',
+        sender: 'admin',
+        mediaUrl: payload.mediaUrl || undefined,
+        mediaType: payload.mediaType || undefined,
+        voiceBase64: payload.voiceBase64 || undefined
+      })
+
+      const persistedMessage: Message | undefined = res.data?.message
+      replaceOrRemoveOptimisticMessage(optimisticMessage.id, persistedMessage)
+      return persistedMessage || null
+    } catch (error) {
+      replaceOrRemoveOptimisticMessage(optimisticMessage.id)
+      throw error
+    }
+  }, [appendOptimisticMessage, buildOptimisticMessage, conversationId, replaceOrRemoveOptimisticMessage])
+
   const loadMessages = useCallback(async ({ scrollToLatest = false, smooth = false }: { scrollToLatest?: boolean; smooth?: boolean } = {}) => {
     setLoading(true)
     try {
@@ -196,6 +280,47 @@ export function ConversationUnifiedView({
     loadMessages({ scrollToLatest: true })
     axios.post(`/api/conversations/${conversationId}/read`).catch(console.error)
   }, [isOpen, conversationId, loadMessages])
+
+  const pollLatestMessages = useCallback(async () => {
+    if (!isOpen) return
+
+    try {
+      const res = await axios.get(`/api/conversations/${conversationId}/messages?limit=20`)
+      const latestMessages: Message[] = res.data.messages || []
+      if (latestMessages.length === 0) return
+
+      const container = scrollRef.current
+      const isNearBottom = container
+        ? container.scrollHeight - container.scrollTop - container.clientHeight < 180
+        : false
+
+      let didAdd = false
+      setMessages(prev => {
+        const knownIds = new Set(prev.map(m => m.id))
+        const trulyNew = latestMessages.filter(m => !knownIds.has(m.id))
+        if (trulyNew.length === 0) return prev
+
+        didAdd = true
+        return [...prev, ...trulyNew]
+      })
+
+      if (didAdd && isNearBottom) {
+        requestAnimationFrame(() => scrollToBottom('smooth'))
+      }
+    } catch (error) {
+      console.error('Failed to poll latest messages:', error)
+    }
+  }, [conversationId, isOpen, scrollToBottom])
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    const pollTimer = setInterval(() => {
+      pollLatestMessages()
+    }, 3000)
+
+    return () => clearInterval(pollTimer)
+  }, [isOpen, pollLatestMessages])
 
   const loadOlderMessages = useCallback(async () => {
     const currentOldestId = oldestIdRef.current
@@ -243,20 +368,22 @@ export function ConversationUnifiedView({
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!inputText.trim() && !selectedMediaUrl) return
+    const text = inputText.trim()
+    const mediaUrl = selectedMediaUrl
+    const mediaType = selectedMediaType
+    if (!text && !mediaUrl) return
 
     setSending(true)
     try {
-      await axios.post(`/api/conversations/${conversationId}/send`, {
-        message_text: inputText || '',
-        sender: 'admin',
-        mediaUrl: selectedMediaUrl || undefined,
-        mediaType: selectedMediaType || undefined
-      })
       setInputText('')
       setSelectedMediaUrl(null)
       setSelectedMediaType(null)
-      await loadMessages({ scrollToLatest: true, smooth: true })
+
+      await sendMessageWithOptimisticUi({
+        messageText: text,
+        mediaUrl,
+        mediaType,
+      })
     } catch (error) {
       console.error('Failed to send:', error)
     } finally {
@@ -329,15 +456,13 @@ export function ConversationUnifiedView({
     if (!voiceAudio) return
     setVoiceSending(true)
     try {
-      await axios.post(`/api/conversations/${conversationId}/send`, {
-        message_text: voiceText,
+      await sendMessageWithOptimisticUi({
+        messageText: voiceText,
         voiceBase64: voiceAudio,
-        sender: 'admin'
       })
       setIsVoiceOpen(false)
       setVoiceText('')
       setVoiceAudio(null)
-      await loadMessages({ scrollToLatest: true, smooth: true })
     } catch (error) {
       console.error('Voice send failed', error)
       alert('Failed to send voice message')
@@ -422,13 +547,11 @@ export function ConversationUnifiedView({
     if (!regeneratedResponse) return
     setSending(true)
     try {
-      await axios.post(`/api/conversations/${conversationId}/send`, {
-        message_text: regeneratedResponse,
-        sender: 'admin'
+      await sendMessageWithOptimisticUi({
+        messageText: regeneratedResponse,
       })
       setRegeneratedResponse(null)
       setShowRegeneratePreview(false)
-      await loadMessages({ scrollToLatest: true, smooth: true })
     } catch (error) {
       console.error('Failed to send:', error)
     } finally {
@@ -464,6 +587,77 @@ export function ConversationUnifiedView({
       return `data:image/webp;base64,${url}`
     }
     return url
+  }
+
+  const renderMessageBubble = (m: Message) => {
+    const isMe = m.sender === 'admin'
+    const isAi = m.sender === 'ai'
+    const isContact = m.sender === 'contact'
+
+    const fixedMediaUrl = fixMediaUrl(m.mediaUrl)
+    const isVideo = fixedMediaUrl && (fixedMediaUrl.startsWith('data:video') || /\.(mp4|mov|avi|webm|mkv)(\?|#|$)/i.test(fixedMediaUrl))
+    const isAudio = fixedMediaUrl && (fixedMediaUrl.startsWith('data:audio') || /\.(mp3|wav|ogg|m4a|opus)(\?|#|$)/i.test(fixedMediaUrl))
+    const isSticker = fixedMediaUrl && /\.(webp)(\?|#|$)/i.test(fixedMediaUrl)
+    const isImage = fixedMediaUrl && !isVideo && !isAudio && !isSticker && (
+      fixedMediaUrl.startsWith('data:image') ||
+      /\.(jpeg|jpg|gif|png)(\?|#|$)/i.test(fixedMediaUrl) ||
+      fixedMediaUrl.startsWith('/9j/') ||
+      fixedMediaUrl.startsWith('iVBOR') ||
+      fixedMediaUrl.startsWith('http')
+    )
+    const displayText = isAudio
+      ? m.message_text.replace(/^\s*\[VOICE\]\s*/i, '').trim()
+      : m.message_text
+
+    return (
+      <div className={cn("flex w-full",
+        isContact ? "justify-start" : "justify-end"
+      )}>
+        <div className={cn(
+          "max-w-[85%] sm:max-w-[80%] rounded-2xl px-3 py-2 text-sm",
+          isContact ? "bg-white/10 text-white border border-white/10" :
+            isAi ? "bg-purple-500/20 text-purple-100 border border-purple-500/30" :
+              "bg-blue-500/20 text-blue-100 border border-blue-500/30"
+        )}>
+          <div className="flex items-center gap-2 mb-1">
+            <span className={cn(
+              "text-xs font-bold opacity-70 capitalize",
+              isAi ? "text-purple-300" : isMe ? "text-blue-300" : "text-white/60"
+            )}>
+              {m.sender}
+            </span>
+            <span className="text-[10px] opacity-40">
+              {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </div>
+
+          {isSticker && fixedMediaUrl && (
+            <div className="mb-2 mt-1">
+              <img src={fixedMediaUrl} alt="Sticker" className="w-32 h-32 object-contain" />
+            </div>
+          )}
+          {isImage && fixedMediaUrl && (
+            <div className="mb-2 mt-1 cursor-pointer" onClick={() => setPreviewImage(fixedMediaUrl)}>
+              <img src={fixedMediaUrl} alt="Shared" className="max-w-full rounded-lg max-h-48 object-cover hover:opacity-95 transition-opacity" />
+            </div>
+          )}
+          {isVideo && fixedMediaUrl && (
+            <div className="mb-2 mt-1">
+              <video src={fixedMediaUrl} controls className="max-w-full rounded-lg max-h-48" />
+            </div>
+          )}
+          {isAudio && fixedMediaUrl && (
+            <div className="mb-2 mt-1">
+              <AudioPlayer src={fixedMediaUrl} isMe={isMe} />
+            </div>
+          )}
+
+          {displayText && (
+            <p className="whitespace-pre-wrap break-words">{displayText}</p>
+          )}
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -559,7 +753,7 @@ export function ConversationUnifiedView({
                 <p className="text-sm">Start the conversation!</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div>
                 {loadingMore && (
                   <div className="flex justify-center py-1">
                     <Loader2 className="h-4 w-4 animate-spin text-white/40" />
@@ -570,71 +764,27 @@ export function ConversationUnifiedView({
                     - Beginning of conversation -
                   </div>
                 )}
-                {messages.map((m) => {
-                  const isMe = m.sender === 'admin'
-                  const isAi = m.sender === 'ai'
-                  const isContact = m.sender === 'contact'
+                <div
+                  className="relative"
+                  style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+                >
+                  {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                    const message = messages[virtualRow.index]
+                    if (!message) return null
 
-                  const fixedMediaUrl = fixMediaUrl(m.mediaUrl)
-                  const isVideo = fixedMediaUrl && (fixedMediaUrl.startsWith('data:video') || /\.(mp4|mov|avi|webm|mkv)(\?|#|$)/i.test(fixedMediaUrl))
-                  const isAudio = fixedMediaUrl && (fixedMediaUrl.startsWith('data:audio') || /\.(mp3|wav|ogg|m4a|opus)(\?|#|$)/i.test(fixedMediaUrl))
-                  const isSticker = fixedMediaUrl && /\.(webp)(\?|#|$)/i.test(fixedMediaUrl)
-                  const isImage = fixedMediaUrl && !isVideo && !isAudio && !isSticker && (
-                    fixedMediaUrl.startsWith('data:image') ||
-                    /\.(jpeg|jpg|gif|png)(\?|#|$)/i.test(fixedMediaUrl) ||
-                    fixedMediaUrl.startsWith('/9j/') ||
-                    fixedMediaUrl.startsWith('iVBOR') ||
-                    fixedMediaUrl.startsWith('http')
-                  )
-
-                  return (
-                    <div key={m.id} className={cn("flex w-full",
-                      isContact ? "justify-start" : "justify-end"
-                    )}>
-                      <div className={cn(
-                        "max-w-[85%] sm:max-w-[80%] rounded-2xl px-3 py-2 text-sm",
-                        isContact ? "bg-white/10 text-white border border-white/10" :
-                          isAi ? "bg-purple-500/20 text-purple-100 border border-purple-500/30" :
-                            "bg-blue-500/20 text-blue-100 border border-blue-500/30"
-                      )}>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={cn(
-                            "text-xs font-bold opacity-70 capitalize",
-                            isAi ? "text-purple-300" : isMe ? "text-blue-300" : "text-white/60"
-                          )}>
-                            {m.sender}
-                          </span>
-                          <span className="text-[10px] opacity-40">
-                            {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
-
-                        {isSticker && fixedMediaUrl && (
-                          <div className="mb-2 mt-1">
-                            <img src={fixedMediaUrl} alt="Sticker" className="w-32 h-32 object-contain" />
-                          </div>
-                        )}
-                        {isImage && fixedMediaUrl && (
-                          <div className="mb-2 mt-1 cursor-pointer" onClick={() => setPreviewImage(fixedMediaUrl)}>
-                            <img src={fixedMediaUrl} alt="Shared" className="max-w-full rounded-lg max-h-48 object-cover hover:opacity-95 transition-opacity" />
-                          </div>
-                        )}
-                        {isVideo && fixedMediaUrl && (
-                          <div className="mb-2 mt-1">
-                            <video src={fixedMediaUrl} controls className="max-w-full rounded-lg max-h-48" />
-                          </div>
-                        )}
-                        {isAudio && fixedMediaUrl && (
-                          <div className="mb-2 mt-1">
-                            <AudioPlayer src={fixedMediaUrl} isMe={isMe} />
-                          </div>
-                        )}
-
-                        <p className="whitespace-pre-wrap break-words">{m.message_text}</p>
+                    return (
+                      <div
+                        key={message.id}
+                        data-index={virtualRow.index}
+                        ref={rowVirtualizer.measureElement}
+                        className="absolute top-0 left-0 w-full py-1.5"
+                        style={{ transform: `translateY(${virtualRow.start}px)` }}
+                      >
+                        {renderMessageBubble(message)}
                       </div>
-                    </div>
-                  )
-                })}
+                    )
+                  })}
+                </div>
               </div>
             )}
           </div>
