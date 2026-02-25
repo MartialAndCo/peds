@@ -124,7 +124,7 @@ export function AnalyticsGrid({ data }: { data: any }) {
                 />
                 <StatsCard
                     title="AI Balance"
-                    value={data.veniceBalanceUsd != null ? `$${data.veniceBalanceUsd.toFixed(2)}` : (data.veniceBalanceDiem != null ? `${data.veniceBalanceDiem.toFixed(2)} DIEM` : "N/A")}
+                    value={data.veniceBalanceUsd != null ? `$${data.veniceBalanceUsd.toFixed(2)}` : "N/A"}
                     icon={DollarSign}
                     sub="Available Balance"
                 />

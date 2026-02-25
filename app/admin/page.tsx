@@ -33,7 +33,6 @@ export default async function DashboardPage({
         dailyActivity: [] as any[],
         veniceCost: 0,
         veniceBalanceUsd: null as number | null,
-        veniceBalanceDiem: null as number | null,
         dailyAICost: [] as { date: string, cost: number }[]
     }
 
@@ -90,7 +89,6 @@ export default async function DashboardPage({
 
         const veniceCost = veniceUsageRaw?.totalAmount || 0
         const veniceBalanceUsd = veniceBalanceRaw?.balances?.usd ?? veniceBalanceRaw?.balances?.balanceUsd ?? null
-        const veniceBalanceDiem = veniceBalanceRaw?.balances?.diem ?? null
 
         statsData = {
             revenue,
@@ -106,7 +104,6 @@ export default async function DashboardPage({
             dailyActivity: dailyActivityRaw.reverse(),
             veniceCost,
             veniceBalanceUsd,
-            veniceBalanceDiem,
             dailyAICost: veniceUsageRaw?.dailyCosts || []
         }
 
