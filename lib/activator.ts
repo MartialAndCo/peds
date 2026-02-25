@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { venice } from '@/lib/venice'
 import { anthropic } from '@/lib/anthropic'
 import { whatsapp } from '@/lib/whatsapp'
+import { enforceLength } from '@/lib/services/response-length-guard'
 // import axios from 'axios' // not needed anymore
 const { director } = require('@/lib/director')
 
@@ -92,14 +93,24 @@ export const activator = {
                     systemPrompt,
                     contextMessages,
                     lastMessage,
-                    { apiKey: settings.anthropic_api_key, model: conversation.prompt.model, temperature: settings.ai_temperature ? Number(settings.ai_temperature) : Number(conversation.prompt.temperature) }
+                    {
+                        apiKey: settings.anthropic_api_key,
+                        model: conversation.prompt.model,
+                        temperature: settings.ai_temperature ? Number(settings.ai_temperature) : Number(conversation.prompt.temperature),
+                        max_tokens: 120
+                    }
                 )
             } else {
                 aiText = await venice.chatCompletion(
                     systemPrompt,
                     contextMessages,
                     lastMessage,
-                    { apiKey: settings.venice_api_key, model: conversation.prompt.model, temperature: settings.ai_temperature ? Number(settings.ai_temperature) : Number(conversation.prompt.temperature) }
+                    {
+                        apiKey: settings.venice_api_key,
+                        model: conversation.prompt.model,
+                        temperature: settings.ai_temperature ? Number(settings.ai_temperature) : Number(conversation.prompt.temperature),
+                        max_tokens: 120
+                    }
                 )
             }
         } catch (e: any) {
@@ -110,8 +121,32 @@ export const activator = {
         // Cleanup
         aiText = aiText.replace(/\*[^*]+\*/g, '').trim()
 
+        const contactLocale =
+            conversation.contact?.profile && typeof conversation.contact.profile === 'object'
+                ? (conversation.contact.profile as any).locale
+                : undefined
+
+        const guarded = await enforceLength({
+            text: aiText,
+            locale: contactLocale,
+            apiKey: settings?.venice_api_key || null,
+            source: 'activator.direct-send',
+            maxWordsPerBubble: 12,
+            maxBubbles: 2,
+            attempt: 1
+        })
+
+        if (guarded.status === 'blocked') {
+            console.warn('[Activator] Length guard blocked outgoing message', {
+                reason: guarded.reason,
+                ...guarded.metrics
+            })
+            return { error: 'LENGTH_GUARD_BLOCKED' }
+        }
+        aiText = guarded.text
+
         // 5. Send to WhatsApp (via Standard Client)
-        const parts = aiText.split('|||').filter(p => p.trim().length > 0)
+        const parts = aiText.split(/\|+/).filter(p => p.trim().length > 0)
         const chatJid = conversation.contact.phone_whatsapp // Library handles formatting and @c.us vs @s.whatsapp.net
 
         // Skip if no phone number (e.g., Discord-only contact)

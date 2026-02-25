@@ -8,6 +8,7 @@ import { openrouter } from '@/lib/openrouter'
 import { TimingManager } from '@/lib/timing'
 import { logger } from '@/lib/logger'
 import { formatResponse } from '@/lib/response-formatter'
+import { enforceLength } from '@/lib/services/response-length-guard'
 // import { messageQueue } from '@/lib/queue' // Deprecated
 import { NextResponse } from 'next/server'
 
@@ -978,6 +979,25 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         }
         // ═══════════════════════════════════════════════════════════════════════════
 
+        const queuedLengthCheck = await enforceLength({
+            text: responseText,
+            locale: agentLocale,
+            apiKey: settings?.venice_api_key || null,
+            source: 'chat.queue',
+            maxWordsPerBubble: 12,
+            maxBubbles: 2,
+            attempt: 1
+        })
+
+        if (queuedLengthCheck.status === 'blocked') {
+            console.warn('[Chat][Queue] Length guard blocked outgoing response', {
+                reason: queuedLengthCheck.reason,
+                ...queuedLengthCheck.metrics
+            })
+            return { handled: true, result: 'blocked_length_guard' }
+        }
+        responseText = queuedLengthCheck.text
+
         await prisma.messageQueue.create({
             data: {
                 contactId: contact.id,
@@ -1506,6 +1526,25 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         })
         return { handled: true, result: 'reaction_only' }
     }
+
+    const inlineLengthCheck = await enforceLength({
+        text: responseText,
+        locale: agentLocale,
+        apiKey: settings?.venice_api_key || null,
+        source: 'chat.inline',
+        maxWordsPerBubble: 12,
+        maxBubbles: 2,
+        attempt: 1
+    })
+
+    if (inlineLengthCheck.status === 'blocked') {
+        console.warn('[Chat] Length guard blocked inline response', {
+            reason: inlineLengthCheck.reason,
+            ...inlineLengthCheck.metrics
+        })
+        return { handled: true, result: 'blocked_length_guard' }
+    }
+    responseText = inlineLengthCheck.text
 
     // Voice Response Logic
     const isPttMessage = payload.type === 'ptt' || payload.type === 'audio'

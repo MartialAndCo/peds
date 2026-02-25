@@ -4,6 +4,8 @@ import { processWhatsAppPayload } from '@/lib/services/whatsapp-processor'
 import { logger, trace } from '@/lib/logger'
 import { runpod } from '@/lib/runpod'
 import { whatsapp } from '@/lib/whatsapp'
+import { settingsService } from '@/lib/settings-cache'
+import { enforceLength } from '@/lib/services/response-length-guard'
 
 // Allow up to 300 seconds (5 mins) for AI processing - Max for most serverless functions
 export const maxDuration = 300
@@ -176,7 +178,7 @@ export async function GET(req: Request) {
                         'media_request_blocked', 'paused', 'contact_not_active', 'ignored_contact_status']
 
                     const RETRY_STATUSES = ['ai_quota_failed', 'ai_response_empty', 'ai_quota_failed_queued_for_retry',
-                        'blocked_safety', 'async_error']
+                        'blocked_safety', 'async_error', 'blocked_length_guard']
 
                     if (result?.status === 'async_job_started' && result?.jobId) {
                         // Switch to Async Mode
@@ -237,6 +239,7 @@ export async function GET(req: Request) {
             where: { status: 'AI_PROCESSING', runpodJobId: { not: null } },
             take: 10
         })
+        const currentSettings = await settingsService.getSettings().catch(() => ({} as any))
 
         for (const job of asyncJobs) {
             if (!job.runpodJobId) continue
@@ -246,7 +249,7 @@ export async function GET(req: Request) {
 
                 if (check.status === 'COMPLETED' && check.output) {
                     console.log(`[CRON] Async Job ${job.runpodJobId} COMPLETED. Finalizing...`)
-                    const responseText = check.output
+                    let responseText = check.output
 
                     // 1. Save to DB (Find conversation logic is tricky here as we lost context)
                     // We need to re-find the conversation. Ideally we stored convId in queue, but we didn't add the column yet.
@@ -258,14 +261,50 @@ export async function GET(req: Request) {
                     const phone = from.includes('@') ? `+${from.split('@')[0]}` : ""
 
                     if (phone) {
+                        // Find conversation first to extract locale context
+                        const conv = await prisma.conversation.findFirst({
+                            where: { contact: { phone_whatsapp: phone }, status: { in: ['active', 'paused'] } },
+                            orderBy: { updatedAt: 'desc' },
+                            include: { contact: true }
+                        })
+
+                        const contactLocale =
+                            conv?.contact?.profile && typeof conv.contact.profile === 'object'
+                                ? (conv.contact.profile as any).locale
+                                : undefined
+                        const guardAttempt = (job.attempts || 0) + 1
+                        const guardResult = await enforceLength({
+                            text: responseText,
+                            locale: contactLocale,
+                            apiKey: currentSettings?.venice_api_key || null,
+                            source: 'cron.process-incoming.async-completion',
+                            maxWordsPerBubble: 12,
+                            maxBubbles: 2,
+                            attempt: guardAttempt
+                        })
+
+                        if (guardResult.status === 'blocked') {
+                            const shouldFail = guardAttempt >= 3
+                            await prisma.incomingQueue.update({
+                                where: { id: job.id },
+                                data: {
+                                    status: shouldFail ? 'FAILED' : 'PENDING',
+                                    attempts: { increment: 1 },
+                                    error: `Length guard blocked async completion: ${guardResult.reason || 'unknown'}`
+                                }
+                            })
+                            console.warn(`[CRON] Async completion blocked by length guard for item ${job.id}`, {
+                                reason: guardResult.reason,
+                                ...guardResult.metrics
+                            })
+                            continue
+                        }
+                        responseText = guardResult.text
+
                         // Send WhatsApp Response
                         await whatsapp.sendText(phone, responseText, undefined, job.agentId as unknown as string)
 
                         // Try to log it if we can find the conv
-                        const conv = await prisma.conversation.findFirst({
-                            where: { contact: { phone_whatsapp: phone }, status: { in: ['active', 'paused'] } },
-                            orderBy: { updatedAt: 'desc' }
-                        })
                         if (conv) {
                             await prisma.message.create({
                                 data: {

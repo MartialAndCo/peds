@@ -5,6 +5,7 @@ import { memoryService } from '@/lib/memory'
 import { logger } from '@/lib/logger'
 import { detectPaymentClaim, PaymentClaimResult } from './payment-detector'
 import { sendPaymentClaimPush } from '@/lib/push-notifications'
+import { enforceLength } from './response-length-guard'
 
 /**
  * Process a user message for potential payment claims.
@@ -352,9 +353,31 @@ Example responses (mix them up, be creative):
                     confirmSystemPrompt,
                     contextMessages.slice(-3),
                     contextMessages.length > 0 ? contextMessages[contextMessages.length - 1].content : 'I sent it',
-                    { apiKey: vKey, model: vModel, temperature: 0.8 } // Higher temp for variety
+                    { apiKey: vKey, model: vModel, temperature: 0.8, max_tokens: 120 } // Higher temp for variety
                 )
                 thankYouMsg = thankYouMsg.replace(/\*[^*]+\*/g, '').replace(/\[PAYMENT_RECEIVED\]|\[PAIEMENT_REÇU\]|\[PAIEMENT_RECU\]/g, '').trim()
+
+                const thankYouLengthCheck = await enforceLength({
+                    text: thankYouMsg,
+                    locale: claim.contact?.profile && typeof claim.contact.profile === 'object'
+                        ? (claim.contact.profile as any).locale
+                        : null,
+                    apiKey: settings?.venice_api_key || null,
+                    source: 'payment-claim.confirmation',
+                    maxWordsPerBubble: 12,
+                    maxBubbles: 2,
+                    attempt: 1
+                })
+
+                if (thankYouLengthCheck.status === 'blocked') {
+                    logger.warn('Length guard blocked payment confirmation message', {
+                        module: 'payment-claim',
+                        reason: thankYouLengthCheck.reason,
+                        ...thankYouLengthCheck.metrics
+                    })
+                    return true
+                }
+                thankYouMsg = thankYouLengthCheck.text
 
                 const contactPhone = claim.contact.phone_whatsapp || ''
                 await whatsapp.sendText(contactPhone, thankYouMsg, undefined, effectiveAgentId as string)
@@ -440,11 +463,33 @@ Example responses (be creative, mix them up):
                     rejectSystemPrompt,
                     contextMessages.slice(-3), // Only last 3 messages for context
                     contextMessages.length > 0 ? contextMessages[contextMessages.length - 1].content : 'I sent it',
-                    { apiKey: vKey, model: vModel, temperature: 0.7 }
+                    { apiKey: vKey, model: vModel, temperature: 0.7, max_tokens: 120 }
                 )
                 notReceivedMsg = notReceivedMsg.replace(/\*[^*]+\*/g, '').replace(/\[PAYMENT_RECEIVED\]|\[PAIEMENT_REÇU\]|\[PAIEMENT_RECU\]/g, '').trim()
                 // Extra safety: Strip any PayPal mentions that might slip through
                 notReceivedMsg = notReceivedMsg.replace(/paypal[:\s]?\w*/gi, '').replace(/lena\d+/gi, '').replace(/anais\.\w+/gi, '').trim()
+
+                const rejectionLengthCheck = await enforceLength({
+                    text: notReceivedMsg,
+                    locale: claim.contact?.profile && typeof claim.contact.profile === 'object'
+                        ? (claim.contact.profile as any).locale
+                        : null,
+                    apiKey: settings?.venice_api_key || null,
+                    source: 'payment-claim.rejection',
+                    maxWordsPerBubble: 12,
+                    maxBubbles: 2,
+                    attempt: 1
+                })
+
+                if (rejectionLengthCheck.status === 'blocked') {
+                    logger.warn('Length guard blocked payment rejection message', {
+                        module: 'payment-claim',
+                        reason: rejectionLengthCheck.reason,
+                        ...rejectionLengthCheck.metrics
+                    })
+                    return true
+                }
+                notReceivedMsg = rejectionLengthCheck.text
 
                 const contactPhone = claim.contact.phone_whatsapp || ''
                 await whatsapp.sendText(contactPhone, notReceivedMsg, undefined, effectiveAgentId as string)
@@ -498,3 +543,4 @@ export async function handlePaymentClaimReaction(
 
     return false
 }
+

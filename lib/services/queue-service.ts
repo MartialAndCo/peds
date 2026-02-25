@@ -6,6 +6,7 @@ import { timeCoherenceAgent } from './time-coherence-agent'
 import { ageCoherenceAgent } from './age-coherence-agent'
 import { messageValidator } from './message-validator'
 import { formatResponse } from '@/lib/response-formatter'
+import { enforceLength, LengthGuardResult } from './response-length-guard'
 
 export class QueueService {
     // Track items currently being processed in-memory to prevent concurrent execution
@@ -216,6 +217,32 @@ export class QueueService {
             return { id: queueItem.id, status: 'blocked', reason: `contact_status_${liveContact.status}` }
         }
 
+        // Global outgoing length guard (all queued AI text)
+        if (textContent && textContent.trim().length > 0) {
+            const settings = await settingsService.getSettings().catch(() => ({} as any))
+            const contactLocale =
+                contact?.profile && typeof contact.profile === 'object'
+                    ? (contact.profile as any).locale
+                    : undefined
+            const sendAttempt = (queueItem.attempts || 0) + 1
+
+            const lengthCheck = await enforceLength({
+                text: textContent,
+                locale: contactLocale,
+                apiKey: settings?.venice_api_key || null,
+                source: 'queue.transport',
+                maxWordsPerBubble: 12,
+                maxBubbles: 2,
+                attempt: sendAttempt
+            })
+
+            if (lengthCheck.status === 'blocked') {
+                return this.handleLengthGuardBlocked(queueItem, lengthCheck, agentId)
+            }
+
+            textContent = lengthCheck.text
+        }
+
         // ═══════════════════════════════════════════════════════════════════════════
         // OBSOLESCENCE CHECK: Did the user speak SINCE this message was queued?
         // WARNING ONLY: Previously this blocked the message entirely (INVALID_STALE),
@@ -246,16 +273,16 @@ export class QueueService {
         const profileAge = agentProfile?.baseAge || 15;
 
         // 🕐 VÉRIFICATION TEMPORELLE: Détecter les mentions d'heure incohérentes
-        if (content && !mediaUrl) {
-            const timeCheck = await timeCoherenceAgent.checkAndLog(content, queueItem.id, new Date());
+        if (textContent && !mediaUrl) {
+            const timeCheck = await timeCoherenceAgent.checkAndLog(textContent, queueItem.id, new Date());
             if (timeCheck.shouldRewrite && timeCheck.suggestedFix) {
                 console.log(`[QueueService] ⚠️ Message ${queueItem.id} contient une heure incohérente. Suggestion: "${timeCheck.suggestedFix}"`);
             }
         }
 
         // 🎂 VÉRIFICATION D'ÂGE: Détecter les mentions d'âge incohérentes
-        if (content && !mediaUrl) {
-            const ageCheck = await ageCoherenceAgent.checkAndLog(content, queueItem.id, profileAge);
+        if (textContent && !mediaUrl) {
+            const ageCheck = await ageCoherenceAgent.checkAndLog(textContent, queueItem.id, profileAge);
             if (ageCheck.shouldFlag) {
                 console.warn(`[QueueService] 🚨 ALERTE ÂGE: Message ${queueItem.id} mentionne ${ageCheck.mentionedAge} ans au lieu de ${profileAge} ans!`);
             }
@@ -290,21 +317,21 @@ export class QueueService {
             await whatsapp.sendRecordingState(phone, false, agentId).catch(e => { })
 
             // Caption (Follow-up text)
-            if (content && content.trim().length > 0) {
+            if (textContent && textContent.trim().length > 0) {
                 await new Promise(r => setTimeout(r, 2000))
-                await whatsapp.sendText(phone, content.trim(), undefined, agentId)
+                await whatsapp.sendText(phone, textContent.trim(), undefined, agentId)
             }
         }
         // B. HANDLE MEDIA (Images/Video)
         else if (mediaUrl) {
             await whatsapp.sendTypingState(phone, true, agentId).catch(e => { })
-            const typingMs = Math.min((content?.length || 10) * 78, 6500) // +30%
+            const typingMs = Math.min((textContent?.length || 10) * 78, 6500) // +30%
             await new Promise(r => setTimeout(r, typingMs + 1300))
 
             if (mediaType?.includes('video')) {
-                await whatsapp.sendVideo(phone, mediaUrl, content || "", agentId)
+                await whatsapp.sendVideo(phone, mediaUrl, textContent || "", agentId)
             } else {
-                await whatsapp.sendImage(phone, mediaUrl, content || "", agentId)
+                await whatsapp.sendImage(phone, mediaUrl, textContent || "", agentId)
             }
             await whatsapp.sendTypingState(phone, false, agentId).catch(e => { })
         }
@@ -391,6 +418,82 @@ export class QueueService {
         }
 
         return { id: queueItem.id, status: 'success' }
+    }
+
+    private async handleLengthGuardBlocked(queueItem: any, guardResult: LengthGuardResult, agentId?: string) {
+        const attempt = (queueItem.attempts || 0) + 1
+        const shouldFail = attempt >= 3
+        const backoffMinutes = attempt === 1 ? 1 : 3
+        const errorMessage = `Length guard blocked message: ${guardResult.reason || 'unknown'}`
+
+        if (shouldFail) {
+            await prisma.messageQueue.update({
+                where: { id: queueItem.id },
+                data: {
+                    status: 'FAILED',
+                    attempts: { increment: 1 },
+                    error: errorMessage
+                }
+            })
+
+            await prisma.notification.create({
+                data: {
+                    title: '🚨 Queue Length Guard Failed',
+                    message: `Queue message ${queueItem.id} blocked after 3 attempts.`,
+                    type: 'SYSTEM',
+                    agentId: agentId || null,
+                    entityId: String(queueItem.conversationId || queueItem.id),
+                    metadata: {
+                        queueItemId: queueItem.id,
+                        reason: guardResult.reason || 'unknown',
+                        source: guardResult.metrics.source,
+                        attempt,
+                        beforeWords: guardResult.metrics.beforeWords,
+                        afterWords: guardResult.metrics.afterWords
+                    }
+                }
+            }).catch((error) => {
+                console.error('[QueueService] Failed to create length guard notification:', error)
+            })
+
+            logger.error('Queue length guard failed permanently', undefined, {
+                module: 'queue-service',
+                source: guardResult.metrics.source,
+                action: 'failed',
+                attempt,
+                beforeWords: guardResult.metrics.beforeWords,
+                afterWords: guardResult.metrics.afterWords
+            })
+
+            return { id: queueItem.id, status: 'failed', reason: 'length_guard_max_attempts' }
+        }
+
+        const scheduledAt = new Date(Date.now() + backoffMinutes * 60 * 1000)
+        await prisma.messageQueue.update({
+            where: { id: queueItem.id },
+            data: {
+                status: 'PENDING',
+                scheduledAt,
+                attempts: { increment: 1 },
+                error: errorMessage
+            }
+        })
+
+        logger.warn('Queue length guard requeued message', {
+            module: 'queue-service',
+            source: guardResult.metrics.source,
+            action: 'requeue',
+            attempt,
+            beforeWords: guardResult.metrics.beforeWords,
+            afterWords: guardResult.metrics.afterWords
+        })
+
+        return {
+            id: queueItem.id,
+            status: 'requeued',
+            reason: 'length_guard_blocked',
+            scheduledAt
+        }
     }
 
     /**

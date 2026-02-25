@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server'
 import { logger } from '@/lib/logger'
 import { settingsService } from '@/lib/settings-cache'
 import { queueService } from '@/lib/services/queue-service'
+import { enforceLength } from '@/lib/services/response-length-guard'
 
 /**
  * Core processor for WhatsApp Webhook Payloads.
@@ -574,10 +575,39 @@ Keep response SHORT and excited.)`
                         const userMessageWithInstruction = `${messageText}\n\n${paywallSystemPrompt}`
 
                         if (provider === 'anthropic') {
-                            aiPaywallResponse = await anthropic.chatCompletion(fullSystemPrompt, history, userMessageWithInstruction, { apiKey: settings.anthropic_api_key, model: settings.anthropic_model })
+                            aiPaywallResponse = await anthropic.chatCompletion(fullSystemPrompt, history, userMessageWithInstruction, {
+                                apiKey: settings.anthropic_api_key,
+                                model: settings.anthropic_model,
+                                max_tokens: 120
+                            })
                         } else {
-                            aiPaywallResponse = await venice.chatCompletion(fullSystemPrompt, history, userMessageWithInstruction, { apiKey: settings.venice_api_key, model: 'venice-uncensored' })
+                            aiPaywallResponse = await venice.chatCompletion(fullSystemPrompt, history, userMessageWithInstruction, {
+                                apiKey: settings.venice_api_key,
+                                model: 'venice-uncensored',
+                                max_tokens: 120
+                            })
                         }
+
+                        const paywallLengthCheck = await enforceLength({
+                            text: aiPaywallResponse,
+                            locale: contact?.profile && typeof contact.profile === 'object'
+                                ? (contact.profile as any).locale
+                                : null,
+                            apiKey: settings?.venice_api_key || null,
+                            source: 'whatsapp-processor.media.paywall',
+                            maxWordsPerBubble: 12,
+                            maxBubbles: 2,
+                            attempt: 1
+                        })
+
+                        if (paywallLengthCheck.status === 'blocked') {
+                            console.warn('[Processor][Media] Length guard blocked paywall response', {
+                                reason: paywallLengthCheck.reason,
+                                ...paywallLengthCheck.metrics
+                            })
+                            return { status: 'blocked_length_guard' }
+                        }
+                        aiPaywallResponse = paywallLengthCheck.text
 
                         await whatsapp.markAsRead(contactPhone).catch(() => { })
                         await whatsapp.sendText(contactPhone, aiPaywallResponse, undefined, agentId)
@@ -643,10 +673,39 @@ Keep response SHORT and excited.)`
                         const userMessageWithInstruction = `${messageText}\n\n${refusalSystemPrompt}`
 
                         if (provider === 'anthropic') {
-                            aiRefusal = await anthropic.chatCompletion(fullSystemPrompt, history, userMessageWithInstruction, { apiKey: settings.anthropic_api_key, model: settings.anthropic_model })
+                            aiRefusal = await anthropic.chatCompletion(fullSystemPrompt, history, userMessageWithInstruction, {
+                                apiKey: settings.anthropic_api_key,
+                                model: settings.anthropic_model,
+                                max_tokens: 120
+                            })
                         } else {
-                            aiRefusal = await venice.chatCompletion(fullSystemPrompt, history, userMessageWithInstruction, { apiKey: settings.venice_api_key, model: 'venice-uncensored' })
+                            aiRefusal = await venice.chatCompletion(fullSystemPrompt, history, userMessageWithInstruction, {
+                                apiKey: settings.venice_api_key,
+                                model: 'venice-uncensored',
+                                max_tokens: 120
+                            })
                         }
+
+                        const refusalLengthCheck = await enforceLength({
+                            text: aiRefusal,
+                            locale: contact?.profile && typeof contact.profile === 'object'
+                                ? (contact.profile as any).locale
+                                : null,
+                            apiKey: settings?.venice_api_key || null,
+                            source: 'whatsapp-processor.media.refusal',
+                            maxWordsPerBubble: 12,
+                            maxBubbles: 2,
+                            attempt: 1
+                        })
+
+                        if (refusalLengthCheck.status === 'blocked') {
+                            console.warn('[Processor][Media] Length guard blocked refusal response', {
+                                reason: refusalLengthCheck.reason,
+                                ...refusalLengthCheck.metrics
+                            })
+                            return { status: 'blocked_length_guard' }
+                        }
+                        aiRefusal = refusalLengthCheck.text
 
                         await whatsapp.markAsRead(contactPhone).catch(() => { })
                         await whatsapp.sendText(contactPhone, aiRefusal, undefined, agentId)
@@ -768,16 +827,45 @@ Keep response SHORT and excited.)`
                                     fullSystemPrompt,
                                     history,
                                     userMessageForAI,
-                                    { apiKey: settings.anthropic_api_key, model: settings.anthropic_model || 'claude-3-haiku-20240307' }
+                                    {
+                                        apiKey: settings.anthropic_api_key,
+                                        model: settings.anthropic_model || 'claude-3-haiku-20240307',
+                                        max_tokens: 120
+                                    }
                                 );
                             } else {
                                 responseText = await venice.chatCompletion(
                                     fullSystemPrompt,
                                     history,
                                     userMessageForAI,
-                                    { apiKey: settings.venice_api_key, model: 'venice-uncensored' }
+                                    {
+                                        apiKey: settings.venice_api_key,
+                                        model: 'venice-uncensored',
+                                        max_tokens: 120
+                                    }
                                 );
                             }
+
+                            const requestSourceLengthCheck = await enforceLength({
+                                text: responseText,
+                                locale: contact?.profile && typeof contact.profile === 'object'
+                                    ? (contact.profile as any).locale
+                                    : null,
+                                apiKey: settings?.venice_api_key || null,
+                                source: 'whatsapp-processor.media.request-source',
+                                maxWordsPerBubble: 12,
+                                maxBubbles: 2,
+                                attempt: 1
+                            })
+
+                            if (requestSourceLengthCheck.status === 'blocked') {
+                                console.warn('[Processor][Media] Length guard blocked request-source response', {
+                                    reason: requestSourceLengthCheck.reason,
+                                    ...requestSourceLengthCheck.metrics
+                                })
+                                return { status: 'blocked_length_guard' }
+                            }
+                            responseText = requestSourceLengthCheck.text
 
                             // Split & Send
                             const parts = responseText.split(/\|+/).filter(p => p.trim().length > 0)

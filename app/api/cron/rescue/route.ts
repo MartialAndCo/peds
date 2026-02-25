@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { whatsapp } from '@/lib/whatsapp'
 import { venice } from '@/lib/venice'
+import { enforceLength } from '@/lib/services/response-length-guard'
 
 export async function GET(req: Request) {
     try {
@@ -105,10 +106,31 @@ export async function GET(req: Request) {
                     systemPrompt,
                     history.slice(0, -1), // Context
                     lastUserText, // Trigger
-                    { apiKey: settings.venice_api_key, model: 'venice-uncensored' }
+                    { apiKey: settings.venice_api_key, model: 'venice-uncensored', max_tokens: 120 }
                 )
 
                 const cleanResponse = responseText.replace(new RegExp('\\*[^*]+\\*', 'g'), '').trim()
+                const contactLocale =
+                    conv.contact?.profile && typeof conv.contact.profile === 'object'
+                        ? (conv.contact.profile as any).locale
+                        : undefined
+                const guarded = await enforceLength({
+                    text: cleanResponse,
+                    locale: contactLocale,
+                    apiKey: settings?.venice_api_key || null,
+                    source: 'cron.rescue',
+                    maxWordsPerBubble: 12,
+                    maxBubbles: 2,
+                    attempt: 1
+                })
+
+                if (guarded.status === 'blocked') {
+                    console.warn(`[Rescue] Length guard blocked conversation ${conv.id}`, {
+                        reason: guarded.reason,
+                        ...guarded.metrics
+                    })
+                    continue
+                }
 
                 // Send
                 const phone = conv.contact.phone_whatsapp
@@ -116,14 +138,14 @@ export async function GET(req: Request) {
                     console.log(`[Rescue] Skipping conversation ${conv.id} - no phone number`)
                     continue
                 }
-                await whatsapp.sendText(phone, cleanResponse, undefined, conv.agentId || undefined)
+                await whatsapp.sendText(phone, guarded.text, undefined, conv.agentId || undefined)
 
                 // Save
                 await prisma.message.create({
                     data: {
                         conversationId: conv.id,
                         sender: 'ai',
-                        message_text: cleanResponse,
+                        message_text: guarded.text,
                         timestamp: new Date()
                     }
                 })
