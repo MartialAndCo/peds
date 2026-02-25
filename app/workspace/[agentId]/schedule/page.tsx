@@ -53,27 +53,30 @@ function generateWeeklySchedule(timezone: string) {
         const dayName = days[dayIndex]
         schedule[dayName] = []
 
+        // Generate a date object to check if this day is a holiday
+        const targetDateZoned = toZonedTime(new Date(), timezone)
+        targetDateZoned.setDate(targetDateZoned.getDate() + dayOffset)
+
+        // Define locale depending on timezone (simplified logic matching API)
+        const locale = timezone.toLowerCase().includes('us') || timezone.toLowerCase().includes('america') ? 'en' : 'fr'
+        const isHoliday = personaSchedule.isSchoolHoliday(targetDateZoned, locale)
+
         // For each hour (7h - 23h for display)
         for (let hour = 7; hour <= 23; hour++) {
-            // Mock the day for the schedule generation logic 
-            // Logic in generateWeeklySchedule needs to replicate persona-schedule.ts logic relative to that day
-            // Since persona-schedule.ts uses `new Date()` internally and zones it, we need to trick it or replicate logic.
-            // Actually, the `personaSchedule` service doesn't expose a "get schedule for day X" method, it calculates based on "now".
-            // But we reproduced the logic in the previous file. I'll stick to the reproduced logic here for display.
-
             const isWeekend = dayIndex === 0 || dayIndex === 6
+            const hasNoSchool = isWeekend || isHoliday
             let activity: ReturnType<typeof personaSchedule.getCurrentActivity>
 
             // Sleep
             if (hour >= 3 && hour < 7) {
                 activity = { name: 'Sommeil Profond', description: 'en train de dormir', status: 'SLEEP' }
             } else if (hour >= 7 && hour < 8) {
-                activity = isWeekend
+                activity = hasNoSchool
                     ? { name: 'Sommeil', description: 'en train de dormir', status: 'SLEEP' }
                     : { name: 'Réveil', description: 'en train de me préparer', status: 'AVAILABLE' }
-            } else if (isWeekend && hour >= 8 && hour < 11) {
+            } else if (hasNoSchool && hour >= 8 && hour < 11) {
                 activity = { name: 'Grasse Matinée', description: 'grasse mat\'', status: 'SLEEP' }
-            } else if (!isWeekend && hour >= 8 && hour < 15) {
+            } else if (!hasNoSchool && hour >= 8 && hour < 15) {
                 if (hour === 12) {
                     activity = { name: 'Pause Déj', description: 'à la cantine', status: 'AVAILABLE' }
                 } else {
@@ -88,14 +91,23 @@ function generateWeeklySchedule(timezone: string) {
                     const subjectIndex = Math.min(hour - 8, subjectList.length - 1)
                     activity = { name: `Cours de ${subjectList[subjectIndex]}`, description: `en cours`, status: 'BUSY' }
                 }
-            } else if (!isWeekend && hour === 15) {
+            } else if (!hasNoSchool && hour === 15) {
                 activity = { name: 'Transport', description: 'dans le bus', status: 'AVAILABLE' }
+            } else if (hasNoSchool && hour >= 11 && hour < 16) {
+                const activities = ['Temps Libre', 'Temps Libre', 'Temps Libre', 'Temps Libre', 'Temps Libre']
+                activity = { name: activities[(hour + dayIndex) % activities.length], description: 'tranquille', status: 'AVAILABLE' }
             } else if (hour === 16) {
                 activity = { name: 'Goûter', description: 'goûter / chill', status: 'AVAILABLE' }
             } else if (hour >= 17 && hour < 19) {
-                activity = hour % 2 === 0
-                    ? { name: 'Devoirs', description: 'devoirs', status: 'AVAILABLE' }
-                    : { name: 'TikTok', description: 'sur TikTok', status: 'AVAILABLE' }
+                if (isHoliday) {
+                    activity = hour % 2 === 0
+                        ? { name: 'Temps Libre', description: 'en vacances', status: 'AVAILABLE' }
+                        : { name: 'TikTok', description: 'sur TikTok', status: 'AVAILABLE' }
+                } else {
+                    activity = hour % 2 === 0
+                        ? { name: 'Devoirs', description: 'devoirs', status: 'AVAILABLE' }
+                        : { name: 'TikTok', description: 'sur TikTok', status: 'AVAILABLE' }
+                }
             } else if (hour === 19) {
                 activity = { name: 'Repas', description: 'manger avec ma famille', status: 'AVAILABLE' }
             } else if (hour >= 20 && hour < 23) {
