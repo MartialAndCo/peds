@@ -176,7 +176,34 @@ export const venice = {
                 page++
             } while (page <= totalPages && page <= 10) // Safety break after 10 pages (~5000 records)
 
-            const dailyCosts = Object.keys(dailyCostsMap).map(k => ({ date: k, cost: dailyCostsMap[k] }))
+            // Pre-fill dailyCosts with ALL dates in the range to ensure empty days show as 0.
+            const dailyCosts: { date: string, cost: number }[] = []
+            const currDate = new Date(startDate)
+            const endLimitDate = new Date(endDate)
+
+            // Reset hours to start of day for comparison
+            currDate.setHours(0, 0, 0, 0)
+            endLimitDate.setHours(23, 59, 59, 999)
+
+            // Fill empty array first
+            while (currDate <= endLimitDate) {
+                // Formatting as "MMM DD" (e.g. "Feb 25")
+                const dateStr = currDate.toLocaleDateString('en-US', { month: 'short', day: '2-digit' })
+                if (!dailyCosts.find(d => d.date === dateStr)) {
+                    dailyCosts.push({
+                        date: dateStr,
+                        cost: 0
+                    })
+                }
+                currDate.setDate(currDate.getDate() + 1)
+            }
+
+            // Populate array with actual costs from the map
+            for (let i = 0; i < dailyCosts.length; i++) {
+                if (dailyCostsMap[dailyCosts[i].date]) {
+                    dailyCosts[i].cost = dailyCostsMap[dailyCosts[i].date]
+                }
+            }
 
             return {
                 totalAmount: totalSpentUsd,
