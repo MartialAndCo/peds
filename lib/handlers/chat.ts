@@ -9,6 +9,7 @@ import { TimingManager } from '@/lib/timing'
 import { logger } from '@/lib/logger'
 import { formatResponse } from '@/lib/response-formatter'
 import { enforceLength } from '@/lib/services/response-length-guard'
+import { evaluatePhotoAuthorization } from '@/lib/services/photo-request-policy'
 // import { messageQueue } from '@/lib/queue' // Deprecated
 import { NextResponse } from 'next/server'
 
@@ -1303,13 +1304,133 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
     // 5.9. TAG STRIPPING - AFTER Supervisor validation
     // Strip [IMAGE:...] tags so they don't appear in user chat or dashboard
-    const imageKeywords: string[] = []
-    const imageTagRegex = /\[IMAGE:(.+?)\]/g
-    let imgMatch
-    while ((imgMatch = imageTagRegex.exec(responseText)) !== null) {
-        imageKeywords.push(imgMatch[1].trim())
+    const extractImageTags = (text: string): { keywords: string[]; cleanedText: string } => {
+        const keywords: string[] = []
+        const regex = /\[IMAGE:(.+?)\]/g
+        let match
+        while ((match = regex.exec(text)) !== null) {
+            keywords.push(match[1].trim())
+        }
+        return {
+            keywords,
+            cleanedText: text.replace(/\[IMAGE:(.+?)\]/g, '').trim()
+        }
     }
-    responseText = responseText.replace(imageTagRegex, '').trim()
+
+    let imageGuardResultOverride: 'blocked_unrequested_image_after_regen' | null = null
+    const parsedImageTags = extractImageTags(responseText)
+    let imageKeywords = parsedImageTags.keywords
+    responseText = parsedImageTags.cleanedText
+
+    // 5.10. HARD GATE MEDIA POLICY (authoritative check right before media send)
+    const evaluateImagePolicy = async (keyword: string) => {
+        const recentUserMessages = await prisma.message.findMany({
+            where: {
+                conversationId: conversation.id,
+                sender: 'contact'
+            },
+            orderBy: { timestamp: 'desc' },
+            take: 3,
+            select: {
+                message_text: true,
+                timestamp: true
+            }
+        })
+
+        const recentMessagesChronological = recentUserMessages
+            .reverse()
+            .map((message) => ({
+                text: message.message_text || '',
+                timestamp: message.timestamp
+            }))
+
+        let decision = evaluatePhotoAuthorization({
+            keyword,
+            phase,
+            recentUserMessages: recentMessagesChronological,
+            requestConsumed: false,
+            now: new Date(),
+            windowMinutes: 15
+        })
+
+        if (decision.allowed && decision.reason === 'allowed_recent_request' && decision.requestTimestamp) {
+            const sentAfterRequest = await prisma.message.count({
+                where: {
+                    conversationId: conversation.id,
+                    sender: 'ai',
+                    message_text: { startsWith: '[Sent Media:' },
+                    timestamp: { gt: decision.requestTimestamp }
+                }
+            })
+
+            if (sentAfterRequest > 0) {
+                decision = {
+                    allowed: false,
+                    reason: 'request_already_consumed',
+                    requestTimestamp: decision.requestTimestamp
+                }
+            }
+        }
+
+        return decision
+    }
+
+    if (imageKeywords.length > 0) {
+        const firstKeyword = imageKeywords[0]
+        const policyDecision = await evaluateImagePolicy(firstKeyword)
+
+        console.log('[Chat][MediaPolicy] Initial decision:', {
+            keyword: firstKeyword,
+            reason: policyDecision.reason,
+            allowed: policyDecision.allowed
+        })
+
+        if (!policyDecision.allowed) {
+            console.warn(`[Chat][MediaPolicy] Blocking [IMAGE:${firstKeyword}] and forcing one regeneration. reason=${policyDecision.reason}`)
+            const correctionContext = `\n\n[SYSTEM CRITICAL - MEDIA POLICY]: INTERDICTION D'UTILISER [IMAGE:...] MAINTENANT. REASON=${policyDecision.reason}. Réponds en texte uniquement, sans tag media.`
+
+            try {
+                let regenerated = await callAI(
+                    settings,
+                    conversation,
+                    (queuePrompt || '') + correctionContext,
+                    contextMessages,
+                    lastContent,
+                    contact,
+                    effectiveAgentId,
+                    platform,
+                    agentProfilePreloaded
+                )
+
+                regenerated = regenerated
+                    .replace(/\*\*[^*]*\*\*/g, '')
+                    .replace(/\*[^*]*\*/g, '')
+                    .replace(/```/g, '')
+                    .replace(/^\*+/g, '')
+                    .replace(/\*+$/g, '')
+                    .replace(/\s+/g, ' ')
+                    .trim()
+
+                const reparsed = extractImageTags(regenerated)
+                responseText = reparsed.cleanedText
+                imageKeywords = reparsed.keywords
+
+                if (imageKeywords.length > 0) {
+                    const postRegenKeyword = imageKeywords[0]
+                    const postRegenDecision = await evaluateImagePolicy(postRegenKeyword)
+                    if (!postRegenDecision.allowed) {
+                        imageGuardResultOverride = 'blocked_unrequested_image_after_regen'
+                        imageKeywords.length = 0
+                        console.warn(`[Chat][MediaPolicy] Regeneration still invalid. Blocking image for this turn. reason=${postRegenDecision.reason}`)
+                    }
+                }
+            } catch (regenError: any) {
+                imageGuardResultOverride = 'blocked_unrequested_image_after_regen'
+                imageKeywords.length = 0
+                console.error('[Chat][MediaPolicy] Regeneration failed, image blocked for this turn:', regenError?.message || regenError)
+            }
+        }
+    }
 
     console.log(`[Chat] AI Response (final cleaned): "${responseText.substring(0, 100)}${responseText.length > 100 ? '...' : ''}"`)
 
@@ -1372,6 +1493,10 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
     // Safety: Final Check (If still empty after retries/stripping, abort)
     if ((!responseText || responseText.trim().length === 0) && imageKeywords.length === 0) {
+        if (imageGuardResultOverride) {
+            console.warn(`[Chat][MediaPolicy] Nothing to send after blocked image regeneration. result=${imageGuardResultOverride}`)
+            return { handled: true, result: imageGuardResultOverride }
+        }
         console.warn(`[Chat] AI returned empty response after ${attempts} attempts for Conv ${conversation.id}. Aborting send.`)
         return { handled: true, result: 'ai_response_empty' }
     }
@@ -1515,6 +1640,9 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
     // If response is ONLY a reaction, stop here (don't send empty text)
     if (!responseText || responseText.length === 0) {
+        if (imageGuardResultOverride) {
+            return { handled: true, result: imageGuardResultOverride }
+        }
         // Log reaction-only response
         await prisma.message.create({
             data: {
@@ -1688,7 +1816,11 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     }
 
     // Final return
-    return { handled: true, result: 'sent', textBody: responseText }
+    return {
+        handled: true,
+        result: imageGuardResultOverride || 'sent',
+        textBody: responseText
+    }
 }
 
 async function callAI(settings: any, conv: any, sys: string | null, ctx: any[], last: string, contact?: any, agentId?: string, platform: 'whatsapp' | 'discord' = 'whatsapp', preloadedProfile?: any) {

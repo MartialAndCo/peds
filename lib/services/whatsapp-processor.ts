@@ -728,54 +728,9 @@ Keep response SHORT and excited.)`
                         const result = await mediaService.processRequest(contactPhone, analysis.intentCategory)
 
                         if (result.action === 'SEND') {
-                            const dataUrl = result.media.url
-                            await whatsapp.markAsRead(contactPhone).catch(() => { })
-
-                            // Fix: Don't assume everything that isn't data:image is a video.
-                            // Check extension or context match.
-                            const isDataImage = dataUrl.startsWith('data:image')
-                            const isVideoExt = dataUrl.match(/\.(mp4|mov|avi|webm|mkv)(\?|$)/i)
-                            const isVideoIntent = analysis.intentCategory?.toLowerCase().includes('video')
-
-                            const shouldSendAsVideo = !isDataImage && (isVideoExt || isVideoIntent)
-
-                            if (shouldSendAsVideo) {
-                                await whatsapp.sendVideo(contactPhone, dataUrl, undefined, agentId)
-                            } else {
-                                await whatsapp.sendImage(contactPhone, dataUrl, undefined, agentId)
-                            }
-
-                            await prisma.media.update({
-                                where: { id: result.media.id },
-                                data: { sentTo: { push: contactPhone } }
-                            })
-
-                            // Memory & Logs
-                            const { memoryService } = require('@/lib/memory')
-                            await memoryService.add(contactPhone, messageText)
-                            await memoryService.add(contactPhone, `[System]: Sent media ${analysis.intentCategory}`)
-
-                            const activeConv = await prisma.conversation.findFirst({
-                                where: {
-                                    contactId: contact.id,
-                                    agentId: agentId,
-                                    status: 'active'
-                                },
-                                select: { id: true }
-                            })
-
-                            if (activeConv) {
-                                await prisma.message.create({
-                                    data: {
-                                        conversationId: activeConv.id,
-                                        sender: 'ai',
-                                        message_text: `[Sent Media: ${analysis.intentCategory}]`,
-                                        mediaUrl: result.media.url || dataUrl, // Add mediaUrl here
-                                        timestamp: new Date()
-                                    }
-                                }).catch((e: any) => console.error("Failed to save system media msg", e))
-                            }
-                            return { status: 'media_sent' }
+                            // Legacy direct send is disabled to enforce a single media gate in handleChat.
+                            // Keep processing and let the main chat pipeline decide if/when image tags are allowed.
+                            console.log('[Processor][Media] Direct SEND path disabled. Delegating media decision to handleChat.')
 
                         } else if (result.action === 'REQUEST_SOURCE') {
                             const status = await mediaService.requestFromSource(contact.phone_whatsapp, analysis.intentCategory, settings, agentId)

@@ -3,10 +3,22 @@ import { startOfMonth, subDays, format, startOfDay, endOfDay } from "date-fns"
 import { Users, Bot, MessageSquare, TrendingUp } from "lucide-react"
 import { AnalyticsGrid } from "@/components/dashboard/analytics-grid"
 import { MobileAdminDashboard } from "@/components/pwa/pages/mobile-admin-dashboard"
+import { venice } from "@/lib/venice"
+import { TimeFilter } from "@/components/dashboard/time-filter"
 
 export const dynamic = 'force-dynamic'
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+    searchParams
+}: {
+    searchParams: { range?: string }
+}) {
+    // Parse time range filter
+    const rangeParam = searchParams.range || '7d'
+    const daysToSubtract = rangeParam === '30d' ? 30 : 7
+    const startDate = subDays(new Date(), daysToSubtract)
+    const endDate = new Date()
+
     let statsData = {
         revenue: 0,
         mrr: 0,
@@ -14,11 +26,13 @@ export default async function DashboardPage() {
         arpu: 0,
         totalContacts: 0,
         activeContacts: 0,
-        trustScoreAvg: 0,  // DEPRECATED - kept for compatibility
+        trustScoreAvg: 0,
         messageVolume: 0,
         avgMessagesPerContact: 0,
         phaseDistribution: [] as any[],
-        dailyActivity: [] as any[]
+        dailyActivity: [] as any[],
+        veniceCost: 0,
+        veniceBalance: 0
     }
 
     try {
@@ -43,7 +57,9 @@ export default async function DashboardPage() {
             totalMessages,
             paymentsCount,
             agentsCount,
-            dailyActivityRaw
+            dailyActivityRaw,
+            veniceBalanceRaw,
+            veniceUsageRaw
         ] = await Promise.all([
             prisma.payment.aggregate({ _sum: { amount: true } }),
             prisma.payment.aggregate({
@@ -56,12 +72,17 @@ export default async function DashboardPage() {
             prisma.message.count(),
             prisma.payment.groupBy({ by: ['contactId'] }),
             prisma.agent.count({ where: { isActive: true } }),
-            Promise.all(dailyActivityPromises)
+            Promise.all(dailyActivityPromises),
+            venice.getBillingBalance(),
+            venice.getBillingUsage(startDate, endDate)
         ])
 
         const revenue = totalRevenueAgg._sum?.amount ? Number(totalRevenueAgg._sum.amount) : 0
         const mrr = monthlyRevenueAgg._sum?.amount ? Number(monthlyRevenueAgg._sum.amount) : 0
         const payingUsers = paymentsCount.length
+
+        const veniceCost = veniceUsageRaw?.totalAmount || 0
+        const veniceBalance = veniceBalanceRaw?.balances?.diem || 0
 
         statsData = {
             revenue,
@@ -70,11 +91,13 @@ export default async function DashboardPage() {
             arpu: payingUsers > 0 ? revenue / payingUsers : 0,
             totalContacts: contactsCount,
             activeContacts: activeConversationsCount,
-            trustScoreAvg: 0,  // DEPRECATED  // DEPRECATED - kept for compatibility
+            trustScoreAvg: 0,
             messageVolume: messageCount24h,
             avgMessagesPerContact: contactsCount > 0 ? totalMessages / contactsCount : 0,
             phaseDistribution: [],
-            dailyActivity: dailyActivityRaw.reverse()
+            dailyActivity: dailyActivityRaw.reverse(),
+            veniceCost,
+            veniceBalance
         }
 
         return (
@@ -94,6 +117,7 @@ export default async function DashboardPage() {
                                 System-wide metrics across {agentsCount} active agents
                             </p>
                         </div>
+                        <TimeFilter />
                     </div>
 
                     {/* Stats Grid */}

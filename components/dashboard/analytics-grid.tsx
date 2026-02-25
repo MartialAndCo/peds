@@ -103,7 +103,7 @@ export function AnalyticsGrid({ data }: { data: any }) {
             </div>
 
             {/* ROW 3: ENGAGEMENT & ACTIVITY */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <StatsCard
                     title="Volume (24h)"
                     value={messageVolume}
@@ -117,10 +117,16 @@ export function AnalyticsGrid({ data }: { data: any }) {
                     sub="Msgs per contact"
                 />
                 <StatsCard
-                    title="Token Usage"
-                    value={`${(messageVolume * 150 / 1000).toFixed(1)}k`}
+                    title="AI Cost"
+                    value={`$${data.veniceCost?.toFixed(4) || "0.0000"}`}
                     icon={BrainCircuit}
-                    sub="Estimated usage"
+                    sub="Real Usage (Venice)"
+                />
+                <StatsCard
+                    title="AI Balance"
+                    value={data.veniceBalance != null ? `${data.veniceBalance.toFixed(2)} DIEM` : "N/A"}
+                    icon={DollarSign}
+                    sub="Available Balance"
                 />
             </div>
 

@@ -1,68 +1,6 @@
 import { SwarmState } from '../types';
 import { prisma } from '@/lib/prisma';
-
-// ── Demand-intent detection for generic "photo" requests ──
-// Requires a demand verb + photo noun pattern instead of bare keyword match
-function isExplicitPhotoRequest(msg: string): boolean {
-  const m = msg.toLowerCase();
-
-  // Explicit non-demand patterns (user talking ABOUT photos, not requesting)
-  const nonDemandPatterns = [
-    /j'ai pris.*photo/,
-    /j'ai une photo/,
-    /j'ai.*photo/,
-    /photo de profil/,
-    /belle(s)? photo/,
-    /bonne photo/,
-    /sur (la|une|cette) photo/,
-    /c'est (une|la) photo/,
-    /j'aime (la|ta|cette) photo/,
-    /j'ai vu.*photo/,
-    /ma photo/,
-    /mes photos/,
-    /photo de (mon|ma|mes)/,
-    /la photo (de|du|des)/,
-    /une photo de (mon|ma|mes|son|sa|ses)/,
-    /i (took|have|had|saw|like|love).*photo/,
-    /nice (photo|pic|picture)/,
-    /great (photo|pic|picture)/,
-    /good (photo|pic|picture)/,
-  ];
-
-  if (nonDemandPatterns.some(p => p.test(m))) {
-    return false;
-  }
-
-  // Demand verb + photo noun combinations
-  const demandVerbs = [
-    'envoie', 'envoyer', 'envoi', 'montre', 'montrer', 'donne', 'donner',
-    'send', 'show', 'give', 'want', 'veux', 'voudrais', 'peux avoir',
-    'can i (see|get|have)', 'fais voir', 'jveux voir', 'je veux voir',
-    'tu peux montrer', 'let me see'
-  ];
-
-  const photoNouns = ['photo', 'pic', 'picture', 'image', 'img'];
-
-  // Check for demand verb + photo noun in the message
-  for (const verb of demandVerbs) {
-    for (const noun of photoNouns) {
-      const pattern = new RegExp(`${verb}.*${noun}|${noun}.*${verb}`, 'i');
-      if (pattern.test(m)) return true;
-    }
-  }
-
-  // Direct demand phrases (no verb+noun split needed)
-  const directPhrases = [
-    'une photo de toi', 'photo of you', 'pic of you',
-    'montre toi', 'show yourself', 'let me see you',
-    'ta photo', // "envoie ta photo" works, "j'aime ta photo" excluded above
-  ];
-
-  // Only match "ta photo" if preceded by a demand verb
-  if (directPhrases.some(p => m.includes(p))) return true;
-
-  return false;
-}
+import { isExplicitPhotoRequest } from '@/lib/services/photo-request-policy';
 
 export async function mediaNode(state: SwarmState): Promise<Partial<SwarmState>> {
   console.log('[Swarm] mediaNode: Analyse demande média');

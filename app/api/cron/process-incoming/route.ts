@@ -164,7 +164,7 @@ export async function GET(req: Request) {
                     })
 
                     // Capture response for next iteration if AI generated something
-                    if (result?.status === 'sent' && result?.textBody) {
+                    if ((result?.status === 'sent' || result?.status === 'blocked_unrequested_image_after_regen') && result?.textBody) {
                         lastResponse = result.textBody
                     }
 
@@ -175,7 +175,7 @@ export async function GET(req: Request) {
                         'debounced', 'media_pending_silence', 'reaction_only', 'presend_aborted_newer_messages',
                         'voice_tts_sent', 'tts_failed_notified', 'handled_admin', 'handled_media_ingest',
                         'handled_lead_provider', 'ignored_admin_text', 'media_request_pending', 'media_sent',
-                        'media_request_blocked', 'paused', 'contact_not_active', 'ignored_contact_status']
+                        'media_request_blocked', 'blocked_unrequested_image_after_regen', 'paused', 'contact_not_active', 'ignored_contact_status']
 
                     const RETRY_STATUSES = ['ai_quota_failed', 'ai_response_empty', 'ai_quota_failed_queued_for_retry',
                         'blocked_safety', 'async_error', 'blocked_length_guard']

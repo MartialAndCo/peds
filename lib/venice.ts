@@ -105,5 +105,67 @@ export const venice = {
             temperature: config.temperature,
             max_tokens: config.max_tokens
         })
+    },
+
+    async getBillingBalance() {
+        const apiKey = process.env.VENICE_API_KEY
+        if (!apiKey) return null
+
+        try {
+            const response = await axios.get('https://api.venice.ai/api/v1/billing/balance', {
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Accept': 'application/json'
+                }
+            })
+            return response.data
+        } catch (error) {
+            console.error('[Venice] Failed to fetch billing balance:', error)
+            return null
+        }
+    },
+
+    async getBillingUsage(startDate: Date, endDate: Date) {
+        const apiKey = process.env.VENICE_API_KEY
+        if (!apiKey) return null
+
+        try {
+            // Determine range to fetch
+            const params = new URLSearchParams({
+                'startDate': startDate.toISOString(),
+                'endDate': endDate.toISOString(),
+                'limit': '500' // Max allowed
+            })
+
+            let totalSpent = 0
+            let allData: any[] = []
+            let page = 1
+            let totalPages = 1
+
+            // Support pagination if usages > 500
+            do {
+                params.set('page', page.toString())
+                const response = await axios.get(`https://api.venice.ai/api/v1/billing/usage?${params.toString()}`, {
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Accept': 'application/json'
+                    }
+                })
+
+                totalSpent += response.data.data.reduce((sum: number, item: any) => sum + (Math.abs(item.amount) || 0), 0)
+                allData = allData.concat(response.data.data)
+                totalPages = response.data.pagination?.totalPages || 1
+                page++
+            } while (page <= totalPages && page <= 10) // Safety break after 10 pages (~5000 records)
+
+            return {
+                totalAmount: totalSpent,
+                currency: 'USD', // Based on pricePerUnitUsd standard in their docs
+                recordCount: allData.length
+            }
+        } catch (error) {
+            console.error('[Venice] Failed to fetch billing usage:', error)
+            return null
+        }
     }
 }

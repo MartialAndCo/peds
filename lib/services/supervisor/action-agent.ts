@@ -13,64 +13,10 @@ import type {
     SupervisorAlert,
     ActionEvidence
 } from './types';
-
-// ── Photo demand detection ──
-// Phrase-based: always valid demand signals (multi-word, unambiguous)
-const PHOTO_DEMAND_PHRASES = [
-    'envoie une photo', 'envoie moi', 'envoie-moi', 'montre-moi', 'montre toi',
-    'fais voir', 'send me a pic', 'send a pic', 'send me a photo', 'show me',
-    'let me see', 'photo de toi', 'picture of you', 'jveux voir',
-    'je veux voir', 'tu peux montrer', 'see your face',
-    'show yourself', 'send photo', 'your photo', 'ton visage', 'ta tête',
-    'une photo de toi', 'pic of you'
-];
-
-// Single keywords that are always unambiguous demands
-const PHOTO_UNAMBIGUOUS_KEYWORDS = ['selfie'];
-
-// False positive patterns: user talking ABOUT photos, not requesting
-const PHOTO_FALSE_POSITIVE_PATTERNS = [
-    /j'ai.*photo/i,
-    /j'ai envoyé.*photo/i,
-    /une photo de (mon|ma|mes|son|sa|ses)/i,
-    /photo de (mon|ma|mes)/i,
-    /photo de profil/i,
-    /j'ai pris.*photo/i,
-    /belle(s)? photo/i,
-    /bonne photo/i,
-    /sur (la|une|cette) photo/i,
-    /c'est (une|la) photo/i,
-    /j'aime (la|ta|cette) photo/i,
-    /j'ai vu.*photo/i,
-    /ma photo/i,
-    /mes photos/i,
-    /la photo (de|du|des)/i,
-    /i (took|have|had|saw|like|love).*photo/i,
-    /nice (photo|pic|picture)/i,
-    /great (photo|pic|picture)/i,
-    /good (photo|pic|picture)/i,
-];
-
-function isUserRequestingPhoto(userMessage: string): boolean {
-    const msg = userMessage.toLowerCase();
-
-    // Check false positives first
-    if (PHOTO_FALSE_POSITIVE_PATTERNS.some(p => p.test(msg))) {
-        return false;
-    }
-
-    // Check unambiguous single keywords
-    if (PHOTO_UNAMBIGUOUS_KEYWORDS.some(kw => msg.includes(kw))) {
-        return true;
-    }
-
-    // Check multi-word demand phrases
-    if (PHOTO_DEMAND_PHRASES.some(phrase => msg.includes(phrase))) {
-        return true;
-    }
-
-    return false;
-}
+import {
+    evaluatePhotoAuthorization,
+    type RecentUserMessage
+} from '@/lib/services/photo-request-policy';
 
 // Mots-clés qui indiquent une demande de vocal
 const VOICE_REQUEST_KEYWORDS = [
@@ -78,6 +24,29 @@ const VOICE_REQUEST_KEYWORDS = [
     'envoie un vocal', 'parle moi', 'dis le moi',
     'send voice', 'voice message', 'record'
 ];
+
+function buildRecentUserMessages(context: AnalysisContext): RecentUserMessage[] {
+    const historyUser = (context.history || [])
+        .filter((h) => h.role === 'user')
+        .map((h) => ({ text: h.content, timestamp: new Date() }));
+
+    historyUser.push({
+        text: context.userMessage || '',
+        timestamp: new Date()
+    });
+
+    return historyUser.slice(-3);
+}
+
+function hasRecentPhotoRequest(recentUserMessages: RecentUserMessage[], phase: string): boolean {
+    const auth = evaluatePhotoAuthorization({
+        keyword: 'selfie',
+        phase,
+        recentUserMessages,
+        requestConsumed: false
+    });
+    return auth.allowed;
+}
 
 export const actionAgent = {
     name: 'ACTION' as const,
@@ -87,6 +56,7 @@ export const actionAgent = {
         let shouldPause = false;
 
         const { aiResponse, userMessage, phase, agentId, conversationId, contactId } = context;
+        const recentUserMessages = buildRecentUserMessages(context);
 
         // 1. Détection IMAGE tag
         const imageTagMatch = aiResponse.match(/\[IMAGE:(.+?)\]/);
@@ -94,7 +64,7 @@ export const actionAgent = {
             const imageType = imageTagMatch[1].trim();
             const alert = this.checkImageTag(
                 imageType,
-                userMessage,
+                recentUserMessages,
                 phase,
                 aiResponse,
                 agentId,
@@ -118,7 +88,7 @@ export const actionAgent = {
         for (const pattern of photoSentPatterns) {
             if (pattern.test(aiResponse)) {
                 // Vérifier si l'utilisateur avait demandé une photo
-                const userAskedPhoto = isUserRequestingPhoto(userMessage);
+                const userAskedPhoto = hasRecentPhotoRequest(recentUserMessages, phase);
 
                 if (!userAskedPhoto) {
                     const evidence: ActionEvidence = {
@@ -219,28 +189,34 @@ export const actionAgent = {
      */
     checkImageTag(
         imageType: string,
-        userMessage: string,
+        recentUserMessages: RecentUserMessage[],
         phase: string,
         aiResponse: string,
         agentId: string,
         conversationId: number,
         contactId?: string | null
     ): SupervisorAlert | null {
-        // Vérifier si l'utilisateur a explicitement demandé une photo
-        const userAskedPhoto = isUserRequestingPhoto(userMessage);
+        const authorization = evaluatePhotoAuthorization({
+            keyword: imageType,
+            phase,
+            recentUserMessages,
+            requestConsumed: false
+        });
 
-        // Vérifier les faux positifs (l'utilisateur parle D'UNE photo, pas DEMANDE une photo)
-        const isFalsePositive = PHOTO_FALSE_POSITIVE_PATTERNS.some(p => p.test(userMessage));
-
-        if (!userAskedPhoto || isFalsePositive) {
+        if (!authorization.allowed) {
+            const triggerMessage = recentUserMessages[recentUserMessages.length - 1]?.text || '';
             const evidence: ActionEvidence = {
                 action: 'USED_IMAGE_TAG',
-                triggerMessage: userMessage,
+                triggerMessage,
                 shouldHaveTriggered: false,
                 aiResponse: aiResponse.substring(0, 200),
                 detectedKeywords: [],
                 currentPhase: phase
             };
+
+            const reasonLabel = authorization.reason === 'scenario_requires_crisis'
+                ? 'Tag scenario hors phase CRISIS'
+                : 'Aucune demande explicite récente';
 
             return {
                 agentId,
@@ -250,7 +226,7 @@ export const actionAgent = {
                 alertType: 'UNREQUESTED_IMAGE_TAG',
                 severity: 'CRITICAL',
                 title: '🚨 [IMAGE] utilisé SANS DEMANDE EXPLICITE',
-                description: `L'IA a utilisé [IMAGE:${imageType}] alors que l'utilisateur n'a pas explicitement demandé de photo. Message: "${userMessage.substring(0, 100)}"`,
+                description: `L'IA a utilisé [IMAGE:${imageType}] alors que la policy refuse l'envoi (${reasonLabel}). Message: "${triggerMessage.substring(0, 100)}"`,
                 evidence: evidence as Record<string, any>
             };
         }
@@ -277,7 +253,9 @@ export const actionAgent = {
 
         if (action === 'PHOTO_SENT') {
             // Vérifier si c'était justifié
-            const userAskedPhoto = isUserRequestingPhoto(triggerMessage);
+            const userAskedPhoto = hasRecentPhotoRequest([
+                { text: triggerMessage, timestamp: new Date() }
+            ], phase);
 
             if (!userAskedPhoto) {
                 const evidence: ActionEvidence = {
