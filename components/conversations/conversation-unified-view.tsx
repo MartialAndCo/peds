@@ -111,12 +111,18 @@ export function ConversationUnifiedView({
   const [inputText, setInputText] = useState('')
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
+  const [oldestId, setOldestId] = useState<number | null>(null)
   const [exporting, setExporting] = useState(false)
   const [activeTab, setActiveTab] = useState('chat')
   const [regeneratedResponse, setRegeneratedResponse] = useState<string | null>(null)
   const [isRegenerating, setIsRegenerating] = useState(false)
   const [showRegeneratePreview, setShowRegeneratePreview] = useState(false)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const oldestIdRef = useRef<number | null>(null)
+  const hasMoreRef = useRef(true)
+  const loadingMoreRef = useRef(false)
   const conversationId = conversation.id
   const displayName = getContactDisplayName(conversation.contact)
   const displayInitial = getContactInitial(conversation.contact)
@@ -144,35 +150,96 @@ export function ConversationUnifiedView({
     setConversation(initialConversation)
   }, [initialConversation])
 
-  // Load messages
+  // Keep refs in sync to avoid stale values in scroll callbacks
   useEffect(() => {
-    if (isOpen) {
-      loadMessages()
-      axios.post(`/api/conversations/${conversationId}/read`).catch(console.error)
-    }
-  }, [isOpen, conversationId])
-
-  // Scroll to bottom on initial load (no animation), smooth scroll on new messages
-  const isFirstLoad = useRef(true)
+    oldestIdRef.current = oldestId
+  }, [oldestId])
   useEffect(() => {
-    if (messagesEndRef.current && !loading) {
-      // Instant scroll on first load, smooth on subsequent updates
-      messagesEndRef.current.scrollIntoView({ behavior: isFirstLoad.current ? 'auto' : 'smooth' })
-      isFirstLoad.current = false
-    }
-  }, [messages, loading])
+    hasMoreRef.current = hasMore
+  }, [hasMore])
+  useEffect(() => {
+    loadingMoreRef.current = loadingMore
+  }, [loadingMore])
 
-  const loadMessages = async () => {
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
+    const container = scrollRef.current
+    if (!container) return
+    container.scrollTo({ top: container.scrollHeight, behavior })
+  }, [])
+
+  const loadMessages = useCallback(async ({ scrollToLatest = false, smooth = false }: { scrollToLatest?: boolean; smooth?: boolean } = {}) => {
     setLoading(true)
     try {
       const res = await axios.get(`/api/conversations/${conversationId}/messages?limit=50`)
       setMessages(res.data.messages || [])
+      setHasMore(Boolean(res.data.hasMore))
+      setOldestId(typeof res.data.oldestId === 'number' ? res.data.oldestId : null)
     } catch (error) {
       console.error('Failed to load messages:', error)
     } finally {
       setLoading(false)
+      if (scrollToLatest) {
+        requestAnimationFrame(() => scrollToBottom(smooth ? 'smooth' : 'auto'))
+      }
     }
-  }
+  }, [conversationId, scrollToBottom])
+
+  // Load latest messages when panel opens or conversation changes
+  useEffect(() => {
+    if (!isOpen) return
+
+    setMessages([])
+    setHasMore(true)
+    setOldestId(null)
+    setLoadingMore(false)
+
+    loadMessages({ scrollToLatest: true })
+    axios.post(`/api/conversations/${conversationId}/read`).catch(console.error)
+  }, [isOpen, conversationId, loadMessages])
+
+  const loadOlderMessages = useCallback(async () => {
+    const currentOldestId = oldestIdRef.current
+    if (!currentOldestId || !hasMoreRef.current || loadingMoreRef.current) return
+
+    const container = scrollRef.current
+    const previousScrollHeight = container?.scrollHeight || 0
+    const previousScrollTop = container?.scrollTop || 0
+
+    setLoadingMore(true)
+    try {
+      const res = await axios.get(`/api/conversations/${conversationId}/messages?limit=30&before=${currentOldestId}`)
+      const olderMessages = res.data.messages || []
+
+      if (olderMessages.length === 0) {
+        setHasMore(false)
+        return
+      }
+
+      setMessages(prev => [...olderMessages, ...prev])
+      setHasMore(Boolean(res.data.hasMore))
+      setOldestId(typeof res.data.oldestId === 'number' ? res.data.oldestId : null)
+
+      requestAnimationFrame(() => {
+        const nextContainer = scrollRef.current
+        if (!nextContainer) return
+        const newScrollHeight = nextContainer.scrollHeight
+        nextContainer.scrollTop = newScrollHeight - previousScrollHeight + previousScrollTop
+      })
+    } catch (error) {
+      console.error('Failed to load older messages:', error)
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [conversationId])
+
+  const handleMessagesScroll = useCallback(() => {
+    const container = scrollRef.current
+    if (!container || loadingMoreRef.current || !hasMoreRef.current) return
+
+    if (container.scrollTop <= 120) {
+      loadOlderMessages()
+    }
+  }, [loadOlderMessages])
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -189,7 +256,7 @@ export function ConversationUnifiedView({
       setInputText('')
       setSelectedMediaUrl(null)
       setSelectedMediaType(null)
-      await loadMessages()
+      await loadMessages({ scrollToLatest: true, smooth: true })
     } catch (error) {
       console.error('Failed to send:', error)
     } finally {
@@ -270,7 +337,7 @@ export function ConversationUnifiedView({
       setIsVoiceOpen(false)
       setVoiceText('')
       setVoiceAudio(null)
-      await loadMessages()
+      await loadMessages({ scrollToLatest: true, smooth: true })
     } catch (error) {
       console.error('Voice send failed', error)
       alert('Failed to send voice message')
@@ -361,7 +428,7 @@ export function ConversationUnifiedView({
       })
       setRegeneratedResponse(null)
       setShowRegeneratePreview(false)
-      await loadMessages()
+      await loadMessages({ scrollToLatest: true, smooth: true })
     } catch (error) {
       console.error('Failed to send:', error)
     } finally {
@@ -476,7 +543,11 @@ export function ConversationUnifiedView({
         {/* CHAT TAB - SCROLLABLE CONTENT */}
         <TabsContent value="chat" className="flex-1 flex flex-col m-0 mt-0 min-h-0 data-[state=active]:flex overflow-hidden">
           {/* Scrollable Messages Area */}
-          <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-4 py-3">
+          <div
+            ref={scrollRef}
+            onScroll={handleMessagesScroll}
+            className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-4 py-3"
+          >
             {loading ? (
               <div className="flex justify-center py-10">
                 <Loader2 className="h-8 w-8 animate-spin text-white/30" />
@@ -489,6 +560,16 @@ export function ConversationUnifiedView({
               </div>
             ) : (
               <div className="space-y-3">
+                {loadingMore && (
+                  <div className="flex justify-center py-1">
+                    <Loader2 className="h-4 w-4 animate-spin text-white/40" />
+                  </div>
+                )}
+                {!hasMore && (
+                  <div className="text-center text-[11px] text-white/35 py-1">
+                    - Beginning of conversation -
+                  </div>
+                )}
                 {messages.map((m) => {
                   const isMe = m.sender === 'admin'
                   const isAi = m.sender === 'ai'
@@ -554,7 +635,6 @@ export function ConversationUnifiedView({
                     </div>
                   )
                 })}
-                <div ref={messagesEndRef} />
               </div>
             )}
           </div>
