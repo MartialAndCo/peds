@@ -60,6 +60,7 @@ export interface SwarmState {
     // Contextes
     contexts: {
         timing?: string
+        knownFacts?: string
         memory?: string
         phase?: string
         persona?: string

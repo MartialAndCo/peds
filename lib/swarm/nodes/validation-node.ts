@@ -1,4 +1,4 @@
-﻿// Agent "Validation" - verifies coherence and regenerates if needed
+// Agent "Validation" - verifies coherence and regenerates if needed
 import { venice } from '@/lib/venice'
 import type { SwarmState } from '../types'
 
@@ -227,6 +227,7 @@ HARD CONSTRAINTS:
       if (contexts.persona) promptParts.push(contexts.persona)
       if (contexts.phase) promptParts.push(contexts.phase)
       if (contexts.style) promptParts.push(contexts.style)
+      if (contexts.knownFacts) promptParts.push(contexts.knownFacts)
       if (contexts.memory) promptParts.push(contexts.memory)
       if (contexts.payment) promptParts.push(contexts.payment)
       if (contexts.media) promptParts.push(contexts.media)

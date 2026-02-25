@@ -124,7 +124,8 @@ export async function POST(req: Request) {
                     contactId: contact.id,
                     ...(body.agentId ? { agentId: body.agentId } : {}),
                     status: { in: ['active', 'paused'] }
-                }
+                },
+                orderBy: { createdAt: 'desc' }
             })
 
             if (!existingConv) {
@@ -159,16 +160,19 @@ export async function POST(req: Request) {
                         }
                     })
                 }
-            } else if (existingConv.status === 'paused') {
-                // If paused, we can inject/update the waiting state
-                // Also update agent binding if it was null? (Optional, maybe safer to keep existing)
+            } else {
+                const currentMeta = (existingConv.metadata as any) || {}
+                const nextState = existingConv.status === 'paused'
+                    ? 'WAITING_FOR_LEAD'
+                    : (currentMeta.state || 'active')
+
                 await prisma.conversation.update({
                     where: { id: existingConv.id },
                     data: {
                         agentId: (body.agentId as unknown as string) || existingConv.agentId, // Update agent if provided
                         metadata: {
-                            ...(existingConv.metadata as any || {}),
-                            state: 'WAITING_FOR_LEAD',
+                            ...currentMeta,
+                            state: nextState,
                             leadContext: body.context
                         }
                     }

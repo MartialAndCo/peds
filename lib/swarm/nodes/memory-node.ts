@@ -2,7 +2,7 @@ import { SwarmState } from '../types';
 import { memoryService } from '@/lib/memory';
 
 export async function memoryNode(state: SwarmState): Promise<Partial<SwarmState>> {
-  console.log('[Swarm] memoryNode: Extraction mémoires');
+  console.log('[Swarm] memoryNode: extraction memories');
 
   const phone = (state as any).contactPhone || state.contactId;
   const userId = memoryService.buildUserId(phone, state.agentId);
@@ -11,39 +11,41 @@ export async function memoryNode(state: SwarmState): Promise<Partial<SwarmState>
 
   let memories: string[] = [];
   try {
-    // 1. Search relevant memories using the last user message as query
-    const lastUserMsg = state.history
-      ?.filter(h => h.role === 'user')
-      .pop()?.content || '';
+    // 1) Query-focused search first
+    const lastUserMsg = (state.userMessage || state.history?.filter(h => h.role === 'user').pop()?.content || '').trim();
 
     let searchResults: any[] = [];
-    if (lastUserMsg.length > 3) {
+    if (lastUserMsg.length > 2) {
       searchResults = await memoryService.search(userId, lastUserMsg);
       console.log(`[Swarm][Memory] Search for "${lastUserMsg.substring(0, 40)}..." returned ${searchResults.length} results`);
     }
 
-    // 2. Also get all memories for completeness (critical facts like age, city)
-    const allMemories = await memoryService.getAll(userId);
-    console.log(`[Swarm][Memory] Total memories stored: ${allMemories.length}`);
-
-    // 3. Merge: search results first (most relevant), then fill with allMemories
     const searchTexts = (searchResults as any[])
       .map((m: any) => typeof m === 'string' ? m : m.memory)
-      .filter(Boolean);
+      .filter((v: unknown): v is string => typeof v === 'string' && v.trim().length > 0);
 
-    const allTexts = (allMemories as any[])
-      .map((m: any) => typeof m === 'string' ? m : m.memory)
-      .filter(Boolean);
+    // 2) Light fallback only if search is weak
+    let allTexts: string[] = [];
+    if (searchTexts.length < 3) {
+      const allMemories = await memoryService.getAll(userId);
+      console.log(`[Swarm][Memory] Total memories stored: ${allMemories.length}`);
 
-    // Deduplicate: search results first, then add from allMemories if not already present
+      allTexts = (allMemories as any[])
+        .map((m: any) => typeof m === 'string' ? m : m.memory)
+        .filter((v: unknown): v is string => typeof v === 'string' && v.trim().length > 0)
+        .slice(0, 5);
+    }
+
+    // 3) Deduplicate and keep compact to avoid prompt bloat
     const seen = new Set<string>();
     const merged: string[] = [];
 
     for (const text of [...searchTexts, ...allTexts]) {
-      const normalized = text.toLowerCase().trim();
-      if (!seen.has(normalized) && merged.length < 15) {
+      const normalized = text.toLowerCase().trim().replace(/\s+/g, ' ');
+      if (!seen.has(normalized) && merged.length < 6) {
         seen.add(normalized);
-        merged.push(text);
+        const compact = text.replace(/\s+/g, ' ').trim();
+        merged.push(compact.length > 140 ? `${compact.slice(0, 140)}...` : compact);
       }
     }
 
@@ -54,7 +56,7 @@ export async function memoryNode(state: SwarmState): Promise<Partial<SwarmState>
   }
 
   const memoryContext = memories.length > 0
-    ? `[INFOS CONNUES SUR ${state.userName || 'CETTE PERSONNE'}]:\n${memories.map(m => `- ${m}`).join('\n')}\n\n⚠️ RÈGLE ABSOLUE: Ne JAMAIS redemander une info déjà listée ci-dessus (âge, ville, prénom, etc.). Si tu as l'info, utilise-la directement.`
+    ? `[MEMOIRE CONTEXTUELLE ${state.userName || 'CETTE PERSONNE'}]:\n${memories.map(m => `- ${m}`).join('\n')}\n\nRULE ABSOLUE: Ne JAMAIS redemander une info deja listee ci-dessus (age, ville, prenom, etc.). Si tu as l'info, utilise-la directement.`
     : '';
 
   return {
@@ -64,4 +66,3 @@ export async function memoryNode(state: SwarmState): Promise<Partial<SwarmState>
     }
   };
 }
-

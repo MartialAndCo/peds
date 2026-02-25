@@ -25,6 +25,65 @@ export interface SwarmOptions {
   preloadedProfile?: AgentProfile; // Pour éviter re-requête si déjà chargé
 }
 
+function readText(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function buildKnownFactsContext(contact: any, fallbackName: string): string {
+  const facts: string[] = [];
+
+  const contactName = readText(contact?.name);
+  if (contactName && !/^(inconnu|unknown|discord user)$/i.test(contactName)) {
+    facts.push(`Son prénom est ${contactName}.`);
+  }
+
+  const profile = (contact?.profile && typeof contact.profile === 'object' && !Array.isArray(contact.profile))
+    ? (contact.profile as Record<string, unknown>)
+    : null;
+
+  if (profile) {
+    const profileName = readText(profile.name);
+    if (profileName && !/^(inconnu|unknown)$/i.test(profileName)) {
+      facts.push(`Il se présente comme ${profileName}.`);
+    }
+
+    const age = Number(profile.age);
+    if (Number.isFinite(age) && age > 0 && age < 120) {
+      facts.push(`Il a ${Math.round(age)} ans.`);
+    }
+
+    const location = readText(profile.location || profile.city || profile.country);
+    if (location) {
+      facts.push(`Il vient de ${location}.`);
+    }
+
+    const job = readText(profile.job || profile.occupation || profile.workplace);
+    if (job) {
+      facts.push(`Il travaille comme ${job}.`);
+    }
+  }
+
+  const notesRaw = readText(contact?.notes);
+  if (notesRaw) {
+    const notesClean = notesRaw
+      .replace(/\[Smart Add[^\]]*\]/gi, '')
+      .replace(/\[Lead Update\]:/gi, '')
+      .replace(/^Context:\s*/i, '')
+      .trim();
+
+    if (notesClean) {
+      const excerpt = notesClean.length > 320 ? `${notesClean.slice(0, 320)}...` : notesClean;
+      facts.push(`Contexte opérateur: ${excerpt}`);
+    }
+  }
+
+  if (facts.length === 0) return '';
+
+  const targetName = readText(fallbackName) || 'CETTE PERSONNE';
+  return `[BASE FACTS CONNUS SUR ${targetName}]:\n${facts.map((f) => `- ${f}`).join('\n')}\n\n⚠️ RÈGLE ABSOLUE: Ne JAMAIS redemander une info déjà présente dans ces facts.`;
+}
+
 export async function runSwarm(
   userMessage: string,
   history: any[],
@@ -73,7 +132,12 @@ export async function runSwarm(
     // 1. Contact pour le phone (mémoires)
     prisma.contact.findUnique({
       where: { id: contactId },
-      select: { phone_whatsapp: true }
+      select: {
+        phone_whatsapp: true,
+        name: true,
+        notes: true,
+        profile: true
+      }
     }),
 
     // 2. Profile complet de l'agent (ou preloaded)
@@ -92,6 +156,7 @@ export async function runSwarm(
         agentId,
         status: { in: ['active', 'paused'] }
       },
+      orderBy: { createdAt: 'desc' },
       select: { metadata: true }
     }),
 
@@ -117,6 +182,7 @@ export async function runSwarm(
 
   const contactPhone = contact?.phone_whatsapp || contactId;
   const phase = agentContact?.phase || 'CONNECTION';
+  const knownFacts = buildKnownFactsContext(contact, userName || contact?.name || 'CETTE PERSONNE');
 
   // Extraire le leadContext si présent
   const metadata = activeConversation?.metadata as any;
@@ -158,6 +224,7 @@ export async function runSwarm(
       style: profile.styleRules || '',
       phase: '',
       timing: '',
+      knownFacts,
       memory: '',
       payment: '',
       media: '',
@@ -195,12 +262,8 @@ export async function runSwarm(
 
   // ÉTAPE 3: AGENTS OPTIONNELS (exécutés si besoin, en parallèle)
   graph.addNode('memory', async (state: SwarmState) => {
-    if (state.intention?.besoinMemoire) {
-      console.log('[Swarm][Memory] Need detected, loading memories...');
-      return await memoryNode(state);
-    }
-    console.log('[Swarm][Memory] No need, skipping');
-    return { contexts: { ...state.contexts, memory: '' } };
+    console.log('[Swarm][Memory] Always-on memory loading...');
+    return await memoryNode(state);
   }, ['intention']);
 
   graph.addNode('payment', async (state: SwarmState) => {

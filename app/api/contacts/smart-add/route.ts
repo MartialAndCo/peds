@@ -208,7 +208,8 @@ export async function POST(req: Request) {
                 contactId: contact.id,
                 agentId: body.agentId,
                 status: { in: ['active', 'paused'] }
-            }
+            },
+            orderBy: { createdAt: 'desc' }
         })
 
         if (!existingConv) {
@@ -238,21 +239,26 @@ export async function POST(req: Request) {
             } else {
                 console.warn(`[SmartAdd] No prompt found, conversation not created but AgentContact exists`)
             }
-        } else if (existingConv.status === 'paused') {
-            // Update existing paused conversation
+        } else {
+            // Always refresh imported context on existing conversation (active or paused)
+            const currentMeta = (existingConv.metadata as any) || {}
+            const nextState = existingConv.status === 'paused'
+                ? 'WAITING_FOR_LEAD'
+                : (currentMeta.state || 'active')
+
             await prisma.conversation.update({
                 where: { id: existingConv.id },
                 data: {
                     metadata: {
-                        ...(existingConv.metadata as any || {}),
-                        state: 'WAITING_FOR_LEAD',
+                        ...currentMeta,
+                        state: nextState,
                         leadContext: generatedContext,
                         platform: body.platform,
                         contactType: body.contactType
                     }
                 }
             })
-            console.log(`[SmartAdd] Updated existing conversation with WAITING_FOR_LEAD state`)
+            console.log(`[SmartAdd] Updated existing conversation metadata (status: ${existingConv.status})`)
         }
 
         // 7. EXTRACT & STORE KEY FACTS TO MEM0 (Long-term memory)
@@ -275,7 +281,7 @@ export async function POST(req: Request) {
                 console.log(`[SmartAdd] Stored ${facts.length} facts in Mem0 for ${identifier}:`, facts)
             } else {
                 // If no facts extracted, store the context as a memory anyway
-                await memoryService.add(userId, `Context from previous ${body.platform} conversation: ${generatedContext.substring(0, 200)}...`)
+                await memoryService.add(userId, `Context from previous ${body.platform} conversation: ${generatedContext.substring(0, 500)}...`)
                 console.log(`[SmartAdd] Stored summary context in Mem0 (no specific facts extracted)`)
             }
         } catch (memError) {
