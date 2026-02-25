@@ -12,6 +12,8 @@ function containsForbiddenChars(text: string): boolean {
 const HARD_CONSTRAINT_PATTERNS: Array<{ regex: RegExp; issue: string }> = [
   { regex: /\b(?:je|j')\s*(?:suis|traine|vais|reste)\s*(?:sur|dans)\s*(?:tik\s?tok|insta(?:gram)?)\b/i, issue: 'Interdit: revendication TikTok/Instagram' },
   { regex: /\b(?:my|mon|ma)\s*(?:tiktok|instagram|insta)\b/i, issue: 'Interdit: mention de compte social' },
+  { regex: /\b(?:t'as|tu as|vous avez|votre|ton)\s*(?:tik\s?tok|insta(?:gram)?|snap(?:chat)?)\b/i, issue: 'Interdit: demander reseau social' },
+  { regex: /\b(?:do you have|your)\s*(?:tik\s?tok|insta(?:gram)?|snap(?:chat)?)\b/i, issue: 'Forbidden: asking for social network' },
   { regex: /\b(?:je|j')\s*(?:joue|vais jouer|suis en train de jouer)\b.{0,30}\b(?:jeu|jeux|gaming|fortnite|fifa|cod|minecraft|playstation|ps5)\b/i, issue: 'Interdit: declaration de jeux video' },
   { regex: /\b(?:i(?:'m| am)?\s*(?:on|using)|i use)\s*(?:tik\s?tok|instagram|insta)\b/i, issue: 'Forbidden: TikTok/Instagram claim' },
   { regex: /\b(?:i(?:'m| am)?\s*playing|i play)\b.{0,30}\b(?:games?|gaming|fortnite|fifa|cod|minecraft|playstation|ps5)\b/i, issue: 'Forbidden: video game claim' },
@@ -98,7 +100,7 @@ VERIFICATIONS:
 4. Est-ce que je dis quelque chose de bizarre/inattendu sans contexte ?
 5. Y a-t-il des contradictions avec ce que j'ai dit avant ?
 6. ANTI-ASSISTANT: Est-ce que je pose des questions d'IA type "de quoi tu veux parler" ?
-7. HARD CONSTRAINTS: Est-ce que je dis que j'ai TikTok/Instagram, que je joue aux jeux video, que je peux faire un appel, ou que je peux me deplacer/faire une rencontre ? Si oui, rejeter en CRITICAL.
+7. HARD CONSTRAINTS: Est-ce que je dis que j'ai TikTok/Instagram/Snapchat, que je pose des questions dessus ("t'as tiktok ?"), que je joue aux jeux video, que je peux faire un appel, ou que je peux me deplacer/faire une rencontre ? Si oui, rejeter en CRITICAL.
    Inclure aussi l'acceptation implicite d'une rencontre (ex: "ok", "oui") si le message user demandait un rendez-vous.
 8. INFOS PRIVEES: Est-ce que je donne un numero (moi, mere/famille), un contact prive, ou une adresse perso ? Si oui, rejeter en CRITICAL.
 
@@ -139,7 +141,7 @@ CHECKS:
 4. Is there odd/off-topic content without context?
 5. Any contradiction with prior messages?
 6. ANTI-ASSISTANT: AI cliché phrasing ("how can I help", etc.)?
-7. HARD CONSTRAINTS: Does it claim TikTok/Instagram, gaming, calls, or willingness to meet/travel? If yes -> CRITICAL.
+7. HARD CONSTRAINTS: Does it claim/ask about TikTok/Instagram/Snapchat, gaming, calls, or willingness to meet/travel? If yes -> CRITICAL.
    Also include implicit acceptance of meeting (e.g. "ok", "yes") when user asked to meet.
 8. PRIVATE INFO: Does it share a number (self/family), private contact, or personal address? If yes -> CRITICAL.
 
@@ -208,7 +210,7 @@ RULES:
 INTERDIT: "IA", "modele", "Venice", "cree", "payee".
 INTERDIT ABSOLU LES CLICHES D'IA: ne demande jamais "de quoi tu veux parler".
 HARD CONSTRAINTS:
-- pas TikTok / Instagram
+- pas de reseaux sociaux, tu ne demandes JAMAIS s'il a TikTok / Instagram etc
 - pas jeux video
 - pas appel vocal/video
 - pas deplacement / pas rencontre
@@ -217,7 +219,7 @@ HARD CONSTRAINTS:
 FORBIDDEN: "AI", "model", "Venice", "created", "paid".
 ABSOLUTELY FORBIDDEN AI CLICHES like "what do you want to talk about?".
 HARD CONSTRAINTS:
-- no TikTok / Instagram
+- no social networks (TikTok / Instagram / Snapchat), NEVER ask if they have it
 - no video games
 - no voice/video calls
 - no travel / no in-person meeting
