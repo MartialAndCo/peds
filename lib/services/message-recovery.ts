@@ -1,5 +1,30 @@
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import { queueService } from '@/lib/services/queue-service'
+import { runSwarm } from '@/lib/swarm'
+
+interface OrphanConversation {
+    conversationId: number
+    contactId: string
+    contactPhone: string | null
+    agentId: string | null
+    lastMessageTime: Date
+    unansweredCount: number
+    lastMessagePreview: string
+}
+
+type RecoveryTriggerResult =
+    | { status: 'no_messages_to_recover' }
+    | { status: 'success'; messagesRecovered: number; responsePreview: string }
+
+type RecoveryDetail =
+    | (OrphanConversation & { status: 'recovered'; result: RecoveryTriggerResult })
+    | (OrphanConversation & { status: 'failed'; error: string })
+
+function getErrorMessage(error: unknown): string {
+    if (error instanceof Error) return error.message
+    return String(error)
+}
 
 /**
  * Message Recovery Service
@@ -26,7 +51,7 @@ export class MessageRecoveryService {
      *   - Last message is from CONTACT (not AI)
      *   - That message is older than ORPHAN_THRESHOLD_MINUTES
      */
-    async recoverOrphanMessages(): Promise<{ recovered: number; details: any[] }> {
+    async recoverOrphanMessages(): Promise<{ recovered: number; details: RecoveryDetail[] }> {
         const thresholdTime = new Date(Date.now() - this.ORPHAN_THRESHOLD_MINUTES * 60 * 1000)
 
         console.log(`[Recovery] Scanning for orphan messages older than ${this.ORPHAN_THRESHOLD_MINUTES} minutes...`)
@@ -47,7 +72,7 @@ export class MessageRecoveryService {
             }
         })
 
-        const orphans: any[] = []
+        const orphans: OrphanConversation[] = []
 
         for (const conv of activeConversations) {
             if (conv.messages.length === 0) continue
@@ -87,7 +112,7 @@ export class MessageRecoveryService {
 
         // Recover up to MAX_RECOVER_PER_RUN
         const toRecover = orphans.slice(0, this.MAX_RECOVER_PER_RUN)
-        const results: any[] = []
+        const results: RecoveryDetail[] = []
 
         for (const orphan of toRecover) {
             try {
@@ -102,9 +127,9 @@ export class MessageRecoveryService {
                 const result = await this.triggerRecovery(orphan)
                 results.push({ ...orphan, status: 'recovered', result })
 
-            } catch (error: any) {
+            } catch (error: unknown) {
                 console.error(`[Recovery] Failed to recover conversation ${orphan.conversationId}:`, error)
-                results.push({ ...orphan, status: 'failed', error: error.message })
+                results.push({ ...orphan, status: 'failed', error: getErrorMessage(error) })
             }
         }
 
@@ -114,8 +139,7 @@ export class MessageRecoveryService {
     /**
      * Trigger recovery for a specific orphan conversation
      */
-    private async triggerRecovery(orphan: any): Promise<any> {
-        const { queueService } = require('@/lib/services/queue-service')
+    private async triggerRecovery(orphan: OrphanConversation): Promise<RecoveryTriggerResult> {
 
         // Get conversation with full details
         const conversation = await prisma.conversation.findUnique({
@@ -168,58 +192,29 @@ export class MessageRecoveryService {
 
         console.log(`[Recovery] Generating AI response for ${unansweredMessages.length} orphan messages`)
 
-        // Import chat handler and call AI generation
-        const { settingsService } = require('@/lib/settings-cache')
-        const settings = await settingsService.getSettings()
+        if (!conversation.agentId) {
+            throw new Error('Missing agentId on conversation')
+        }
 
-        // Get agent settings
-        const agentSettings = await prisma.agentSetting.findMany({
-            where: { agentId: (conversation.agentId as unknown as string) || 'default' }
-        })
-        agentSettings.forEach((s: any) => { settings[s.key] = s.value })
-
-        // Generate AI response
-        const { venice } = require('@/lib/venice')
-        const { anthropic } = require('@/lib/anthropic')
-        const { director } = require('@/lib/director')
-
-        const { phase, details } = await director.determinePhase(conversation.contact.phone_whatsapp, conversation.agentId || 'default')
-        const systemPrompt = await director.buildSystemPrompt(
-            settings,
-            conversation.contact,
-            phase,
-            details,
-            conversation.prompt?.system_prompt || 'You are helpful.',
-            conversation.agentId
-        )
-
-        const provider = settings.ai_provider || 'venice'
-        let responseText = ''
-
+        // Generate AI response through Swarm to keep behavior aligned with live pipeline.
         // Build context from history
-        const historyMessages = messages.reverse().map((m: any) => ({
-            role: m.sender === 'contact' ? 'user' : 'assistant',
+        const historyMessages = messages.reverse().map((m) => ({
+            role: m.sender === 'contact' ? 'user' : 'ai',
             content: m.message_text
         }))
-        // Keep all history as context since batchedMessage is passed separately
-        // Admin messages are mapped to 'assistant' and should be preserved
-        const context = historyMessages
 
-        if (provider === 'anthropic') {
-            responseText = await anthropic.chatCompletion(
-                systemPrompt,
-                context,
-                batchedMessage,
-                { apiKey: settings.anthropic_api_key, model: settings.anthropic_model }
-            )
-        } else {
-            responseText = await venice.chatCompletion(
-                systemPrompt,
-                context,
-                batchedMessage,
-                { apiKey: settings.venice_api_key, model: settings.venice_model }
-            )
-        }
+        const platform = (conversation.contact.phone_whatsapp || '').startsWith('DISCORD_') ? 'discord' : 'whatsapp'
+        let responseText = await runSwarm(
+            batchedMessage,
+            historyMessages,
+            conversation.contactId,
+            conversation.agentId,
+            conversation.contact.name || 'friend',
+            {
+                lastMessageType: 'text',
+                platform
+            }
+        )
 
         if (!responseText || responseText.trim().length === 0) {
             throw new Error('AI returned empty response during recovery')

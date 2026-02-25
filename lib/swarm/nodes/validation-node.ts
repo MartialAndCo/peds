@@ -28,10 +28,54 @@ const HARD_CONSTRAINT_PATTERNS: Array<{ regex: RegExp; issue: string }> = [
   { regex: /\b(?:adresse|address)\b.{0,24}(?:est|is|:)\b/i, issue: 'Interdit: partage adresse privee' }
 ]
 
+const ASSISTANT_CLICHE_PATTERNS: Array<{ regex: RegExp; issueFr: string; issueEn: string }> = [
+  {
+    regex: /\bhow\s+can\s+i\s+(?:help|assist)\s+you(?:\s+today)?\b/i,
+    issueFr: 'Interdit: cliche assistant ("how can i help/assist you")',
+    issueEn: 'Forbidden: assistant cliche ("how can I help/assist you")'
+  },
+  {
+    regex: /\bwhat\s+do\s+you\s+want\s+to\s+talk\s+about\b/i,
+    issueFr: 'Interdit: cliche assistant ("what do you want to talk about")',
+    issueEn: 'Forbidden: assistant cliche ("what do you want to talk about")'
+  },
+  {
+    regex: /\bhow\s+may\s+i\s+assist\s+you\b/i,
+    issueFr: 'Interdit: cliche assistant ("how may i assist you")',
+    issueEn: 'Forbidden: assistant cliche ("how may I assist you")'
+  },
+  {
+    regex: /\bcomment\s+puis[- ]?je\s+t[' ]?aider\b/i,
+    issueFr: 'Interdit: cliche assistant ("comment puis-je t aider")',
+    issueEn: 'Forbidden: assistant cliche ("comment puis-je t aider")'
+  },
+  {
+    regex: /\bde\s+quoi\s+veux[- ]?tu\s+parler\b/i,
+    issueFr: 'Interdit: cliche assistant ("de quoi veux-tu parler")',
+    issueEn: 'Forbidden: assistant cliche ("de quoi veux-tu parler")'
+  },
+  {
+    regex: /\bje\s+suis\s+la\s+pour\s+t[' ]?ecouter\b/i,
+    issueFr: 'Interdit: cliche assistant ("je suis la pour t ecouter")',
+    issueEn: 'Forbidden: assistant cliche ("je suis la pour t ecouter")'
+  },
+  {
+    regex: /^\s*hello(?:\s+there)?[!,. ]*(?:how\s+can\s+i\s+(?:help|assist)\s+you(?:\s+today)?)?[!?. ]*\s*$/i,
+    issueFr: 'Interdit: salutation generique assistant',
+    issueEn: 'Forbidden: generic assistant greeting'
+  }
+]
+
 function detectHardConstraintViolations(text: string): string[] {
   return HARD_CONSTRAINT_PATTERNS
     .filter((entry) => entry.regex.test(text))
     .map((entry) => entry.issue)
+}
+
+function detectAssistantCliches(text: string, isFrench: boolean): string[] {
+  return ASSISTANT_CLICHE_PATTERNS
+    .filter((entry) => entry.regex.test(text))
+    .map((entry) => (isFrench ? entry.issueFr : entry.issueEn))
 }
 
 const MEETING_REQUEST_REGEX = /\b(?:on se voit|on se capte|rendez[- ]?vous|rdv|viens?\s+me\s+voir|let'?s meet|meet(?:\s+up)?|see each other|come see me|irl)\b/i
@@ -183,11 +227,12 @@ RULES:
 
       const hardConstraintIssues = detectHardConstraintViolations(currentResponse)
       const meetingAcceptanceIssues = detectMeetingAcceptance(userMessage, currentResponse, isFrench)
-      const blockingIssues = [...hardConstraintIssues, ...meetingAcceptanceIssues]
+      const assistantClicheIssues = detectAssistantCliches(currentResponse, isFrench)
+      const blockingIssues = [...hardConstraintIssues, ...meetingAcceptanceIssues, ...assistantClicheIssues]
       if (blockingIssues.length > 0) {
         result.isValid = false
         result.severity = 'CRITICAL'
-        result.issues = [...(result.issues || []), ...blockingIssues]
+        result.issues = Array.from(new Set([...(result.issues || []), ...blockingIssues]))
       }
 
       console.log(`[Swarm][Validation] Attempt ${attempts}:`, {
@@ -275,8 +320,9 @@ CORRECTION RULES:
       )
 
       currentResponse = currentResponse.trim()
-    } catch (error: any) {
-      console.error('[Swarm][Validation] Error:', error.message)
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error('[Swarm][Validation] Error:', errorMessage)
       return { response: currentResponse }
     }
   }
@@ -284,6 +330,3 @@ CORRECTION RULES:
   console.log(`[Swarm][Validation] Max retries (${MAX_RETRIES}) reached, returning best attempt`)
   return { response: currentResponse }
 }
-
-
-

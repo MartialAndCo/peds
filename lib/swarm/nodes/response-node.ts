@@ -170,6 +170,25 @@ User: "wyd" → You: "lowkey bored tbh"`)
     promptParts.push(contexts.payment)
   }
 
+  // 14. FINAL OVERRIDE (must stay LAST so legacy DB templates cannot override it)
+  promptParts.push(
+    isFrench
+      ? `OVERRIDE FINAL ANTI-ASSISTANT:
+INTERDIT ABSOLU:
+- "comment puis-je t'aider"
+- "de quoi veux-tu parler"
+- "je suis la pour t'ecouter"
+- toute phrase d'assistant virtuel
+Tu dois repondre comme une personne, jamais comme un assistant.`
+      : `FINAL ANTI-ASSISTANT OVERRIDE:
+ABSOLUTELY FORBIDDEN:
+- "how can i help/assist you"
+- "what do you want to talk about"
+- "i am here to listen"
+- any virtual-assistant phrasing
+You must reply like a person, never like an assistant.`
+  )
+
   // Assembler le prompt final
   let systemPrompt = promptParts.join('\n\n')
 
@@ -214,10 +233,11 @@ User: "wyd" → You: "lowkey bored tbh"`)
 
     return { response: cleanResponse }
 
-  } catch (error: any) {
-    console.error('[Swarm][Response] Failed:', error.message)
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    console.error('[Swarm][Response] Failed:', errorMessage)
     // Si erreur 402 (pas de crédits), throw une erreur claire
-    if (error.message?.includes('402') || error.message?.includes('Insufficient balance')) {
+    if (errorMessage.includes('402') || errorMessage.includes('Insufficient balance')) {
       throw new Error('AI_QUOTA_EXHAUSTED: Venice AI credits depleted. Please recharge your account or check your API key.')
     }
     throw error

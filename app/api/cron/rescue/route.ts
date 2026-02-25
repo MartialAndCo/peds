@@ -1,10 +1,16 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { whatsapp } from '@/lib/whatsapp'
-import { venice } from '@/lib/venice'
+import { discord } from '@/lib/discord'
+import { runSwarm } from '@/lib/swarm'
 import { enforceLength } from '@/lib/services/response-length-guard'
 
-export async function GET(req: Request) {
+function getErrorMessage(error: unknown): string {
+    if (error instanceof Error) return error.message
+    return String(error)
+}
+
+export async function GET() {
     try {
         console.log('[RescueCron] Checking for abandoned conversations...')
 
@@ -93,27 +99,40 @@ export async function GET(req: Request) {
                 }))
 
                 const settingsList = await prisma.setting.findMany()
-                const settings = settingsList.reduce((acc: any, curr: any) => { acc[curr.key] = curr.value; return acc }, {})
+                const settings = settingsList.reduce<Record<string, string>>((acc, curr) => {
+                    if (typeof curr.value === 'string') acc[curr.key] = curr.value
+                    return acc
+                }, {})
 
-                const systemPrompt = conv.prompt.system_prompt
+                if (!conv.agentId) {
+                    console.warn(`[Rescue] Skipping conversation ${conv.id} - missing agentId`)
+                    continue
+                }
+
                 const lastUserText = lastMsg.message_text
+                const platform = (conv.contact.phone_whatsapp || '').startsWith('DISCORD_') ? 'discord' : 'whatsapp'
 
-                // Add a "Recovery" note to system prompt so AI knows context?
-                // "SYSTEM: You missed the last message due to a technical glitch. Apologize casually or just reply dynamically."
-                // Actually, staying in character is better. Just reply.
-
-                const responseText = await venice.chatCompletion(
-                    systemPrompt,
-                    history.slice(0, -1), // Context
-                    lastUserText, // Trigger
-                    { apiKey: settings.venice_api_key, model: 'venice-uncensored', max_tokens: 120 }
+                // Use the same Swarm pipeline as standard chat flow to avoid legacy-generic replies.
+                const responseText = await runSwarm(
+                    lastUserText,
+                    history.slice(0, -1),
+                    conv.contactId,
+                    conv.agentId,
+                    conv.contact.name || 'friend',
+                    {
+                        lastMessageType: 'text',
+                        platform
+                    }
                 )
 
                 const cleanResponse = responseText.replace(new RegExp('\\*[^*]+\\*', 'g'), '').trim()
-                const contactLocale =
-                    conv.contact?.profile && typeof conv.contact.profile === 'object'
-                        ? (conv.contact.profile as any).locale
-                        : undefined
+                const contactProfile =
+                    conv.contact?.profile && typeof conv.contact.profile === 'object' && !Array.isArray(conv.contact.profile)
+                        ? (conv.contact.profile as Record<string, unknown>)
+                        : null
+                const contactLocale = typeof contactProfile?.locale === 'string'
+                    ? contactProfile.locale
+                    : undefined
                 const guarded = await enforceLength({
                     text: cleanResponse,
                     locale: contactLocale,
@@ -138,7 +157,16 @@ export async function GET(req: Request) {
                     console.log(`[Rescue] Skipping conversation ${conv.id} - no phone number`)
                     continue
                 }
-                await whatsapp.sendText(phone, guarded.text, undefined, conv.agentId || undefined)
+
+                if (platform === 'discord') {
+                    const sent = await discord.sendText(phone, guarded.text, conv.agentId || undefined)
+                    if (!sent) {
+                        console.warn(`[Rescue] Discord send failed for conversation ${conv.id}`)
+                        continue
+                    }
+                } else {
+                    await whatsapp.sendText(phone, guarded.text, undefined, conv.agentId || undefined)
+                }
 
                 // Save
                 await prisma.message.create({
@@ -165,8 +193,8 @@ export async function GET(req: Request) {
 
         return NextResponse.json({ success: true, recovered: recoveredIds.length, ids: recoveredIds })
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[RescueCron] Error:', error)
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 })
     }
 }

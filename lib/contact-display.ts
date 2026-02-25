@@ -7,9 +7,7 @@ type ContactLike = {
         age?: number | string | null
         birthDate?: string | Date | null
     } | Record<string, unknown> | null
-    lead?: {
-        age?: number | null
-    } | null
+    lead?: Record<string, unknown> | null
     intelligentProfile?: {
         birthDate?: string | Date | null
     } | null
