@@ -287,7 +287,7 @@ function detectService(line: string, source: string): string {
   if (lower.includes('amplify')) return 'amplify'
   if (lower.includes('baileys') || lower.includes('whatsapp')) return 'whatsapp'
   if (lower.includes('prisma') || lower.includes('database')) return 'database'
-  if (lower.includes('openai') || lower.includes('venice') || lower.includes('anthropic')) return 'ai'
+  if (lower.includes('openai') || lower.includes('venice')) return 'ai'
   if (lower.includes('elevenlabs') || lower.includes('tts')) return 'voice'
   if (lower.includes('supabase')) return 'storage'
   

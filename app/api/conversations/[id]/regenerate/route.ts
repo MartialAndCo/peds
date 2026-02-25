@@ -4,7 +4,6 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { settingsService } from '@/lib/settings-cache'
 import { venice } from '@/lib/venice'
-import { anthropic } from '@/lib/anthropic'
 
 export const dynamic = 'force-dynamic'
 
@@ -129,40 +128,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     systemPrompt += `\n\n[REGENERATION MODE]: Generate your next response to continue this conversation naturally. Stay in character. Keep it short and authentic to your personality. Don't break the fourth wall. Don't mention being an AI.`
 
     // Generate AI response
-    const provider = settings.ai_provider || 'venice'
-    let responseText = ""
-
-    if (provider === 'anthropic') {
-      responseText = await anthropic.chatCompletion(
-        systemPrompt,
-        history,
-        "Continue the conversation.",
-        { 
-          apiKey: settings.anthropic_api_key, 
-          model: settings.anthropic_model || 'claude-3-haiku-20240307',
-          temperature: 0.8,
-          max_tokens: 300 // Keep it concise
-        }
-      )
-    } else {
-      responseText = await venice.chatCompletion(
-        systemPrompt,
-        history,
-        "Continue the conversation.",
-        { 
-          apiKey: settings.venice_api_key, 
-          model: 'venice-uncensored',
-          temperature: 0.8,
-          max_tokens: 300 // Keep it concise
-        }
-      )
-    }
+    const responseText = await venice.chatCompletion(
+      systemPrompt,
+      history,
+      "Continue the conversation.",
+      { 
+        apiKey: settings.venice_api_key, 
+        model: 'venice-uncensored',
+        temperature: 0.8,
+        max_tokens: 300 // Keep it concise
+      }
+    )
 
     return NextResponse.json({ 
       success: true, 
       response: responseText,
       phase: currentPhase,
-      provider
+      provider: 'venice'
     })
 
   } catch (error: any) {

@@ -1,7 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { whatsapp } from '@/lib/whatsapp';
 import { venice } from '@/lib/venice';
-import { anthropic } from '@/lib/anthropic';
 import { logger } from '@/lib/logger';
 
 import { settingsService } from '@/lib/settings-cache';
@@ -286,25 +285,16 @@ Respond ONLY with JSON:
         let responseText = "";
 
         try {
-            // Use Venice or Anthropic based on settings preference
             const apiKey = settings.venice_api_key;
             // Force JSON mode if possible or just parse text
             // For now, prompt engineering for JSON.
 
             const userMessage = `Analyze this request: "${text}"`;
 
-            if (settings.ai_provider === 'anthropic') {
-                // simplify for now or use the preferred provider
-                responseText = await anthropic.chatCompletion(
-                    systemPrompt, [], userMessage,
-                    { apiKey: settings.anthropic_api_key, model: settings.anthropic_model || 'claude-3-haiku-20240307' }
-                );
-            } else {
-                responseText = await venice.chatCompletion(
-                    systemPrompt, [], userMessage,
-                    { apiKey: settings.venice_api_key, model: settings.venice_model || 'google-gemma-3-27b-it' }
-                );
-            }
+            responseText = await venice.chatCompletion(
+                systemPrompt, [], userMessage,
+                { apiKey: settings.venice_api_key, model: settings.venice_model || 'google-gemma-3-27b-it' }
+            );
 
             // Extract JSON from response (sometimes models add markdown)
             const jsonMatch = responseText.match(/\{[\s\S]*\}/);
@@ -709,8 +699,6 @@ Output JSON:
                 .replace('{TYPE}', ingestionResult.type)
                 .replace('{TIME}', nowLA)
                 .replace('{HISTORY}', history);
-            const provider = settings.ai_provider || 'venice';
-
             // Use Director to build FULL prompt so scheduling (tease/shy) matches Phase
             const { director } = require('@/lib/director')
             const { phase, details } = await director.determinePhase(contact.phone_whatsapp, conversation.agentId)
@@ -725,11 +713,7 @@ Output JSON:
 
             let aiResponseText = "{}";
             try {
-                if (provider === 'anthropic') {
-                    aiResponseText = await anthropic.chatCompletion(fullSystemPrompt, [], schedulingPrompt, { apiKey: settings.anthropic_api_key, model: settings.anthropic_model });
-                } else {
-                    aiResponseText = await venice.chatCompletion(fullSystemPrompt, [], schedulingPrompt, { apiKey: settings.venice_api_key, model: settings.venice_model });
-                }
+                aiResponseText = await venice.chatCompletion(fullSystemPrompt, [], schedulingPrompt, { apiKey: settings.venice_api_key, model: settings.venice_model });
             } catch (e: any) { logger.error("AI Sched Failed", e, { module: 'media_service' }); }
 
             try {

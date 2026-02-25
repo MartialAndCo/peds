@@ -1,9 +1,5 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { venice } from '@/lib/venice'
-import { anthropic } from '@/lib/anthropic'
-import axios from 'axios'
-const { director } = require('@/lib/director')
 
 
 export const dynamic = 'force-dynamic'; // Prevent caching

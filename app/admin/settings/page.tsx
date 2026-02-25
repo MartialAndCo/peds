@@ -181,8 +181,6 @@ export default function SettingsPage() {
         waha_api_key: '',
         venice_api_key: '',
         venice_model: 'google-gemma-3-27b-it',
-        anthropic_api_key: '',
-        anthropic_model: 'claude-3-haiku-20240307',
         openrouter_api_key: '',
         openrouter_model: 'cognitivecomputations/dolphin-mistral-24b-venice-edition:free',
         ai_provider: 'venice',

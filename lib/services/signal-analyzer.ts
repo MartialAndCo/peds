@@ -565,26 +565,13 @@ RULES:
         let result = { detected: [] as TrustSignal[], lost: [] as TrustSignal[], reasoning: {} as Partial<Record<TrustSignal, string>> }
 
         try {
-            const provider = settings.ai_provider || 'venice'
-            let jsonStr = ""
-
-            if (provider === 'anthropic') {
-                const { anthropic } = require('@/lib/anthropic')
-                jsonStr = await anthropic.chatCompletion(
-                    "Analyze and output JSON only.",
-                    [],
-                    analysisPrompt,
-                    { apiKey: settings.anthropic_api_key, model: 'claude-3-haiku-20240307' }
-                )
-            } else {
-                const { venice } = require('@/lib/venice')
-                jsonStr = await venice.chatCompletion(
-                    "Analyze and output JSON only.",
-                    [],
-                    analysisPrompt,
-                    { apiKey: settings.venice_api_key, model: 'google-gemma-3-27b-it' }
-                )
-            }
+            const { venice } = require('@/lib/venice')
+            const jsonStr = await venice.chatCompletion(
+                "Analyze and output JSON only.",
+                [],
+                analysisPrompt,
+                { apiKey: settings.venice_api_key, model: 'google-gemma-3-27b-it' }
+            )
 
             const cleanJson = jsonStr.replace(/\`\`\`json/g, '').replace(/\`\`\`/g, '').trim()
             const parsed = JSON.parse(cleanJson)

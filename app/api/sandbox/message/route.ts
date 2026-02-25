@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { venice } from '@/lib/venice'
-import { anthropic } from '@/lib/anthropic'
 // We don't use 'whatsapp' lib here for sending, but we might need it for helpers?
 // Actually we want to return the response to the UI, not send it to WhatsApp.
 
@@ -116,25 +115,13 @@ export async function POST(req: Request) {
                         ? `(SYSTEM: User wants ${analysis.intentCategory}. You don't have it. Tell them you'll check later.)`
                         : `(SYSTEM: User asking AGAIN for ${analysis.intentCategory}. Tell them to be patient.)`
 
-                    const provider = settings.ai_provider || 'venice'
                     const userMessageForAI = message + "\n\n" + instruction
-                    let aiText = ""
-
-                    if (provider === 'anthropic') {
-                        aiText = await anthropic.chatCompletion(
-                            conversation.prompt.system_prompt || "You are a helpful assistant.",
-                            [],
-                            userMessageForAI,
-                            { apiKey: settings.anthropic_api_key, model: settings.anthropic_model || 'claude-3-haiku-20240307' }
-                        )
-                    } else {
-                        aiText = await venice.chatCompletion(
-                            conversation.prompt.system_prompt || "You are a helpful assistant.",
-                            [],
-                            userMessageForAI,
-                            { apiKey: settings.venice_api_key, model: 'venice-uncensored' }
-                        )
-                    }
+                    const aiText = await venice.chatCompletion(
+                        conversation.prompt.system_prompt || "You are a helpful assistant.",
+                        [],
+                        userMessageForAI,
+                        { apiKey: settings.venice_api_key, model: 'venice-uncensored' }
+                    )
                     responsePayload = { type: 'text', content: aiText, meta: '[System] Requested from Source' }
                 }
             }
@@ -222,26 +209,16 @@ export async function POST(req: Request) {
             }
 
             // Generate using dynamically built prompt
-            const provider = settings.ai_provider || 'venice'
             let aiText = ""
 
             console.log('[Sandbox] Using Phase:', phase)
 
-            if (provider === 'anthropic') {
-                aiText = await anthropic.chatCompletion(
-                    systemPrompt,
-                    contextMessages,
-                    lastMessage,
-                    { apiKey: settings.anthropic_api_key, model: conversation.prompt.model || 'claude-3-haiku-20240307', temperature: Number(conversation.prompt.temperature) }
-                )
-            } else {
-                aiText = await venice.chatCompletion(
-                    systemPrompt,
-                    contextMessages,
-                    lastMessage,
-                    { apiKey: settings.venice_api_key, model: 'venice-uncensored', temperature: Number(conversation.prompt.temperature) }
-                )
-            }
+            aiText = await venice.chatCompletion(
+                systemPrompt,
+                contextMessages,
+                lastMessage,
+                { apiKey: settings.venice_api_key, model: 'venice-uncensored', temperature: Number(conversation.prompt.temperature) }
+            )
 
             // --- GUARDRAIL: STRIP ASTERISKS ---
             aiText = aiText.replace(/\*[^*]+\*/g, '').trim()

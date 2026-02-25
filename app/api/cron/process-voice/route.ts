@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { qwenTtsService } from '@/lib/qwen-tts';
 import { mediaService } from '@/lib/media';
-import { anthropic } from '@/lib/anthropic';
 import { venice } from '@/lib/venice';
 import { settingsService } from '@/lib/settings-cache';
 
@@ -87,19 +86,18 @@ export async function GET(req: Request) {
                                     const settingsList = await prisma.setting.findMany();
                                     const settings = settingsList.reduce((acc: any, curr: any) => { acc[curr.key] = curr.value; return acc }, {});
 
-                                    const provider = settings.ai_provider || 'venice';
                                     const messagesLog = newMessages.map(m => `[User]: ${m.message_text}`).join('\n');
                                     const promptTemplate = settings.prompt_voice_context_check || DEFAULT_VOICE_CHECK_PROMPT;
                                     const prompt = promptTemplate
                                         .replace('{REQUEST_DESCRIPTION}', req.description)
                                         .replace('{NEW_MESSAGES}', messagesLog);
 
-                                    let aiResponse = "SEND";
-                                    if (provider === 'anthropic') {
-                                        aiResponse = await anthropic.chatCompletion("You are a controller.", [], prompt, { apiKey: settings.anthropic_api_key, model: settings.anthropic_model });
-                                    } else {
-                                        aiResponse = await venice.chatCompletion("You are a controller.", [], prompt, { apiKey: settings.venice_api_key, model: settings.venice_model });
-                                    }
+                                    const aiResponse = await venice.chatCompletion(
+                                        "You are a controller.",
+                                        [],
+                                        prompt,
+                                        { apiKey: settings.venice_api_key, model: settings.venice_model }
+                                    );
 
                                     const cleanResponse = aiResponse.trim().toUpperCase().replace(/[^A-Z]/g, '');
                                     if (cleanResponse.includes('CANCEL')) decision = 'CANCEL';

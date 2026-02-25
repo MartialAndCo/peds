@@ -1,6 +1,5 @@
 import { prisma } from '@/lib/prisma'
 import { venice } from '@/lib/venice'
-import { anthropic } from '@/lib/anthropic'
 import { whatsapp } from '@/lib/whatsapp'
 import { discord } from '@/lib/discord'
 import { NextResponse } from 'next/server'
@@ -570,23 +569,14 @@ Keep response SHORT and excited.)`
                             reason
                         )
 
-                        const provider = settings.ai_provider || 'venice'
                         let aiPaywallResponse = ""
                         const userMessageWithInstruction = `${messageText}\n\n${paywallSystemPrompt}`
 
-                        if (provider === 'anthropic') {
-                            aiPaywallResponse = await anthropic.chatCompletion(fullSystemPrompt, history, userMessageWithInstruction, {
-                                apiKey: settings.anthropic_api_key,
-                                model: settings.anthropic_model,
-                                max_tokens: 120
-                            })
-                        } else {
-                            aiPaywallResponse = await venice.chatCompletion(fullSystemPrompt, history, userMessageWithInstruction, {
-                                apiKey: settings.venice_api_key,
-                                model: 'venice-uncensored',
-                                max_tokens: 120
-                            })
-                        }
+                        aiPaywallResponse = await venice.chatCompletion(fullSystemPrompt, history, userMessageWithInstruction, {
+                            apiKey: settings.venice_api_key,
+                            model: 'venice-uncensored',
+                            max_tokens: 120
+                        })
 
                         const paywallLengthCheck = await enforceLength({
                             text: aiPaywallResponse,
@@ -668,23 +658,14 @@ Keep response SHORT and excited.)`
                             content: m.message_text
                         }));
 
-                        const provider = settings.ai_provider || 'venice'
                         let aiRefusal = ""
                         const userMessageWithInstruction = `${messageText}\n\n${refusalSystemPrompt}`
 
-                        if (provider === 'anthropic') {
-                            aiRefusal = await anthropic.chatCompletion(fullSystemPrompt, history, userMessageWithInstruction, {
-                                apiKey: settings.anthropic_api_key,
-                                model: settings.anthropic_model,
-                                max_tokens: 120
-                            })
-                        } else {
-                            aiRefusal = await venice.chatCompletion(fullSystemPrompt, history, userMessageWithInstruction, {
-                                apiKey: settings.venice_api_key,
-                                model: 'venice-uncensored',
-                                max_tokens: 120
-                            })
-                        }
+                        aiRefusal = await venice.chatCompletion(fullSystemPrompt, history, userMessageWithInstruction, {
+                            apiKey: settings.venice_api_key,
+                            model: 'venice-uncensored',
+                            max_tokens: 120
+                        })
 
                         const refusalLengthCheck = await enforceLength({
                             text: aiRefusal,
@@ -773,33 +754,19 @@ Keep response SHORT and excited.)`
                                 reason
                             )
 
-                            const provider = settings.ai_provider || 'venice'
                             let responseText = ""
                             const userMessageForAI = messageText + "\n\n" + instruction;
 
-                            if (provider === 'anthropic') {
-                                responseText = await anthropic.chatCompletion(
-                                    fullSystemPrompt,
-                                    history,
-                                    userMessageForAI,
-                                    {
-                                        apiKey: settings.anthropic_api_key,
-                                        model: settings.anthropic_model || 'claude-3-haiku-20240307',
-                                        max_tokens: 120
-                                    }
-                                );
-                            } else {
-                                responseText = await venice.chatCompletion(
-                                    fullSystemPrompt,
-                                    history,
-                                    userMessageForAI,
-                                    {
-                                        apiKey: settings.venice_api_key,
-                                        model: 'venice-uncensored',
-                                        max_tokens: 120
-                                    }
-                                );
-                            }
+                            responseText = await venice.chatCompletion(
+                                fullSystemPrompt,
+                                history,
+                                userMessageForAI,
+                                {
+                                    apiKey: settings.venice_api_key,
+                                    model: 'venice-uncensored',
+                                    max_tokens: 120
+                                }
+                            );
 
                             const requestSourceLengthCheck = await enforceLength({
                                 text: responseText,

@@ -61,14 +61,12 @@ export const profilerService = {
         const systemPrompt = settings.prompt_profiler_extraction || defaultPrompt;
 
         try {
-            const provider = settings.ai_provider || 'venice';
-            let result = "";
-            if (provider === 'anthropic') {
-                const { anthropic } = require('@/lib/anthropic')
-                result = await anthropic.chatCompletion(systemPrompt, [], `Conversation:\n${history}\n\nExtract Profile JSON:`, { apiKey: settings.anthropic_api_key, model: settings.anthropic_model })
-            } else {
-                result = await venice.chatCompletion(systemPrompt, [], `Conversation:\n${history}\n\nExtract Profile JSON:`, { apiKey: settings.venice_api_key, model: settings.venice_model })
-            }
+            const result = await venice.chatCompletion(
+                systemPrompt,
+                [],
+                `Conversation:\n${history}\n\nExtract Profile JSON:`,
+                { apiKey: settings.venice_api_key, model: settings.venice_model }
+            )
 
             // Parse JSON with more robust extraction
             const profileData = extractJsonFromResponse(result)

@@ -39,9 +39,6 @@ export function PromptForm({ initialData }: PromptFormProps) {
         if (settings.venice_api_key) {
             models.push('google-gemma-3-27b-it', 'llama-3-8b', 'google-gemma-3-27b-it')
         }
-        if (settings.anthropic_api_key) {
-            models.push('claude-3-haiku-20240307', 'claude-3-sonnet-20240229', 'claude-3-opus-20240229')
-        }
         // Fallback if nothing configured or just default
         if (models.length === 0) {
             models.push('google-gemma-3-27b-it')

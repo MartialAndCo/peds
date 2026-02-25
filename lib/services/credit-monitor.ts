@@ -6,7 +6,7 @@
  */
 
 export type CreditAlert = {
-    provider: 'venice' | 'runpod' | 'anthropic'
+    provider: 'venice' | 'runpod'
     status: 'depleted' | 'low' | 'ok'
     timestamp: Date
     message: string
