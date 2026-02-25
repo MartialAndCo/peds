@@ -16,6 +16,7 @@ import {
   Play,
   Loader2,
   ChevronLeft,
+  ChevronDown,
   FileDown,
   TrendingUp,
   AlertTriangle,
@@ -120,6 +121,7 @@ export function ConversationUnifiedView({
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [oldestId, setOldestId] = useState<number | null>(null)
   const [exporting, setExporting] = useState(false)
@@ -174,6 +176,18 @@ export function ConversationUnifiedView({
     const container = scrollRef.current
     if (!container) return
     container.scrollTo({ top: container.scrollHeight, behavior })
+  }, [])
+
+  const updateScrollToBottomVisibility = useCallback(() => {
+    const container = scrollRef.current
+    if (!container) {
+      setShowScrollToBottom(prev => (prev ? false : prev))
+      return
+    }
+
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
+    const shouldShow = distanceFromBottom > 220
+    setShowScrollToBottom(prev => (prev === shouldShow ? prev : shouldShow))
   }, [])
 
   const rowVirtualizer = useVirtualizer({
@@ -273,6 +287,7 @@ export function ConversationUnifiedView({
     if (!isOpen) return
 
     setMessages([])
+    setShowScrollToBottom(false)
     setHasMore(true)
     setOldestId(null)
     setLoadingMore(false)
@@ -359,12 +374,20 @@ export function ConversationUnifiedView({
 
   const handleMessagesScroll = useCallback(() => {
     const container = scrollRef.current
-    if (!container || loadingMoreRef.current || !hasMoreRef.current) return
+    if (!container) return
 
+    updateScrollToBottomVisibility()
+
+    if (loadingMoreRef.current || !hasMoreRef.current) return
     if (container.scrollTop <= 120) {
       loadOlderMessages()
     }
-  }, [loadOlderMessages])
+  }, [loadOlderMessages, updateScrollToBottomVisibility])
+
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'chat') return
+    requestAnimationFrame(updateScrollToBottomVisibility)
+  }, [isOpen, activeTab, messages.length, loading, loadingMore, updateScrollToBottomVisibility])
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -736,56 +759,70 @@ export function ConversationUnifiedView({
 
         {/* CHAT TAB - SCROLLABLE CONTENT */}
         <TabsContent value="chat" className="flex-1 flex flex-col m-0 mt-0 min-h-0 data-[state=active]:flex overflow-hidden">
-          {/* Scrollable Messages Area */}
-          <div
-            ref={scrollRef}
-            onScroll={handleMessagesScroll}
-            className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-4 py-3"
-          >
-            {loading ? (
-              <div className="flex justify-center py-10">
-                <Loader2 className="h-8 w-8 animate-spin text-white/30" />
-              </div>
-            ) : messages.length === 0 ? (
-              <div className="text-center py-10 text-white/30">
-                <MessageCircle className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                <p>No messages yet</p>
-                <p className="text-sm">Start the conversation!</p>
-              </div>
-            ) : (
-              <div>
-                {loadingMore && (
-                  <div className="flex justify-center py-1">
-                    <Loader2 className="h-4 w-4 animate-spin text-white/40" />
-                  </div>
-                )}
-                {!hasMore && (
-                  <div className="text-center text-[11px] text-white/35 py-1">
-                    - Beginning of conversation -
-                  </div>
-                )}
-                <div
-                  className="relative"
-                  style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
-                >
-                  {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                    const message = messages[virtualRow.index]
-                    if (!message) return null
-
-                    return (
-                      <div
-                        key={message.id}
-                        data-index={virtualRow.index}
-                        ref={rowVirtualizer.measureElement}
-                        className="absolute top-0 left-0 w-full py-1.5"
-                        style={{ transform: `translateY(${virtualRow.start}px)` }}
-                      >
-                        {renderMessageBubble(message)}
-                      </div>
-                    )
-                  })}
+          <div className="relative flex-1 min-h-0">
+            {/* Scrollable Messages Area */}
+            <div
+              ref={scrollRef}
+              onScroll={handleMessagesScroll}
+              className="h-full overflow-y-auto overflow-x-hidden px-3 sm:px-4 py-3"
+            >
+              {loading ? (
+                <div className="flex justify-center py-10">
+                  <Loader2 className="h-8 w-8 animate-spin text-white/30" />
                 </div>
-              </div>
+              ) : messages.length === 0 ? (
+                <div className="text-center py-10 text-white/30">
+                  <MessageCircle className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                  <p>No messages yet</p>
+                  <p className="text-sm">Start the conversation!</p>
+                </div>
+              ) : (
+                <div>
+                  {loadingMore && (
+                    <div className="flex justify-center py-1">
+                      <Loader2 className="h-4 w-4 animate-spin text-white/40" />
+                    </div>
+                  )}
+                  {!hasMore && (
+                    <div className="text-center text-[11px] text-white/35 py-1">
+                      - Beginning of conversation -
+                    </div>
+                  )}
+                  <div
+                    className="relative"
+                    style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+                  >
+                    {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                      const message = messages[virtualRow.index]
+                      if (!message) return null
+
+                      return (
+                        <div
+                          key={message.id}
+                          data-index={virtualRow.index}
+                          ref={rowVirtualizer.measureElement}
+                          className="absolute top-0 left-0 w-full py-1.5"
+                          style={{ transform: `translateY(${virtualRow.start}px)` }}
+                        >
+                          {renderMessageBubble(message)}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {showScrollToBottom && !loading && messages.length > 0 && (
+              <Button
+                type="button"
+                size="icon"
+                onClick={() => scrollToBottom('smooth')}
+                className="absolute bottom-3 right-4 z-20 h-10 w-10 rounded-full border border-white/15 bg-[#0b1220]/90 text-white/70 shadow-lg backdrop-blur hover:bg-[#0f172a] hover:text-white"
+                aria-label="Scroll to latest messages"
+              >
+                <ChevronDown className="h-4 w-4" />
+              </Button>
             )}
           </div>
 
