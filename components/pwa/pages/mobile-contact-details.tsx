@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
-import { ArrowLeft, MessageSquare, MapPin, Briefcase, Heart, Calendar, User, Shield, Info, Activity, Loader2 } from 'lucide-react'
+import { ArrowLeft, MessageSquare, MapPin, Briefcase, Heart, Calendar, User, Shield, Info, Activity, Loader2, Ban, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -24,9 +24,40 @@ export function MobileContactDetails({ contact: initialContact, media: initialMe
     const [contact, setContact] = useState(initialContact)
     const [media] = useState(initialMedia)
     const [extracting, setExtracting] = useState(false)
+    const [blocking, setBlocking] = useState(false)
     const profile = contact.profile || {}
     const phases = ['CONNECTION', 'VULNERABILITY', 'CRISIS', 'MONEYPOT']
     const currentPhaseIdx = phases.indexOf(contact.agentPhase || 'CONNECTION')
+    const isBlocked = ['blacklisted', 'archive'].includes(contact.status)
+
+    const handleToggleBlock = async () => {
+        const confirmed = isBlocked
+            ? confirm('Débloquer ce contact ?')
+            : confirm('Bloquer ce contact ? Il sera masqué et ses messages seront ignorés.')
+        if (!confirmed) return
+
+        setBlocking(true)
+        try {
+            const targetStatus = isBlocked ? 'active' : 'blacklisted'
+            await axios.put(`/api/contacts/${contact.id}`, { status: targetStatus })
+
+            if (targetStatus === 'blacklisted') {
+                router.push(`/workspace/${agentId}/contacts`)
+                return
+            }
+
+            const contactRes = await axios.get(`/api/contacts/${contact.id}?agentId=${agentId}`)
+            setContact(contactRes.data)
+        } catch (e: any) {
+            toast({
+                title: 'Erreur',
+                description: e?.response?.data?.error || 'Action impossible',
+                variant: 'destructive'
+            })
+        } finally {
+            setBlocking(false)
+        }
+    }
 
     // Helper to fix base64 URLs that were stored without proper data URI prefix
     const fixMediaUrl = (url: string | null | undefined): string => {
@@ -300,12 +331,35 @@ export function MobileContactDetails({ contact: initialContact, media: initialMe
 
             {/* Sticky Bottom Action */}
             <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#0f172a] via-[#0f172a] to-transparent z-20 pb-8 pwa-safe-area-bottom">
+                <div className="grid grid-cols-1 gap-2 mb-2">
+                    <Button
+                        variant="outline"
+                        disabled={blocking}
+                        className={cn(
+                            "h-11 rounded-xl border-white/10 font-semibold",
+                            isBlocked
+                                ? "text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                                : "text-orange-400 hover:text-orange-300 hover:bg-orange-500/10"
+                        )}
+                        onClick={handleToggleBlock}
+                    >
+                        {blocking ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : isBlocked ? (
+                            <ShieldCheck className="mr-2 h-4 w-4" />
+                        ) : (
+                            <Ban className="mr-2 h-4 w-4" />
+                        )}
+                        {isBlocked ? 'Débloquer' : 'Bloquer'}
+                    </Button>
+                </div>
                 <Button
-                    className="w-full h-14 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_20px_rgba(37,99,235,0.3)] font-semibold text-lg"
+                    disabled={isBlocked}
+                    className="w-full h-14 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_20px_rgba(37,99,235,0.3)] font-semibold text-lg disabled:opacity-50"
                     onClick={() => router.push(`/workspace/${agentId}/conversations?contact=${contact.id}`)}
                 >
                     <MessageSquare className="mr-2 h-5 w-5" />
-                    Open Chat
+                    {isBlocked ? 'Contact bloqué' : 'Open Chat'}
                 </Button>
             </div>
         </div>
