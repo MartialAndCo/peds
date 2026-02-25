@@ -9,6 +9,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useToast } from '@/components/ui/use-toast'
 import { cn } from '@/lib/utils'
 
 import { ProfileSummary } from './ProfileSummary'
@@ -27,6 +28,7 @@ export function ContactIntelligenceDashboard({
     agentId,
     onBack 
 }: ContactIntelligenceDashboardProps) {
+    const { toast } = useToast()
     const [profile, setProfile] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [extracting, setExtracting] = useState(false)
@@ -40,9 +42,10 @@ export function ContactIntelligenceDashboard({
         try {
             setLoading(true)
             const res = await axios.get(`/api/contacts/${contactId}/intelligence`)
-            setProfile(res.data.profile)
+            setProfile(normalizeProfileForUI(res.data.profile))
         } catch (err) {
             console.error('Failed to load profile:', err)
+            setProfile(null)
         } finally {
             setLoading(false)
         }
@@ -56,8 +59,14 @@ export function ContactIntelligenceDashboard({
                 messageCount: 50
             })
             await loadProfile()
-        } catch (err) {
+        } catch (err: any) {
             console.error('Extraction failed:', err)
+            const message = err?.response?.data?.error || err?.response?.data?.message || 'Extraction impossible'
+            toast({
+                title: 'Extraction échouée',
+                description: message,
+                variant: 'destructive'
+            })
         } finally {
             setExtracting(false)
         }
@@ -119,9 +128,9 @@ export function ContactIntelligenceDashboard({
                         <div className="flex items-center gap-2 mt-1">
                             <Badge 
                                 variant="outline" 
-                                style={{ borderColor: profile.confidenceLabel.color, color: profile.confidenceLabel.color }}
+                                style={{ borderColor: profile.confidenceLabel?.color || '#94a3b8', color: profile.confidenceLabel?.color || '#94a3b8' }}
                             >
-                                Confiance: {profile.confidence}/100 - {profile.confidenceLabel.label}
+                                Confiance: {profile.confidence}/100 - {profile.confidenceLabel?.label || 'N/A'}
                             </Badge>
                             <span className="text-xs text-white/40">
                                 {profile._count.attributes} attributs • {profile._count.relationships} relations
@@ -225,6 +234,55 @@ export function ContactIntelligenceDashboard({
             </Tabs>
         </div>
     )
+}
+
+function normalizeProfileForUI(profile: any) {
+    if (!profile) return null
+
+    const identity = profile.identity || {
+        displayName: profile.displayName,
+        realName: profile.realName,
+        aliases: profile.aliases || [],
+        gender: profile.gender,
+        birthDate: profile.birthDate,
+        city: profile.city,
+        country: profile.country,
+        timezone: profile.timezone,
+        maritalStatus: profile.maritalStatus,
+        livingWith: profile.livingWith,
+        occupation: profile.occupation,
+        workplace: profile.workplace,
+        incomeLevel: profile.incomeLevel,
+        schedule: profile.schedule,
+        platforms: profile.platforms || [],
+        usernames: profile.usernames || {}
+    }
+
+    return {
+        ...profile,
+        identity,
+        confidenceLabel: profile.confidenceLabel || {
+            label: 'Inconnu',
+            color: '#94a3b8',
+            description: ''
+        },
+        alerts: Array.isArray(profile.alerts) ? profile.alerts : [],
+        extractionLogs: Array.isArray(profile.extractionLogs) ? profile.extractionLogs : [],
+        _count: profile._count || {
+            attributes: 0,
+            relationships: 0,
+            events: 0,
+            interests: 0,
+            extractionLogs: 0
+        },
+        stats: profile.stats || {
+            totalAttributes: profile._count?.attributes || 0,
+            totalRelationships: profile._count?.relationships || 0,
+            totalEvents: profile._count?.events || 0,
+            totalInterests: profile._count?.interests || 0,
+            extractionCount: profile._count?.extractionLogs || 0
+        }
+    }
 }
 
 function ProfileTimeline({ logs }: { logs: any[] }) {

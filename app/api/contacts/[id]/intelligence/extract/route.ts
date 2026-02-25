@@ -22,7 +22,12 @@ export async function POST(
         }
 
         const { id } = await params
-        const { agentId, messageCount = 50 } = await req.json().catch(() => ({}))
+        const body = await req.json().catch(() => ({}))
+        const agentId = body?.agentId
+        const parsedMessageCount = Number(body?.messageCount)
+        const messageCount = Number.isFinite(parsedMessageCount)
+            ? Math.max(1, Math.min(200, Math.floor(parsedMessageCount)))
+            : 50
 
         // Vérifier que le contact existe
         const contact = await prisma.contact.findUnique({
@@ -62,9 +67,18 @@ export async function POST(
         })
 
         if (!result.success) {
+            const businessErrors = new Set([
+                'No conversation found',
+                'No messages to analyze',
+                'No agent found for this contact'
+            ])
+            const status = businessErrors.has(result.error || '')
+                ? 422
+                : 500
+
             return NextResponse.json(
                 { error: result.error || 'Extraction failed' },
-                { status: 500 }
+                { status }
             )
         }
 

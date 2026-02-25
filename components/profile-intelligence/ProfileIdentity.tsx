@@ -12,7 +12,7 @@ interface ProfileIdentityProps {
 }
 
 export function ProfileIdentity({ profile }: ProfileIdentityProps) {
-    const { identity } = profile
+    const identity = profile?.identity || {}
     
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
