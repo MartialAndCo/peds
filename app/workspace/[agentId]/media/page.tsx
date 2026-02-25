@@ -39,6 +39,7 @@ export default function WorkspaceMediaPage() {
     const [newCategory, setNewCategory] = useState({ id: '', description: '', keywords: '', type: 'photos' }) // Added type
     const [creating, setCreating] = useState(false)
     const [uploading, setUploading] = useState(false)
+    const [autoAnalyzeOnUpload, setAutoAnalyzeOnUpload] = useState(true)
 
     // Smart Upload State
     const [isSmartUploadOpen, setIsSmartUploadOpen] = useState(false)
@@ -185,7 +186,7 @@ export default function WorkspaceMediaPage() {
 
             // 4. Trigger Auto-Context (Async)
 
-            if (result.success && result.media && params.agentId && file.type.startsWith('image/')) {
+            if (autoAnalyzeOnUpload && result.success && result.media && params.agentId && file.type.startsWith('image/')) {
                 console.log('[AutoContext] Triggering generation...')
                 setGeneratingContext(true) // Show overlay
                 toast({ title: "✨ Generating Context...", description: "Analyzing image with AI..." })
@@ -223,6 +224,14 @@ export default function WorkspaceMediaPage() {
             alert('Upload failed: ' + (error as any).message)
         } finally {
             setUploading(false)
+        }
+    }
+
+    const handleUploadBatch = async (files: FileList | null, categoryId: string) => {
+        if (!files?.length) return
+        const batch = Array.from(files)
+        for (const file of batch) {
+            await handleUpload(file, categoryId)
         }
     }
 
@@ -601,6 +610,16 @@ export default function WorkspaceMediaPage() {
 
                                     <div className="flex items-center gap-4">
                                         <h2 className="text-2xl font-bold text-white">{selectedCategory.id} <span className="text-xs opacity-50">v2 (Supabase)</span></h2>
+                                        <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/30 px-3 py-1.5">
+                                            <Label htmlFor="auto-analyze-upload" className="text-[10px] uppercase tracking-wider text-white/60 cursor-pointer">
+                                                Auto Analyze
+                                            </Label>
+                                            <Switch
+                                                id="auto-analyze-upload"
+                                                checked={autoAnalyzeOnUpload}
+                                                onCheckedChange={setAutoAnalyzeOnUpload}
+                                            />
+                                        </div>
                                         <Button
                                             variant="ghost"
                                             size="icon"
@@ -620,9 +639,11 @@ export default function WorkspaceMediaPage() {
                                         <div className="aspect-square relative flex items-center justify-center bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 cursor-pointer overflow-hidden group">
                                             <input
                                                 type="file"
+                                                multiple
                                                 className="absolute inset-0 opacity-0 cursor-pointer z-10"
                                                 onChange={(e) => {
-                                                    if (e.target.files?.[0]) handleUpload(e.target.files[0], selectedCategory.id)
+                                                    handleUploadBatch(e.target.files, selectedCategory.id)
+                                                    e.currentTarget.value = ''
                                                 }}
                                             />
                                             {uploading ? (
