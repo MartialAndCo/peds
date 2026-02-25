@@ -129,7 +129,7 @@ export const whatsapp = {
 
         // --- DISCORD ROUTING ---
         if (chatId.startsWith('DISCORD_')) {
-            const discordEndpoint = process.env.DISCORD_API_ENDPOINT || 'http://localhost:3002' // Default to local Discord Service
+            const discordEndpoint = process.env.DISCORD_SERVICE_URL || process.env.DISCORD_API_ENDPOINT || 'http://localhost:3002' // Default to local Discord Service
             const discordUserId = chatId.replace('DISCORD_', '').replace('@discord', '')
 
             try {
@@ -505,7 +505,7 @@ export const whatsapp = {
 
         // --- DISCORD ROUTING ---
         if (chatId.startsWith('DISCORD_')) {
-            const discordEndpoint = process.env.DISCORD_API_ENDPOINT || 'http://localhost:3002'
+            const discordEndpoint = process.env.DISCORD_SERVICE_URL || process.env.DISCORD_API_ENDPOINT || 'http://localhost:3002'
             const discordUserId = chatId.replace('DISCORD_', '').replace('@discord', '')
             try {
                 await axios.post(`${discordEndpoint}/api/sendStateTyping`, {

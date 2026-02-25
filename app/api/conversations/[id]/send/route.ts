@@ -5,6 +5,14 @@ import { discord } from '@/lib/discord'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 
+class DiscordSendError extends Error {
+    readonly code = 'DISCORD_SEND_FAILED' as const
+}
+
+function throwDiscordSendError(kind: string, phone: string, conversationId: number): never {
+    const error = new DiscordSendError(`Discord send failed (${kind}) for ${phone} on conversation ${conversationId}`)
+    throw error
+}
 
 export async function POST(
     req: Request,
@@ -42,7 +50,8 @@ export async function POST(
             // Voice message (TTS generated)
             if (isDiscord) {
                 // Discord doesn't support PTT voice, send as file
-                await discord.sendFile(phone, voiceBase64, 'voice.mp3', undefined, agentId)
+                const sent = await discord.sendFile(phone, voiceBase64, 'voice.mp3', undefined, agentId)
+                if (!sent) throwDiscordSendError('voice', phone, conversation.id)
             } else {
                 await whatsapp.sendVoice(phone, voiceBase64, undefined, agentId)
             }
@@ -52,16 +61,19 @@ export async function POST(
             if (isDiscord) {
                 // Discord Sending Logic
                 if (detectedType === 'image') {
-                    await discord.sendImage(phone, mediaUrl, messageText || undefined, agentId)
+                    const sent = await discord.sendImage(phone, mediaUrl, messageText || undefined, agentId)
+                    if (!sent) throwDiscordSendError('image', phone, conversation.id)
                 } else if (detectedType === 'video') {
                     // Discord treats videos as files usually, or we can use sendFile if sendVideo isn't specific
                     // Using sendFile for video as per typical Discord bot patterns if no specific video endpoint
                     const filename = mediaUrl.split('/').pop() || 'video.mp4'
-                    await discord.sendFile(phone, mediaUrl, filename, messageText || undefined, agentId)
+                    const sent = await discord.sendFile(phone, mediaUrl, filename, messageText || undefined, agentId)
+                    if (!sent) throwDiscordSendError('video', phone, conversation.id)
                 } else {
                     // Generic file
                     const filename = mediaUrl.split('/').pop() || 'file'
-                    await discord.sendFile(phone, mediaUrl, filename, messageText || undefined, agentId)
+                    const sent = await discord.sendFile(phone, mediaUrl, filename, messageText || undefined, agentId)
+                    if (!sent) throwDiscordSendError('file', phone, conversation.id)
                 }
             } else {
                 // WhatsApp Sending Logic
@@ -101,7 +113,8 @@ export async function POST(
             }
         } else if (messageText) {
             if (isDiscord) {
-                await discord.sendText(phone, messageText, agentId)
+                const sent = await discord.sendText(phone, messageText, agentId)
+                if (!sent) throwDiscordSendError('text', phone, conversation.id)
             } else {
                 await whatsapp.sendText(phone, messageText, undefined, agentId)
             }
@@ -146,9 +159,21 @@ export async function POST(
 
         return NextResponse.json({ success: true, message })
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[Send] Error:', error)
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        if (error instanceof DiscordSendError) {
+            return NextResponse.json(
+                {
+                    error: error.message,
+                    hint: 'Check DISCORD_SERVICE_URL / DISCORD_API_ENDPOINT and discord service logs.'
+                },
+                { status: 502 }
+            )
+        }
+        if (error instanceof Error) {
+            return NextResponse.json({ error: error.message }, { status: 500 })
+        }
+        return NextResponse.json({ error: 'Unknown server error' }, { status: 500 })
     }
 }
 
