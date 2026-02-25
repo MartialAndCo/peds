@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Plus, Check, Search } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { getContactDisplayName } from '@/lib/contact-display'
 
 import { useAgent } from '@/components/agent-provider'
 
@@ -96,13 +97,15 @@ export default function ConversationsPage() {
                                 <TableCell colSpan={6} className="text-center py-12 text-white/20">Silence in the network.</TableCell>
                             </TableRow>
                         ) : (
-                            filteredConversations.map((conv) => (
+                            filteredConversations.map((conv) => {
+                                const displayName = getContactDisplayName(conv.contact, 'Unknown')
+                                return (
                                 <TableRow
                                     key={conv.id}
                                     className="cursor-pointer border-white/5 hover:bg-white/5 transition-all group"
                                     onClick={() => router.push(`/workspace/${conv.agentId}/conversations/${conv.id}`)}
                                 >
-                                    <TableCell className="font-semibold text-white/90 py-4">{conv.contact.name}</TableCell>
+                                    <TableCell className="font-semibold text-white/90 py-4">{displayName}</TableCell>
                                     <TableCell>
                                         <Badge variant="outline" className="bg-white/5 border-white/10 text-white/40 text-[9px] font-bold uppercase px-2 py-0">
                                             {conv.prompt.name}
@@ -128,7 +131,8 @@ export default function ConversationsPage() {
                                         </Button>
                                     </TableCell>
                                 </TableRow>
-                            ))
+                                )
+                            })
                         )}
                     </TableBody>
                 </Table>

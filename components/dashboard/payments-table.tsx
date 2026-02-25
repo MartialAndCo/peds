@@ -11,6 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
+import { getContactDisplayName } from "@/lib/contact-display"
 
 interface Payment {
     id: string
@@ -21,6 +22,7 @@ interface Payment {
     createdAt: Date | string
     contact?: {
         name: string | null
+        profile?: { name?: string | null } | null
         phone_whatsapp: string | null
     } | null
     payerName?: string | null
@@ -71,7 +73,9 @@ export function PaymentsTable({ payments }: PaymentsTableProps) {
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {payments.map((payment) => (
+                    {payments.map((payment) => {
+                        const displayName = getContactDisplayName(payment.contact, payment.payerName || "Unknown")
+                        return (
                         <TableRow key={payment.id} className="border-white/10 hover:bg-white/5">
                             <TableCell className="font-medium text-white/80">
                                 {format(new Date(payment.createdAt), "dd MMM yyyy HH:mm", { locale: fr })}
@@ -79,7 +83,7 @@ export function PaymentsTable({ payments }: PaymentsTableProps) {
                             <TableCell>
                                 <div className="flex flex-col">
                                     <span className="text-white font-medium">
-                                        {payment.contact?.name || payment.payerName || "Unknown"}
+                                        {displayName}
                                     </span>
                                     <span className="text-xs text-white/40 font-mono">
                                         {payment.contact?.phone_whatsapp || ""}
@@ -113,7 +117,8 @@ export function PaymentsTable({ payments }: PaymentsTableProps) {
                                 </Button>
                             </TableCell>
                         </TableRow>
-                    ))}
+                        )
+                    })}
                 </TableBody>
             </Table>
         </div>

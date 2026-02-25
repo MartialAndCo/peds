@@ -13,7 +13,8 @@ export default async function AdminPaymentsPage() {
             contact: {
                 select: {
                     name: true,
-                    phone_whatsapp: true
+                    phone_whatsapp: true,
+                    profile: true
                 }
             }
         },
@@ -34,7 +35,8 @@ export default async function AdminPaymentsPage() {
         createdAt: p.createdAt.toISOString(),
         contact: p.contact ? {
             name: p.contact.name,
-            phone_whatsapp: p.contact.phone_whatsapp || 'N/A'
+            phone_whatsapp: p.contact.phone_whatsapp || 'N/A',
+            profile: p.contact.profile ?? null
         } : null
     }))
 

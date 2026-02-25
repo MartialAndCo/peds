@@ -23,6 +23,7 @@ import {
     Smartphone
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { getContactDisplayName } from '@/lib/contact-display'
 
 export default function EditContactPage() {
     const params = useParams()
@@ -105,6 +106,7 @@ export default function EditContactPage() {
     if (!contact) return <div className="p-20 text-white text-center">Contact not found</div>
 
     const isPaused = conversation?.status === 'paused'
+    const displayName = getContactDisplayName(contact, 'Unknown')
 
     return (
         <div className="max-w-5xl mx-auto space-y-8 pb-20">
@@ -120,7 +122,7 @@ export default function EditContactPage() {
                         <ArrowLeft className="h-5 w-5" />
                     </Button>
                     <div>
-                        <h2 className="text-2xl font-bold text-white">{contact.name || 'Unknown'}</h2>
+                        <h2 className="text-2xl font-bold text-white">{displayName}</h2>
                         <div className="flex items-center gap-3 mt-1">
                             <p className="text-sm font-mono text-white/40">{contact.phone_whatsapp}</p>
                             <Badge variant="outline" className={cn(

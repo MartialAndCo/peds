@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { DragEvent } from 'react'
+import { getContactDisplayName } from '@/lib/contact-display'
 
 interface Contact {
     id: string
@@ -34,6 +35,7 @@ export default function PipelineBoard({ initialData, agentId }: { initialData: P
     const [data, setData] = useState(initialData)
     const [draggedItem, setDraggedItem] = useState<Contact | null>(null)
     const router = useRouter()
+    const selectedName = selected ? getContactDisplayName(selected, 'Inconnu') : 'Inconnu'
 
     const handleDragStart = (e: DragEvent<HTMLDivElement>, contact: Contact) => {
         setDraggedItem(contact)
@@ -98,7 +100,9 @@ export default function PipelineBoard({ initialData, agentId }: { initialData: P
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                        {initialData[stage.key].map(contact => (
+                        {initialData[stage.key].map(contact => {
+                            const displayName = getContactDisplayName(contact, 'Inconnu')
+                            return (
                             <div
                                 key={contact.id}
                                 draggable
@@ -115,7 +119,7 @@ export default function PipelineBoard({ initialData, agentId }: { initialData: P
                                         )}
                                     </div>
                                     <div className="overflow-hidden">
-                                        <h4 className="font-medium text-slate-800 text-sm truncate">{contact.name || 'Inconnu'}</h4>
+                                        <h4 className="font-medium text-slate-800 text-sm truncate">{displayName}</h4>
                                         <p className="text-xs text-slate-500 truncate">{contact.age && contact.age !== '?' ? `${contact.age} ans` : '-'} • {contact.job || '?'}</p>
                                     </div>
                                 </div>
@@ -136,7 +140,8 @@ export default function PipelineBoard({ initialData, agentId }: { initialData: P
                                     </p>
                                 </div>
                             </div>
-                        ))}
+                            )
+                        })}
 
                         {initialData[stage.key].length === 0 && (
                             <div className="text-center py-10 text-slate-400 text-sm italic">
@@ -160,7 +165,7 @@ export default function PipelineBoard({ initialData, agentId }: { initialData: P
                                     ✕
                                 </button>
                             </div>
-                            <h2 className="text-2xl font-serif font-bold text-slate-800">{selected.name || 'Inconnu'}</h2>
+                            <h2 className="text-2xl font-serif font-bold text-slate-800">{selectedName}</h2>
                             <p className="text-slate-500">{selected.phone}</p>
                         </div>
 

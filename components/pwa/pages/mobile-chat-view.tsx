@@ -12,6 +12,7 @@ import { updateContactStatus, updateConversationAi, updateContactTestMode, getEx
 import { generateDossier } from '@/lib/pdf-generator'
 import axios from 'axios'
 import { AudioPlayer } from '@/components/chat/audio-player'
+import { getContactDisplayName, getContactInitial } from '@/lib/contact-display'
 
 interface MobileChatViewProps {
     conversation: any
@@ -53,6 +54,8 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
     const [voiceAudio, setVoiceAudio] = useState<string | null>(null)
     const [voiceGenerating, setVoiceGenerating] = useState(false)
     const [voiceSending, setVoiceSending] = useState(false)
+    const displayName = getContactDisplayName(conversation.contact)
+    const displayInitial = getContactInitial(conversation.contact)
 
     // Keep refs in sync with state
     useEffect(() => { oldestIdRef.current = oldestId }, [oldestId])
@@ -294,14 +297,14 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
                         <div className="relative">
                             <div className="h-9 w-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 border border-white/20 flex items-center justify-center shadow-lg">
                                 <span className="text-white text-sm font-bold">
-                                    {(conversation.contact?.name || 'Inconnu').charAt(0).toUpperCase()}
+                                    {displayInitial}
                                 </span>
                             </div>
                             <div className="absolute bottom-0 right-0 h-2.5 w-2.5 bg-green-500 border-2 border-[#0f172a] rounded-full"></div>
                         </div>
                         <div className="flex flex-col">
                             <span className="text-white font-bold text-sm tracking-wide leading-none">
-                                {conversation.contact?.name || 'Inconnu'}
+                                {displayName}
                             </span>
                             <span className="text-white/40 text-[10px] uppercase font-medium tracking-wider mt-0.5">
                                 Active Now
@@ -457,10 +460,10 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
                             <div className="flex flex-col items-center pt-2">
                                 <div className="h-20 w-20 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-white/10 flex items-center justify-center mb-4">
                                     <span className="text-white font-bold text-3xl">
-                                        {(conversation.contact?.name || 'Inconnu').charAt(0).toUpperCase()}
+                                        {displayInitial}
                                     </span>
                                 </div>
-                                <SheetTitle className="text-2xl font-bold text-white mb-1">{conversation.contact?.name || 'Inconnu'}</SheetTitle>
+                                <SheetTitle className="text-2xl font-bold text-white mb-1">{displayName}</SheetTitle>
                                 <p className="text-white/50 font-mono text-sm">{conversation.contact.phone_whatsapp || 'N/A'}</p>
                             </div>
                         </SheetHeader>

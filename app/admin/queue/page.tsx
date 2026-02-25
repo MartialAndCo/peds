@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { RefreshCcw, Trash2, Zap } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
+import { getContactDisplayName } from '@/lib/contact-display'
 
 export default function QueuePage() {
     const [items, setItems] = useState<any[]>([])
@@ -101,7 +102,9 @@ export default function QueuePage() {
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                items.map((item) => (
+                                items.map((item) => {
+                                    const displayName = getContactDisplayName(item.contact, 'Unknown')
+                                    return (
                                     <TableRow key={item.id}>
                                         <TableCell>
                                             <div className="flex flex-col">
@@ -146,7 +149,7 @@ export default function QueuePage() {
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex flex-col">
-                                                <span className="font-medium">{item.contact.name || 'Unknown'}</span>
+                                                <span className="font-medium">{displayName}</span>
                                                 <span className="text-xs text-muted-foreground">{item.contact.phone_whatsapp}</span>
                                             </div>
                                         </TableCell>
@@ -197,7 +200,8 @@ export default function QueuePage() {
                                             </Button>
                                         </TableCell>
                                     </TableRow>
-                                ))
+                                    )
+                                })
                             )}
                         </TableBody>
                     </Table>

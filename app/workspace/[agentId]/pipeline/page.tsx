@@ -5,6 +5,7 @@ import axios from 'axios'
 import { useRouter, useParams } from 'next/navigation'
 import { Loader2, MessageSquare, DollarSign, Clock, ShieldCheck, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { getContactDisplayName } from '@/lib/contact-display'
 
 export default function PipelinePage() {
     const { agentId } = useParams()
@@ -106,6 +107,7 @@ function ContactCard({ contact, color }: any) {
 
     // Calculate days active roughly
     const daysActive = Math.ceil((new Date().getTime() - new Date(contact.createdAt).getTime()) / (1000 * 60 * 60 * 24))
+    const displayName = getContactDisplayName(contact, contact.phone_whatsapp || "Unknown")
 
     return (
         <div
@@ -115,7 +117,7 @@ function ContactCard({ contact, color }: any) {
             <div className="flex justify-between items-start mb-3">
                 <div>
                     <h4 className="font-bold text-sm text-white group-hover:text-blue-400 transition-colors">
-                        {contact.name || contact.phone_whatsapp || "Unknown"}
+                        {displayName}
                     </h4>
                     <div className="flex items-center text-[10px] text-white/40 mt-1 space-x-2">
                         <span className="flex items-center"><Clock className="w-3 h-3 mr-1" /> {daysActive}d</span>

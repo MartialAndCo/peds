@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/components/ui/use-toast'
+import { getContactDisplayName, getContactInitial } from '@/lib/contact-display'
 
 interface MobileContactDetailsProps {
     contact: any
@@ -26,6 +27,8 @@ export function MobileContactDetails({ contact: initialContact, media: initialMe
     const [extracting, setExtracting] = useState(false)
     const [blocking, setBlocking] = useState(false)
     const profile = contact.profile || {}
+    const displayName = getContactDisplayName(contact)
+    const displayInitial = getContactInitial(contact)
     const phases = ['CONNECTION', 'VULNERABILITY', 'CRISIS', 'MONEYPOT']
     const currentPhaseIdx = phases.indexOf(contact.agentPhase || 'CONNECTION')
     const isBlocked = ['blacklisted', 'archive'].includes(contact.status)
@@ -102,7 +105,7 @@ export function MobileContactDetails({ contact: initialContact, media: initialMe
                 <div className="relative mb-4">
                     <div className="h-28 w-28 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border-2 border-white/10 flex items-center justify-center shadow-2xl">
                         <span className="text-white font-bold text-4xl">
-                            {contact.name?.charAt(0).toUpperCase()}
+                            {displayInitial}
                         </span>
                     </div>
                     <div className={cn(
@@ -111,7 +114,7 @@ export function MobileContactDetails({ contact: initialContact, media: initialMe
                     )} />
                 </div>
 
-                <h2 className="text-2xl font-bold text-white text-center mb-1">{contact.name}</h2>
+                <h2 className="text-2xl font-bold text-white text-center mb-1">{displayName}</h2>
                 <p className="text-white/40 font-mono text-sm mb-6">{contact.phone_whatsapp}</p>
 
                 {/* Quick Stats */}

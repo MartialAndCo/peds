@@ -40,6 +40,7 @@ import { generateDossier } from '@/lib/pdf-generator'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { AIModeIndicator } from '@/components/ai-mode-indicator'
+import { getContactDisplayName, getContactInitial } from '@/lib/contact-display'
 
 interface ConversationUnifiedViewProps {
   conversation: ConversationCardData
@@ -116,6 +117,8 @@ export function ConversationUnifiedView({
   const [showRegeneratePreview, setShowRegeneratePreview] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const conversationId = conversation.id
+  const displayName = getContactDisplayName(conversation.contact)
+  const displayInitial = getContactInitial(conversation.contact)
 
   // Media attachment state
   const [selectedMediaUrl, setSelectedMediaUrl] = useState<string | null>(null)
@@ -393,7 +396,7 @@ export function ConversationUnifiedView({
                 ? "bg-red-500/10 border-red-500/50"
                 : "bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border-white/10"
             )}>
-              {(conversation.contact.name || '?').charAt(0).toUpperCase()}
+              {displayInitial}
             </div>
             {conversation.status === 'paused' && (
               <div className="absolute -bottom-0.5 -right-0.5 bg-amber-500 rounded-full p-0.5 border-2 border-[#0f172a]">
@@ -403,7 +406,7 @@ export function ConversationUnifiedView({
           </div>
           <div className="min-w-0">
             <h3 className="font-semibold text-white truncate">
-              {conversation.contact.name || 'Inconnu'}
+              {displayName}
             </h3>
             <p className="text-xs text-white/40 font-mono truncate">
               {conversation.contact.phone_whatsapp || 'N/A'}
@@ -715,7 +718,7 @@ export function ConversationUnifiedView({
                 <div className="space-y-3 text-sm">
                   <div className="flex justify-between">
                     <span className="text-white/60">Name</span>
-                    <span className="text-white truncate ml-2">{conversation.contact.name || '-'}</span>
+                    <span className="text-white truncate ml-2">{displayName || '-'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-white/60">Phone</span>

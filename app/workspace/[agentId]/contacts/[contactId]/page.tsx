@@ -9,6 +9,7 @@ import { usePWAMode } from '@/hooks/use-pwa-mode'
 import { MobileContactDetails } from '@/components/pwa/pages/mobile-contact-details'
 import { ContactIntelligenceDashboard } from '@/components/profile-intelligence'
 import { cn } from '@/lib/utils'
+import { getContactDisplayName } from '@/lib/contact-display'
 
 export default function ContactDetailsPage() {
     const { contactId, agentId } = useParams()
@@ -78,6 +79,8 @@ export default function ContactDetailsPage() {
         return <MobileContactDetails contact={contact} media={[]} agentId={agentId as string} />
     }
 
+    const displayName = getContactDisplayName(contact)
+
     return (
         <div className="max-w-7xl mx-auto space-y-6 pb-20">
             {/* Header */}
@@ -93,7 +96,7 @@ export default function ContactDetailsPage() {
                     </Button>
                     <div>
                         <h2 className="text-2xl font-bold bg-gradient-to-r from-white to-white/50 bg-clip-text text-transparent">
-                            {contact.name || contact.phone_whatsapp}
+                            {displayName || contact.phone_whatsapp}
                         </h2>
                         <p className="text-sm text-white/40 font-mono">{contact.phone_whatsapp}</p>
                     </div>

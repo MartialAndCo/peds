@@ -3,6 +3,7 @@
 import { formatDistanceToNow } from 'date-fns'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import { getContactDisplayName, getContactInitial } from '@/lib/contact-display'
 import { 
   MessageCircle, 
   Bot, 
@@ -22,6 +23,7 @@ export interface ConversationCardData {
   contact: {
     id: string
     name: string
+    profile?: { name?: string | null } | null
     phone_whatsapp: string
     status: string
     agentPhase: string | null
@@ -89,6 +91,8 @@ export function ConversationCard({
   const phase = contact.agentPhase || 'CONNECTION'
   const phaseInfo = phaseConfig[phase] || phaseConfig.CONNECTION
   const PhaseIcon = phaseInfo.icon
+  const displayName = getContactDisplayName(contact)
+  const displayInitial = getContactInitial(contact)
   
   const isNewContact = contact.status === 'new'
   const needsReply = lastMessage?.sender === 'contact' && unreadCount > 0
@@ -128,7 +132,7 @@ export function ConversationCard({
                 ? "bg-sky-500/10 border-sky-500/30 text-sky-200"
                 : "bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border-white/10 text-white"
           )}>
-            {(contact.name || '?').charAt(0).toUpperCase()}
+            {displayInitial}
           </div>
           {/* Status dot */}
           {needsReply && (
@@ -150,7 +154,7 @@ export function ConversationCard({
               "truncate text-sm",
               needsReply ? "font-bold text-white" : "font-semibold text-white/90"
             )}>
-              {contact.name || 'Inconnu'}
+              {displayName}
             </h3>
             {/* Time on mobile - smaller and constrained */}
             <span className={cn(
@@ -250,7 +254,7 @@ export function ConversationCard({
                   ? "bg-sky-500/10 border-sky-500/30 text-sky-200"
                   : "bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border-white/10"
             )}>
-              {(contact.name || '?').charAt(0).toUpperCase()}
+              {displayInitial}
             </div>
             {/* Online/Activity indicator */}
             <div className={cn(
@@ -269,7 +273,7 @@ export function ConversationCard({
                   "font-semibold text-sm text-white truncate",
                   needsReply && "text-white"
                 )}>
-                  {contact.name || 'Inconnu'}
+                  {displayName}
                 </h3>
                 <p className="text-xs text-white/40 font-mono truncate">
                   {contact.phone_whatsapp}

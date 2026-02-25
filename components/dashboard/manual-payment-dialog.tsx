@@ -15,6 +15,7 @@ import { Plus, Search, Loader2 } from "lucide-react"
 import { createManualPayment, searchContacts } from "@/app/actions/payments"
 import { useToast } from "@/components/ui/use-toast"
 import { Switch } from "@/components/ui/switch"
+import { getContactDisplayName } from "@/lib/contact-display"
 
 export function ManualPaymentDialog({ agentId }: { agentId: string }) {
     const [open, setOpen] = useState(false)
@@ -121,16 +122,19 @@ export function ManualPaymentDialog({ agentId }: { agentId: string }) {
                             </div>
                             {searchResults.length > 0 && (
                                 <div className="absolute z-10 w-full bg-slate-800 border border-white/10 rounded-lg mt-1 overflow-hidden shadow-xl max-h-40 overflow-y-auto">
-                                    {searchResults.map(c => (
+                                    {searchResults.map(c => {
+                                        const displayName = getContactDisplayName(c, "Unknown")
+                                        return (
                                         <div
                                             key={c.id}
                                             onClick={() => selectResult(c)}
                                             className="p-3 hover:bg-white/5 cursor-pointer text-sm"
                                         >
-                                            <div className="font-bold text-white">{c.name || "Unknown"}</div>
+                                            <div className="font-bold text-white">{displayName}</div>
                                             <div className="text-white/50 text-xs">{c.phone_whatsapp}</div>
                                         </div>
-                                    ))}
+                                        )
+                                    })}
                                 </div>
                             )}
                         </div>

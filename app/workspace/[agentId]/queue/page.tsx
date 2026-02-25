@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { RefreshCcw, Trash2, Zap, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { getContactDisplayName } from '@/lib/contact-display'
 
 export default function WorkspaceQueuePage() {
     const { agentId } = useParams()
@@ -81,7 +82,9 @@ export default function WorkspaceQueuePage() {
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            items.map((item) => (
+                            items.map((item) => {
+                                const displayName = getContactDisplayName(item.contact, 'Unknown')
+                                return (
                                 <TableRow key={item.id} className="border-white/5 hover:bg-white/5 transition-all">
                                     <TableCell>
                                         <Badge variant="outline" className={cn(
@@ -103,7 +106,7 @@ export default function WorkspaceQueuePage() {
                                     </TableCell>
                                     <TableCell>
                                         <div className="flex flex-col">
-                                            <span className="font-semibold text-white/90 text-sm">{item.contact.name}</span>
+                                            <span className="font-semibold text-white/90 text-sm">{displayName}</span>
                                             <span className="text-xs text-white/40 font-mono">{item.contact.phone_whatsapp}</span>
                                         </div>
                                     </TableCell>
@@ -133,7 +136,8 @@ export default function WorkspaceQueuePage() {
                                         </Button>
                                     </TableCell>
                                 </TableRow>
-                            ))
+                                )
+                            })
                         )}
                     </TableBody>
                 </Table>

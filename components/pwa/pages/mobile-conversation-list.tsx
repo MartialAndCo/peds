@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import { formatDistanceToNow } from 'date-fns'
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { getContactDisplayName, getContactInitial } from '@/lib/contact-display'
 import { 
   MessageCircle, 
   Bot, 
@@ -65,6 +66,8 @@ export function MobileConversationList({ conversations, loading, agentId }: Mobi
         const phaseInfo = phaseConfig[phase] || phaseConfig.CONNECTION
         const PhaseIcon = phaseInfo.icon
         const trustScore = conv.contact?.trustScore || 0
+        const displayName = getContactDisplayName(conv.contact)
+        const displayInitial = getContactInitial(conv.contact)
         
         return (
           <div
@@ -85,7 +88,7 @@ export function MobileConversationList({ conversations, loading, agentId }: Mobi
                     ? "bg-sky-500/10 border-sky-500/30 text-sky-200"
                     : "bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border-white/10 text-white"
               )}>
-                {(conv.contact?.name || '?').charAt(0).toUpperCase()}
+                {displayInitial}
               </div>
               {/* Status dot */}
               {needsReply && (
@@ -107,7 +110,7 @@ export function MobileConversationList({ conversations, loading, agentId }: Mobi
                   "truncate text-base",
                   needsReply ? "font-bold text-white" : "font-semibold text-white/90"
                 )}>
-                  {conv.contact?.name || 'Inconnu'}
+                  {displayName}
                 </h3>
                 <span className={cn(
                   "text-xs truncate ml-2",

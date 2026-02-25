@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { getContactDisplayName, getContactInitial } from '@/lib/contact-display'
 
 interface MobileContactListProps {
     contacts: any[]
@@ -22,6 +23,8 @@ export function MobileContactList({ contacts, onSearch, loading, agentId, refres
     const [search, setSearch] = useState('')
     const [selectedContact, setSelectedContact] = useState<any>(null)
     const [detailsOpen, setDetailsOpen] = useState(false)
+    const selectedName = getContactDisplayName(selectedContact)
+    const selectedInitial = getContactInitial(selectedContact)
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault()
@@ -99,10 +102,10 @@ export function MobileContactList({ contacts, onSearch, loading, agentId, refres
 
                                 <div className="h-24 w-24 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-white/10 flex items-center justify-center mb-4">
                                     <span className="text-white font-bold text-3xl">
-                                        {(selectedContact.name || 'Inconnu').charAt(0).toUpperCase()}
+                                        {selectedInitial}
                                     </span>
                                 </div>
-                                <h2 className="text-2xl font-bold text-white text-center">{selectedContact.name || 'Inconnu'}</h2>
+                                <h2 className="text-2xl font-bold text-white text-center">{selectedName}</h2>
                                 <p className="text-white/50 font-mono mt-1">{selectedContact.phone_whatsapp}</p>
 
                                 <div className="flex items-center gap-4 mt-6 w-full max-w-xs">
@@ -153,6 +156,8 @@ export function MobileContactList({ contacts, onSearch, loading, agentId, refres
 }
 
 function ContactCard({ contact, onClick, isLead }: { contact: any, onClick: () => void, isLead?: boolean }) {
+    const displayName = getContactDisplayName(contact)
+    const displayInitial = getContactInitial(contact)
     return (
         <div
             onClick={onClick}
@@ -167,12 +172,12 @@ function ContactCard({ contact, onClick, isLead }: { contact: any, onClick: () =
                     isLead ? "bg-sky-500/20 border-sky-500/30 text-sky-200" : "bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border-white/10 text-white"
                 )}>
                     <span className="font-semibold text-lg">
-                        {(contact.name || 'Inconnu').charAt(0).toUpperCase()}
+                        {displayInitial}
                     </span>
                 </div>
                 <div>
                     <h3 className={cn("font-medium text-base", isLead ? "text-sky-100" : "text-white")}>
-                        {contact.name || 'Inconnu'}
+                        {displayName}
                     </h3>
                     <p className={cn("text-sm font-mono", isLead ? "text-sky-300/50" : "text-white/40")}>
                         {contact.phone_whatsapp}

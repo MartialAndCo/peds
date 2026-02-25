@@ -16,6 +16,7 @@ import { generateDossier } from '@/lib/pdf-generator'
 import { FileDown, FileText } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { getContactDisplayName } from '@/lib/contact-display'
 
 interface ConversationViewProps {
     conversationId: number
@@ -77,6 +78,8 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
     const [voiceAudio, setVoiceAudio] = useState<string | null>(null)
     const [voiceGenerating, setVoiceGenerating] = useState(false)
     const [voiceSending, setVoiceSending] = useState(false)
+
+    const displayName = getContactDisplayName(conversation?.contact)
 
     // Keep refs in sync with state
     useEffect(() => { oldestIdRef.current = oldestId }, [oldestId])
@@ -395,7 +398,7 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
                 <CardHeader className="flex flex-row items-center justify-between py-3 border-b">
                     <CardTitle className="text-lg flex items-center">
                         <User className="mr-2 h-5 w-5" />
-                        {conversation.contact.name} ({conversation.contact.phone_whatsapp || 'N/A'})
+                        {displayName} ({conversation.contact.phone_whatsapp || 'N/A'})
                     </CardTitle>
                     <div className="flex gap-2">
                         <Badge variant={conversation.status === 'active' ? 'default' : 'secondary'}>

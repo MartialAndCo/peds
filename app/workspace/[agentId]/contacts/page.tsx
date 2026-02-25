@@ -14,6 +14,7 @@ import { SmartAddDialog } from '@/components/contacts/smart-add-dialog'
 import { cn } from '@/lib/utils'
 import { usePWAMode } from '@/hooks/use-pwa-mode'
 import { MobileContactList } from '@/components/pwa/pages/mobile-contact-list'
+import { getContactDisplayName } from '@/lib/contact-display'
 
 export default function WorkspaceContactsPage() {
     const router = useRouter()
@@ -219,10 +220,11 @@ export default function WorkspaceContactsPage() {
                             </TableRow>
                         ) : (
                             contacts.map((contact) => {
+                                const displayName = getContactDisplayName(contact)
                                 const needsContext = !contact.notes || contact.notes.length < 5
                                 return (
                                     <TableRow key={contact.id} className="border-white/5 hover:bg-white/5 transition-all group">
-                                        <TableCell className="font-semibold text-white/90 py-4">{contact.name}</TableCell>
+                                        <TableCell className="font-semibold text-white/90 py-4">{displayName}</TableCell>
                                         <TableCell className="text-white/50 font-mono text-xs">{contact.phone_whatsapp}</TableCell>
                                         <TableCell>
                                             {needsContext ? (
@@ -292,7 +294,7 @@ export default function WorkspaceContactsPage() {
                                                 variant="ghost"
                                                 size="icon"
                                                 className="h-8 w-8 text-red-500/60 hover:text-red-500 hover:bg-red-500/10 transition-colors"
-                                                onClick={() => handleHardDelete(contact.id, contact.name)}
+                                                onClick={() => handleHardDelete(contact.id, displayName)}
                                                 disabled={deleting === contact.id}
                                                 title="HARD Delete (removes everything)"
                                             >

@@ -11,6 +11,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { launchScenario } from "@/app/actions/scenarios"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
+import { getContactDisplayName } from "@/lib/contact-display"
 
 export default function LaunchScenarioPage() {
     const params = useParams()
@@ -128,14 +129,17 @@ export default function LaunchScenarioPage() {
                                     <SelectValue placeholder="Select a contact to target..." />
                                 </SelectTrigger>
                                 <SelectContent className="bg-[#1e293b] border-white/10 text-white max-h-[300px]">
-                                    {contacts.map((contact) => (
+                                    {contacts.map((contact) => {
+                                        const displayName = getContactDisplayName(contact, 'Unnamed Contact')
+                                        return (
                                         <SelectItem key={contact.id} value={contact.id}>
                                             <div className="flex flex-col">
-                                                <span className="font-medium">{contact.name || 'Unnamed Contact'}</span>
+                                                <span className="font-medium">{displayName}</span>
                                                 <span className="text-xs text-white/40">{contact.phone_whatsapp}</span>
                                             </div>
                                         </SelectItem>
-                                    ))}
+                                        )
+                                    })}
                                     {contacts.length === 0 && (
                                         <div className="p-2 text-sm text-white/40">No contacts available.</div>
                                     )}

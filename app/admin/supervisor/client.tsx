@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { AlertTriangle, Check, X, Eye, RefreshCw } from "lucide-react";
+import { getContactDisplayName } from "@/lib/contact-display";
 
 interface Alert {
     id: string;
@@ -186,6 +187,9 @@ function AlertCard({
     onUpdateStatus: (id: string, status: string) => void;
 }) {
     const [expanded, setExpanded] = useState(false);
+    const contactName = alert.contact
+        ? getContactDisplayName(alert.contact, alert.contact.phone_whatsapp || '-')
+        : '';
 
     const getSeverityColor = (severity: string) => {
         switch (severity) {
@@ -252,7 +256,7 @@ function AlertCard({
                         <span>{new Date(alert.createdAt).toLocaleString("fr-FR")}</span>
                         {alert.contact && (
                             <span>
-                                {alert.contact.name || alert.contact.phone_whatsapp}
+                                {contactName}
                             </span>
                         )}
                     </div>

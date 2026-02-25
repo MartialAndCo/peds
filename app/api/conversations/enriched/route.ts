@@ -164,6 +164,7 @@ export async function GET(req: Request) {
         contact: {
           id: conv.contact.id,
           name: conv.contact.name,
+          profile: conv.contact.profile ?? null,
           phone_whatsapp: conv.contact.phone_whatsapp,
           status: conv.contact.status,
           agentPhase: conv.contact.agentPhase,
