@@ -36,7 +36,7 @@ export default async function AdminPaymentsPage() {
         contact: p.contact ? {
             name: p.contact.name,
             phone_whatsapp: p.contact.phone_whatsapp || 'N/A',
-            profile: p.contact.profile ?? null
+            profile: (p.contact.profile && typeof p.contact.profile === 'object' && !Array.isArray(p.contact.profile)) ? p.contact.profile : null
         } : null
     }))
 
