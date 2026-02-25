@@ -312,6 +312,48 @@ export async function handleChat(
                         const userId = memoryService.buildUserId(contact.phone_whatsapp, agentId || '')
                         await memoryService.addMany(userId, facts)
                         console.log(`[Chat] Immediate memory extraction: ${facts.length} facts stored`)
+
+                        // If we learned a real name, update contact.name immediately
+                        const isUnknownName = (name?: string | null) => {
+                            if (!name) return true
+                            const normalized = name.trim().toLowerCase()
+                            return normalized === 'inconnu' || normalized === 'unknown' || normalized === 'discord user'
+                        }
+
+                        const sanitizeName = (raw: string) => {
+                            return raw.replace(/^["'`]+|["'`]+$/g, '').trim()
+                        }
+
+                        const extractNameFromFacts = (items: string[]) => {
+                            const patterns = [
+                                /user's name is\s+([^.,\n]+)/i,
+                                /son prénom est\s+([^.,\n]+)/i,
+                                /son prenom est\s+([^.,\n]+)/i,
+                                /il s'appelle\s+([^.,\n]+)/i,
+                                /elle s'appelle\s+([^.,\n]+)/i,
+                                /prénom[:\s]+([^.,\n]+)/i,
+                                /name is\s+([^.,\n]+)/i
+                            ]
+                            for (const fact of items) {
+                                for (const pattern of patterns) {
+                                    const match = fact.match(pattern)
+                                    if (match && match[1]) {
+                                        const candidate = sanitizeName(match[1])
+                                        if (candidate.length >= 2) return candidate
+                                    }
+                                }
+                            }
+                            return null
+                        }
+
+                        const extractedName = extractNameFromFacts(facts)
+                        if (extractedName && isUnknownName(contact.name)) {
+                            await prisma.contact.update({
+                                where: { id: contact.id },
+                                data: { name: extractedName }
+                            })
+                            console.log(`[Chat] Updated contact name from facts: ${extractedName}`)
+                        }
                     }
                 } catch (e) {
                     // Silent fail - don't block conversation

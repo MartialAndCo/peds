@@ -90,12 +90,17 @@ export const profilerService = {
                 lastExtracted: new Date().toISOString()
             }
 
+            const existingName = (existingContact?.name || '').trim()
+            const extractedName = typeof profileData.name === 'string' ? profileData.name.trim() : ''
+            const isUnknownExisting = !existingName || /^(inconnu|unknown|discord user)$/i.test(existingName)
+            const nextName = isUnknownExisting ? (extractedName || existingName || null) : (existingName || null)
+
             await prisma.contact.update({
                 where: { id: contactId },
                 data: { 
                     profile: mergedProfile,
-                    // Also update name field if we extracted a name and contact has no name
-                    name: existingContact?.name || profileData.name || null
+                    // Update name if it's unknown/empty and we extracted a valid name
+                    name: nextName
                 }
             })
 
