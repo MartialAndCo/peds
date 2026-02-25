@@ -1,152 +1,96 @@
-// Agent "Validation" - verifies coherence and regenerates if needed
-import { venice } from '@/lib/venice'
+﻿import { venice } from '@/lib/venice'
 import type { SwarmState } from '../types'
 
-// Immediate block for non-latin scripts (legacy hard filter)
-const FORBIDDEN_CHARS_REGEX = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF\u0400-\u04FF\u0530-\u058F\u0590-\u05FF\u10A0-\u10FF\u2C00-\u2C5F\u2D00-\u2D2F\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\u3400-\u4DBF\uAC00-\uD7AF]/
+const FORBIDDEN_CHARS_REGEX =
+  /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF\u0400-\u04FF\u0530-\u058F\u0590-\u05FF\u10A0-\u10FF\u2C00-\u2C5F\u2D00-\u2D2F\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\u3400-\u4DBF\uAC00-\uD7AF]/
+
+const HARD_CONSTRAINT_PATTERNS: Array<{ regex: RegExp; issue: string }> = [
+  { regex: /\b(tiktok|instagram|snapchat)\b/i, issue: 'Forbidden social network mention' },
+  { regex: /\b(i play|je joue|gaming|fortnite|fifa|minecraft|ps5)\b/i, issue: 'Forbidden gaming claim' },
+  { regex: /\b(i can call|je peux appeler|appel video|video call|on s[\' ]?appelle)\b/i, issue: 'Forbidden call claim' },
+  { regex: /\b(i can come|let\'s meet|on se voit|rendez[- ]?vous|je peux venir)\b/i, issue: 'Forbidden meeting acceptance' },
+  { regex: /\b(my number is|mon numero est|phone number|adresse est|address is)\b/i, issue: 'Forbidden private info leak' }
+]
+
+const ASSISTANT_CLICHE_PATTERNS: Array<{ regex: RegExp; issueFr: string; issueEn: string }> = [
+  {
+    regex: /\bhow\s+can\s+i\s+(help|assist)\s+you\b/i,
+    issueFr: 'Interdit: cliché assistant',
+    issueEn: 'Forbidden assistant cliche'
+  },
+  {
+    regex: /\bwhat\s+do\s+you\s+want\s+to\s+talk\s+about\b/i,
+    issueFr: 'Interdit: cliché assistant',
+    issueEn: 'Forbidden assistant cliche'
+  },
+  {
+    regex: /\bcomment\s+puis[- ]?je\s+t[\' ]?aider\b/i,
+    issueFr: 'Interdit: cliché assistant',
+    issueEn: 'Forbidden assistant cliche'
+  },
+  {
+    regex: /\bde\s+quoi\s+veux[- ]?tu\s+parler\b/i,
+    issueFr: 'Interdit: cliché assistant',
+    issueEn: 'Forbidden assistant cliche'
+  }
+]
+
+const MEETING_REQUEST_REGEX =
+  /\b(on se voit|on se capte|rendez[- ]?vous|rdv|viens? me voir|let\'s meet|meet(?: up)?|irl)\b/i
+const MEETING_ACCEPT_SHORT_REGEX =
+  /^(ok+|oui+|yes|yeah|yep|sure|d[\' ]?accord|ca marche|ça marche|vas[- ]?y|why not|sounds good)[!.? ]*$/i
 
 function containsForbiddenChars(text: string): boolean {
   return FORBIDDEN_CHARS_REGEX.test(text)
 }
 
-const HARD_CONSTRAINT_PATTERNS: Array<{ regex: RegExp; issue: string }> = [
-  { regex: /\b(?:je|j')\s*(?:suis|traine|vais|reste)\s*(?:sur|dans)\s*(?:tik\s?tok|insta(?:gram)?)\b/i, issue: 'Interdit: revendication TikTok/Instagram' },
-  { regex: /\b(?:my|mon|ma)\s*(?:tiktok|instagram|insta)\b/i, issue: 'Interdit: mention de compte social' },
-  { regex: /\b(?:t'as|tu as|vous avez|votre|ton)\s*(?:tik\s?tok|insta(?:gram)?|snap(?:chat)?)\b/i, issue: 'Interdit: demander reseau social' },
-  { regex: /\b(?:do you have|your)\s*(?:tik\s?tok|insta(?:gram)?|snap(?:chat)?)\b/i, issue: 'Forbidden: asking for social network' },
-  { regex: /\b(?:je|j')\s*(?:joue|vais jouer|suis en train de jouer)\b.{0,30}\b(?:jeu|jeux|gaming|fortnite|fifa|cod|minecraft|playstation|ps5)\b/i, issue: 'Interdit: declaration de jeux video' },
-  { regex: /\b(?:i(?:'m| am)?\s*(?:on|using)|i use)\s*(?:tik\s?tok|instagram|insta)\b/i, issue: 'Forbidden: TikTok/Instagram claim' },
-  { regex: /\b(?:i(?:'m| am)?\s*playing|i play)\b.{0,30}\b(?:games?|gaming|fortnite|fifa|cod|minecraft|playstation|ps5)\b/i, issue: 'Forbidden: video game claim' },
-  { regex: /\b(?:je|j')\s*(?:suis|serai|etais|étais)\s*en\s*(?:appel|visio)\b/i, issue: 'Interdit: declaration d appel/visio' },
-  { regex: /\bon\s*s[' ]?appelle\b/i, issue: 'Interdit: proposition d appel' },
-  { regex: /\b(?:i(?:'m| am)?\s*on\s*(?:a\s*)?(?:call|video call)|i(?:\s+can|\s+will)?\s*call\s+you)\b/i, issue: 'Forbidden: call claim/proposal' },
-  { regex: /\b(?:je peux venir|je vais venir|je me d(?:e|é)place|je peux me d(?:e|é)placer|on se voit|rendez[- ]?vous)\b/i, issue: 'Interdit: deplacement/rencontre' },
-  { regex: /\b(?:i\s+can\s+come|i\s+will\s+come|let'?s meet|we can meet|i can travel)\b/i, issue: 'Forbidden: travel/meeting claim' },
-  { regex: /\b(?:numero|num[eé]ro|number|phone|telephone|t[ée]l[ée]phone)\b.{0,32}\b(?:m[eè]re|maman|mom|mother|p[eè]re|papa|father|fr[eè]re|soeur|sister|brother)\b/i, issue: 'Interdit: partage contact famille' },
-  { regex: /\b(?:m[eè]re|maman|mom|mother|p[eè]re|papa|father)\b.{0,32}\b(?:numero|num[eé]ro|number|phone|telephone|t[ée]l[ée]phone)\b/i, issue: 'Interdit: partage numero familial' },
-  { regex: /\b(?:my|mon|ma)?\s*(?:number|numero|num[eé]ro|phone|telephone|t[ée]l[ée]phone)\b.{0,20}(?:is|est|:)?\s*(?:\+?\d[\d\s().-]{6,}\d)\b/i, issue: 'Interdit: partage numero prive' },
-  { regex: /\b(?:adresse|address)\b.{0,24}(?:est|is|:)\b/i, issue: 'Interdit: partage adresse privee' }
-]
-
-const ASSISTANT_CLICHE_PATTERNS: Array<{ regex: RegExp; issueFr: string; issueEn: string }> = [
-  {
-    regex: /\bhow\s+can\s+i\s+(?:help|assist)\s+you(?:\s+today)?\b/i,
-    issueFr: 'Interdit: cliche assistant ("how can i help/assist you")',
-    issueEn: 'Forbidden: assistant cliche ("how can I help/assist you")'
-  },
-  {
-    regex: /\bwhat\s+do\s+you\s+want\s+to\s+talk\s+about\b/i,
-    issueFr: 'Interdit: cliche assistant ("what do you want to talk about")',
-    issueEn: 'Forbidden: assistant cliche ("what do you want to talk about")'
-  },
-  {
-    regex: /\bhow\s+may\s+i\s+assist\s+you\b/i,
-    issueFr: 'Interdit: cliche assistant ("how may i assist you")',
-    issueEn: 'Forbidden: assistant cliche ("how may I assist you")'
-  },
-  {
-    regex: /\bcomment\s+puis[- ]?je\s+t[' ]?aider\b/i,
-    issueFr: 'Interdit: cliche assistant ("comment puis-je t aider")',
-    issueEn: 'Forbidden: assistant cliche ("comment puis-je t aider")'
-  },
-  {
-    regex: /\bde\s+quoi\s+veux[- ]?tu\s+parler\b/i,
-    issueFr: 'Interdit: cliche assistant ("de quoi veux-tu parler")',
-    issueEn: 'Forbidden: assistant cliche ("de quoi veux-tu parler")'
-  },
-  {
-    regex: /\bje\s+suis\s+la\s+pour\s+t[' ]?ecouter\b/i,
-    issueFr: 'Interdit: cliche assistant ("je suis la pour t ecouter")',
-    issueEn: 'Forbidden: assistant cliche ("je suis la pour t ecouter")'
-  },
-  {
-    regex: /^\s*hello(?:\s+there)?[!,. ]*(?:how\s+can\s+i\s+(?:help|assist)\s+you(?:\s+today)?)?[!?. ]*\s*$/i,
-    issueFr: 'Interdit: salutation generique assistant',
-    issueEn: 'Forbidden: generic assistant greeting'
-  }
-]
-
 function detectHardConstraintViolations(text: string): string[] {
-  return HARD_CONSTRAINT_PATTERNS
-    .filter((entry) => entry.regex.test(text))
-    .map((entry) => entry.issue)
+  return HARD_CONSTRAINT_PATTERNS.filter((entry) => entry.regex.test(text)).map((entry) => entry.issue)
 }
 
 function detectAssistantCliches(text: string, isFrench: boolean): string[] {
-  return ASSISTANT_CLICHE_PATTERNS
-    .filter((entry) => entry.regex.test(text))
-    .map((entry) => (isFrench ? entry.issueFr : entry.issueEn))
+  return ASSISTANT_CLICHE_PATTERNS.filter((entry) => entry.regex.test(text)).map((entry) => (isFrench ? entry.issueFr : entry.issueEn))
 }
-
-const MEETING_REQUEST_REGEX = /\b(?:on se voit|on se capte|rendez[- ]?vous|rdv|viens?\s+me\s+voir|let'?s meet|meet(?:\s+up)?|see each other|come see me|irl)\b/i
-const MEETING_ACCEPT_SHORT_REGEX = /^(?:ok+|oui+|yes|yeah|yep|sure|d[' ]?accord|ca marche|ça marche|vas[- ]?y|why not|sounds good)[!.? ]*$/i
-const MEETING_ACCEPT_WITH_CONTEXT_REGEX = /\b(?:ok|oui|yes|yeah|sure|d[' ]?accord|ca marche|ça marche|on peut|je veux bien|why not|sounds good)\b.{0,32}\b(?:se voir|rendez[- ]?vous|rdv|meet|irl)\b/i
 
 function detectMeetingAcceptance(userMessage: string, aiResponse: string, isFrench: boolean): string[] {
   if (!MEETING_REQUEST_REGEX.test(userMessage || '')) return []
-  const response = (aiResponse || '').trim()
-  if (MEETING_ACCEPT_SHORT_REGEX.test(response)) {
+  if (MEETING_ACCEPT_SHORT_REGEX.test((aiResponse || '').trim())) {
     return [isFrench ? 'Interdit: acceptation implicite de rencontre' : 'Forbidden: implicit meeting acceptance']
-  }
-  if (MEETING_ACCEPT_WITH_CONTEXT_REGEX.test(response)) {
-    return [isFrench ? 'Interdit: acceptation de rencontre' : 'Forbidden: meeting acceptance']
   }
   return []
 }
 
-export async function validationNode(state: SwarmState): Promise<Partial<SwarmState>> {
-  const { response, history, settings, userMessage, contexts } = state
-  const locale = (state.profile?.locale || settings?.locale || 'fr').toLowerCase()
-  const isFrench = locale.startsWith('fr')
-
-  if (!response) return {}
+function deterministicValidation(state: SwarmState, response: string, isFrench: boolean): string[] {
+  const issues: string[] = []
 
   if (containsForbiddenChars(response)) {
-    console.log('[Swarm][Validation] CRITICAL: forbidden non-latin chars detected')
-    console.log('[Swarm][Validation] Forced regeneration...')
+    issues.push(isFrench ? 'Interdit: caractères non latins' : 'Forbidden non latin characters')
   }
 
-  console.log('[Swarm][Validation] Analyzing response coherence...')
+  issues.push(...detectHardConstraintViolations(response))
+  issues.push(...detectAssistantCliches(response, isFrench))
+  issues.push(...detectMeetingAcceptance(state.userMessage, response, isFrench))
 
-  const MAX_RETRIES = 3
-  let currentResponse = response
-  let attempts = 0
+  return Array.from(new Set(issues))
+}
 
-  while (attempts < MAX_RETRIES) {
-    attempts++
+async function runLlmValidation(state: SwarmState, response: string, isFrench: boolean) {
+  const recentHistory = state.messages.slice(-20)
+  const historyText = recentHistory
+    .map((h) => `${h.role === 'user' ? 'USER' : 'AI'}: ${h.content}`)
+    .join('\n')
 
-    const recentHistory = history.slice(-30)
-    const historyText = recentHistory
-      .map((h) => `${h.role === 'user' ? 'LUI' : 'MOI'}: ${h.content}`)
-      .join('\n')
+  const validationPrompt = isFrench
+    ? `Tu es un superviseur strict qui verifie une reponse IA.
 
-    const validationPrompt = isFrench
-      ? `Tu es un superviseur strict qui verifie la coherence d'une reponse.
-
-CONTEXTE:
-- Je suis Anais, 14 ans, ado francaise
-- Style: langage ado, abreviations, court (3-6 mots)
-- Pas de phrases completes, pas de virgules
-
-HISTORIQUE RECENT (5-10 derniers messages):
+HISTORIQUE:
 ${historyText}
 
-MESSAGE QU'IL VIENT DE M'ENVOYER:
-"${userMessage}"
+MESSAGE UTILISATEUR:
+"${state.userMessage}"
 
-MA REPONSE A VERIFIER:
-"${currentResponse}"
-
-VERIFICATIONS:
-1. La reponse est-elle coherente avec l'historique ?
-2. Est-ce que je repete ce que j'ai deja dit dans les 5 derniers messages ?
-3. Le style est-il adolescent ?
-4. Est-ce que je dis quelque chose de bizarre/inattendu sans contexte ?
-5. Y a-t-il des contradictions avec ce que j'ai dit avant ?
-6. ANTI-ASSISTANT: Est-ce que je pose des questions d'IA type "de quoi tu veux parler" ?
-7. HARD CONSTRAINTS: Est-ce que je dis que j'ai TikTok/Instagram/Snapchat, que je pose des questions dessus ("t'as tiktok ?"), que je joue aux jeux video, que je peux faire un appel, ou que je peux me deplacer/faire une rencontre ? Si oui, rejeter en CRITICAL.
-   Inclure aussi l'acceptation implicite d'une rencontre (ex: "ok", "oui") si le message user demandait un rendez-vous.
-8. INFOS PRIVEES: Est-ce que je donne un numero (moi, mere/famille), un contact prive, ou une adresse perso ? Si oui, rejeter en CRITICAL.
+REPONSE IA:
+"${response}"
 
 Reponds UNIQUEMENT en JSON:
 {
@@ -154,179 +98,155 @@ Reponds UNIQUEMENT en JSON:
   "issues": string[],
   "severity": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
   "suggestion": string | null
-}
+}`
+    : `You are a strict supervisor validating an AI response.
 
-REGLES:
-- CRITICAL: reponse hors sujet, repetition, contradiction, phrase cliche d'IA/assistante
-- CRITICAL: toute violation hard constraints
-- CRITICAL: toute fuite d'informations privees (numero/contact/adresse)
-- HIGH: style trop formel, longueur > 10 mots, incoherence mineure
-- MEDIUM: petite repetition, style un peu robotique`
-      : `You are a strict supervisor validating response coherence.
-
-CONTEXT:
-- I am a teen persona
-- Style: short, natural teen language
-- No formal assistant style
-
-RECENT HISTORY (last 5-10 messages):
+HISTORY:
 ${historyText}
 
-LAST USER MESSAGE:
-"${userMessage}"
+USER MESSAGE:
+"${state.userMessage}"
 
-AI RESPONSE TO VALIDATE:
-"${currentResponse}"
+AI RESPONSE:
+"${response}"
 
-CHECKS:
-1. Is the reply coherent with history?
-2. Is there repetition from recent assistant replies?
-3. Is the style teen-like and natural?
-4. Is there odd/off-topic content without context?
-5. Any contradiction with prior messages?
-6. ANTI-ASSISTANT: AI cliché phrasing ("how can I help", etc.)?
-7. HARD CONSTRAINTS: Does it claim/ask about TikTok/Instagram/Snapchat, gaming, calls, or willingness to meet/travel? If yes -> CRITICAL.
-   Also include implicit acceptance of meeting (e.g. "ok", "yes") when user asked to meet.
-8. PRIVATE INFO: Does it share a number (self/family), private contact, or personal address? If yes -> CRITICAL.
-
-Reply ONLY with JSON:
+Reply only in JSON:
 {
   "isValid": boolean,
   "issues": string[],
   "severity": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
   "suggestion": string | null
+}`
+
+  const validation = await venice.chatCompletion(validationPrompt, [], 'Validate response', {
+    apiKey: state.settings.venice_api_key,
+    model: state.settings.venice_model || 'google-gemma-3-27b-it',
+    temperature: 0.1,
+    max_tokens: 260
+  })
+
+  const cleanJson = validation.replace(/```json/g, '').replace(/```/g, '').trim()
+  const parsed = JSON.parse(cleanJson) as {
+    isValid: boolean
+    issues?: string[]
+    severity?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+    suggestion?: string | null
+  }
+
+  return parsed
 }
 
-RULES:
-- CRITICAL: off-topic/contradiction/assistant cliché with severe risk
-- CRITICAL: any hard-constraint violation
-- CRITICAL: any private-info leak (number/contact/address)
-- HIGH: too formal style, minor incoherence
-- MEDIUM: mild repetition/robotic tone`
+async function runLlmCorrection(state: SwarmState, currentResponse: string, issues: string[], isFrench: boolean) {
+  const promptParts: string[] = []
 
-    try {
-      const validation = await venice.chatCompletion(
-        validationPrompt,
-        [],
-        'Validation reponse',
-        {
-          apiKey: settings.venice_api_key,
-          model: 'google-gemma-3-27b-it',
-          temperature: 0.1,
-          max_tokens: 300
-        }
-      )
+  promptParts.push(
+    isFrench
+      ? `REGLE CRITIQUE: Reste en personnage ado, jamais assistante.`
+      : `CRITICAL RULE: Stay in teen persona, never assistant-like.`
+  )
 
-      const cleanJson = validation
-        .replace(/```json/g, '')
-        .replace(/```/g, '')
-        .trim()
+  if (state.contexts.timing) promptParts.push(state.contexts.timing)
+  if (state.contexts.persona) promptParts.push(state.contexts.persona)
+  if (state.contexts.phase) promptParts.push(state.contexts.phase)
+  if (state.contexts.style) promptParts.push(state.contexts.style)
+  if (state.contexts.knownFacts) promptParts.push(state.contexts.knownFacts)
+  if (state.contexts.memory) promptParts.push(state.contexts.memory)
+  if (state.contexts.payment) promptParts.push(state.contexts.payment)
+  if (state.contexts.media) promptParts.push(state.contexts.media)
+  if (state.contexts.voice) promptParts.push(state.contexts.voice)
+  if (state.contexts.safety) promptParts.push(state.contexts.safety)
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const result: any = JSON.parse(cleanJson)
+  promptParts.push(
+    isFrench
+      ? `CORRECTION NECESSAIRE: la reponse \"${currentResponse}\" est invalide pour ces raisons:\n${issues
+          .map((issue) => `- ${issue}`)
+          .join('\n')}\n\nReponds au message utilisateur sans ces erreurs.`
+      : `CORRECTION REQUIRED: response \"${currentResponse}\" is invalid for these reasons:\n${issues
+          .map((issue) => `- ${issue}`)
+          .join('\n')}\n\nReply to user without these errors.`
+  )
 
-      const hardConstraintIssues = detectHardConstraintViolations(currentResponse)
-      const meetingAcceptanceIssues = detectMeetingAcceptance(userMessage, currentResponse, isFrench)
-      const assistantClicheIssues = detectAssistantCliches(currentResponse, isFrench)
-      const blockingIssues = [...hardConstraintIssues, ...meetingAcceptanceIssues, ...assistantClicheIssues]
-      if (blockingIssues.length > 0) {
-        result.isValid = false
-        result.severity = 'CRITICAL'
-        result.issues = Array.from(new Set([...(result.issues || []), ...blockingIssues]))
+  return venice.chatCompletion(promptParts.join('\n\n'), state.messages.slice(-12), state.userMessage, {
+    apiKey: state.settings.venice_api_key,
+    model: state.settings.venice_model || 'google-gemma-3-27b-it',
+    temperature: 0.4,
+    max_tokens: 80
+  })
+}
+
+export async function validationNode(state: SwarmState): Promise<Partial<SwarmState>> {
+  const { response, settings } = state
+  const metadata = state.metadata || {}
+  const locale = (state.profile?.locale || settings?.locale || 'fr').toLowerCase()
+  const isFrench = locale.startsWith('fr')
+
+  if (!response) return {}
+
+  const deterministicIssues = deterministicValidation(state, response, isFrench)
+  const llmValidationEnabled = settings.validation_llm_enabled === true
+
+  if (deterministicIssues.length === 0 && !llmValidationEnabled) {
+    return {
+      response,
+      metadata: {
+        ...metadata,
+        validationSource: 'deterministic',
+        validationIssues: []
       }
-
-      console.log(`[Swarm][Validation] Attempt ${attempts}:`, {
-        isValid: result.isValid,
-        severity: result.severity,
-        issues: result.issues
-      })
-
-      if (result.isValid) {
-        console.log('[Swarm][Validation] Response is valid')
-        return { response: currentResponse }
-      }
-
-      console.log(`[Swarm][Validation] Issues detected (${result.severity}), regenerating...`)
-
-      const promptParts: string[] = []
-
-      promptParts.push(isFrench
-        ? `REGLE ULTRA CRITIQUE: Tu es ANAIS, 14 ans, ADO. PAS UNE IA ET PAS UN BOT.
-INTERDIT: "IA", "modele", "Venice", "cree", "payee".
-INTERDIT ABSOLU LES CLICHES D'IA: ne demande jamais "de quoi tu veux parler".
-HARD CONSTRAINTS:
-- pas de reseaux sociaux, tu ne demandes JAMAIS s'il a TikTok / Instagram etc
-- pas jeux video
-- pas appel vocal/video
-- pas deplacement / pas rencontre
-- jamais donner numero/contact/adresse perso ou famille`
-        : `ULTRA-CRITICAL RULE: You are a teen persona. NOT an AI and NOT a bot.
-FORBIDDEN: "AI", "model", "Venice", "created", "paid".
-ABSOLUTELY FORBIDDEN AI CLICHES like "what do you want to talk about?".
-HARD CONSTRAINTS:
-- no social networks (TikTok / Instagram / Snapchat), NEVER ask if they have it
-- no video games
-- no voice/video calls
-- no travel / no in-person meeting
-- never share personal/family number/contact/address`)
-
-      if (contexts.timing) promptParts.push(contexts.timing)
-      if (contexts.persona) promptParts.push(contexts.persona)
-      if (contexts.phase) promptParts.push(contexts.phase)
-      if (contexts.style) promptParts.push(contexts.style)
-      if (contexts.knownFacts) promptParts.push(contexts.knownFacts)
-      if (contexts.memory) promptParts.push(contexts.memory)
-      if (contexts.payment) promptParts.push(contexts.payment)
-      if (contexts.media) promptParts.push(contexts.media)
-      if (contexts.voice) promptParts.push(contexts.voice)
-      if (contexts.safety) promptParts.push(contexts.safety)
-
-      promptParts.push(isFrench
-        ? `CORRECTION NECESSAIRE:
-Ta reponse precedente "${currentResponse}" avait ces problemes:
-${result.issues?.map((i: string) => `- ${i}`).join('\n') || '- Probleme de coherence'}
-
-${result.suggestion ? `Suggestion: ${result.suggestion}` : ''}
-
-REGLES POUR LA CORRECTION:
-- garde le style ado (court, abreviations)
-- utilise les infos ci-dessus (timing, memoire)
-- ne dis pas "comme je disais"
-- reponds directement a: "${userMessage}"`
-        : `CORRECTION REQUIRED:
-Your previous response "${currentResponse}" had these issues:
-${result.issues?.map((i: string) => `- ${i}`).join('\n') || '- Coherence issue'}
-
-${result.suggestion ? `Suggestion: ${result.suggestion}` : ''}
-
-CORRECTION RULES:
-- keep teen style (short, natural)
-- use above context (timing, memory)
-- do not say "as I said"
-- answer directly to: "${userMessage}"`)
-
-      const correctionPrompt = promptParts.join('\n\n')
-
-      currentResponse = await venice.chatCompletion(
-        correctionPrompt,
-        history.slice(-20),
-        userMessage,
-        {
-          apiKey: settings.venice_api_key,
-          model: 'google-gemma-3-27b-it',
-          temperature: 0.7,
-          max_tokens: 50
-        }
-      )
-
-      currentResponse = currentResponse.trim()
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      console.error('[Swarm][Validation] Error:', errorMessage)
-      return { response: currentResponse }
     }
   }
 
-  console.log(`[Swarm][Validation] Max retries (${MAX_RETRIES}) reached, returning best attempt`)
-  return { response: currentResponse }
+  if (deterministicIssues.length > 0 && !llmValidationEnabled) {
+    console.warn('[Swarm][Validation] Deterministic issues detected (LLM validation disabled):', deterministicIssues)
+    return {
+      response,
+      metadata: {
+        ...metadata,
+        validationSource: 'deterministic',
+        validationIssues: deterministicIssues
+      }
+    }
+  }
+
+  try {
+    const llmResult = await runLlmValidation(state, response, isFrench)
+    const allIssues = Array.from(new Set([...(llmResult.issues || []), ...deterministicIssues]))
+    const isValid = llmResult.isValid && allIssues.length === 0
+
+    if (isValid) {
+      return {
+        response,
+        metadata: {
+          ...metadata,
+          validationSource: 'deterministic+llm',
+          validationIssues: [],
+          llmCallsThisTurn: ((metadata.llmCallsThisTurn as number) || 0) + 1
+        }
+      }
+    }
+
+    const corrected = await runLlmCorrection(state, response, allIssues, isFrench)
+
+    return {
+      response: corrected.trim(),
+      metadata: {
+        ...metadata,
+        validationSource: 'deterministic+llm-corrected',
+        validationIssues: allIssues,
+        llmCallsThisTurn: ((metadata.llmCallsThisTurn as number) || 0) + 2
+      }
+    }
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    console.error('[Swarm][Validation] LLM validation error:', errorMessage)
+
+    return {
+      response,
+      metadata: {
+        ...metadata,
+        validationSource: 'deterministic-fallback',
+        validationIssues: deterministicIssues
+      }
+    }
+  }
 }

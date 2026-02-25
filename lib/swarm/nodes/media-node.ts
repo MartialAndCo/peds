@@ -128,18 +128,21 @@ RULES:
   // === AVAILABLE MEDIA TYPES (GENERIC) ===
   // Tell the AI what photo types it actually has available (excluding already-sent to this contact)
   try {
-    const contactPhone = (state as any).contactPhone || '';
+    const contactPhone = state.contactPhone || '';
     if (contactPhone) {
-      const allMedia = await prisma.media.findMany({
-        select: { typeId: true, sentTo: true }
+      const unsentMediaTypes = await prisma.media.findMany({
+        where: {
+          NOT: {
+            sentTo: {
+              has: contactPhone
+            }
+          }
+        },
+        select: { typeId: true },
+        distinct: ['typeId']
       });
 
-      // Filter: only types that have at least 1 unsent photo for this contact
-      const availableTypes = [...new Set(
-        allMedia
-          .filter(m => !m.sentTo?.includes(contactPhone))
-          .map(m => m.typeId)
-      )];
+      const availableTypes = unsentMediaTypes.map((media) => media.typeId);
 
       const availableList = availableTypes.join(', ') || 'aucune';
       mediaContext += `\nPHOTOS DISPONIBLES (Génériques): ${availableList}`;

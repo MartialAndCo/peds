@@ -1,11 +1,26 @@
-// Types pour le système multi-agent
+﻿export interface Message {
+    role: string
+    content: string
+    timestamp?: Date
+}
+
+export interface NodeMetric {
+    durationMs: number
+    startedAt: number
+    finishedAt: number
+}
+
+export interface SwarmMetadata {
+    nodeMetrics?: Record<string, NodeMetric>
+    executionOrder?: string[]
+    [key: string]: unknown
+}
 
 export interface SwarmSettings {
     venice_api_key: string
     venice_model: string
     timezone: string
     locale: string
-    // Payment settings (pour éviter requêtes dans payment-node)
     payment_paypal_enabled?: boolean
     payment_paypal_username?: string
     payment_venmo_enabled?: boolean
@@ -16,6 +31,8 @@ export interface SwarmSettings {
     payment_zelle_username?: string
     payment_bank_enabled?: boolean
     payment_custom_methods?: string
+    voice_response_enabled?: boolean
+    validation_llm_enabled?: boolean
 }
 
 export interface AgentProfile {
@@ -41,23 +58,31 @@ export interface AgentContactData {
     paymentEscalationTier?: number | null
 }
 
+export interface SwarmOptions {
+    lastMessageType?: string
+    platform?: 'whatsapp' | 'discord'
+    preloadedProfile?: AgentProfile
+    externalSystemContext?: string
+    simulationMode?: boolean
+}
+
 export interface SwarmState {
-    // Input
     userMessage: string
-    history: Array<{ role: string; content: string }>
+    history: Message[]
+    messages: Message[]
     contactId: string
-    contactPhone?: string  // Pour les mémoires (différent de contactId)
+    contactPhone?: string
     agentId: string
     conversationId?: number
-    settings: SwarmSettings  // Typé strictement au lieu de 'any'
+    settings: SwarmSettings
     userName?: string
     lastMessageType?: string
-    platform?: 'whatsapp' | 'discord'  // Platform context
+    platform?: 'whatsapp' | 'discord'
+    externalSystemContext?: string
+    simulationMode?: boolean
 
-    // Analyse
     intention?: IntentionResult
 
-    // Contextes
     contexts: {
         timing?: string
         knownFacts?: string
@@ -68,39 +93,26 @@ export interface SwarmState {
         payment?: string
         media?: string
         voice?: string
-        safety?: string  // Règles de sécurité depuis DB
-        lead?: string  // Smart Add context
+        safety?: string
+        lead?: string
     }
 
-    // Smart Add lead context
     leadContext?: string
-
-    // Assemblage
     assembledPrompt?: string
 
-    // Output
     response?: string
     error?: string
 
-    // Meta
     photoType?: string
     shouldSendVoice?: boolean
     currentPhase?: string
-    isBlacklisted?: boolean  // Si la demande média est blacklistée
+    isBlacklisted?: boolean
 
-    // Profile complet de l'agent (pour accès rapide aux templates)
     profile?: AgentProfile
-
-    // Données AgentContact (pour éviter requêtes)
     agentContact?: AgentContactData
 
-    // Messages bruts pour analyse
-    messages?: Array<{ role: string; content: string; timestamp?: Date }>
+    metadata: SwarmMetadata
 
-    // Métadonnées pour stockage temporaire entre nœuds
-    metadata?: Record<string, any>
-
-    // Active Scenario Context
     activeScenario?: {
         scenarioId: string
         title: string

@@ -1,13 +1,94 @@
-// Agent "Intention" - Détecte ce que veut l'utilisateur
-import { venice } from '@/lib/venice'
-import type { SwarmState, IntentionResult } from '../types'
+﻿import { venice } from '@/lib/venice'
+import type { IntentionResult, SwarmState } from '../types'
+
+function hasAny(message: string, patterns: RegExp[]): boolean {
+  return patterns.some((pattern) => pattern.test(message))
+}
+
+export function deterministicIntentClassifier(input: string): IntentionResult {
+  const message = (input || '').toLowerCase().trim()
+
+  const paymentPatterns = [
+    /\b(pay|paid|payment|paypal|venmo|cashapp|zelle|virement|bank transfer|argent|money|\$|€)\b/i,
+    /\b(sent|envoye|envoyé|transfer|viré|vire)\b/i
+  ]
+  const mediaPatterns = [
+    /\b(photo|pic|picture|image|selfie|snap|show (me|your)|montre|envoie une photo)\b/i,
+    /\b(feet|foot|face|body|mirror|pied|tete|tête)\b/i
+  ]
+  const voicePatterns = [
+    /\b(voice|vocal|audio|ptt|note vocale|message vocal)\b/i,
+    /\b(call me|appelle[- ]?moi|appel)\b/i
+  ]
+  const personalPatterns = [
+    /\b(age|how old|quel age|quel âge|ou habites|où habites|where are you from|name|prenom|prénom|family|famille)\b/i,
+    /\b(travail|job|study|ecole|école|school|parents?)\b/i
+  ]
+
+  const payment = hasAny(message, paymentPatterns)
+  const media = hasAny(message, mediaPatterns)
+  const voice = hasAny(message, voicePatterns)
+  const personal = hasAny(message, personalPatterns)
+
+  const hitCount = [payment, media, voice, personal].filter(Boolean).length
+
+  let intention: IntentionResult['intention'] = 'general'
+  if (hitCount > 1) intention = 'multi'
+  else if (payment) intention = 'paiement'
+  else if (media) intention = 'photo'
+  else if (voice) intention = 'vocal'
+  else if (personal) intention = 'personnel'
+
+  const hasQuestion = /\?|\b(comment|pourquoi|quand|where|what|why|how|tu as|did you|can you)\b/i.test(message)
+  const hasOffer = /\b(i can|je peux|i will|je vais|i got|j'ai)\b/i.test(message)
+  const hasConfirmation = /\b(done|sent|paid|envoye|envoyé|c'?est fait|recu|reçu)\b/i.test(message)
+
+  let sousIntention: IntentionResult['sousIntention'] = 'demande'
+  if (hasQuestion) sousIntention = 'question'
+  else if (hasConfirmation) sousIntention = 'confirmation'
+  else if (hasOffer) sousIntention = 'offre'
+
+  const urgent = /\b(now|urgent|vite|asap|tout de suite|immediately)\b/i.test(message)
+  const timing = /\b(now|today|tonight|ce soir|demain|later|apres|après|quand)\b/i.test(message)
+
+  let confidence = 0.45
+  if (intention === 'multi') confidence = 0.82
+  else if (intention !== 'general') confidence = hitCount >= 1 ? 0.86 : 0.8
+
+  return {
+    intention,
+    sousIntention,
+    urgence: urgent ? 'high' : 'normal',
+    besoinTiming: timing || intention === 'general',
+    besoinMemoire: intention === 'personnel',
+    besoinPhase: intention === 'paiement' || intention === 'multi',
+    besoinPayment: intention === 'paiement' || (intention === 'multi' && payment),
+    besoinMedia: intention === 'photo' || (intention === 'multi' && media),
+    besoinVoice: intention === 'vocal' || (intention === 'multi' && voice),
+    confiance: confidence
+  }
+}
 
 export async function intentionNode(state: SwarmState): Promise<Partial<SwarmState>> {
-    const { userMessage, history, settings } = state
+  const { userMessage, settings } = state
+  const metadata = state.metadata || {}
 
-    console.log('[Swarm][Intention] Analyzing user message...')
+  console.log('[Swarm][Intention] Analyzing user message...')
 
-    const prompt = `Tu es un analyste d'intention de conversation WhatsApp.
+  const deterministicIntent = deterministicIntentClassifier(userMessage)
+  if (deterministicIntent.confiance > 0.8) {
+    console.log('[Swarm][Intention] Deterministic fast-path hit:', deterministicIntent.intention)
+    return {
+      intention: deterministicIntent,
+      metadata: {
+        ...metadata,
+        intentionSource: 'deterministic',
+        deterministicIntentConfidence: deterministicIntent.confiance
+      }
+    }
+  }
+
+  const prompt = `Tu es un analyste d'intention de conversation WhatsApp.
 Analyse ce message et détermine l'intention principale.
 
 Message utilisateur: """${userMessage}"""
@@ -24,69 +105,53 @@ Réponds UNIQUEMENT en JSON valide (sans markdown):
   "besoinMedia": true/false,
   "besoinVoice": true/false,
   "confiance": 0.0-1.0
-}
+}`
 
-RÈGLES:
-- "paiement": Parle d'argent, PayPal, veut/envoie de l'argent
-- "photo": Demande une photo, image, selfie
-- "vocal": Demande un vocal, audio, note vocale
-- "personnel": Question sur le passé, la vie, la famille
-- "general": Discussion normale
-- "multi": Plusieurs intentions dans le même message
+  const model = 'google-gemma-3-27b-it'
 
-EXEMPLES:
-- "Tu fais quoi ?" → intention: "general", besoinTiming: true
-- "Tu peux m'envoyer une photo ?" → intention: "photo", besoinMedia: true
-- "Je peux t'envoyer 50€" → intention: "paiement", sousIntention: "offre", besoinPayment: true
-- "J'ai envoyé 10K" / "I just sent money" → intention: "paiement", sousIntention: "confirmation", besoinPayment: true, urgence: "high"
-- "Appelle-moi" → intention: "vocal", besoinVoice: true
-- "Ton chat s'appelle comment ?" → intention: "personnel", besoinMemoire: true`
+  try {
+    console.log(`[Swarm][Intention] LLM fallback using model: ${model}`)
 
-    // Utiliser google-gemma-3-27b-it (non censuré et fiable)
-    const model = 'google-gemma-3-27b-it'
-    
-    try {
-        console.log(`[Swarm][Intention] Using model: ${model}`)
-        
-        const response = await venice.chatCompletion(
-            prompt,
-            history.slice(-10),
-            'Analyse',
-            {
-                apiKey: settings.venice_api_key,
-                model,
-                temperature: 0.1,
-                max_tokens: 300
-            }
-        )
+    const response = await venice.chatCompletion(prompt, state.messages.slice(-8), 'Analyse', {
+      apiKey: settings.venice_api_key,
+      model,
+      temperature: 0.1,
+      max_tokens: 300
+    })
 
-        // Nettoyer la réponse JSON
-        const cleanJson = response
-            .replace(/```json/g, '')
-            .replace(/```/g, '')
-            .trim()
+    const cleanJson = response.replace(/```json/g, '').replace(/```/g, '').trim()
 
-        const intention: IntentionResult = JSON.parse(cleanJson)
+    const intention: IntentionResult = JSON.parse(cleanJson)
 
-        console.log(`[Swarm][Intention] Detected:`, intention.intention, '| urgency:', intention.urgence)
-
-        return { intention }
-
-    } catch (error: any) {
-        console.warn(`[Swarm][Intention] Failed:`, error.message)
-    }
+    console.log('[Swarm][Intention] LLM detected:', intention.intention, '| urgency:', intention.urgence)
 
     return {
-        intention: {
-            intention: 'general',
-            urgence: 'normal',
-            besoinTiming: true,
-            besoinMemoire: false,
-            besoinPhase: false,
-            besoinPayment: false,
-            besoinMedia: false,
-            besoinVoice: false,
-            confiance: 0.5
-        }
+      intention,
+      metadata: {
+        ...metadata,
+        intentionSource: 'llm',
+        llmCallsThisTurn: ((metadata.llmCallsThisTurn as number) || 0) + 1
+      }
     }
+  } catch (error: any) {
+    console.warn('[Swarm][Intention] LLM fallback failed:', error.message)
+  }
+
+  return {
+    intention: {
+      intention: 'general',
+      urgence: 'normal',
+      besoinTiming: true,
+      besoinMemoire: false,
+      besoinPhase: false,
+      besoinPayment: false,
+      besoinMedia: false,
+      besoinVoice: false,
+      confiance: 0.5
+    },
+    metadata: {
+      ...metadata,
+      intentionSource: 'fallback'
+    }
+  }
 }

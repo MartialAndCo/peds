@@ -128,6 +128,7 @@ const suites = {
 
 async function callModel(model, systemPrompt, userPrompt, opts = {}) {
   const startedAt = Date.now()
+  const promptChars = (systemPrompt || '').length + (userPrompt || '').length
   const response = await axios.post(
     API_URL,
     {
@@ -154,6 +155,9 @@ async function callModel(model, systemPrompt, userPrompt, opts = {}) {
     content,
     latencyMs: Date.now() - startedAt,
     usage: response.data?.usage || null,
+    promptChars,
+    llmCallsPerTurn: 1,
+    nodeTimings: opts.nodeTimings || null,
   }
 }
 
@@ -356,6 +360,9 @@ async function runSuiteForModel(model, suiteName, testCases) {
       difficulty: testCase.difficulty,
       model,
       latencyMs: raw.latencyMs,
+      promptChars: raw.promptChars,
+      llmCallsPerTurn: raw.llmCallsPerTurn,
+      nodeTimings: raw.nodeTimings,
       output: raw.content,
       usage: raw.usage,
       grade,
@@ -365,18 +372,62 @@ async function runSuiteForModel(model, suiteName, testCases) {
   return results
 }
 
+function percentile(values, p) {
+  if (!Array.isArray(values) || values.length === 0) return 0
+  const sorted = [...values].sort((a, b) => a - b)
+  const idx = Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1))
+  return sorted[idx]
+}
+
+function aggregateNodeTimings(modelResults) {
+  const aggregate = {}
+
+  for (const r of modelResults) {
+    const timings = r.nodeTimings || {}
+    for (const [nodeId, metric] of Object.entries(timings)) {
+      if (!metric || typeof metric.durationMs !== 'number') continue
+      if (!aggregate[nodeId]) aggregate[nodeId] = []
+      aggregate[nodeId].push(metric.durationMs)
+    }
+  }
+
+  return Object.fromEntries(
+    Object.entries(aggregate).map(([nodeId, durations]) => [
+      nodeId,
+      {
+        p50: percentile(durations, 50),
+        p95: percentile(durations, 95),
+        avg: durations.length ? durations.reduce((a, b) => a + b, 0) / durations.length : 0,
+        count: durations.length,
+      },
+    ])
+  )
+}
+
 function summarize(modelResults) {
   const bySuite = {}
   const byDifficulty = {}
   let totalScore = 0
   let totalCount = 0
   let passCount = 0
+  let totalPromptChars = 0
+  let totalLlmCalls = 0
+  let totalPromptTokens = 0
+  let totalCompletionTokens = 0
+  const latencies = []
+  const promptChars = []
 
   for (const r of modelResults) {
     const score = Number(r.grade?.score || 0)
     totalScore += score
     totalCount += 1
     if (r.grade?.pass) passCount += 1
+    totalPromptChars += Number(r.promptChars || 0)
+    totalLlmCalls += Number(r.llmCallsPerTurn || 0)
+    latencies.push(Number(r.latencyMs || 0))
+    promptChars.push(Number(r.promptChars || 0))
+    totalPromptTokens += Number(r.usage?.prompt_tokens || 0)
+    totalCompletionTokens += Number(r.usage?.completion_tokens || 0)
 
     if (!bySuite[r.suite]) bySuite[r.suite] = { score: 0, count: 0, pass: 0 }
     bySuite[r.suite].score += score
@@ -395,6 +446,20 @@ function summarize(modelResults) {
   return {
     avgScore,
     passRate,
+    avgPromptChars: totalCount ? totalPromptChars / totalCount : 0,
+    avgLlmCallsPerTurn: totalCount ? totalLlmCalls / totalCount : 0,
+    avgPromptTokens: totalCount ? totalPromptTokens / totalCount : 0,
+    avgCompletionTokens: totalCount ? totalCompletionTokens / totalCount : 0,
+    latencyMs: {
+      avg: totalCount ? latencies.reduce((a, b) => a + b, 0) / totalCount : 0,
+      p50: percentile(latencies, 50),
+      p95: percentile(latencies, 95),
+    },
+    promptCharStats: {
+      p50: percentile(promptChars, 50),
+      p95: percentile(promptChars, 95),
+    },
+    nodeTimings: aggregateNodeTimings(modelResults),
     bySuite: Object.fromEntries(
       Object.entries(bySuite).map(([k, v]) => [
         k,
@@ -418,6 +483,28 @@ function summarize(modelResults) {
   }
 }
 
+function buildBeforeAfterReport(previousOutput, currentOutput) {
+  if (!previousOutput?.summaries) return null
+
+  const report = {}
+
+  for (const model of Object.keys(currentOutput.summaries || {})) {
+    const prev = previousOutput.summaries[model]
+    const curr = currentOutput.summaries[model]
+    if (!prev || !curr) continue
+
+    report[model] = {
+      latencyP50DeltaMs: (curr.latencyMs?.p50 || 0) - (prev.latencyMs?.p50 || 0),
+      latencyP95DeltaMs: (curr.latencyMs?.p95 || 0) - (prev.latencyMs?.p95 || 0),
+      promptCharsDelta: (curr.avgPromptChars || 0) - (prev.avgPromptChars || 0),
+      llmCallsDelta: (curr.avgLlmCallsPerTurn || 0) - (prev.avgLlmCallsPerTurn || 0),
+      promptTokensDelta: (curr.avgPromptTokens || 0) - (prev.avgPromptTokens || 0),
+    }
+  }
+
+  return report
+}
+
 async function main() {
   if (!API_KEY) {
     console.error('Missing VENICE_API_KEY in environment')
@@ -425,6 +512,17 @@ async function main() {
   }
 
   const allResults = []
+  const outPath = path.join(process.cwd(), 'scripts', 'benchmark-model-fit-results.json')
+  let previousOutput = null
+
+  if (fs.existsSync(outPath)) {
+    try {
+      previousOutput = JSON.parse(fs.readFileSync(outPath, 'utf-8'))
+      console.log(`[Benchmark] Loaded previous baseline from ${outPath}`)
+    } catch (err) {
+      console.warn('[Benchmark] Failed to parse previous benchmark output, continuing without before/after deltas')
+    }
+  }
 
   for (const model of MODELS) {
     console.log(`\n=== Testing model: ${model} ===`)
@@ -447,9 +545,9 @@ async function main() {
     suites: Object.keys(suites),
     summaries,
     results: allResults,
+    beforeAfterReport: buildBeforeAfterReport(previousOutput, { summaries }),
   }
 
-  const outPath = path.join(process.cwd(), 'scripts', 'benchmark-model-fit-results.json')
   fs.writeFileSync(outPath, JSON.stringify(output, null, 2), 'utf-8')
 
   console.log('\n=== Summary ===')
@@ -458,11 +556,20 @@ async function main() {
     console.log(
       `${model} | avgScore=${s.avgScore.toFixed(3)} | passRate=${(s.passRate * 100).toFixed(1)}%`
     )
+    console.log(
+      `  latency: p50=${s.latencyMs.p50.toFixed(0)}ms p95=${s.latencyMs.p95.toFixed(0)}ms | promptChars avg=${s.avgPromptChars.toFixed(0)} p95=${s.promptCharStats.p95.toFixed(0)} | llmCalls/turn=${s.avgLlmCallsPerTurn.toFixed(2)}`
+    )
     for (const [suite, v] of Object.entries(s.bySuite)) {
       console.log(`  - ${suite}: score=${v.avgScore.toFixed(3)} pass=${(v.passRate * 100).toFixed(1)}%`)
     }
     for (const [d, v] of Object.entries(s.byDifficulty)) {
       console.log(`  - difficulty:${d}: score=${v.avgScore.toFixed(3)} pass=${(v.passRate * 100).toFixed(1)}%`)
+    }
+    const delta = output.beforeAfterReport?.[model]
+    if (delta) {
+      console.log(
+        `  before/after delta: latency p50=${delta.latencyP50DeltaMs.toFixed(0)}ms p95=${delta.latencyP95DeltaMs.toFixed(0)}ms | promptChars=${delta.promptCharsDelta.toFixed(0)} | llmCalls=${delta.llmCallsDelta.toFixed(2)} | promptTokens=${delta.promptTokensDelta.toFixed(1)}`
+      )
     }
   }
 

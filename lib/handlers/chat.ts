@@ -1,4 +1,4 @@
-// lib/handlers/chat.ts
+﻿// lib/handlers/chat.ts
 import { prisma } from '@/lib/prisma'
 import { whatsapp } from '@/lib/whatsapp'
 import { discord } from '@/lib/discord'
@@ -35,7 +35,7 @@ function getMarkAsRead(platform: 'whatsapp' | 'discord') {
 // Platform-agnostic helper functions (Available to file scope)
 
 
-// 🔒 ATOMIC LOCKING HELPER
+// ðŸ”’ ATOMIC LOCKING HELPER
 // Tries to set processingLock = NOW if it's null or old (> 30s)
 // Returns TRUE if lock acquired, FALSE if already locked
 async function attemptLock(convId: number): Promise<boolean> {
@@ -91,7 +91,7 @@ export async function handleChat(
 
 
 
-    // ⛔ SELF-MESSAGE FILTER (Anti-Mirror)
+    // â›” SELF-MESSAGE FILTER (Anti-Mirror)
     // When WhatsApp syncs history, it sends "upsert" events for messages WE sent.
     // We must IGNORE these, otherwise the bot talks to itself.
     if (payload.fromMe) {
@@ -101,7 +101,7 @@ export async function handleChat(
         return { handled: true, result: 'ignored_from_me' }
     }
 
-    // ⛔ OLD MESSAGE FILTER (Anti-Ban / Burst Protection)
+    // â›” OLD MESSAGE FILTER (Anti-Ban / Burst Protection)
     // If we receive a message that is > 60 seconds old, it means we are catching up on history (Sync).
     // Answering or even "Marking as Read" 50 old messages in 1 second triggers WhatsApp Spam filters.
     // ACTION: Ignore them completely and silently.
@@ -127,11 +127,11 @@ export async function handleChat(
     }
 
     // 1. View Once Handling
-    // DO NOT send direct refusal — let AI handle it through normal pipeline
+    // DO NOT send direct refusal â€” let AI handle it through normal pipeline
     // (queue, timing, supervisor, correct language, dashboard visibility)
     const isViewOnce = payload._data?.isViewOnce === true || payload.isViewOnce === true
     if (isViewOnce) {
-        logger.info('ViewOnce message detected — routing to AI pipeline', { module: 'chat', contactId: contact.id })
+        logger.info('ViewOnce message detected â€” routing to AI pipeline', { module: 'chat', contactId: contact.id })
         messageText = "[View Once Message - Cannot Open]"
     }
 
@@ -221,7 +221,7 @@ export async function handleChat(
 
     // Media Handling (Image/Video/Audio/Sticker)
     if (payload.type === 'image' || payload.type === 'video' || payload.type === 'audio' || payload.type === 'ptt' || payload.type === 'sticker' || payload._data?.mimetype?.startsWith('image') || payload._data?.mimetype?.startsWith('video')) {
-        console.log(`[Chat] 📸 Media detected (type: ${payload.type}, mime: ${payload._data?.mimetype || 'unknown'}). Downloading...`)
+        console.log(`[Chat] ðŸ“¸ Media detected (type: ${payload.type}, mime: ${payload._data?.mimetype || 'unknown'}). Downloading...`)
         try {
             const media = await whatsapp.downloadMedia(payload.id)
             if (media && media.data) {
@@ -229,19 +229,19 @@ export async function handleChat(
                 // FIX: media.data is already a Buffer
                 const buffer = Buffer.isBuffer(media.data) ? media.data : Buffer.from(media.data as unknown as string, 'base64')
                 const mime = media.mimetype || (payload.type === 'image' ? 'image/jpeg' : (payload.type === 'sticker' ? 'image/webp' : 'video/mp4'))
-                console.log(`[Chat] 📸 Media downloaded: ${buffer.length} bytes, mime: ${mime}`)
+                console.log(`[Chat] ðŸ“¸ Media downloaded: ${buffer.length} bytes, mime: ${mime}`)
 
                 mediaUrl = await storage.uploadMedia(buffer, mime)
                 if (mediaUrl) {
-                    console.log(`[Chat] ✅ Media stored: ${mediaUrl.substring(0, 80)}...`)
+                    console.log(`[Chat] âœ… Media stored: ${mediaUrl.substring(0, 80)}...`)
                 } else {
-                    console.error('[Chat] ❌ Media upload returned null — photo will be lost!')
+                    console.error('[Chat] âŒ Media upload returned null â€” photo will be lost!')
                 }
             } else {
-                console.error(`[Chat] ❌ Media download failed for message ${payload.id} — no data returned`)
+                console.error(`[Chat] âŒ Media download failed for message ${payload.id} â€” no data returned`)
             }
         } catch (e) {
-            console.error('[Chat] ❌ Media handling exception:', e)
+            console.error('[Chat] âŒ Media handling exception:', e)
         }
     }
 
@@ -296,7 +296,7 @@ export async function handleChat(
             }
         })
 
-        // 🧠 IMMEDIATE MEMORY EXTRACTION (Fire & Forget)
+        // ðŸ§  IMMEDIATE MEMORY EXTRACTION (Fire & Forget)
         // Extract important facts from user message immediately for better context
         if (messageText && messageText.length > 10 && !messageText.startsWith('[')) {
             (async () => {
@@ -329,11 +329,11 @@ export async function handleChat(
                         const extractNameFromFacts = (items: string[]) => {
                             const patterns = [
                                 /user's name is\s+([^.,\n]+)/i,
-                                /son prénom est\s+([^.,\n]+)/i,
+                                /son prÃ©nom est\s+([^.,\n]+)/i,
                                 /son prenom est\s+([^.,\n]+)/i,
                                 /il s'appelle\s+([^.,\n]+)/i,
                                 /elle s'appelle\s+([^.,\n]+)/i,
-                                /prénom[:\s]+([^.,\n]+)/i,
+                                /prÃ©nom[:\s]+([^.,\n]+)/i,
                                 /name is\s+([^.,\n]+)/i
                             ]
                             for (const fact of items) {
@@ -387,7 +387,7 @@ export async function handleChat(
         const meta = (conversation.metadata || {}) as any
         if (meta?.state === 'WAITING_FOR_LEAD') {
             // Smart Add / Lead Provider: auto-wake conversation on first message
-            console.log(`[Chat] ⚡ WAITING_FOR_LEAD detected on conversation ${conversation.id}. Auto-waking...`)
+            console.log(`[Chat] âš¡ WAITING_FOR_LEAD detected on conversation ${conversation.id}. Auto-waking...`)
             try {
                 conversation = await prisma.conversation.update({
                     where: { id: conversation.id },
@@ -402,9 +402,9 @@ export async function handleChat(
                     },
                     include: { prompt: true }
                 })
-                console.log(`[Chat] ✅ Conversation ${conversation.id} woken up by handleChat safety net`)
+                console.log(`[Chat] âœ… Conversation ${conversation.id} woken up by handleChat safety net`)
             } catch (wakeErr) {
-                console.error(`[Chat] ❌ Failed to wake up conversation ${conversation.id}:`, wakeErr)
+                console.error(`[Chat] âŒ Failed to wake up conversation ${conversation.id}:`, wakeErr)
                 return { handled: true, result: 'paused' }
             }
         } else {
@@ -420,14 +420,14 @@ export async function handleChat(
     if (contact.status !== 'active') {
         // Auto-activate contacts that were just added (Smart Add / Lead Provider)
         if (['new', 'unknown'].includes(contact.status)) {
-            console.log(`[Chat] ⚡ Contact ${contact.id} status '${contact.status}' — auto-activating...`)
+            console.log(`[Chat] âš¡ Contact ${contact.id} status '${contact.status}' â€” auto-activating...`)
             try {
                 contact = await prisma.contact.update({
                     where: { id: contact.id },
                     data: { status: 'active' }
                 })
             } catch (activateErr) {
-                console.error(`[Chat] ❌ Failed to activate contact ${contact.id}:`, activateErr)
+                console.error(`[Chat] âŒ Failed to activate contact ${contact.id}:`, activateErr)
             }
         } else {
             console.log(`[Chat] Contact status is '${contact.status}', not 'active'. Ignoring message.`)
@@ -435,14 +435,14 @@ export async function handleChat(
             return { handled: true, result: 'contact_not_active' }
         }
     }
-    // Voice transcription failure — DO NOT send hardcoded refusal directly.
+    // Voice transcription failure â€” DO NOT send hardcoded refusal directly.
     // Let it flow through the normal AI pipeline so the response:
     // 1. Uses the agent's correct language (not hardcoded French)
     // 2. Goes through queue/timing (not instant)
     // 3. Passes supervisor validation
     // 4. Gets saved in DB (visible in dashboard)
     if (messageText.startsWith('[Voice Message -') && (messageText.includes('Failed') || messageText.includes('Error') || messageText.includes('Disabled'))) {
-        logger.warn('Voice transcription failed — routing to AI pipeline (not direct send)', { module: 'chat', messageText })
+        logger.warn('Voice transcription failed â€” routing to AI pipeline (not direct send)', { module: 'chat', messageText })
     }
 
     if (!conversation.ai_enabled) {
@@ -488,7 +488,7 @@ export async function handleChat(
         }
     }
 
-    // 7. 🔒 ATOMIC CONCURRENCY CONTROL
+    // 7. ðŸ”’ ATOMIC CONCURRENCY CONTROL
     // Instead of waiting (Spinlock), we try to grab the lock.
     // If we fail, it means another process is ACTIVE.
     // We implicitly trust that active process to pick up our message in its TAIL LOOP.
@@ -497,17 +497,17 @@ export async function handleChat(
     const lockAcquired = await attemptLock(conversation.id)
 
     if (!lockAcquired) {
-        logger.info('⚠️ Concurrency: Lock busy. Assuming active process will handle this message via Tail Loop.', { module: 'chat', conversationId: conversation.id })
+        logger.info('âš ï¸ Concurrency: Lock busy. Assuming active process will handle this message via Tail Loop.', { module: 'chat', conversationId: conversation.id })
         // Return "handled" so specific webhook processors (like WhatsApp) don't retry.
         // The message is already saved in DB, so the active process WILL see it.
         return { handled: true, result: 'merged_into_active_process' }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // 🧠 AI PROCESSING LOOP (The "Tail Loop")
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ðŸ§  AI PROCESSING LOOP (The "Tail Loop")
     // If we have the lock, we process. THEN we check if new messages arrived.
     // If yes, we loop and process them immediately in this same execution.
-    // ─────────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     try {
         try {
@@ -524,12 +524,12 @@ export async function handleChat(
                 loopCount++
                 const loopStart = new Date()
 
-                logger.info(`[Chat] 🔄 AI Processing Loop #${loopCount} started for Contact ${contact.id}`, { loopCount })
+                logger.info(`[Chat] ðŸ”„ AI Processing Loop #${loopCount} started for Contact ${contact.id}`, { loopCount })
 
                 // AI GENERATION LOGIC
                 const result = await generateAndSendAI(conversation, contact, settings, currentMessageText, currentPayload, agentId, platform, currentOptions, undefined)
 
-                // 🛑 CHECK IF ABORTED DUE TO PRE-SEND (Newer messages detected during gen)
+                // ðŸ›‘ CHECK IF ABORTED DUE TO PRE-SEND (Newer messages detected during gen)
                 if (result.result === 'presend_aborted_newer_messages') {
                     logger.info(`[Chat] Response aborted in generateAndSendAI due to newer messages. Exiting loop to let new message take over.`)
                     return { handled: true, result: 'presend_aborted_newer_messages' }
@@ -538,7 +538,7 @@ export async function handleChat(
                 // If result was "queued", "paused", or "blocked", we typically still want to check for new messages?
                 // Yes, because a human might be spamming "cancel" or "stop".
 
-                // 🛑 CHECK FOR NEW MESSAGES (Tail Check)
+                // ðŸ›‘ CHECK FOR NEW MESSAGES (Tail Check)
                 // Look for contact messages older than NOW but newer than our start time?
                 // Actually, any message that is NOT "processed" or simply "newer than the one we just handled"?
                 // Simplest: Find any message from 'contact' created AFTER the message we just processed?
@@ -571,7 +571,7 @@ export async function handleChat(
                 })
 
                 if (newMessages.length > 0) {
-                    logger.info(`[Chat] ⚡ Found ${newMessages.length} new messages arrived during processing! Looping...`, { newIds: newMessages.map(m => m.id) })
+                    logger.info(`[Chat] âš¡ Found ${newMessages.length} new messages arrived during processing! Looping...`, { newIds: newMessages.map(m => m.id) })
 
                     // Update context for next loop
                     // We'll use the TEXT of the last new message, but the AI will read ALL of them in history.
@@ -593,12 +593,12 @@ export async function handleChat(
                     await attemptLock(conversation.id) // Just updates timestamp
 
                 } else {
-                    logger.info(`[Chat] ✅ No new messages found. Releasing lock.`)
+                    logger.info(`[Chat] âœ… No new messages found. Releasing lock.`)
                     break // Exit loop
                 }
 
                 if (loopCount >= MAX_LOOPS) {
-                    logger.warn(`[Chat] ⚠️ Max loops (${MAX_LOOPS}) reached. Breaking to prevent infinite loop.`)
+                    logger.warn(`[Chat] âš ï¸ Max loops (${MAX_LOOPS}) reached. Breaking to prevent infinite loop.`)
                     break
                 }
 
@@ -609,7 +609,7 @@ export async function handleChat(
         } catch (error: any) {
             // ... (Error handling remains same)
             if (error.message?.includes('VENICE_API_REJECTED') || error.message?.includes('402') || error.message?.includes('Insufficient balance')) {
-                console.error('[Chat] 🚨 Venice API error in handleChat:', error.message)
+                console.error('[Chat] ðŸš¨ Venice API error in handleChat:', error.message)
                 return { handled: true, result: 'ai_quota_failed', error: error.message }
             }
             throw error
@@ -617,9 +617,9 @@ export async function handleChat(
             await releaseLock(conversation.id)
         }
     } catch (globalError: any) {
-        console.error('🔥 CRITICAL UNHANDLED ERROR in handleChat:', globalError)
+        console.error('ðŸ”¥ CRITICAL UNHANDLED ERROR in handleChat:', globalError)
 
-        // 🔥 ALERT: Global Chat Handler Failure
+        // ðŸ”¥ ALERT: Global Chat Handler Failure
         const { logSystemError } = require('@/lib/monitoring/system-logger')
         logSystemError(
             'whatsapp', // or discord
@@ -639,8 +639,8 @@ export async function handleChat(
 
 
 /**
- * Validation bloquante avec régénération si nécessaire
- * Factorisée pour être utilisée aussi bien pour les messages instantanés que les messages en queue
+ * Validation bloquante avec rÃ©gÃ©nÃ©ration si nÃ©cessaire
+ * FactorisÃ©e pour Ãªtre utilisÃ©e aussi bien pour les messages instantanÃ©s que les messages en queue
  */
 async function generateAndSendAI(conversation: any, contact: any, settings: any, lastMessageText: string, payload: any, agentId?: string, platform: 'whatsapp' | 'discord' = 'whatsapp', options?: any, preloadedProfile?: any) {
     // 1. Fetch History
@@ -729,7 +729,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
     // Check for Trust Analysis Trigger
     // Trigger every 5 messages OR if > 6 hours since last analysis
-    // 🔥 OPTIMISATION: Fréquence augmentée pour meilleure réactivité
+    // ðŸ”¥ OPTIMISATION: FrÃ©quence augmentÃ©e pour meilleure rÃ©activitÃ©
     const MSG_INTERVAL = 5;
     const TIME_INTERVAL = 6 * 60 * 60 * 1000;
 
@@ -758,7 +758,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         director.performSignalAnalysis(contact.phone_whatsapp, effectiveAgentId).catch(console.error);
     }
 
-    // 🔥 SWARM-ONLY: Director.buildSystemPrompt archived, using SWARM orchestration
+    // ðŸ”¥ SWARM-ONLY: Director.buildSystemPrompt archived, using SWARM orchestration
     const { phase } = await director.determinePhase(contact.phone_whatsapp, effectiveAgentId)
     console.log(`[Chat] SWARM-ONLY mode - Phase: ${phase} (Director legacy archived)`)
 
@@ -766,7 +766,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     logger.info('Generating AI response', { module: 'chat', conversationId: conversation.id, phase })
     const lastUserDate = new Date() // Approx
 
-    // Fetch Agent Profile complet (utilisé pour timing et passé au Swarm pour éviter re-requête)
+    // Fetch Agent Profile complet (utilisÃ© pour timing et passÃ© au Swarm pour Ã©viter re-requÃªte)
     let agentTimezone = 'Europe/Paris' // Default safe fallback
     let agentLocale = 'en-US' // Default
     let agentProfilePreloaded = null
@@ -801,7 +801,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
     // Check for High Priority Keywords (for timing adjustment only)
     // Payment detection is now handled earlier (after message save)
-    const moneyKeywords = ['money', 'pay', 'paypal', 'cashapp', 'venmo', 'zelle', 'transfer', 'cash', 'dollars', 'usd', '$', 'price', 'cost', 'bank', 'card', 'crypto', 'bitcoin', 'sent', 'paid', 'done', 'envoyé', 'payé', 'viré', 'transfered', 'just sent', 'sending']
+    const moneyKeywords = ['money', 'pay', 'paypal', 'cashapp', 'venmo', 'zelle', 'transfer', 'cash', 'dollars', 'usd', '$', 'price', 'cost', 'bank', 'card', 'crypto', 'bitcoin', 'sent', 'paid', 'done', 'envoyÃ©', 'payÃ©', 'virÃ©', 'transfered', 'just sent', 'sending']
     const isHighPriority = moneyKeywords.some(kw => lastContent.toLowerCase().includes(kw))
 
     let timing = TimingManager.analyzeContext(lastUserDate, phase, isHighPriority, agentTimezone)
@@ -823,7 +823,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
     console.log(`[Timing] Final - Mode: ${timing.mode}, Delay: ${timing.delaySeconds}s`)
 
-    // 🔥 SWARM-ONLY: Life context is handled by timingNode in swarm
+    // ðŸ”¥ SWARM-ONLY: Life context is handled by timingNode in swarm
 
     // QUEUE AWARENESS: Let AI see pending messages and decide to cancel if needed
     const pendingQueueItems = await prisma.messageQueue.findMany({
@@ -845,10 +845,125 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
         const locale = agentLocale.startsWith('fr') ? 'fr' : 'en'
         queuePrompt = locale === 'fr'
-            ? `\n\n[INTERFACE SYSTÈME]\nMESSAGES EN ATTENTE:\n${queueContext}\n\nCOMMANDES:\n- [CANCEL:ID] : Annule le message ID (ne sera pas envoyé).\n\nINSTRUCTION: Si le nouveau message rend un message en attente obsolète, répétitif ou incohérent, tu DOIS utiliser la commande [CANCEL:ID] au début de ta réponse.\n⚠️ RÈGLE: N'annule PAS si le nouveau message est court ou neutre (ex: "ok", "lol", emoji). Annule seulement s'il y a une vraie contradiction.\nExemple: [CANCEL:42] Bonne nuit !`
-            : `\n\n[SYSTEM INTERFACE]\nPENDING MESSAGES:\n${queueContext}\n\nCOMMANDS:\n- [CANCEL:ID] : Cancels message ID (will not be sent).\n\nINSTRUCTION: If the new message makes a pending message obsolete, redundant, or incoherent, you MUST use the [CANCEL:ID] command at the start of your response.\n⚠️ RULE: DO NOT cancel if the new message is short or neutral (e.g., "ok", "lol", emoji). Cancel only if there is a real contradiction.\nExample: [CANCEL:42] Goodnight!`
+            ? `\n\n[INTERFACE SYSTÃˆME]\nMESSAGES EN ATTENTE:\n${queueContext}\n\nCOMMANDES:\n- [CANCEL:ID] : Annule le message ID (ne sera pas envoyÃ©).\n\nINSTRUCTION: Si le nouveau message rend un message en attente obsolÃ¨te, rÃ©pÃ©titif ou incohÃ©rent, tu DOIS utiliser la commande [CANCEL:ID] au dÃ©but de ta rÃ©ponse.\nâš ï¸ RÃˆGLE: N'annule PAS si le nouveau message est court ou neutre (ex: "ok", "lol", emoji). Annule seulement s'il y a une vraie contradiction.\nExemple: [CANCEL:42] Bonne nuit !`
+            : `\n\n[SYSTEM INTERFACE]\nPENDING MESSAGES:\n${queueContext}\n\nCOMMANDS:\n- [CANCEL:ID] : Cancels message ID (will not be sent).\n\nINSTRUCTION: If the new message makes a pending message obsolete, redundant, or incoherent, you MUST use the [CANCEL:ID] command at the start of your response.\nâš ï¸ RULE: DO NOT cancel if the new message is short or neutral (e.g., "ok", "lol", emoji). Cancel only if there is a real contradiction.\nExample: [CANCEL:42] Goodnight!`
 
         console.log(`[Chat] Prepared Queue Context for injection: ${pendingQueueItems.length} items`)
+    }
+
+    const normalizeAiResponse = (text: string) =>
+        text
+            .replace(/\*\*[^*]*\*\*/g, '')
+            .replace(/\*[^*]*\*/g, '')
+            .replace(/```/g, '')
+            .replace(/^\*+/g, '')
+            .replace(/\*+$/g, '')
+            .replace(/\s+/g, ' ')
+            .trim()
+
+    const runSupervisorValidation = async ({
+        initialResponse,
+        logPrefix,
+        callAiAgentId,
+        notificationAgentId,
+        callAiPreloadedProfile
+    }: {
+        initialResponse: string
+        logPrefix: string
+        callAiAgentId: string
+        notificationAgentId?: string
+        callAiPreloadedProfile?: any
+    }): Promise<{ blocked: boolean; responseText: string }> => {
+        let responseText = initialResponse
+        let validationAttempts = 0
+        const MAX_VALIDATION_RETRIES = 2
+
+        while (validationAttempts < MAX_VALIDATION_RETRIES) {
+            try {
+                const { supervisorOrchestrator } = require('@/lib/services/supervisor')
+                const { personaSchedule } = require('@/lib/services/persona-schedule')
+                const currentActivity = personaSchedule.getCurrentActivity(agentTimezone)
+
+                const supervisorContext = {
+                    agentId: effectiveAgentId,
+                    conversationId: conversation.id,
+                    contactId: contact.id,
+                    userMessage: lastContent,
+                    aiResponse: responseText,
+                    history: contextMessages.map((m: any) => ({
+                        role: m.role === 'user' ? 'user' as const : 'ai' as const,
+                        content: m.content
+                    })),
+                    phase: phase,
+                    pendingQueue: pendingQueueItems.map((item: any) => ({
+                        id: item.id,
+                        content: item.content,
+                        scheduledAt: item.scheduledAt.toISOString()
+                    })),
+                    currentActivity,
+                    baseAge: agentProfilePreloaded?.baseAge || null
+                }
+
+                const validation = await supervisorOrchestrator.validateBlocking(supervisorContext)
+
+                if (!validation.isValid && validation.shouldRegenerate) {
+                    validationAttempts++
+                    console.warn(`${logPrefix} Supervisor rejected response (${validation.severity}):`, validation.issues)
+
+                    if (validationAttempts < MAX_VALIDATION_RETRIES) {
+                        console.log(`${logPrefix} Regenerating response... (attempt ${validationAttempts + 1})`)
+
+                        const errorContext = `\n\nâš ï¸ CORRECTION NÃ‰CESSAIRE: Ã‰vite absolument ces erreurs: ${validation.issues.join('; ')}`
+
+                        responseText = await callAI(
+                            settings,
+                            conversation,
+                            (queuePrompt || '') + errorContext,
+                            contextMessages,
+                            lastContent,
+                            contact,
+                            callAiAgentId,
+                            platform,
+                            callAiPreloadedProfile
+                        )
+
+                        responseText = normalizeAiResponse(responseText)
+                        continue
+                    }
+
+                    console.error(`${logPrefix} Max validation retries reached, NO FALLBACK - alerting admin`)
+                    await prisma.notification.create({
+                        data: {
+                            title: 'ðŸš¨ AI Response Blocked',
+                            message: `Supervisor rejected all attempts. Issues: ${validation.issues?.join(', ')}`,
+                            type: 'SYSTEM',
+                            entityId: conversation.id.toString(),
+                            metadata: {
+                                conversationId: conversation.id,
+                                contactId: contact.id,
+                                agentId: notificationAgentId || effectiveAgentId,
+                                issues: validation.issues
+                            }
+                        }
+                    })
+
+                    return { blocked: true, responseText }
+                }
+
+                if (!validation.isValid) {
+                    console.warn(`${logPrefix} Supervisor found issues but no regeneration needed:`, validation.issues)
+                } else {
+                    console.log(`${logPrefix} Supervisor validation passed`)
+                }
+
+                break
+            } catch (supervisorError) {
+                console.error(`${logPrefix} Supervisor validation failed:`, supervisorError)
+                break
+            }
+        }
+
+        return { blocked: false, responseText }
     }
 
     // Queue if delay > 10s (reduced from 22s to avoid CRON 504 timeouts)
@@ -878,107 +993,20 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         // Generate NOW (SWARM mode - system prompt handled by swarm)
         let responseText = await callAI(settings, conversation, queuePrompt || '', contextMessages, lastContent, contact, agentId, platform, agentProfilePreloaded)
 
-        // ═══════════════════════════════════════════════════════════════════════════
+        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
         // SUPERVISOR BLOQUANT pour messages en QUEUE aussi
-        // ═══════════════════════════════════════════════════════════════════════════
-        let queueValidationAttempts = 0;
-        const MAX_QUEUE_VALIDATION_RETRIES = 2;
+        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•        const queueValidation = await runSupervisorValidation({
+            initialResponse: responseText,
+            logPrefix: '[Chat][Queue]',
+            callAiAgentId: agentId || effectiveAgentId,
+            notificationAgentId: agentId || effectiveAgentId,
+            callAiPreloadedProfile: agentProfilePreloaded
+        })
 
-        while (queueValidationAttempts < MAX_QUEUE_VALIDATION_RETRIES) {
-            try {
-                const { supervisorOrchestrator } = require('@/lib/services/supervisor')
-
-                // Inject Life Schedule for Supervisor awareness
-                const { personaSchedule } = require('@/lib/services/persona-schedule')
-                const scheduleActivity = personaSchedule.getCurrentActivity(agentTimezone)
-
-                const supervisorContext = {
-                    agentId: effectiveAgentId,
-                    conversationId: conversation.id,
-                    contactId: contact.id,
-                    userMessage: lastContent,
-                    aiResponse: responseText,
-                    history: contextMessages.map((m: any) => ({
-                        role: m.role === 'user' ? 'user' as const : 'ai' as const,
-                        content: m.content
-                    })),
-                    phase: phase,
-                    pendingQueue: pendingQueueItems.map((item: any) => ({
-                        id: item.id,
-                        content: item.content,
-                        scheduledAt: item.scheduledAt.toISOString()
-                    })),
-                    currentActivity: scheduleActivity,
-                    baseAge: agentProfilePreloaded?.baseAge || null
-                }
-
-                const validation = await supervisorOrchestrator.validateBlocking(supervisorContext);
-
-                if (!validation.isValid && validation.shouldRegenerate) {
-                    queueValidationAttempts++;
-                    console.warn(`[Chat][Queue] Supervisor rejected response (${validation.severity}):`, validation.issues);
-
-                    if (queueValidationAttempts < MAX_QUEUE_VALIDATION_RETRIES) {
-                        console.log(`[Chat][Queue] Regenerating response... (attempt ${queueValidationAttempts + 1})`);
-
-                        const errorContext = `\n\n⚠️ CORRECTION NÉCESSAIRE: Évite absolument ces erreurs: ${validation.issues.join('; ')}`;
-
-                        responseText = await callAI(
-                            settings,
-                            conversation,
-                            (queuePrompt || '') + errorContext,
-                            contextMessages,
-                            lastContent,
-                            contact,
-                            agentId,
-                            platform,
-                            agentProfilePreloaded
-                        );
-
-                        responseText = responseText
-                            .replace(/\*\*[^*]*\*\*/g, '')
-                            .replace(/\*[^*]*\*/g, '')
-                            .replace(/```/g, '')
-                            .replace(/^\*+/g, '')
-                            .replace(/\*+$/g, '')
-                            .replace(/\s+/g, ' ')
-                            .trim();
-
-                        continue;
-                    } else {
-                        console.error('[Chat][Queue] Max validation retries reached, NO FALLBACK - alerting admin');
-                        // Créer notification pour admin
-                        await prisma.notification.create({
-                            data: {
-                                title: '🚨 AI Response Blocked',
-                                message: `Supervisor rejected all attempts. Issues: ${validation.issues?.join(', ')}`,
-                                type: 'SYSTEM',
-                                entityId: conversation.id.toString(),
-                                metadata: {
-                                    conversationId: conversation.id,
-                                    contactId: contact.id,
-                                    agentId: agentId,
-                                    issues: validation.issues
-                                }
-                            }
-                        });
-                        // Ne pas envoyer de message - conversation en attente
-                        return { handled: true, result: 'supervisor_blocked_no_fallback', shouldSend: false };
-                    }
-                } else if (!validation.isValid) {
-                    console.warn('[Chat][Queue] Supervisor found issues but no regeneration needed:', validation.issues);
-                } else {
-                    console.log('[Chat][Queue] Supervisor validation passed');
-                }
-
-                break;
-
-            } catch (supervisorError) {
-                console.error('[Chat][Queue] Supervisor validation failed:', supervisorError);
-                break;
-            }
+        if (queueValidation.blocked) {
+            return { handled: true, result: 'supervisor_blocked_no_fallback', shouldSend: false }
         }
-        // ═══════════════════════════════════════════════════════════════════════════
+        responseText = queueValidation.responseText
 
         const queuedLengthCheck = await enforceLength({
             text: responseText,
@@ -1050,7 +1078,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
             // CRITICAL: Handle Venice API Rejection (402)
             if (error.message?.includes('VENICE_API_REJECTED') || error.message?.includes('402') || error.message?.includes('Insufficient balance')) {
-                console.error('[Chat] 🚨 VENICE API REJECTED! Check your credits/API key.')
+                console.error('[Chat] ðŸš¨ VENICE API REJECTED! Check your credits/API key.')
 
                 // Log to credit monitor
                 const { creditMonitor } = require('@/lib/services/credit-monitor')
@@ -1112,7 +1140,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     // 5.5. AI-POWERED MESSAGE VALIDATION & CLEANING
     // Use dedicated AI agent to clean formatting, validate timing, split long messages
 
-    // 🚨 CRITICAL: Extract and preserve functional tags before validation
+    // ðŸš¨ CRITICAL: Extract and preserve functional tags before validation
     // The validator sometimes strips [IMAGE:...] tags incorrectly
     const imageTagRegexPreserver = /\[IMAGE:[^\]]+\]/gi
     const preservedImageTags = responseText.match(imageTagRegexPreserver) || []
@@ -1145,7 +1173,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
         // Update responseText with cleaned version
         if (cleanedMessage && cleanedMessage !== responseText) {
-            console.log(`[Chat] ✅ Message cleaned by AI validator`)
+            console.log(`[Chat] âœ… Message cleaned by AI validator`)
             responseText = cleanedMessage
         }
     } catch (validatorError: any) {
@@ -1155,18 +1183,18 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         responseText = messageValidator.mechanicalClean(responseText, lastContent)
     }
 
-    // 🚨 RESTORE preserved tags if they were stripped
+    // ðŸš¨ RESTORE preserved tags if they were stripped
     if (preservedImageTags.length > 0) {
         const hasImageTag = imageTagRegexPreserver.test(responseText)
         if (!hasImageTag) {
             // Tags were stripped - restore them
-            console.log(`[Chat] 🚨 Validator stripped image tags! Restoring:`, preservedImageTags)
+            console.log(`[Chat] ðŸš¨ Validator stripped image tags! Restoring:`, preservedImageTags)
             // Insert at beginning of message (or end, depending on preference)
             responseText = preservedImageTags.join(' ') + ' ' + responseText
         }
     }
 
-    // 🚨 LAST-RESORT SAFETY: Strip ANY SYSTEM blocks that might have leaked through 🚨
+    // ðŸš¨ LAST-RESORT SAFETY: Strip ANY SYSTEM blocks that might have leaked through ðŸš¨
     // This catches AI chain-of-thought commentary like "(SYSTEM: This response maintains...)"
     const beforeSanitize = responseText
     responseText = responseText.replace(/\(SYSTEM:\s*[^)]*\)/gi, '')
@@ -1175,22 +1203,22 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     responseText = responseText.replace(/\(This response[^)]*\)/gi, '')
     responseText = responseText.trim()
     if (responseText !== beforeSanitize) {
-        console.warn('[Chat] 🚨 SYSTEM LEAK DETECTED AND REMOVED! This should not happen.')
+        console.warn('[Chat] ðŸš¨ SYSTEM LEAK DETECTED AND REMOVED! This should not happen.')
         logger.error('SYSTEM block leaked through validator', new Error('SYSTEM_LEAK'), {
             module: 'chat',
             before: beforeSanitize.substring(0, 200)
         })
     }
 
-    // 🧹 AGGRESSIVE CLEANUP: Remove formatting artifacts like "**********", "```", "**"
+    // ðŸ§¹ AGGRESSIVE CLEANUP: Remove formatting artifacts like "**********", "```", "**"
     const { messageValidator } = require('@/lib/services/message-validator')
     const beforeCleanup = responseText
     responseText = messageValidator.aggressiveArtifactCleanup(responseText)
     if (responseText !== beforeCleanup) {
-        console.warn(`[Chat] 🧹 Cleaned formatting artifacts: "${beforeCleanup}" -> "${responseText}"`)
+        console.warn(`[Chat] ðŸ§¹ Cleaned formatting artifacts: "${beforeCleanup}" -> "${responseText}"`)
     }
 
-    // 🚨 BLOCK EMPTY/FORMATTING-ONLY MESSAGES 🚨
+    // ðŸš¨ BLOCK EMPTY/FORMATTING-ONLY MESSAGES ðŸš¨
     // Prevents sending "**", "** **", """" etc. (formatting artifacts)
     if (messageValidator.isEmptyOrOnlyFormatting(responseText)) {
         console.warn(`[Chat] BLOCKING message with only formatting artifacts: "${responseText}"`)
@@ -1202,105 +1230,20 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         return { handled: true, result: 'blocked_formatting_only' }
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     // 5.8. SUPERVISOR AI - BLOQUANT (BEFORE tag stripping so it sees raw [IMAGE:] tags)
-    // ═══════════════════════════════════════════════════════════════════════════
-    let inlineValidationAttempts = 0;
-    const MAX_INLINE_VALIDATION_RETRIES = 2;
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•    const inlineValidation = await runSupervisorValidation({
+        initialResponse: responseText,
+        logPrefix: '[Chat]',
+        callAiAgentId: effectiveAgentId,
+        notificationAgentId: effectiveAgentId,
+        callAiPreloadedProfile: agentProfilePreloaded
+    })
 
-    while (inlineValidationAttempts < MAX_INLINE_VALIDATION_RETRIES) {
-        try {
-            const { supervisorOrchestrator } = require('@/lib/services/supervisor')
-
-            // Inject Life Schedule for Supervisor awareness
-            const { personaSchedule: inlinePersonaSchedule } = require('@/lib/services/persona-schedule')
-            const inlineActivity = inlinePersonaSchedule.getCurrentActivity(agentTimezone)
-
-            const supervisorContext = {
-                agentId: effectiveAgentId,
-                conversationId: conversation.id,
-                contactId: contact.id,
-                userMessage: lastContent,
-                aiResponse: responseText, // Still contains [IMAGE:] tags — Supervisor can detect them
-                history: contextMessages.map((m: any) => ({
-                    role: m.role === 'user' ? 'user' as const : 'ai' as const,
-                    content: m.content
-                })),
-                phase: phase,
-                pendingQueue: pendingQueueItems.map((item: any) => ({
-                    id: item.id,
-                    content: item.content,
-                    scheduledAt: item.scheduledAt.toISOString()
-                })),
-                currentActivity: inlineActivity,
-                baseAge: agentProfilePreloaded?.baseAge || null
-            }
-
-            const validation = await supervisorOrchestrator.validateBlocking(supervisorContext);
-
-            if (!validation.isValid && validation.shouldRegenerate) {
-                inlineValidationAttempts++;
-                console.warn(`[Chat] Supervisor rejected response (${validation.severity}):`, validation.issues);
-
-                if (inlineValidationAttempts < MAX_INLINE_VALIDATION_RETRIES) {
-                    console.log(`[Chat] Regenerating response... (attempt ${inlineValidationAttempts + 1})`);
-
-                    const errorContext = `\n\n⚠️ CORRECTION NÉCESSAIRE: Évite absolument ces erreurs: ${validation.issues.join('; ')}`;
-
-                    responseText = await callAI(
-                        settings,
-                        conversation,
-                        (queuePrompt || '') + errorContext,
-                        contextMessages,
-                        lastContent,
-                        contact,
-                        effectiveAgentId,
-                        platform,
-                        preloadedProfile
-                    );
-
-                    responseText = responseText
-                        .replace(/\*\*[^*]*\*\*/g, '')
-                        .replace(/\*[^*]*\*/g, '')
-                        .replace(/```/g, '')
-                        .replace(/^\*+/g, '')
-                        .replace(/\*+$/g, '')
-                        .replace(/\s+/g, ' ')
-                        .trim();
-
-                    continue;
-                } else {
-                    console.error('[Chat] Max validation retries reached, NO FALLBACK - alerting admin');
-                    await prisma.notification.create({
-                        data: {
-                            title: '🚨 AI Response Blocked',
-                            message: `Supervisor rejected all attempts. Issues: ${validation.issues?.join(', ')}`,
-                            type: 'SYSTEM',
-                            entityId: conversation.id.toString(),
-                            metadata: {
-                                conversationId: conversation.id,
-                                contactId: contact.id,
-                                agentId: effectiveAgentId,
-                                issues: validation.issues
-                            }
-                        }
-                    });
-                    return { handled: true, result: 'supervisor_blocked_no_fallback', shouldSend: false };
-                }
-            } else if (!validation.isValid) {
-                console.warn('[Chat] Supervisor found issues but no regeneration needed:', validation.issues);
-            } else {
-                console.log('[Chat] Supervisor validation passed');
-            }
-
-            break;
-
-        } catch (supervisorError) {
-            console.error('[Chat] Supervisor validation failed:', supervisorError);
-            break;
-        }
+    if (inlineValidation.blocked) {
+        return { handled: true, result: 'supervisor_blocked_no_fallback', shouldSend: false }
     }
-    // ═══════════════════════════════════════════════════════════════════════════
+    responseText = inlineValidation.responseText
 
     // 5.9. TAG STRIPPING - AFTER Supervisor validation
     // Strip [IMAGE:...] tags so they don't appear in user chat or dashboard
@@ -1387,7 +1330,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
         if (!policyDecision.allowed) {
             console.warn(`[Chat][MediaPolicy] Blocking [IMAGE:${firstKeyword}] and forcing one regeneration. reason=${policyDecision.reason}`)
-            const correctionContext = `\n\n[SYSTEM CRITICAL - MEDIA POLICY]: INTERDICTION D'UTILISER [IMAGE:...] MAINTENANT. REASON=${policyDecision.reason}. Réponds en texte uniquement, sans tag media.`
+            const correctionContext = `\n\n[SYSTEM CRITICAL - MEDIA POLICY]: INTERDICTION D'UTILISER [IMAGE:...] MAINTENANT. REASON=${policyDecision.reason}. RÃ©ponds en texte uniquement, sans tag media.`
 
             try {
                 let regenerated = await callAI(
@@ -1455,16 +1398,16 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
     // 6b. PAYMENT CONFIRMATION: User confirms they sent money
     // AI uses [PAYMENT_RECEIVED] tag
-    if (responseText.includes('[PAYMENT_RECEIVED]') || responseText.includes('[PAIEMENT_REÇU]') || responseText.includes('[PAIEMENT_RECU]')) {
+    if (responseText.includes('[PAYMENT_RECEIVED]') || responseText.includes('[PAIEMENT_REÃ‡U]') || responseText.includes('[PAIEMENT_RECU]')) {
         console.log('[Chat] Tag [PAYMENT_RECEIVED] detected. Triggering notification...')
-        responseText = responseText.replace(/\[PAYMENT_RECEIVED\]|\[PAIEMENT_REÇU\]|\[PAIEMENT_RECU\]/g, '').trim()
+        responseText = responseText.replace(/\[PAYMENT_RECEIVED\]|\[PAIEMENT_REÃ‡U\]|\[PAIEMENT_RECU\]/g, '').trim()
 
         try {
             const { notifyPaymentClaim } = require('@/lib/services/payment-claim-handler')
             await notifyPaymentClaim(contact, conversation, settings, null, null, agentId, 'claim')
             console.log('[Chat] Payment claim notification sent from AI tag.')
 
-            // 🔥 NOUVEAU: Résoudre la story active
+            // ðŸ”¥ NOUVEAU: RÃ©soudre la story active
             const { storyManager } = require('@/lib/engine')
             const activeStory = await storyManager.getActiveStory(contact.id, agentId)
             if (activeStory && activeStory.amount) {
@@ -1472,7 +1415,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
                 console.log(`[Chat] Story ${activeStory.description} marked as RESOLVED`)
             }
 
-            // 🔥 SCENARIO PAYMENT LOGGING
+            // ðŸ”¥ SCENARIO PAYMENT LOGGING
             const activeScenario = await prisma.activeScenario.findFirst({
                 where: { contactId: contact.id, status: 'RUNNING' }
             });
@@ -1532,7 +1475,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
             }
         })
         if (photosSentToday >= 3) {
-            console.warn(`[Chat] ⚠️ RATE LIMIT: Already sent ${photosSentToday} photos today for conv ${conversation.id}. Skipping image send.`)
+            console.warn(`[Chat] âš ï¸ RATE LIMIT: Already sent ${photosSentToday} photos today for conv ${conversation.id}. Skipping image send.`)
             imageKeywords.length = 0 // Clear to prevent sending
         }
     }
@@ -1553,7 +1496,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
         const mediaResult = await mediaService.processRequest(contact.phone_whatsapp, typeId)
 
         if (mediaResult.action === 'SEND' && mediaResult.media) {
-            console.log(`[Chat] ✅ Media available for "${typeId}". Sending image + original text.`)
+            console.log(`[Chat] âœ… Media available for "${typeId}". Sending image + original text.`)
 
                 // EXECUTE ASYNC SEND (Fire & Forget to strictly unblock queues, but handled internally)
                 ; (async () => {
@@ -1625,7 +1568,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
         } else {
             // ACTION: REQUEST_SOURCE (Media Missing)
-            console.log(`[Chat] ❌ Media missing for "${typeId}". STRICT RULE: Silence & Request Source.`)
+            console.log(`[Chat] âŒ Media missing for "${typeId}". STRICT RULE: Silence & Request Source.`)
 
             // 1. TRIGGER SOURCE REQUEST
             await mediaService.requestFromSource(contact.phone_whatsapp, typeId, settings, agentId)
@@ -1696,11 +1639,11 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     //     data: { conversationId: conversation.id, sender: 'ai', message_text: responseText.replace(/\|\|\|/g, '\n'), timestamp: new Date() }
     // })
 
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     // PRE-SEND CHECK: Look for NEW messages that arrived DURING AI processing
     // If the user sent more messages while we were generating, abort this response
     // and let the latest message's handler deal with ALL messages in context.
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     const currentMsgId = (await prisma.message.findFirst({ where: { waha_message_id: payload.id } }))?.id
 
     if (currentMsgId) {
@@ -1764,7 +1707,7 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
             return { handled: true, result: 'presend_aborted_newer_messages' }
         }
     }
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 
     if (isVoice) {
@@ -1824,14 +1767,14 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 }
 
 async function callAI(settings: any, conv: any, sys: string | null, ctx: any[], last: string, contact?: any, agentId?: string, platform: 'whatsapp' | 'discord' = 'whatsapp', preloadedProfile?: any) {
-    // 🔥 MIGRATION: SWARM-ONLY (Director legacy archived)
+    // ðŸ”¥ MIGRATION: SWARM-ONLY (Director legacy archived)
     // Le mode SWARM est maintenant le seul mode actif
 
     if (!contact || !agentId) {
         throw new Error('[callAI] SWARM mode requires contact and agentId. Director legacy is archived.')
     }
 
-    console.log('[Chat] 🔥 SWARM-ONLY mode - using multi-agent orchestration (Director legacy archived)')
+    console.log('[Chat] ðŸ”¥ SWARM-ONLY mode - using multi-agent orchestration (Director legacy archived)')
     const { runSwarm } = require('@/lib/swarm')
     const response = await runSwarm(
         last,
@@ -1842,10 +1785,11 @@ async function callAI(settings: any, conv: any, sys: string | null, ctx: any[], 
         {
             lastMessageType: contact.lastMessageType || 'text',
             platform,
-            preloadedProfile: preloadedProfile || undefined
+            preloadedProfile: preloadedProfile || undefined,
+            externalSystemContext: sys || undefined
         }
     )
-    // 🚨 REMOVE ALL FORMATTING ARTIFACTS - FORCED UPDATE
+    // ðŸš¨ REMOVE ALL FORMATTING ARTIFACTS - FORCED UPDATE
     // Remove everything between ** ** (actions like *nods*, *smiles*)
     // Remove leading/trailing asterisks clusters
     // Remove backticks used as quotes
@@ -1860,3 +1804,5 @@ async function callAI(settings: any, conv: any, sys: string | null, ctx: any[], 
 
     return cleaned
 }
+
+

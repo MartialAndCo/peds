@@ -1,105 +1,258 @@
-// Moteur d'exécution du graph multi-agent avec support parallèle et barrières
-import type { SwarmState, NodeFunction, EdgeConfig } from './types'
+﻿import type { NodeFunction, NodeMetric, SwarmState } from './types'
 
 interface NodeInfo {
-    name: string
+    id: string
     fn: NodeFunction
-    dependencies: string[]  // Nodes qui doivent s'exécuter avant
+    dependencies: string[]
+    isLLM: boolean
 }
+
+interface AddNodeOptions {
+    isLLM?: boolean
+}
+
+interface ExecutedNodeResult {
+    node: NodeInfo
+    result: Partial<SwarmState>
+    success: boolean
+    metric: NodeMetric
+}
+
+const MAX_ITERATIONS = 100
+const LLM_NODE_DELAY_MS = 120
 
 export class SwarmGraph {
     private nodes: Map<string, NodeInfo> = new Map()
 
-    addNode(name: string, fn: NodeFunction, dependencies: string[] = []) {
-        this.nodes.set(name, { name, fn, dependencies })
+    addNode(name: string, fn: NodeFunction, dependencies: string[] = [], options: AddNodeOptions = {}) {
+        this.nodes.set(name, {
+            id: name,
+            fn,
+            dependencies,
+            isLLM: options.isLLM ?? false
+        })
+    }
+
+    private computeAllowedExecutionSet(startNode: string): Set<string> {
+        const allowed = new Set<string>()
+
+        if (!this.nodes.has(startNode)) {
+            return allowed
+        }
+
+        // Initial reachable pass from start node.
+        const queue: string[] = [startNode]
+        allowed.add(startNode)
+
+        while (queue.length > 0) {
+            const current = queue.shift()!
+
+            for (const node of this.nodes.values()) {
+                if (allowed.has(node.id)) continue
+                if (!node.dependencies.includes(current)) continue
+
+                allowed.add(node.id)
+                queue.push(node.id)
+            }
+        }
+
+        // Prune nodes whose dependencies are outside the boundary.
+        let changed = true
+        while (changed) {
+            changed = false
+            for (const nodeId of Array.from(allowed)) {
+                if (nodeId === startNode) continue
+                const node = this.nodes.get(nodeId)
+                if (!node) continue
+
+                const hasMissingDependency = node.dependencies.some((dep) => !allowed.has(dep))
+                if (hasMissingDependency) {
+                    allowed.delete(nodeId)
+                    changed = true
+                }
+            }
+        }
+
+        return allowed
+    }
+
+    private createInitialState(initialState: SwarmState): SwarmState {
+        return {
+            ...initialState,
+            contexts: initialState.contexts || {},
+            messages: initialState.messages || initialState.history || [],
+            history: initialState.history || initialState.messages || [],
+            metadata: {
+                ...(initialState.metadata || {}),
+                nodeMetrics: {
+                    ...(initialState.metadata?.nodeMetrics || {})
+                },
+                executionOrder: [...(initialState.metadata?.executionOrder || [])]
+            }
+        }
+    }
+
+    private async runNode(node: NodeInfo, state: SwarmState): Promise<ExecutedNodeResult> {
+        const startedAt = Date.now()
+
+        try {
+            console.log(`[Swarm] -> Starting ${node.id}...`)
+            const result = await node.fn(state)
+            const finishedAt = Date.now()
+            const durationMs = finishedAt - startedAt
+            console.log(`[Swarm] OK ${node.id} (${durationMs}ms)`)
+
+            return {
+                node,
+                result,
+                success: true,
+                metric: {
+                    startedAt,
+                    finishedAt,
+                    durationMs
+                }
+            }
+        } catch (error: any) {
+            const finishedAt = Date.now()
+            const durationMs = finishedAt - startedAt
+            console.error(`[Swarm] FAIL ${node.id}:`, error?.message || error)
+
+            return {
+                node,
+                result: { error: `Error in ${node.id}: ${error?.message || String(error)}` },
+                success: false,
+                metric: {
+                    startedAt,
+                    finishedAt,
+                    durationMs
+                }
+            }
+        }
+    }
+
+    private applyNodeResults(
+        baseState: SwarmState,
+        results: ExecutedNodeResult[],
+        executed: Set<string>
+    ): SwarmState {
+        let state = baseState
+        const nextContexts = { ...state.contexts }
+
+        for (const item of results) {
+            const nodeId = item.node.id
+            executed.add(nodeId)
+
+            state.metadata.nodeMetrics = {
+                ...(state.metadata.nodeMetrics || {}),
+                [nodeId]: item.metric
+            }
+            state.metadata.executionOrder = [...(state.metadata.executionOrder || []), nodeId]
+
+            const resultContexts = item.result.contexts
+            if (resultContexts) {
+                for (const [key, value] of Object.entries(resultContexts)) {
+                    if (value !== undefined) {
+                        nextContexts[key as keyof typeof nextContexts] = value as any
+                    }
+                }
+            }
+        }
+
+        for (const item of results) {
+            const { contexts, metadata, ...rest } = item.result
+            state = {
+                ...state,
+                ...rest,
+                metadata: {
+                    ...state.metadata,
+                    ...(metadata || {}),
+                    nodeMetrics: {
+                        ...(state.metadata.nodeMetrics || {}),
+                        ...((metadata && (metadata as any).nodeMetrics) || {})
+                    },
+                    executionOrder: state.metadata.executionOrder
+                }
+            }
+        }
+
+        return {
+            ...state,
+            contexts: nextContexts
+        }
     }
 
     async execute(startNode: string, initialState: SwarmState): Promise<SwarmState> {
-        let state: SwarmState = { ...initialState, contexts: initialState.contexts || {} }
+        if (!this.nodes.has(startNode)) {
+            throw new Error(`Start node not found: ${startNode}`)
+        }
+
+        let state = this.createInitialState(initialState)
         const executed = new Set<string>()
+        const allowedNodes = this.computeAllowedExecutionSet(startNode)
         let iterations = 0
-        const MAX_ITERATIONS = 100
 
         console.log(`[Swarm] Starting execution from: ${startNode}`)
+        console.log(`[Swarm] Allowed nodes from boundary: ${Array.from(allowedNodes).sort().join(', ')}`)
 
         while (iterations < MAX_ITERATIONS) {
-            iterations++
-            
-            // Trouver tous les nodes prêts (toutes les dépendances sont exécutées)
-            const readyNodes: string[] = []
-            for (const [name, info] of this.nodes) {
-                if (executed.has(name)) continue
-                const depsSatisfied = info.dependencies.every(dep => executed.has(dep))
-                if (depsSatisfied && !readyNodes.includes(name)) {
-                    readyNodes.push(name)
+            iterations += 1
+
+            const readyNodes: NodeInfo[] = []
+            for (const nodeId of allowedNodes) {
+                if (executed.has(nodeId)) continue
+                const info = this.nodes.get(nodeId)
+                if (!info) continue
+
+                const depsSatisfied = info.dependencies.every((dep) => executed.has(dep))
+                if (depsSatisfied) {
+                    readyNodes.push(info)
                 }
             }
 
+            readyNodes.sort((a, b) => a.id.localeCompare(b.id))
+
             if (readyNodes.length === 0) {
-                // Vérifier si on a tout exécuté ou si on est bloqué
-                const remaining = Array.from(this.nodes.keys()).filter(n => !executed.has(n))
+                const remaining = Array.from(allowedNodes).filter((nodeId) => !executed.has(nodeId))
                 if (remaining.length === 0) {
-                    console.log('[Swarm] All nodes executed')
+                    console.log('[Swarm] All allowed nodes executed')
                     break
                 }
-                console.warn('[Swarm] Deadlock detected! Remaining:', remaining)
+
+                console.warn('[Swarm] Deadlock detected in allowed boundary. Remaining:', remaining)
+                state.error = `Deadlock detected: ${remaining.join(', ')}`
                 break
             }
 
-            console.log(`[Swarm] [${iterations}] Ready nodes: ${readyNodes.join(', ')}`)
+            console.log(`[Swarm] [${iterations}] Ready nodes: ${readyNodes.map((n) => n.id).join(', ')}`)
 
-            // Exécuter les nodes SÉRIELLEMENT pour respecter les rate limits Venice (150 RPM)
-            // Le parallèle fait exploser les limites avec 6-7 appels par message
-            const results: Array<{name: string, result: any, success: boolean}> = []
-            
-            for (const nodeName of readyNodes) {
-                const info = this.nodes.get(nodeName)!
-                const startTime = Date.now()
-                
-                try {
-                    console.log(`[Swarm] → Starting ${nodeName}...`)
-                    const result = await info.fn(state)
-                    const duration = Date.now() - startTime
-                    console.log(`[Swarm] ✓ ${nodeName} done (${duration}ms)`)
-                    results.push({ name: nodeName, result, success: true })
-                    
-                    // Délai entre appels API pour respecter 150 RPM (250ms = ~240 RPM max, safe buffer)
-                    if (readyNodes.length > 1) {
-                        await new Promise(r => setTimeout(r, 250))
-                    }
-                } catch (error: any) {
-                    console.error(`[Swarm] ✗ ${nodeName} failed:`, error.message)
-                    results.push({ name: nodeName, result: { error: `Error in ${nodeName}: ${error.message}` }, success: false })
+            const nonLLMNodes = readyNodes.filter((node) => !node.isLLM)
+            const llmNodes = readyNodes.filter((node) => node.isLLM)
+
+            const nonLLMResults =
+                nonLLMNodes.length > 0
+                    ? await Promise.all(nonLLMNodes.map((node) => this.runNode(node, state)))
+                    : []
+
+            if (nonLLMResults.length > 0) {
+                state = this.applyNodeResults(state, nonLLMResults, executed)
+            }
+
+            const llmResults: ExecutedNodeResult[] = []
+            for (const node of llmNodes) {
+                const result = await this.runNode(node, state)
+                llmResults.push(result)
+
+                if (LLM_NODE_DELAY_MS > 0 && llmNodes.length > 1) {
+                    await new Promise((resolve) => setTimeout(resolve, LLM_NODE_DELAY_MS))
                 }
             }
 
-            // Mettre à jour l'état et marquer comme exécuté
-            // Accumuler tous les contexts des nodes exécutés dans cette itération
-            const allContexts = { ...state.contexts }
-            for (const { name, result } of results) {
-                executed.add(name)
-                // Merger SEULEMENT les nouvelles valeurs non-vides
-                if (result.contexts) {
-                    for (const [key, value] of Object.entries(result.contexts)) {
-                        if (value) {  // Ne garder que les valeurs truthy
-                            allContexts[key as keyof typeof allContexts] = value as any
-                        }
-                    }
-                }
+            if (llmResults.length > 0) {
+                state = this.applyNodeResults(state, llmResults, executed)
             }
-            // Appliquer tous les autres changements d'état (sauf contexts qu'on gère séparément)
-            for (const { name, result } of results) {
-                const { contexts, ...rest } = result
-                state = { ...state, ...rest }
-            }
-            // Mettre à jour les contexts accumulés
-            state = { ...state, contexts: allContexts }
 
-            // Vérifier si on a une réponse ET que tous les nodes sont exécutés
-            // (ne pas s'arrêter juste parce qu'on a une réponse, laisser la validation tourner)
-            const allExecuted = executed.size === this.nodes.size
-            if (state.response && allExecuted) {
-                console.log(`[Swarm] Response generated and all nodes executed, stopping`)
+            if (executed.size === allowedNodes.size) {
+                console.log('[Swarm] Boundary execution complete')
                 break
             }
         }
@@ -109,7 +262,7 @@ export class SwarmGraph {
             state.error = 'Max iterations reached'
         }
 
-        console.log(`[Swarm] Completed: ${executed.size}/${this.nodes.size} nodes, ${iterations} iterations`)
+        console.log(`[Swarm] Completed: ${executed.size}/${allowedNodes.size} allowed nodes, ${iterations} iterations`)
         return state
     }
 }
