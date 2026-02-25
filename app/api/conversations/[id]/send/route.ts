@@ -4,6 +4,7 @@ import { whatsapp } from '@/lib/whatsapp'
 import { discord } from '@/lib/discord'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { storage } from '@/lib/storage'
 
 class DiscordSendError extends Error {
     readonly code = 'DISCORD_SEND_FAILED' as const
@@ -12,6 +13,48 @@ class DiscordSendError extends Error {
 function throwDiscordSendError(kind: string, phone: string, conversationId: number): never {
     const error = new DiscordSendError(`Discord send failed (${kind}) for ${phone} on conversation ${conversationId}`)
     throw error
+}
+
+function parseVoiceInput(voiceInput: string): { mimeType: string; buffer: Buffer } | null {
+    const trimmed = voiceInput.trim()
+    if (!trimmed) return null
+
+    const dataUriMatch = trimmed.match(/^data:(audio\/[^;]+);base64,([A-Za-z0-9+/=\s]+)$/i)
+    if (dataUriMatch) {
+        const [, mimeType, base64Payload] = dataUriMatch
+        return {
+            mimeType: mimeType.toLowerCase(),
+            buffer: Buffer.from(base64Payload.replace(/\s+/g, ''), 'base64')
+        }
+    }
+
+    const base64Payload = trimmed.replace(/\s+/g, '')
+    if (!/^[A-Za-z0-9+/=]+$/.test(base64Payload)) return null
+
+    return {
+        mimeType: 'audio/mpeg',
+        buffer: Buffer.from(base64Payload, 'base64')
+    }
+}
+
+async function persistVoiceMedia(voiceInput: string): Promise<string | null> {
+    if (/^https?:\/\//i.test(voiceInput)) {
+        return voiceInput
+    }
+
+    const parsed = parseVoiceInput(voiceInput)
+    if (!parsed || parsed.buffer.length === 0) return null
+
+    try {
+        const uploaded = await storage.uploadMedia(parsed.buffer, parsed.mimeType, 'chat-voice')
+        if (!uploaded || uploaded.startsWith('data:')) {
+            return null
+        }
+        return uploaded
+    } catch (error) {
+        console.error('[Send] Failed to persist outgoing voice media:', error)
+        return null
+    }
 }
 
 export async function POST(
@@ -44,16 +87,20 @@ export async function POST(
 
         const agentId = conversation.agentId || undefined
         const isDiscord = phone.startsWith('DISCORD_') || conversation.contact.source === 'discord' || phone.includes('@discord')
+        const normalizedVoiceInput = typeof voiceBase64 === 'string' ? voiceBase64.trim() : ''
+        let storedVoiceUrl: string | null = null
 
         // Send voice, media, or text via WhatsApp or Discord
-        if (voiceBase64) {
+        if (normalizedVoiceInput) {
             // Voice message (TTS generated)
+            storedVoiceUrl = await persistVoiceMedia(normalizedVoiceInput)
+
             if (isDiscord) {
                 // Discord doesn't support PTT voice, send as file
-                const sent = await discord.sendFile(phone, voiceBase64, 'voice.mp3', undefined, agentId)
+                const sent = await discord.sendFile(phone, normalizedVoiceInput, 'voice.mp3', undefined, agentId)
                 if (!sent) throwDiscordSendError('voice', phone, conversation.id)
             } else {
-                await whatsapp.sendVoice(phone, voiceBase64, undefined, agentId)
+                await whatsapp.sendVoice(phone, normalizedVoiceInput, undefined, agentId)
             }
         } else if (mediaUrl) {
             const detectedType = mediaType || detectMediaType(mediaUrl)
@@ -127,8 +174,8 @@ export async function POST(
             data: {
                 conversationId: conversation.id,
                 sender: 'admin',
-                message_text: voiceBase64 ? `[VOICE] ${messageText}` : (messageText || (mediaUrl ? '[Media]' : '')),
-                mediaUrl: mediaUrl || null,
+                message_text: normalizedVoiceInput ? (messageText || '[Voice message]') : (messageText || (mediaUrl ? '[Media]' : '')),
+                mediaUrl: normalizedVoiceInput ? storedVoiceUrl : (mediaUrl || null),
                 timestamp: new Date()
             }
         })

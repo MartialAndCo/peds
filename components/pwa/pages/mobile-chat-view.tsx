@@ -363,6 +363,9 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
 
                         const fixedMediaUrl = fixMediaUrl(msg.mediaUrl)
                         const isAudio = fixedMediaUrl && (fixedMediaUrl.startsWith('data:audio') || /\.(mp3|wav|ogg|m4a|opus)(\?|#|$)/i.test(fixedMediaUrl))
+                        const displayText = isAudio
+                            ? (msg.message_text || '').replace(/^\s*\[VOICE\]\s*/i, '').trim()
+                            : msg.message_text
 
                         return (
                             <div key={msg.id} className="flex flex-col w-full relative">
@@ -390,7 +393,7 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
                                                 <AudioPlayer src={fixedMediaUrl} isMe={isMe} />
                                             </div>
                                         )}
-                                        {msg.message_text && <p>{msg.message_text}</p>}
+                                        {displayText && <p>{displayText}</p>}
                                     </div>
                                 </div>
                                 {/* Swipe Timestamp (Revealed on Right) */}

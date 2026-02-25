@@ -479,6 +479,9 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
                                 fixedMediaUrl.startsWith('iVBOR') ||
                                 fixedMediaUrl.startsWith('http')
                             )
+                            const displayText = isAudio
+                                ? (m.message_text || '').replace(/^\s*\[VOICE\]\s*/i, '').trim()
+                                : m.message_text
 
                             return (
                                 <div key={m.id} className={cn("flex w-full",
@@ -517,7 +520,9 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
                                             </div>
                                         )}
 
-                                        <p className="whitespace-pre-wrap">{m.message_text}</p>
+                                        {displayText && (
+                                            <p className="whitespace-pre-wrap">{displayText}</p>
+                                        )}
                                     </div>
                                 </div>
                             )
