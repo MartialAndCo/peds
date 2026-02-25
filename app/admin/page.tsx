@@ -32,7 +32,9 @@ export default async function DashboardPage({
         phaseDistribution: [] as any[],
         dailyActivity: [] as any[],
         veniceCost: 0,
-        veniceBalance: 0
+        veniceBalanceUsd: null as number | null,
+        veniceBalanceDiem: null as number | null,
+        dailyAICost: [] as { date: string, cost: number }[]
     }
 
     try {
@@ -58,8 +60,7 @@ export default async function DashboardPage({
             paymentsCount,
             agentsCount,
             dailyActivityRaw,
-            veniceBalanceRaw,
-            veniceUsageRaw
+            veniceKeySetting
         ] = await Promise.all([
             prisma.payment.aggregate({ _sum: { amount: true } }),
             prisma.payment.aggregate({
@@ -73,8 +74,14 @@ export default async function DashboardPage({
             prisma.payment.groupBy({ by: ['contactId'] }),
             prisma.agent.count({ where: { isActive: true } }),
             Promise.all(dailyActivityPromises),
-            venice.getBillingBalance(),
-            venice.getBillingUsage(startDate, endDate)
+            prisma.setting.findUnique({ where: { key: 'venice_api_key' } })
+        ])
+
+        const veniceApiKey = veniceKeySetting?.value || undefined
+
+        const [veniceBalanceRaw, veniceUsageRaw] = await Promise.all([
+            venice.getBillingBalance(veniceApiKey),
+            venice.getBillingUsage(startDate, endDate, veniceApiKey)
         ])
 
         const revenue = totalRevenueAgg._sum?.amount ? Number(totalRevenueAgg._sum.amount) : 0
@@ -82,7 +89,8 @@ export default async function DashboardPage({
         const payingUsers = paymentsCount.length
 
         const veniceCost = veniceUsageRaw?.totalAmount || 0
-        const veniceBalance = veniceBalanceRaw?.balances?.diem || 0
+        const veniceBalanceUsd = veniceBalanceRaw?.balances?.usd ?? veniceBalanceRaw?.balances?.balanceUsd ?? null
+        const veniceBalanceDiem = veniceBalanceRaw?.balances?.diem ?? null
 
         statsData = {
             revenue,
@@ -97,7 +105,9 @@ export default async function DashboardPage({
             phaseDistribution: [],
             dailyActivity: dailyActivityRaw.reverse(),
             veniceCost,
-            veniceBalance
+            veniceBalanceUsd,
+            veniceBalanceDiem,
+            dailyAICost: veniceUsageRaw?.dailyCosts || []
         }
 
         return (

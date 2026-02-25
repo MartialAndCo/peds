@@ -124,37 +124,67 @@ export function AnalyticsGrid({ data }: { data: any }) {
                 />
                 <StatsCard
                     title="AI Balance"
-                    value={data.veniceBalance != null ? `${data.veniceBalance.toFixed(2)} DIEM` : "N/A"}
+                    value={data.veniceBalanceUsd != null ? `$${data.veniceBalanceUsd.toFixed(2)}` : (data.veniceBalanceDiem != null ? `${data.veniceBalanceDiem.toFixed(2)} DIEM` : "N/A")}
                     icon={DollarSign}
                     sub="Available Balance"
                 />
             </div>
 
-            {/* ROW 4: ACTIVITY CHART */}
-            <div className="glass rounded-2xl p-6">
-                <h3 className="text-sm font-medium text-white/60 mb-4">Daily Activity (Last 7 Days)</h3>
-                <div className="h-[300px] w-full">
-                    {dailyActivity && dailyActivity.length > 0 ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={dailyActivity}>
-                                <XAxis dataKey="date" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                                <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                                <Tooltip
-                                    contentStyle={{
-                                        background: '#1e293b',
-                                        border: '1px solid rgba(255,255,255,0.1)',
-                                        borderRadius: '8px',
-                                        color: '#fff'
-                                    }}
-                                />
-                                <Line type="monotone" dataKey="count" stroke="#22c55e" strokeWidth={2} dot={false} />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    ) : (
-                        <div className="flex items-center justify-center h-full text-white/30 text-sm">
-                            No activity data available
-                        </div>
-                    )}
+            {/* ROW 4: ACTIVITY & COST CHARTS */}
+            <div className="grid gap-4 md:grid-cols-2">
+                <div className="glass rounded-2xl p-6">
+                    <h3 className="text-sm font-medium text-white/60 mb-4">Daily Activity (Messages)</h3>
+                    <div className="h-[300px] w-full">
+                        {dailyActivity && dailyActivity.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={dailyActivity}>
+                                    <XAxis dataKey="date" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
+                                    <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
+                                    <Tooltip
+                                        contentStyle={{
+                                            background: '#1e293b',
+                                            border: '1px solid rgba(255,255,255,0.1)',
+                                            borderRadius: '8px',
+                                            color: '#fff'
+                                        }}
+                                    />
+                                    <Line type="monotone" dataKey="count" stroke="#22c55e" strokeWidth={2} dot={false} />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <div className="flex items-center justify-center h-full text-white/30 text-sm">
+                                No activity data available
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="glass rounded-2xl p-6">
+                    <h3 className="text-sm font-medium text-white/60 mb-4">Daily AI Cost (USD)</h3>
+                    <div className="h-[300px] w-full">
+                        {data.dailyAICost && data.dailyAICost.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={data.dailyAICost}>
+                                    <XAxis dataKey="date" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
+                                    <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`} />
+                                    <Tooltip
+                                        formatter={(value: any) => [`$${Number(value).toFixed(4)}`, "Cost"]}
+                                        contentStyle={{
+                                            background: '#1e293b',
+                                            border: '1px solid rgba(255,255,255,0.1)',
+                                            borderRadius: '8px',
+                                            color: '#fff'
+                                        }}
+                                    />
+                                    <Line type="monotone" dataKey="cost" stroke="#8b5cf6" strokeWidth={2} dot={false} />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <div className="flex items-center justify-center h-full text-white/30 text-sm">
+                                No cost data available
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
