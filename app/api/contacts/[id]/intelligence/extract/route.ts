@@ -25,9 +25,9 @@ export async function POST(
         const body = await req.json().catch(() => ({}))
         const agentId = body?.agentId
         const parsedMessageCount = Number(body?.messageCount)
-        const messageCount = Number.isFinite(parsedMessageCount)
-            ? Math.max(1, Math.min(200, Math.floor(parsedMessageCount)))
-            : 50
+        const messageCount = Number.isFinite(parsedMessageCount) && parsedMessageCount > 0
+            ? Math.floor(parsedMessageCount)
+            : 1000 // default to a large number instead of 50
 
         // Vérifier que le contact existe
         const contact = await prisma.contact.findUnique({

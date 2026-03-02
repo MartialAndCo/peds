@@ -22,11 +22,11 @@ export type {
 
 // Utilitaires
 export { deduplicateAttributes, detectContradictions } from './deduplicator'
-export { 
-    calculateGlobalConfidence, 
+export {
+    calculateGlobalConfidence,
     calculateConfidenceBreakdown,
     getConfidenceLabel,
-    calculateAttributeConfidence 
+    calculateAttributeConfidence
 } from './confidence-scorer'
 export { robustJsonParse, robustJsonArrayParse } from './json-parser'
 
@@ -52,30 +52,47 @@ export async function extractContactProfile(
     agentId: string,
     options: { messageCount?: number; triggeredBy?: 'auto' | 'manual' | 'ai' } = {}
 ): Promise<{ success: boolean; confidence?: number; error?: string }> {
-    
+
     try {
         const { messageCount = 50, triggeredBy = 'manual' } = options
-        
+
         // Récupérer les messages
         const conversation = await prisma.conversation.findFirst({
             where: { contactId, agentId },
             orderBy: { createdAt: 'desc' }
         })
-        
+
         if (!conversation) {
             return { success: false, error: 'No conversation found' }
         }
-        
-        const messages = await prisma.message.findMany({
+
+        // We want the FIRST 50 messages (introductions, name, age) AND the LAST N messages (current context)
+        const firstMessages = await prisma.message.findMany({
+            where: { conversationId: conversation.id },
+            orderBy: { timestamp: 'asc' },
+            take: 50
+        })
+
+        const lastMessages = await prisma.message.findMany({
             where: { conversationId: conversation.id },
             orderBy: { timestamp: 'desc' },
-            take: messageCount
+            take: Math.max(50, messageCount - 50)
         })
-        
+
+        // Combine and deduplicate
+        const uniqueMessages = new Map()
+        for (const m of firstMessages) uniqueMessages.set(m.id, m)
+        for (const m of lastMessages) uniqueMessages.set(m.id, m)
+
+        // Sort chronologically
+        const messages = Array.from(uniqueMessages.values()).sort((a, b) =>
+            a.timestamp.getTime() - b.timestamp.getTime()
+        )
+
         if (messages.length === 0) {
             return { success: false, error: 'No messages to analyze' }
         }
-        
+
         // Récupérer le profil existant pour déduplication
         const existingProfile = await prisma.contactProfile.findUnique({
             where: { contactId },
@@ -88,12 +105,12 @@ export async function extractContactProfile(
                 financial: true
             }
         })
-        
+
         // Exécuter l'extraction
         const result = await profileOrchestrator.extractFullProfile({
             contactId,
             agentId,
-            messages: messages.reverse().map(m => ({
+            messages: messages.map(m => ({
                 id: m.id,
                 sender: m.sender as 'contact' | 'ai' | 'admin',
                 text: m.message_text,
@@ -114,7 +131,7 @@ export async function extractContactProfile(
                 } : null
             } : null
         })
-        
+
         // Sauvegarder
         await profileOrchestrator.saveExtraction(contactId, result, {
             triggeredBy,
@@ -127,7 +144,7 @@ export async function extractContactProfile(
             rejectedCount: 0,
             processingTimeMs: result.processingTimeMs
         })
-        
+
         return {
             success: true,
             confidence: Math.round(
@@ -137,7 +154,7 @@ export async function extractContactProfile(
                 (result.financial.urgentNeeds.length * 15)
             )
         }
-        
+
     } catch (error: any) {
         console.error('[extractContactProfile] Failed:', error)
         return { success: false, error: error.message }
