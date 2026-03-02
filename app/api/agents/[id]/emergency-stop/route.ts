@@ -3,11 +3,12 @@ import { prisma } from '@/lib/prisma'
 
 export async function POST(
     req: Request,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const { action } = await req.json() // 'freeze' | 'resume'
-        const agentId = params.id
+        const resolvedParams = await params
+        const agentId = resolvedParams.id
 
         if (!agentId) {
             return NextResponse.json({ error: 'Agent ID required' }, { status: 400 })
