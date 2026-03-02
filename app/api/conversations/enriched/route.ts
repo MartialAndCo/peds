@@ -111,7 +111,8 @@ export async function GET(req: Request) {
       include: {
         contact: {
           include: {
-            lead: true
+            lead: true,
+            intelligentProfile: true
           }
         },
         prompt: {
@@ -171,6 +172,7 @@ export async function GET(req: Request) {
           trustScore: conv.contact.trustScore,
           source: conv.contact.source,
           lead: conv.contact.lead,
+          intelligentProfile: conv.contact.intelligentProfile,
         },
         lastMessage: lastMsg ? {
           message_text: lastMsg.message_text,

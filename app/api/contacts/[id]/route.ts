@@ -40,7 +40,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
                 },
                 agentContacts: agentId ? {
                     where: { agentId: agentId }
-                } : false
+                } : false,
+                intelligentProfile: true
             }
         })
 
@@ -57,7 +58,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
             // Inject agentContact info for robust UIs
             contact._agentContext = ac
-            
+
             // 🔥 NOUVEAU: Injecter les weighted signals avec TTL
             try {
                 const weightedSignals = await signalAnalyzerV2.getWeightedSignals(agentId, id)

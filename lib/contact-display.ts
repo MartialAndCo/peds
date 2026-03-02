@@ -9,6 +9,8 @@ type ContactLike = {
     } | Record<string, unknown> | null
     lead?: Record<string, unknown> | null
     intelligentProfile?: {
+        displayName?: string | null
+        realName?: string | null
         birthDate?: string | Date | null
     } | null
     birthDate?: string | Date | null
@@ -332,9 +334,16 @@ function getBaseContactDisplayName(contact: ContactLike, fallback = 'Inconnu'): 
     const rawName = normalizeName(contact?.name)
     const profile = asObject(contact?.profile)
     const profileName = normalizeName(typeof profile?.name === 'string' ? profile.name : '')
+    const intelligentName = normalizeName(contact?.intelligentProfile?.displayName || contact?.intelligentProfile?.realName)
 
     const isUnknown = !rawName || UNKNOWN_NAME_PATTERN.test(rawName)
+
+    // Prioritize intelligent profile name if raw name is unknown
+    if (isUnknown && intelligentName) return intelligentName
     if (isUnknown && profileName) return profileName
+
+    // Otherwise intelligent name is highest priority
+    if (intelligentName) return intelligentName
     if (rawName) return rawName
     if (profileName) return profileName
     return fallback
