@@ -107,6 +107,37 @@ export class QueueService {
         for (const [conversationId, items] of itemsByConversation) {
             // Sort by scheduled time
             items.sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime())
+            let itemsToProcess = items
+
+            // Safety net: only one outgoing queued response per conversation cycle.
+            // Keep newest item and cancel older ones.
+            if (items.length > 1) {
+                const newestItem = items[items.length - 1]
+                const supersededItems = items.slice(0, -1)
+                const supersededIds = supersededItems.map((item) => item.id)
+
+                if (supersededIds.length > 0) {
+                    const cancelled = await prisma.messageQueue.updateMany({
+                        where: {
+                            id: { in: supersededIds },
+                            status: 'PROCESSING'
+                        },
+                        data: {
+                            status: 'CANCELLED_SUPERSEDED',
+                            error: `Superseded by newer queued message ${newestItem.id}`
+                        }
+                    })
+
+                    console.log(`[QueueService] Conversation ${conversationId}: collapsed ${cancelled.count}/${supersededIds.length} queued items`)
+                    results.push(...supersededIds.map((id) => ({
+                        id,
+                        status: 'cancelled_superseded',
+                        replacedBy: newestItem.id
+                    })))
+                }
+
+                itemsToProcess = [newestItem]
+            }
 
             // RATE LIMIT: Wait between conversations to space out sends on same WhatsApp session
             if (conversationCount > 0) {
@@ -116,10 +147,10 @@ export class QueueService {
             }
             conversationCount++
 
-            console.log(`[QueueService] Conversation ${conversationId}: ${items.length} messages to send`)
+            console.log(`[QueueService] Conversation ${conversationId}: ${itemsToProcess.length} message(s) to send`)
 
-            for (let i = 0; i < items.length; i++) {
-                const queueItem = items[i]
+            for (let i = 0; i < itemsToProcess.length; i++) {
+                const queueItem = itemsToProcess[i]
 
                 // Skip if already being processed in this instance
                 if (QueueService.processingItems.has(queueItem.id)) {
@@ -140,7 +171,7 @@ export class QueueService {
                     results.push(result)
 
                     // If there are more messages for this conversation, wait a bit before sending the next one
-                    if (i < items.length - 1) {
+                    if (i < itemsToProcess.length - 1) {
                         const delayBetweenMessages = 3000 + Math.random() * 2000 // 3-5 seconds
                         console.log(`[QueueService] Waiting ${Math.round(delayBetweenMessages)}ms before sending next message for conversation ${conversationId}`)
                         await new Promise(r => setTimeout(r, delayBetweenMessages))

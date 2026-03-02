@@ -1,0 +1,1 @@
+cat /root/peds/.env

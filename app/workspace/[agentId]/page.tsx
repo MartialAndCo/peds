@@ -4,7 +4,18 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import axios from 'axios'
 import Link from 'next/link'
-import { Loader2, MessageSquare, Wifi, WifiOff, Settings, Fingerprint, Zap, Sparkles } from 'lucide-react'
+import { Loader2, MessageSquare, Wifi, WifiOff, Settings, Fingerprint, Zap, Sparkles, OctagonAlert, Play } from 'lucide-react'
+import { toast } from 'sonner'
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 import { usePWAMode } from '@/hooks/use-pwa-mode'
 import { useRouter } from 'next/navigation'
@@ -25,6 +36,8 @@ export default function AgentOverviewPage() {
     const [wahaStatus, setWahaStatus] = useState<string>('UNKNOWN')
     const [loading, setLoading] = useState(true)
     const [smartAddOpen, setSmartAddOpen] = useState(false)
+    const [isEmergencyStopLoading, setIsEmergencyStopLoading] = useState(false)
+    const [isEmergencyDialogOpen, setIsEmergencyDialogOpen] = useState(false)
 
     // Render logic update for PWA Header
     const PWAHeader = () => (
@@ -40,13 +53,25 @@ export default function AgentOverviewPage() {
                 </Button>
                 <h1 className="text-xl font-bold text-white">Overview</h1>
             </div>
-            <Button
-                onClick={() => setSmartAddOpen(true)}
-                className="h-9 px-3 text-sm bg-amber-500 hover:bg-amber-600 text-black"
-            >
-                <Sparkles className="h-4 w-4 mr-1" />
-                Smart Lead
-            </Button>
+            <div className="flex items-center gap-2">
+                <Button
+                    variant="destructive"
+                    size="icon"
+                    className={`h-9 w-9 ${!agent?.isActive ? 'bg-emerald-500 hover:bg-emerald-600' : 'animate-pulse'}`}
+                    onClick={() => !agent?.isActive ? handleResumeAI() : setIsEmergencyDialogOpen(true)}
+                    disabled={isEmergencyStopLoading}
+                >
+                    {isEmergencyStopLoading ? <Loader2 className="h-4 w-4 animate-spin" /> :
+                        !agent?.isActive ? <Play className="h-4 w-4" /> : <OctagonAlert className="h-4 w-4" />}
+                </Button>
+                <Button
+                    onClick={() => setSmartAddOpen(true)}
+                    className="h-9 px-3 text-sm bg-amber-500 hover:bg-amber-600 text-black"
+                >
+                    <Sparkles className="h-4 w-4 mr-1" />
+                    Smart Lead
+                </Button>
+            </div>
         </div>
     )
 
@@ -86,6 +111,33 @@ export default function AgentOverviewPage() {
         }
     }
 
+    const handleEmergencyStop = async () => {
+        setIsEmergencyStopLoading(true)
+        try {
+            await axios.post(`/api/agents/${agentId}/emergency-stop`, { action: 'freeze' })
+            toast.success('Emergency Stop Engaged. Queues cleared.')
+            await fetchData()
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || 'Failed to engage emergency stop')
+        } finally {
+            setIsEmergencyStopLoading(false)
+            setIsEmergencyDialogOpen(false)
+        }
+    }
+
+    const handleResumeAI = async () => {
+        setIsEmergencyStopLoading(true)
+        try {
+            await axios.post(`/api/agents/${agentId}/emergency-stop`, { action: 'resume' })
+            toast.success('AI Resumed successfully.')
+            await fetchData()
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || 'Failed to resume AI')
+        } finally {
+            setIsEmergencyStopLoading(false)
+        }
+    }
+
     useEffect(() => {
         fetchData()
         const statusInterval = setInterval(fetchWahaStatus, 5000)
@@ -118,14 +170,67 @@ export default function AgentOverviewPage() {
                 /* Desktop Header */
                 <div className="flex justify-between items-start">
                     <div>
-                        <h1 className="text-2xl font-semibold text-white">Overview</h1>
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-2xl font-semibold text-white">Overview</h1>
+                            {!agent.isActive && (
+                                <span className="bg-red-500/20 text-red-400 border border-red-500/50 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider animate-pulse">
+                                    Frozen / STOPPED
+                                </span>
+                            )}
+                        </div>
                         <p className="text-white/40 text-sm mt-1">
                             {agent.name}'s workspace dashboard
                         </p>
                     </div>
-                    <AgentQuickAdd agentId={numericAgentId} />
+                    <div className="flex items-center gap-3">
+                        <Button
+                            variant={agent.isActive ? "destructive" : "default"}
+                            className={agent.isActive ? "bg-red-600 hover:bg-red-700 font-bold" : "bg-emerald-600 hover:bg-emerald-700 font-bold"}
+                            onClick={() => agent.isActive ? setIsEmergencyDialogOpen(true) : handleResumeAI()}
+                            disabled={isEmergencyStopLoading}
+                        >
+                            {isEmergencyStopLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> :
+                                agent.isActive ? <OctagonAlert className="h-4 w-4 mr-2" /> : <Play className="h-4 w-4 mr-2" />}
+
+                            {agent.isActive ? 'EMERGENCY STOP' : 'RESUME AI'}
+                        </Button>
+                        <AgentQuickAdd agentId={numericAgentId} />
+                    </div>
                 </div>
             )}
+
+            {/* Emergency Stop Alert Dialog */}
+            <AlertDialog open={isEmergencyDialogOpen} onOpenChange={setIsEmergencyDialogOpen}>
+                <AlertDialogContent className="bg-red-950/90 border-red-900 !text-red-50">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-red-400 font-bold text-xl flex items-center gap-2">
+                            <OctagonAlert className="h-6 w-6" />
+                            ENGAGE EMERGENCY STOP?
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="text-red-200/80">
+                            This action will immediately:
+                            <ul className="list-disc ml-5 mt-2 space-y-1 font-medium text-red-200">
+                                <li>Disable AI generation for {agent.name}.</li>
+                                <li>Cancel ALL pending AI responses.</li>
+                                <li>Clear ALL outgoing message queues.</li>
+                                <li>Pause all active conversations.</li>
+                            </ul>
+                            <p className="mt-4 text-white font-semibold">
+                                The AI will be completely frozen until you click Resume. Are you sure?
+                            </p>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel className="bg-transparent border-red-800 text-red-200 hover:bg-red-900 hover:text-white">Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => { e.preventDefault(); handleEmergencyStop(); }}
+                            className="bg-red-600 hover:bg-red-500 text-white font-bold"
+                        >
+                            YES, FREEZE AI NOW
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

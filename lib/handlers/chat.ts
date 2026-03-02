@@ -273,8 +273,9 @@ export async function handleChat(
     }
     */
 
+    let savedMessageId: number = 0
     try {
-        await prisma.message.create({
+        const savedMsg = await prisma.message.create({
             data: {
                 conversationId: conversation.id,
                 sender: 'contact',
@@ -284,6 +285,7 @@ export async function handleChat(
                 timestamp: new Date()
             }
         })
+        savedMessageId = savedMsg.id
 
         // Update conversation tracking for inbox system
         await prisma.conversation.update({
@@ -512,92 +514,62 @@ export async function handleChat(
         try {
             let loopCount = 0
             const MAX_LOOPS = 5 // Safety brake
-            let currentMessageText = messageText // Start with current
+            let currentMessageText = messageText
             let currentPayload = payload
             let currentOptions = options
-
-            // On first iteration, we simply process the message that triggered this.
-            // On subsequent iterations, we process new messages found in DB.
+            // Use the saved message ID as the tail-loop anchor.
+            // IMPORTANT: We compare by ID (not timestamp) to avoid a false-positive bug:
+            // The original message is saved BEFORE the 6s debounce wait, so its timestamp
+            // is always older than loopStart, causing phantom re-loops on every request.
+            // ID comparison is monotonic and immune to this timing issue.
+            let lastProcessedMsgId = savedMessageId // ID of the contact message we are responding to
 
             do {
                 loopCount++
-                const loopStart = new Date()
 
-                logger.info(`[Chat] ðŸ”„ AI Processing Loop #${loopCount} started for Contact ${contact.id}`, { loopCount })
+                logger.info(`[Chat] AI Processing Loop #${loopCount} started for Contact ${contact.id}`, { loopCount })
 
-                // AI GENERATION LOGIC
                 const result = await generateAndSendAI(conversation, contact, settings, currentMessageText, currentPayload, agentId, platform, currentOptions, undefined)
 
-                // ðŸ›‘ CHECK IF ABORTED DUE TO PRE-SEND (Newer messages detected during gen)
                 if (result.result === 'presend_aborted_newer_messages') {
                     logger.info(`[Chat] Response aborted in generateAndSendAI due to newer messages. Exiting loop to let new message take over.`)
                     return { handled: true, result: 'presend_aborted_newer_messages' }
                 }
 
-                // If result was "queued", "paused", or "blocked", we typically still want to check for new messages?
-                // Yes, because a human might be spamming "cancel" or "stop".
-
-                // ðŸ›‘ CHECK FOR NEW MESSAGES (Tail Check)
-                // Look for contact messages older than NOW but newer than our start time?
-                // Actually, any message that is NOT "processed" or simply "newer than the one we just handled"?
-                // Simplest: Find any message from 'contact' created AFTER the message we just processed?
-                // OR checks for unreadCount?
-
-                // Let's look for any message from 'contact' that is newer than the one we just processed.
-                // We need the ID of the message we just processed.
-                // But wait, generateAndSendAI fetches the LATEST 50 messages. 
-                // So if a new message arrived during generation, `generateAndSendAI` in the NEXT loop will see it.
-
-                // We need to know IF we should loop.
-                // Check if there is a message from contact that is newer than `loopStart`?
-                // No, newer than the message we just processed.
-
-                // Update timestamp of last processed message
-                // We don't track "processed" status on messages easily yet.
-                // But we know `timestamp` of `currentPayload` (approximated).
-
-                // Robust Check:
-                // "Are there any messages from 'contact' in this conversation created recently that we haven't answered?"
-                // Since we just answered (presumably), the only unanswered ones are those created *during* `generateAndSendAI`.
-
+                // TAIL CHECK: Only loop if a contact message with a higher DB ID arrived during generation.
+                // ID-based comparison avoids the debounce timing false-positive.
                 const newMessages = await prisma.message.findMany({
                     where: {
                         conversationId: conversation.id,
                         sender: 'contact',
-                        timestamp: { gt: loopStart } // Created WHILE we were generating
+                        id: { gt: lastProcessedMsgId }
                     },
-                    orderBy: { timestamp: 'asc' }
+                    orderBy: { id: 'asc' }
                 })
 
                 if (newMessages.length > 0) {
-                    logger.info(`[Chat] âš¡ Found ${newMessages.length} new messages arrived during processing! Looping...`, { newIds: newMessages.map(m => m.id) })
+                    logger.info(`[Chat] Found ${newMessages.length} new messages arrived during processing! Looping...`, { newIds: newMessages.map(m => m.id) })
 
-                    // Update context for next loop
-                    // We'll use the TEXT of the last new message, but the AI will read ALL of them in history.
                     const lastNewMsg = newMessages[newMessages.length - 1]
                     currentMessageText = lastNewMsg.message_text
-                    currentPayload = { id: lastNewMsg.waha_message_id || `sim_${Date.now()}` } // Mock payload for next loop
+                    currentPayload = { id: lastNewMsg.waha_message_id || `sim_${Date.now()}` }
+                    lastProcessedMsgId = lastNewMsg.id // Advance anchor to the last new message
 
-                    // Inject the AI's last response as "previousResponse" context for the next generation
-                    // preventing it from repeating itself.
                     const lastAIResponse = result?.textBody
                     if (lastAIResponse) {
                         currentOptions = { ...currentOptions, previousResponse: lastAIResponse }
                     }
 
-                    // Small delay to let DB settle?
                     await new Promise(r => setTimeout(r, 1000))
-
-                    // Refresh lock timestamp to prevent timeout during long loops
-                    await attemptLock(conversation.id) // Just updates timestamp
+                    await attemptLock(conversation.id)
 
                 } else {
-                    logger.info(`[Chat] âœ… No new messages found. Releasing lock.`)
-                    break // Exit loop
+                    logger.info(`[Chat] No new messages found. Releasing lock.`)
+                    break
                 }
 
                 if (loopCount >= MAX_LOOPS) {
-                    logger.warn(`[Chat] âš ï¸ Max loops (${MAX_LOOPS}) reached. Breaking to prevent infinite loop.`)
+                    logger.warn(`[Chat] Max loops (${MAX_LOOPS}) reached. Breaking to prevent infinite loop.`)
                     break
                 }
 
@@ -844,8 +816,8 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
         const locale = agentLocale.startsWith('fr') ? 'fr' : 'en'
         queuePrompt = locale === 'fr'
-            ? `\n\n[INTERFACE SYSTÃˆME]\nMESSAGES EN ATTENTE:\n${queueContext}\n\nCOMMANDES:\n- [CANCEL:ID] : Annule le message ID (ne sera pas envoyÃ©).\n\nINSTRUCTION: Si le nouveau message rend un message en attente obsolÃ¨te, rÃ©pÃ©titif ou incohÃ©rent, tu DOIS utiliser la commande [CANCEL:ID] au dÃ©but de ta rÃ©ponse.\nâš ï¸ RÃˆGLE: N'annule PAS si le nouveau message est court ou neutre (ex: "ok", "lol", emoji). Annule seulement s'il y a une vraie contradiction.\nExemple: [CANCEL:42] Bonne nuit !`
-            : `\n\n[SYSTEM INTERFACE]\nPENDING MESSAGES:\n${queueContext}\n\nCOMMANDS:\n- [CANCEL:ID] : Cancels message ID (will not be sent).\n\nINSTRUCTION: If the new message makes a pending message obsolete, redundant, or incoherent, you MUST use the [CANCEL:ID] command at the start of your response.\nâš ï¸ RULE: DO NOT cancel if the new message is short or neutral (e.g., "ok", "lol", emoji). Cancel only if there is a real contradiction.\nExample: [CANCEL:42] Goodnight!`
+            ? `\n\n[INTERFACE SYSTEME]\nMESSAGES EN ATTENTE:\n${queueContext}\n\nINSTRUCTION: Fais UNE seule reponse qui couvre tous les points en attente et le dernier message utilisateur. N'utilise aucun tag systeme (pas de [CANCEL]).`
+            : `\n\n[SYSTEM INTERFACE]\nPENDING MESSAGES:\n${queueContext}\n\nINSTRUCTION: Produce ONE single reply that covers all pending points and the latest user message. Do not use system tags (no [CANCEL]).`
 
         console.log(`[Chat] Prepared Queue Context for injection: ${pendingQueueItems.length} items`)
     }
@@ -968,21 +940,19 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
     // Queue if delay > 10s (reduced from 22s to avoid CRON 504 timeouts)
     // CRON has ~30s timeout, AI call takes ~10-15s, so any delay > 10s risks timeout
     if (timing.delaySeconds > 10) {
-        // If there are already pending messages for this conversation,
-        // schedule this one right after the last one (with small delay)
-        // instead of spacing them by 30+ minutes
+        // If there are already pending messages, we collapse them into ONE response.
+        // This avoids sending multiple delayed replies out of order.
         let scheduledAt: Date
 
         if (pendingQueueItems.length > 0) {
-            // Find the latest scheduled message
-            const lastScheduled = pendingQueueItems.reduce((latest, item) =>
-                item.scheduledAt > latest.scheduledAt ? item : latest
+            // Keep the earliest planned send time when still in the future.
+            const earliestScheduled = pendingQueueItems.reduce((earliest, item) =>
+                item.scheduledAt < earliest.scheduledAt ? item : earliest
                 , pendingQueueItems[0])
 
-            // Schedule 10-20 seconds after the last one (natural burst)
-            const burstDelay = 10000 + Math.random() * 10000
-            scheduledAt = new Date(lastScheduled.scheduledAt.getTime() + burstDelay)
-            console.log(`[Chat] Scheduling message after existing queue item. Last: ${lastScheduled.scheduledAt.toISOString()}, New: ${scheduledAt.toISOString()}`)
+            const minFuture = new Date(Date.now() + 12000 + Math.random() * 8000) // 12-20s safety
+            scheduledAt = earliestScheduled.scheduledAt > minFuture ? earliestScheduled.scheduledAt : minFuture
+            console.log(`[Chat] Queue collapse: ${pendingQueueItems.length} pending items -> 1 unified response at ${scheduledAt.toISOString()}`)
         } else {
             // No existing queue items, use normal delay
             const effectiveDelay = Math.max(timing.delaySeconds, 60)
@@ -994,7 +964,8 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
         // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
         // SUPERVISOR BLOQUANT pour messages en QUEUE aussi
-        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•        const queueValidation = await runSupervisorValidation({
+        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        const queueValidation = await runSupervisorValidation({
             initialResponse: responseText,
             logPrefix: '[Chat][Queue]',
             callAiAgentId: agentId || effectiveAgentId,
@@ -1025,6 +996,21 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
             return { handled: true, result: 'blocked_length_guard' }
         }
         responseText = queuedLengthCheck.text
+
+        // Deterministic replacement: cancel all older pending queue items in this conversation.
+        if (pendingQueueItems.length > 0) {
+            const cancelled = await prisma.messageQueue.updateMany({
+                where: {
+                    id: { in: pendingQueueItems.map((item: any) => item.id) },
+                    status: 'PENDING'
+                },
+                data: {
+                    status: 'CANCELLED_SUPERSEDED',
+                    error: `Superseded by newer unified response at ${new Date().toISOString()}`
+                }
+            })
+            console.log(`[Chat] Queue collapse cancelled ${cancelled.count}/${pendingQueueItems.length} pending items`)
+        }
 
         await prisma.messageQueue.create({
             data: {
@@ -1231,7 +1217,8 @@ async function generateAndSendAI(conversation: any, contact: any, settings: any,
 
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     // 5.8. SUPERVISOR AI - BLOQUANT (BEFORE tag stripping so it sees raw [IMAGE:] tags)
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•    const inlineValidation = await runSupervisorValidation({
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    const inlineValidation = await runSupervisorValidation({
         initialResponse: responseText,
         logPrefix: '[Chat]',
         callAiAgentId: effectiveAgentId,
