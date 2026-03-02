@@ -3,8 +3,8 @@ import { buildBudgetedPrompt, type Section } from '@/lib/swarm/utils/prompt-budg
 import type { Message, SwarmState } from '../types'
 
 const GLOBAL_PROMPT_CHAR_CAP = 9000
-const MODEL_HISTORY_MAX_MESSAGES = 10
-const INLINE_HISTORY_SECTION_MAX_MESSAGES = 8
+const MODEL_HISTORY_MAX_MESSAGES = 20
+const INLINE_HISTORY_SECTION_MAX_MESSAGES = 15
 
 function mapHistoryRole(role: string): 'user' | 'assistant' {
   return role === 'user' ? 'user' : 'assistant'
@@ -35,7 +35,9 @@ function buildSystemConstraints(isFrench: boolean, agentAge: number): string {
 - Pas d'appel vocal/video.
 - Refuse toujours les rencontres physiques.
 - Ne partage jamais de numero prive/contact prive/adresse.
-- Ton style doit rester naturel, court, humain, jamais assistant.`
+- Si plusieurs messages utilisateur arrivent avant ta reponse, reponds a TOUS les points en UNE seule reponse.
+- Ton style doit rester naturel, court, humain, jamais assistant.
+- REGLE D'OR: Ne répète JAMAIS une phrase ou une idée que tu viens juste de dire, ne réutilise pas en boucle les mêmes emojis. Varie tes réponses !`
   }
 
   return `IDENTITY AND SYSTEM CONSTRAINTS (NON NEGOTIABLE):
@@ -48,7 +50,9 @@ function buildSystemConstraints(isFrench: boolean, agentAge: number): string {
 - No voice/video calls.
 - Always refuse in-person meetings.
 - Never share private number/private contact/personal address.
-- Keep style natural, short, human, never assistant-like.`
+- If multiple user messages arrive before your reply, answer ALL points in ONE single reply.
+- Keep style natural, short, human, never assistant-like.
+- GOLDEN RULE: NEVER repeat a phrase or idea you just said, do not loop the same emojis. Vary your responses!`
 }
 
 function buildStyleSection(isFrench: boolean): string {
@@ -213,8 +217,10 @@ export async function responseNode(state: SwarmState): Promise<Partial<SwarmStat
       {
         apiKey: settings.venice_api_key,
         model: settings.venice_model || 'google-gemma-3-27b-it',
-        temperature: 0.3,
-        max_tokens: 120
+        temperature: 0.7, // Increased from 0.3 to avoid highly deterministic loops
+        max_tokens: 120,
+        frequency_penalty: 0.3,
+        presence_penalty: 0.6
       }
     )
 

@@ -3,7 +3,7 @@ import { logger } from './logger'
 import { runpod } from './runpod'
 
 export const venice = {
-    async chatCompletion(systemPrompt: string, messages: { role: string, content: string }[], userMessage: string, config: { apiKey?: string, model?: string, temperature?: number, max_tokens?: number, frequency_penalty?: number } = {}) {
+    async chatCompletion(systemPrompt: string, messages: { role: string, content: string }[], userMessage: string, config: { apiKey?: string, model?: string, temperature?: number, max_tokens?: number, frequency_penalty?: number, presence_penalty?: number } = {}) {
         const apiKey = config.apiKey || process.env.VENICE_API_KEY
         if (!apiKey) {
             console.warn('VENICE_API_KEY not configured')
@@ -51,7 +51,8 @@ export const venice = {
                     messages: apiMessages,
                     temperature: config.temperature ?? 0.7,
                     max_tokens: config.max_tokens ?? 500,
-                    frequency_penalty: config.frequency_penalty ?? 0.7,
+                    frequency_penalty: config.frequency_penalty ?? 0.2, // Lowered from 0.7 default to allow normal vocab but prevent loops
+                    presence_penalty: config.presence_penalty ?? 0.6, // Added to prevent sticking to the same conversational topic
                 }, {
                     headers: {
                         'Authorization': `Bearer ${apiKey}`,
