@@ -8,7 +8,7 @@ export const profilerService = {
      * Updates the Contact's profile field.
      */
     async updateProfile(contactId: string) {
-        // 1. Get History (Last 50 messages)
+        // 1. Get History (ALL messages from contact)
         const conversation = await prisma.conversation.findFirst({
             where: { contactId },
             orderBy: { createdAt: 'desc' }
@@ -16,47 +16,58 @@ export const profilerService = {
 
         if (!conversation) return
 
+        // Fetch ALL messages but ONLY from the contact (to save tokens & focus on their statements)
         const messages = await prisma.message.findMany({
-            where: { conversationId: conversation.id },
-            orderBy: { timestamp: 'desc' },
-            take: 50
+            where: {
+                conversationId: conversation.id,
+                sender: 'contact'
+            },
+            orderBy: { timestamp: 'asc' } // Send in chronological order
         })
-        
+
         if (messages.length === 0) {
-            console.log(`[Profiler] No messages for contact ${contactId}, skipping`)
+            console.log(`[Profiler] No messages from contact ${contactId}, skipping`)
             return
         }
-        
-        const history = messages.reverse().map(m => `${m.sender}: ${m.message_text}`).join('\n')
 
-        // 1b. Get existing profile for merging
+        const history = messages.map(m => `- ${m.message_text}`).join('\n')
+
+        // 1b. Get existing profile & initial admin notes for context
         const existingContact = await prisma.contact.findUnique({
             where: { id: contactId },
-            select: { profile: true, name: true }
+            select: { profile: true, name: true, notes: true, phone_whatsapp: true }
         })
         const existingProfile = (existingContact?.profile as any) || {}
+        const initialNotes = existingContact?.notes || ''
+        const contactPhone = existingContact?.phone_whatsapp || ''
 
         // 2. Ask AI to extract (from DB)
         const settings = await settingsService.getSettings()
 
-        const defaultPrompt = `You are a data extractor. Analyze the conversation history and extract the user's profile information.
+        const defaultPrompt = `Tu es un expert en extraction de données. Ton but est d'analyser l'historique complet des messages envoyés par cet utilisateur, ainsi que le contexte/notes de l'administrateur, pour extraire un profil complet.
         
-        Output strictly valid JSON with this exact structure:
+        ${initialNotes ? `[NOTES DE L'ADMIN / CONTEXTE INITIAL] :\n${initialNotes}\n` : ''}
+        [NUMÉRO DE TÉLÉPHONE CONNU] : ${contactPhone}
+
+        Renvoie STRICTEMENT un JSON valide avec cette structure exacte :
         {
-            "name": "User's extracted name or nickname (or null if not mentioned)",
-            "age": number or null,
-            "job": "User's job/profession (or null if not mentioned)",
-            "location": "User's city/location (or null if not mentioned)",
-            "notes": "Any other key details: hobbies, car, family, pets, etc. Be specific! (or empty string)",
-            "intent": "What does he want? dating, friendship, pics, casual chat, etc. (or null)"
+            "firstName": "Prénom de l'utilisateur (ou null)",
+            "lastName": "Nom de famille de l'utilisateur (ou null)",
+            "age": nombre ou null,
+            "phone": "Numéro de téléphone de l'utilisateur (ou null)",
+            "city": "Ville de résidence (ou null)",
+            "country": "Pays de résidence (ou null)",
+            "job": "Profession, travail ou études (ou null)",
+            "familySituation": "Situation familiale (ex: célibataire, marié, 2 enfants, etc.) (ou null)",
+            "intent": "Que cherche-t-il sur la plateforme ? (amitié, amour, photos, etc.)",
+            "notes": "Autres détails importants : passions, type de véhicule, traits de caractère, détails physiques (ou chaîne vide)"
         }
         
-        RULES:
-        - If information is missing, use null (not "null" string)
-        - Age should be a number, not a string
-        - Do NOT invent information
-        - Be specific in notes: "has a golden retriever" not just "has a pet"
-        - Output ONLY the JSON, no markdown, no explanation`;
+        RÈGLES CRITIQUES :
+        - S'il manque une info, utilise la vraie valeur JSON null (pas le mot "null" entre guillemets).
+        - L'âge doit être un entier numérique (ex: 25).
+        - N'invente AUCUNE information qui n'apparaît pas dans la conversation ou les notes admin.
+        - Ne renvoie QUE le JSON, aucun markdown \`\`\`json, aucun texte autour.`;
 
         const systemPrompt = settings.prompt_profiler_extraction || defaultPrompt;
 
@@ -64,8 +75,8 @@ export const profilerService = {
             const result = await venice.chatCompletion(
                 systemPrompt,
                 [],
-                `Conversation:\n${history}\n\nExtract Profile JSON:`,
-                { apiKey: settings.venice_api_key, model: settings.venice_model }
+                `[MESSAGES DE L'UTILISATEUR] :\n${history}\n\nExtrais le profil JSON :`,
+                { apiKey: settings.venice_api_key, model: settings.venice_model, max_tokens: 1000 }
             )
 
             // Parse JSON with more robust extraction
@@ -76,12 +87,15 @@ export const profilerService = {
             }
 
             // 3. Merge with existing profile - only overwrite non-null values
-            // Keep existing values if new extraction returns null
             const mergedProfile = {
-                name: profileData.name ?? existingProfile.name ?? null,
+                firstName: profileData.firstName ?? profileData.name ?? existingProfile.firstName ?? existingProfile.name ?? null,
+                lastName: profileData.lastName ?? existingProfile.lastName ?? null,
                 age: profileData.age ?? existingProfile.age ?? null,
+                phone: profileData.phone ?? existingProfile.phone ?? contactPhone ?? null,
+                city: profileData.city ?? profileData.location ?? existingProfile.city ?? existingProfile.location ?? null,
+                country: profileData.country ?? existingProfile.country ?? null,
                 job: profileData.job ?? existingProfile.job ?? null,
-                location: profileData.location ?? existingProfile.location ?? null,
+                familySituation: profileData.familySituation ?? existingProfile.familySituation ?? null,
                 notes: mergeNotes(existingProfile.notes, profileData.notes),
                 intent: profileData.intent ?? existingProfile.intent ?? null,
                 // Keep extraction timestamp
@@ -89,15 +103,14 @@ export const profilerService = {
             }
 
             const existingName = (existingContact?.name || '').trim()
-            const extractedName = typeof profileData.name === 'string' ? profileData.name.trim() : ''
+            const extractedName = (profileData.firstName || '').trim()
             const isUnknownExisting = !existingName || /^(inconnu|unknown|discord user)$/i.test(existingName)
             const nextName = isUnknownExisting ? (extractedName || existingName || null) : (existingName || null)
 
             await prisma.contact.update({
                 where: { id: contactId },
-                data: { 
+                data: {
                     profile: mergedProfile,
-                    // Update name if it's unknown/empty and we extracted a valid name
                     name: nextName
                 }
             })
@@ -117,14 +130,14 @@ export const profilerService = {
  */
 function extractJsonFromResponse(response: string): any | null {
     if (!response || response.length < 2) return null
-    
+
     // Try to find JSON object in the response
     const patterns = [
         /\{[\s\S]*\}/,  // Match {...}
         /```json\s*([\s\S]*?)```/,  // Match ```json ... ```
         /```\s*([\s\S]*?)```/,  // Match ``` ... ```
     ]
-    
+
     for (const pattern of patterns) {
         const match = response.match(pattern)
         if (match) {
@@ -136,7 +149,7 @@ function extractJsonFromResponse(response: string): any | null {
             }
         }
     }
-    
+
     // Try parsing the whole response as JSON
     try {
         return JSON.parse(response.trim())
@@ -152,13 +165,13 @@ function extractJsonFromResponse(response: string): any | null {
 function mergeNotes(existing: string | null, newNotes: string | null): string {
     const existingStr = existing || ''
     const newStr = newNotes || ''
-    
+
     if (!existingStr) return newStr
     if (!newStr) return existingStr
-    
+
     // Simple deduplication - if new notes contain existing content, just return new
     if (newStr.includes(existingStr)) return newStr
-    
+
     // Otherwise combine with separator
     return `${existingStr}; ${newStr}`.substring(0, 1000) // Limit length
 }
