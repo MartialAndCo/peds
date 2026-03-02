@@ -55,3 +55,8 @@ waha-server/dist
 services/baileys/node_modules
 services/baileys/dist
 services/baileys/auth_info_baileys
+
+# dev logs & temp scripts
+dev_logs.txt
+/*.sh
+/*.py
