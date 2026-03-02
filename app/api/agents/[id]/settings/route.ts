@@ -42,7 +42,8 @@ const SETTING_KEYS = [
     'payment_cashapp_enabled', 'payment_cashapp_username',
     'payment_zelle_enabled', 'payment_zelle_username',
     'payment_custom_methods',
-    'voice_response_enabled'
+    'voice_response_enabled',
+    'war_mode_phase_1_template', 'war_mode_phase_2_template', 'war_mode_phase_3_template'
     // 'phase_limit_*' etc if we added them to profile? Profile has fastTrackDays only. 
     // The UI sends phase_limit_trust_medium etc. These remain in Settings for now or need migration.
 ]

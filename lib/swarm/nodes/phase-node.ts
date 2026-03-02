@@ -8,6 +8,39 @@ export async function phaseNode(state: SwarmState): Promise<Partial<SwarmState>>
     // Plus besoin de requêter AgentContact ici!
     const phase = currentPhase || 'CONNECTION'
 
+    // 🔥 WAR MODE INTERCEPTION
+    if (phase.startsWith('WAR_')) {
+        let warContext = ''
+        if (phase === 'WAR_1') warContext = state.settings.war_mode_phase_1_template || ''
+        else if (phase === 'WAR_2') warContext = state.settings.war_mode_phase_2_template || ''
+        else if (phase === 'WAR_3') {
+            warContext = state.settings.war_mode_phase_3_template || ''
+
+            // Inject Links and Media metadata into the prompt for Phase 3
+            if (state.warModeLinks && state.warModeLinks.length > 0) {
+                warContext += `\n\n[INSTRUCTION WAR MODE 3 - EXTRÊMEMENT IMPORTANT]:\nTu DOIS impérativement donner ce(s) lien(s) à l'utilisateur dans ta prochaine réponse de façon naturelle:\n${state.warModeLinks.map(l => `- ${l}`).join('\n')}`
+            }
+
+            if (state.warModeMedia && state.warModeMedia.length > 0) {
+                warContext += `\n\n[INSTRUCTION WAR MODE 3 - MEDIA ATTACHÉ]:\n${state.warModeMedia.length} média(s) visuel(s) (photo/vidéo) va être envoyé avec ton message. Tu DOIS y faire référence dans ton texte (ex: "tiens regarde", "je te montre", etc.).`
+            }
+        }
+
+        const platformName = state.platform === 'discord' ? 'Discord' : 'WhatsApp'
+        const agentAge = profile?.baseAge || 15
+
+        const finalWarContext = warContext
+            .replace(/\{\{PLATFORM\}\}/g, platformName)
+            .replace(/\{\{AGE\}\}/g, agentAge.toString())
+
+        return {
+            contexts: {
+                ...state.contexts,
+                phase: finalWarContext
+            }
+        }
+    }
+
     // Déterminer la plateforme et l'âge pour remplacement
     const platformName = state.platform === 'discord' ? 'Discord' : 'WhatsApp'
     const agentAge = profile?.baseAge || 15

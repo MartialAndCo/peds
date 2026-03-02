@@ -33,6 +33,9 @@ export interface SwarmSettings {
     payment_custom_methods?: string
     voice_response_enabled?: boolean
     validation_llm_enabled?: boolean
+    war_mode_phase_1_template?: string
+    war_mode_phase_2_template?: string
+    war_mode_phase_3_template?: string
 }
 
 export interface AgentProfile {
@@ -110,6 +113,9 @@ export interface SwarmState {
 
     profile?: AgentProfile
     agentContact?: AgentContactData
+
+    warModeLinks?: string[]
+    warModeMedia?: string[]
 
     metadata: SwarmMetadata
 

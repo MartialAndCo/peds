@@ -105,6 +105,24 @@ const phaseConfig: Record<string, { label: string; color: string; icon: any; des
     icon: TrendingUp,
     description: 'Payment ready phase'
   },
+  WAR_1: {
+    label: 'Phase 1',
+    color: 'text-red-400 border-red-500/20 bg-red-500/10',
+    icon: AlertTriangle,
+    description: 'War Mode Phase 1'
+  },
+  WAR_2: {
+    label: 'Phase 2',
+    color: 'text-red-500 border-red-600/20 bg-red-600/10',
+    icon: AlertTriangle,
+    description: 'War Mode Phase 2'
+  },
+  WAR_3: {
+    label: 'Phase 3',
+    color: 'text-red-600 border-red-700/20 bg-red-700/10',
+    icon: AlertTriangle,
+    description: 'War Mode Phase 3'
+  },
 }
 
 export function ConversationUnifiedView({
@@ -155,6 +173,61 @@ export function ConversationUnifiedView({
   const [voiceAudio, setVoiceAudio] = useState<string | null>(null)
   const [voiceGenerating, setVoiceGenerating] = useState(false)
   const [voiceSending, setVoiceSending] = useState(false)
+
+  // War Mode State
+  const [isWarModeDialogOpen, setIsWarModeDialogOpen] = useState(false)
+  const [warModeLinks, setWarModeLinks] = useState('')
+  const [warModeMediaFiles, setWarModeMediaFiles] = useState<File[]>([])
+  const [isUpdatingPhase, setIsUpdatingPhase] = useState(false)
+
+  const handleUpdateWarPhase = async (newPhase: string, links: string[] = [], mediaPaths: string[] = []) => {
+    setIsUpdatingPhase(true)
+    try {
+      await axios.post(`/api/contacts/${conversation.contact.id}/war-mode`, {
+        agentId,
+        phase: newPhase,
+        warModeLinks: links,
+        warModeMedia: mediaPaths
+      })
+      setConversation((prev: any) => ({
+        ...prev,
+        contact: {
+          ...prev.contact,
+          agentPhase: newPhase
+        }
+      }))
+      setIsWarModeDialogOpen(false)
+    } catch (e: any) {
+      console.error(e)
+      alert('Failed to update phase: ' + (e.response?.data?.error || e.message))
+    } finally {
+      setIsUpdatingPhase(false)
+    }
+  }
+
+  const handlePhase3Submit = async () => {
+    if (warModeMediaFiles.length > 0) setIsUpdatingPhase(true)
+    try {
+      // 1. Upload files first
+      const uploadedUrls: string[] = []
+      for (const file of warModeMediaFiles) {
+        const formData = new FormData()
+        formData.append('file', file)
+        const res = await axios.post('/api/media/upload', formData)
+        uploadedUrls.push(res.data.url)
+      }
+
+      // 2. Parse links
+      const parsedLinks = warModeLinks.split('\n').map(l => l.trim()).filter(l => l.length > 0)
+
+      // 3. Finalize update
+      await handleUpdateWarPhase('WAR_3', parsedLinks, uploadedUrls)
+    } catch (e) {
+      console.error('Failed to upload files for Phase 3', e)
+      alert('Failed to upload attachments')
+      setIsUpdatingPhase(false)
+    }
+  }
 
   // Update conversation when prop changes (fixes desktop switching issue)
   useEffect(() => {
@@ -968,7 +1041,7 @@ export function ConversationUnifiedView({
                 />
                 <Input
                   value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
+                  onChange={(e) => e.target.value.length <= 1000 && setInputText(e.target.value)}
                   placeholder={selectedMediaUrl ? 'Add a caption...' : 'Type a message...'}
                   disabled={sending}
                   className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus-visible:ring-white/20 h-10 text-sm"
@@ -1081,6 +1154,50 @@ export function ConversationUnifiedView({
                       />
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* War Mode Override */}
+              <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4 mt-4">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-red-500 mb-4 flex items-center gap-1">
+                  <AlertTriangle className="h-4 w-4" />
+                  War Mode (Manual Override)
+                </h4>
+                <div className="grid grid-cols-3 gap-2">
+                  <Button
+                    size="sm"
+                    variant={phase === 'WAR_1' ? 'default' : 'outline'}
+                    onClick={() => handleUpdateWarPhase('WAR_1')}
+                    disabled={isUpdatingPhase}
+                    className={phase === 'WAR_1' ? "bg-red-500 hover:bg-red-600 text-white border-0" : "border-red-500/30 text-red-400 hover:bg-red-500/10"}
+                  >
+                    Phase 1
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={phase === 'WAR_2' ? 'default' : 'outline'}
+                    onClick={() => handleUpdateWarPhase('WAR_2')}
+                    disabled={isUpdatingPhase}
+                    className={phase === 'WAR_2' ? "bg-red-500 hover:bg-red-600 text-white border-0" : "border-red-500/30 text-red-400 hover:bg-red-500/10"}
+                  >
+                    Phase 2
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={phase === 'WAR_3' ? 'default' : 'outline'}
+                    onClick={() => {
+                      setWarModeLinks('')
+                      setWarModeMediaFiles([])
+                      setIsWarModeDialogOpen(true)
+                    }}
+                    disabled={isUpdatingPhase}
+                    className={phase === 'WAR_3' ? "bg-red-600 hover:bg-red-700 text-white border-0" : "border-red-500/30 text-red-400 hover:bg-red-500/10"}
+                  >
+                    Phase 3
+                  </Button>
+                </div>
+                <div className="mt-3 text-[10px] text-red-400/70">
+                  Selecting a War Phase will immediately override the agent's behavior for this specific contact.
                 </div>
               </div>
 
@@ -1308,7 +1425,7 @@ export function ConversationUnifiedView({
           <div className="space-y-4">
             <textarea
               value={voiceText}
-              onChange={(e) => setVoiceText(e.target.value)}
+              onChange={(e) => e.target.value.length <= 1000 && setVoiceText(e.target.value)}
               placeholder="Que doit-elle dire..."
               rows={3}
               className="w-full rounded-lg bg-white/5 border border-white/10 p-3 text-sm focus:outline-none focus:border-blue-500/50 resize-none text-white placeholder:text-white/30"
@@ -1346,6 +1463,62 @@ export function ConversationUnifiedView({
                 </Button>
               </div>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* War Mode Phase 3 Dialog */}
+      <Dialog open={isWarModeDialogOpen} onOpenChange={setIsWarModeDialogOpen}>
+        <DialogContent className="max-w-md bg-[#1e293b] border-red-500/20 text-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-400">
+              <AlertTriangle className="h-5 w-5" />
+              Configure Phase 3 Action
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-white/60">
+              Activating Phase 3. Provide Facebook/Instagram links or media that the agent will use in its response.
+            </p>
+
+            <div className="space-y-2">
+              <Label className="text-white">Social Links (One per line)</Label>
+              <textarea
+                value={warModeLinks}
+                onChange={(e) => setWarModeLinks(e.target.value)}
+                placeholder="https://instagram.com/..."
+                rows={3}
+                className="w-full rounded-lg bg-white/5 border border-white/10 p-3 text-sm focus:outline-none focus:border-red-500/50 resize-none text-white placeholder:text-white/30"
+                disabled={isUpdatingPhase}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-white">Attach Media (Photos/Videos)</Label>
+              <Input
+                type="file"
+                multiple
+                accept="image/*,video/*"
+                onChange={(e) => setWarModeMediaFiles(Array.from(e.target.files || []))}
+                disabled={isUpdatingPhase}
+                className="bg-white/5 border-white/10 text-white text-sm file:text-white"
+              />
+              {warModeMediaFiles.length > 0 && (
+                <p className="text-xs text-emerald-400 mt-1">{warModeMediaFiles.length} file(s) selected</p>
+              )}
+            </div>
+
+            <Button
+              onClick={handlePhase3Submit}
+              disabled={isUpdatingPhase}
+              className="w-full bg-red-600 hover:bg-red-700 text-white"
+            >
+              {isUpdatingPhase ? (
+                <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Activating Phase...</>
+              ) : (
+                "Activate Phase 3"
+              )}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

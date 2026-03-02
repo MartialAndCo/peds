@@ -127,24 +127,24 @@ export async function runSwarm(
   const profileLoadPromise = preloadedProfile
     ? Promise.resolve(preloadedProfile)
     : prisma.agentProfile.findUnique({
-        where: { agentId },
-        select: {
-          contextTemplate: true,
-          styleRules: true,
-          identityTemplate: true,
-          phaseConnectionTemplate: true,
-          phaseVulnerabilityTemplate: true,
-          phaseCrisisTemplate: true,
-          phaseMoneypotTemplate: true,
-          paymentRules: true,
-          safetyRules: true,
-          timezone: true,
-          locale: true,
-          baseAge: true,
-          bankAccountNumber: true,
-          bankRoutingNumber: true
-        }
-      })
+      where: { agentId },
+      select: {
+        contextTemplate: true,
+        styleRules: true,
+        identityTemplate: true,
+        phaseConnectionTemplate: true,
+        phaseVulnerabilityTemplate: true,
+        phaseCrisisTemplate: true,
+        phaseMoneypotTemplate: true,
+        paymentRules: true,
+        safetyRules: true,
+        timezone: true,
+        locale: true,
+        baseAge: true,
+        bankAccountNumber: true,
+        bankRoutingNumber: true
+      }
+    })
 
   const [contact, profile, agentContact, activeConversation, agentSettings, activeScenarioData] =
     await Promise.all([
@@ -235,7 +235,10 @@ export async function runSwarm(
         agentSettings['voice_response_enabled'] === true,
       validation_llm_enabled:
         agentSettings['validation_llm_enabled'] === 'true' ||
-        agentSettings['validation_llm_enabled'] === true
+        agentSettings['validation_llm_enabled'] === true,
+      war_mode_phase_1_template: agentSettings['war_mode_phase_1_template'] as string | undefined,
+      war_mode_phase_2_template: agentSettings['war_mode_phase_2_template'] as string | undefined,
+      war_mode_phase_3_template: agentSettings['war_mode_phase_3_template'] as string | undefined
     },
     contexts: {
       persona: '',
@@ -253,16 +256,18 @@ export async function runSwarm(
     currentPhase: phase,
     leadContext: leadContext || undefined,
     agentContact: agentContact || undefined,
+    warModeLinks: conversationMetadata?.warModeLinks || undefined,
+    warModeMedia: conversationMetadata?.warModeMedia || undefined,
     metadata: {
       nodeMetrics: {}
     },
     activeScenario: activeScenarioData
       ? {
-          scenarioId: activeScenarioData.scenarioId,
-          title: activeScenarioData.scenario.title,
-          description: activeScenarioData.scenario.description,
-          targetContext: activeScenarioData.scenario.targetContext
-        }
+        scenarioId: activeScenarioData.scenarioId,
+        title: activeScenarioData.scenario.title,
+        description: activeScenarioData.scenario.description,
+        targetContext: activeScenarioData.scenario.targetContext
+      }
       : undefined
   }
 

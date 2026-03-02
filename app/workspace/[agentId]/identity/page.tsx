@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Switch } from '@/components/ui/switch'
-import { Loader2, Save, User, Fingerprint, Shield, Palette, Plus, X, CreditCard, Trash } from 'lucide-react'
+import { Loader2, Save, User, Fingerprint, Shield, Palette, Plus, X, CreditCard, Trash, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // Types
@@ -104,6 +104,7 @@ export default function AgentIdentityPage() {
                     <TabsList className="bg-transparent h-12 w-full justify-start gap-1">
                         <StyledTabTrigger value="identity" icon={User} label="Identity" />
                         <StyledTabTrigger value="phases" icon={Fingerprint} label="Phases" />
+                        <StyledTabTrigger value="warmode" icon={AlertTriangle} label="War Mode" />
                         <StyledTabTrigger value="rules" icon={Shield} label="Rules" />
                         <StyledTabTrigger value="style" icon={Palette} label="Style" />
                     </TabsList>
@@ -204,6 +205,43 @@ export default function AgentIdentityPage() {
                             value={promptSettings['phase_prompt_moneypot']}
                             globalValue={globalSettings['phase_prompt_moneypot']}
                             onChange={(v: string) => setPromptSettings({ ...promptSettings, phase_prompt_moneypot: v })}
+                        />
+                    </div>
+                </TabsContent>
+
+                {/* --- TAB: WAR MODE --- */}
+                <TabsContent value="warmode" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div className="mb-6 bg-red-500/10 border border-red-500/20 rounded-xl p-4">
+                        <h4 className="text-red-400 font-bold flex items-center gap-2"><AlertTriangle className="h-5 w-5" /> War Mode Configuration</h4>
+                        <p className="text-sm text-red-400/80 mt-1">Configure the 3 manual override phases. Activating a War Mode phase in a conversation will instantly replace the agent's normal Swarm logic with strictly these templates.</p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <PhaseCard
+                            title="Phase 1 Override"
+                            subtitle="War Mode 1"
+                            color="text-red-400"
+                            borderColor="border-red-500/30 bg-red-500/5"
+                            value={promptSettings['war_mode_phase_1_template']}
+                            globalValue={globalSettings['war_mode_phase_1_template']}
+                            onChange={(v: string) => setPromptSettings({ ...promptSettings, war_mode_phase_1_template: v })}
+                        />
+                        <PhaseCard
+                            title="Phase 2 Override"
+                            subtitle="War Mode 2"
+                            color="text-red-500"
+                            borderColor="border-red-600/30 bg-red-600/5"
+                            value={promptSettings['war_mode_phase_2_template']}
+                            globalValue={globalSettings['war_mode_phase_2_template']}
+                            onChange={(v: string) => setPromptSettings({ ...promptSettings, war_mode_phase_2_template: v })}
+                        />
+                        <PhaseCard
+                            title="Phase 3 Override"
+                            subtitle="War Mode 3 (Links/Media)"
+                            color="text-red-600"
+                            borderColor="border-red-700/30 bg-red-700/5"
+                            value={promptSettings['war_mode_phase_3_template']}
+                            globalValue={globalSettings['war_mode_phase_3_template']}
+                            onChange={(v: string) => setPromptSettings({ ...promptSettings, war_mode_phase_3_template: v })}
                         />
                     </div>
                 </TabsContent>
