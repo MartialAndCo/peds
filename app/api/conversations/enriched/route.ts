@@ -26,10 +26,10 @@ export async function GET(req: Request) {
 
     // Base filter: exclude system/hidden contacts from dashboard
     conditions.push({
-        contact: {
-            source: { notIn: ['system', 'hidden'] },
-            status: { notIn: ['blacklisted', 'archive', 'merged'] }
-        }
+      contact: {
+        source: { notIn: ['system', 'hidden'] },
+        status: { notIn: ['blacklisted', 'archive', 'merged'] }
+      }
     })
 
     // Agent filter
@@ -101,7 +101,7 @@ export async function GET(req: Request) {
     }
 
     // Build final where clause with AND
-    const where: any = conditions.length > 1 
+    const where: any = conditions.length > 1
       ? { AND: conditions }
       : conditions[0] || {}
 
@@ -167,7 +167,7 @@ export async function GET(req: Request) {
           profile: conv.contact.profile ?? null,
           phone_whatsapp: conv.contact.phone_whatsapp,
           status: conv.contact.status,
-          agentPhase: conv.contact.agentPhase,
+          agentPhase: agentContactMap.get(conv.contactId)?.phase || conv.contact.agentPhase || 'CONNECTION',
           trustScore: conv.contact.trustScore,
           source: conv.contact.source,
           lead: conv.contact.lead,
@@ -218,7 +218,7 @@ export async function GET(req: Request) {
         default:
           break
       }
-      
+
       // Default: sort by lastMessageAt (or createdAt if no messages)
       const dateA = a.lastMessageAt || a.createdAt
       const dateB = b.lastMessageAt || b.createdAt
@@ -234,11 +234,11 @@ export async function GET(req: Request) {
       crisis: await prisma.conversation.count({ where: { AND: [...conditions, { contact: { agentPhase: 'CRISIS' } }] } }),
       new: await prisma.conversation.count({ where: { AND: [...conditions, { contact: { status: 'new' } }] } }),
       paused: await prisma.conversation.count({ where: { AND: [...conditions, { status: 'paused' }] } }),
-      priority: await prisma.conversation.count({ 
-        where: { 
+      priority: await prisma.conversation.count({
+        where: {
           AND: [
             ...conditions,
-            { 
+            {
               OR: [
                 { contact: { agentPhase: 'CRISIS' } },
                 { contact: { trustScore: { gte: 70 } } },
@@ -246,16 +246,16 @@ export async function GET(req: Request) {
               ]
             }
           ]
-        } 
+        }
       }),
-      dormant: await prisma.conversation.count({ 
-        where: { 
+      dormant: await prisma.conversation.count({
+        where: {
           AND: [
             ...conditions,
             { lastMessageAt: { lt: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
             { status: 'active' }
           ]
-        } 
+        }
       }),
     }
 
@@ -274,8 +274,8 @@ export async function GET(req: Request) {
       name: error?.name,
       code: error?.code,
     })
-    return NextResponse.json({ 
-      error: 'Internal Server Error', 
+    return NextResponse.json({
+      error: 'Internal Server Error',
       details: error?.message || 'Unknown error',
       code: error?.code || 'UNKNOWN'
     }, { status: 500 })
