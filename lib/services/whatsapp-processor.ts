@@ -878,7 +878,7 @@ Keep response SHORT and excited.)`
 
             // FIXED: Wake up conversation if it's paused and we received a message
             // This covers BOTH WAITING_FOR_LEAD (Smart Add) AND regular paused conversations
-            if (conversation.status === 'paused') {
+            if (conversation.status === 'paused' && meta?.state === 'WAITING_FOR_LEAD') {
                 const isWaitingForLead = meta?.state === 'WAITING_FOR_LEAD'
 
                 console.log(`[Processor] Waking up conversation ${conversation.id} (Lead initiated contact, wasWaiting: ${isWaitingForLead})`)
