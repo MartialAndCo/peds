@@ -173,6 +173,8 @@ export function ConversationUnifiedView({
   const [voiceAudio, setVoiceAudio] = useState<string | null>(null)
   const [voiceGenerating, setVoiceGenerating] = useState(false)
   const [voiceSending, setVoiceSending] = useState(false)
+    const [voiceUploading, setVoiceUploading] = useState(false)
+    const voiceInputRef = useRef<HTMLInputElement>(null)
 
   // War Mode State
   const [isWarModeDialogOpen, setIsWarModeDialogOpen] = useState(false)

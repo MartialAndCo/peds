@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useTransition, useCallback } from 'react'
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Send, Info, Paperclip, Mic, MoreVertical, LogOut, ShieldAlert, Award, FileText, Activity, Zap, Loader2 } from 'lucide-react'
+import { ArrowLeft, Send, Info, Paperclip, Mic, Upload, MoreVertical, LogOut, ShieldAlert, Award, FileText, Activity, Zap, Loader2 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
@@ -54,6 +54,8 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
     const [voiceAudio, setVoiceAudio] = useState<string | null>(null)
     const [voiceGenerating, setVoiceGenerating] = useState(false)
     const [voiceSending, setVoiceSending] = useState(false)
+    const [voiceUploading, setVoiceUploading] = useState(false)
+    const voiceInputRef = useRef<HTMLInputElement>(null)
     const displayName = getContactDisplayName(conversation.contact)
     const displayInitial = getContactInitial(conversation.contact)
 
@@ -189,6 +191,32 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
             alert(`Voice generation failed: ${error.response?.data?.error || error.message}`)
         } finally {
             setVoiceGenerating(false)
+        }
+    }
+
+
+    const handleVoiceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        setVoiceUploading(true)
+        try {
+            const formData = new FormData()
+            formData.append('file', file)
+            const res = await axios.post('/api/media/convert-voice', formData)
+            
+            if (res.data.success) {
+                setVoiceAudio(res.data.audioBase64)
+                setVoiceText(`[Audio importé : ${file.name}]`)
+            } else {
+                alert(res.data.error || 'Conversion failed')
+            }
+        } catch (err: any) {
+            console.error('Upload voice failed', err)
+            alert('Upload failed: ' + (err.response?.data?.error || err.message))
+        } finally {
+            setVoiceUploading(false)
+            if (voiceInputRef.current) voiceInputRef.current.value = ''
         }
     }
 

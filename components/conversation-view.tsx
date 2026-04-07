@@ -79,6 +79,8 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
     const [voiceAudio, setVoiceAudio] = useState<string | null>(null)
     const [voiceGenerating, setVoiceGenerating] = useState(false)
     const [voiceSending, setVoiceSending] = useState(false)
+    const [voiceUploading, setVoiceUploading] = useState(false)
+    const voiceInputRef = useRef<HTMLInputElement>(null)
 
     const displayName = getContactDisplayName(conversation?.contact)
 
@@ -339,6 +341,32 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
             alert(`Voice generation failed: ${error.response?.data?.error || error.message}`)
         } finally {
             setVoiceGenerating(false)
+        }
+    }
+
+
+    const handleVoiceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        setVoiceUploading(true)
+        try {
+            const formData = new FormData()
+            formData.append('file', file)
+            const res = await axios.post('/api/media/convert-voice', formData)
+            
+            if (res.data.success) {
+                setVoiceAudio(res.data.audioBase64)
+                setVoiceText(`[Audio importé : ${file.name}]`)
+            } else {
+                alert(res.data.error || 'Conversion failed')
+            }
+        } catch (err: any) {
+            console.error('Upload voice failed', err)
+            alert('Upload failed: ' + (err.response?.data?.error || err.message))
+        } finally {
+            setVoiceUploading(false)
+            if (voiceInputRef.current) voiceInputRef.current.value = ''
         }
     }
 
