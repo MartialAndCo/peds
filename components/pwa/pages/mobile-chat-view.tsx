@@ -597,13 +597,15 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
                             placeholder="Que doit-elle dire..."
                             rows={4}
                             className="w-full rounded-2xl bg-white/5 border border-white/10 p-4 text-[16px] text-white focus:outline-none focus:border-blue-500/50 resize-none placeholder:text-white/30"
-                            disabled={voiceGenerating || voiceSending}
-                        />
+                            disabled={voiceGenerating || voiceSending || voiceUploading} />
 
-                        <Button
+            <input ref={voiceInputRef} type="file" accept="audio/*,video/mp4" className="hidden" onChange={handleVoiceUpload} />
+
+                        <div className="flex gap-2 w-full">
+              <Button
                             onClick={handleGenerateVoice}
-                            disabled={!voiceText.trim() || voiceGenerating}
-                            className="w-full h-12 bg-white/10 hover:bg-white/20 text-white border-none rounded-xl"
+                            disabled={!voiceText.trim() || voiceGenerating || voiceUploading}
+                            className="flex-1 h-12 bg-white/10 hover:bg-white/20 text-white border-none rounded-xl"
                             variant="outline"
                         >
                             {voiceGenerating ? (
@@ -612,6 +614,20 @@ export function MobileChatView({ conversation, agentId, onSendMessage }: MobileC
                                 "Générer l'audio"
                             )}
                         </Button>
+            <Button
+              type="button"
+              onClick={() => { if(voiceInputRef.current) voiceInputRef.current.click() }}
+              disabled={voiceGenerating || voiceUploading}
+              className="flex-1 bg-white/5 hover:bg-white/10 text-white border border-white/10"
+              variant="outline"
+            >
+              {voiceUploading ? (
+                <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Conversion...</>
+              ) : (
+                <><Upload className="h-4 w-4 mr-2" /> Fichier Audio</>
+              )}
+            </Button>
+            </div>
 
                         {voiceAudio && (
                             <div className="pt-4 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">

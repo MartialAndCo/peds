@@ -549,6 +549,30 @@ export function ConversationUnifiedView({
       setVoiceGenerating(false)
     }
   }
+  const handleVoiceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setVoiceUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await axios.post('/api/media/convert-voice', formData)
+            
+      if (res.data.success) {
+        setVoiceAudio(res.data.audioBase64)
+        setVoiceText(`[Audio importé : ${file.name}]`)
+      } else {
+        alert(res.data.error || 'Conversion failed')
+      }
+    } catch (err: any) {
+      console.error('Upload voice failed', err)
+      alert('Upload failed: ' + (err.response?.data?.error || err.message))
+    } finally {
+      setVoiceUploading(false)
+      if (voiceInputRef.current) voiceInputRef.current.value = ''
+    }
+  }
 
   const handleSendVoice = async () => {
     if (!voiceAudio) return
@@ -1431,13 +1455,15 @@ export function ConversationUnifiedView({
               placeholder="Que doit-elle dire..."
               rows={3}
               className="w-full rounded-lg bg-white/5 border border-white/10 p-3 text-sm focus:outline-none focus:border-blue-500/50 resize-none text-white placeholder:text-white/30"
-              disabled={voiceGenerating || voiceSending}
-            />
+              disabled={voiceGenerating || voiceSending || voiceUploading} />
 
-            <Button
+            <input ref={voiceInputRef} type="file" accept="audio/*,video/mp4" className="hidden" onChange={handleVoiceUpload} />
+
+            <div className="flex gap-2 w-full">
+              <Button
               onClick={handleGenerateVoice}
-              disabled={!voiceText.trim() || voiceGenerating}
-              className="w-full bg-white/10 hover:bg-white/20 text-white border-0"
+              disabled={!voiceText.trim() || voiceGenerating || voiceUploading}
+              className="flex-1 bg-white/10 hover:bg-white/20 text-white border-0"
               variant="outline"
             >
               {voiceGenerating ? (
@@ -1446,6 +1472,20 @@ export function ConversationUnifiedView({
                 "Generate Audio"
               )}
             </Button>
+            <Button
+              type="button"
+              onClick={() => { if(voiceInputRef.current) voiceInputRef.current.click() }}
+              disabled={voiceGenerating || voiceUploading}
+              className="flex-1 bg-white/5 hover:bg-white/10 text-white border border-white/10"
+              variant="outline"
+            >
+              {voiceUploading ? (
+                <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Conversion...</>
+              ) : (
+                <><Upload className="h-4 w-4 mr-2" /> Fichier Audio</>
+              )}
+            </Button>
+            </div>
 
             {voiceAudio && (
               <div className="pt-4 space-y-4">
