@@ -549,19 +549,41 @@ export function ConversationUnifiedView({
       setVoiceGenerating(false)
     }
   }
+
   const handleVoiceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-
     setVoiceUploading(true)
     try {
       const formData = new FormData()
       formData.append('file', file)
       const res = await axios.post('/api/media/convert-voice', formData)
-            
       if (res.data.success) {
         setVoiceAudio(res.data.audioBase64)
-        setVoiceText(`[Audio importé : ${file.name}]`)
+        setVoiceText([Audio imported: ${file.name}])
+      } else {
+        alert(res.data.error || 'Conversion failed')
+      }
+    } catch (err: any) {
+      console.error('Upload voice failed', err)
+      alert('Upload failed: ' + (err.response?.data?.error || err.message))
+    } finally {
+      setVoiceUploading(false)
+      if (voiceInputRef.current) voiceInputRef.current.value = ''
+    }
+  }
+
+  const handleVoiceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setVoiceUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await axios.post('/api/media/convert-voice', formData)
+      if (res.data.success) {
+        setVoiceAudio(res.data.audioBase64)
+        setVoiceText(`[Audio imported: ${file.name}]`)
       } else {
         alert(res.data.error || 'Conversion failed')
       }
@@ -1455,12 +1477,13 @@ export function ConversationUnifiedView({
               placeholder="Que doit-elle dire..."
               rows={3}
               className="w-full rounded-lg bg-white/5 border border-white/10 p-3 text-sm focus:outline-none focus:border-blue-500/50 resize-none text-white placeholder:text-white/30"
-              disabled={voiceGenerating || voiceSending || voiceUploading} />
+              disabled={voiceGenerating || voiceSending || voiceUploading}
+            />
 
             <input ref={voiceInputRef} type="file" accept="audio/*,video/mp4" className="hidden" onChange={handleVoiceUpload} />
 
             <div className="flex gap-2 w-full">
-              <Button
+            <Button
               onClick={handleGenerateVoice}
               disabled={!voiceText.trim() || voiceGenerating || voiceUploading}
               className="flex-1 bg-white/10 hover:bg-white/20 text-white border-0"
