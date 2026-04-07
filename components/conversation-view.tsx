@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
 import axios from 'axios'
@@ -863,21 +863,39 @@ export function ConversationView({ conversationId, initialData }: ConversationVi
                             placeholder="Type what she should say..."
                             rows={3}
                             className="w-full rounded-lg border border-gray-300 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                            disabled={voiceGenerating || voiceSending}
+                            disabled={voiceGenerating || voiceSending || voiceUploading}
                         />
 
-                        <Button
-                            onClick={handleGenerateVoice}
-                            disabled={!voiceText.trim() || voiceGenerating}
-                            className="w-full"
-                            variant="outline"
-                        >
-                            {voiceGenerating ? (
+                        <input ref={voiceInputRef} type="file" accept="audio/*,video/mp4" className="hidden" onChange={handleVoiceUpload} />
+
+                        <div className="flex gap-2 w-full">
+                            <Button
+                                onClick={handleGenerateVoice}
+                                disabled={!voiceText.trim() || voiceGenerating || voiceUploading}
+                                className="flex-1"
+                                variant="outline"
+                            >
+                                {voiceGenerating ? (
                                 <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Generating...</>
                             ) : (
                                 <><Mic className="h-4 w-4 mr-2" /> Generate Voice</>
                             )}
-                        </Button>
+                        
+                            </Button>
+                            <Button
+                                type="button"
+                                onClick={() => { if(voiceInputRef.current) voiceInputRef.current.click() }}
+                                disabled={voiceGenerating || voiceUploading}
+                                className="flex-1"
+                                variant="outline"
+                            >
+                                {voiceUploading ? (
+                                    <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Conversion...</>
+                                ) : (
+                                    <><Upload className="h-4 w-4 mr-2" /> Fichier Audio</>
+                                )}
+                            </Button>
+                        </div>
 
                         {voiceAudio && (
                             <div className="space-y-3">
